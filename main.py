@@ -61,5 +61,9 @@ def health_check():
 def serve_frontend():
     return FileResponse("static/index.html")
 
+@app.get("/funcionario")
+def serve_funcionario():
+    return FileResponse("static/funcionario.html")
+
 app.mount("/css", StaticFiles(directory="static/css"), name="css")
 app.mount("/js", StaticFiles(directory="static/js"), name="js")

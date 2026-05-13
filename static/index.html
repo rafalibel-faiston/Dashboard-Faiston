@@ -3,16 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Faiston Ops - Backoffice & Redes</title>
-    
+    <title>Faiston Ops - Painel do Funcionário</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
-    
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script>
         tailwind.config = {
             theme: {
@@ -20,13 +14,8 @@
                     fontFamily: { sans: ['Inter', 'sans-serif'] },
                     colors: {
                         faiston: {
-                            bg: '#F8FAFC',
-                            dark: '#0A0A1A',
-                            border: '#E2E8F0',
-                            cyan: '#00E5FF',
-                            purple: '#4A00E0',
-                            magenta: '#FF007F',
-                            chart_pink: '#D8496A'
+                            bg: '#F8FAFC', dark: '#0A0A1A', border: '#E2E8F0',
+                            cyan: '#00E5FF', purple: '#4A00E0', magenta: '#FF007F'
                         }
                     }
                 }
@@ -34,188 +23,484 @@
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        .timer-running { animation: pulse-border 1.5s ease-in-out infinite; }
+        @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0, 229, 255, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(0, 229, 255, 0); }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+        .task-card { transition: all 0.2s ease; }
+        .task-card:hover { transform: translateY(-2px); }
+        .modal-overlay { backdrop-filter: blur(4px); }
+        .priority-alta { border-left: 3px solid #FF007F; }
+        .priority-media { border-left: 3px solid #F59E0B; }
+        .priority-baixa { border-left: 3px solid #10B981; }
+        .status-badge { font-size: 11px; font-weight: 600; letter-spacing: 0.03em; }
+        .timer-display { font-variant-numeric: tabular-nums; letter-spacing: 0.05em; }
+    </style>
 </head>
-<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden selection:bg-faiston-cyan selection:text-faiston-dark">
+<body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
 
-    <!-- SIDEBAR -->
-    <aside class="w-64 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar">
-        <div>
-            <div class="flex items-center gap-2 p-6 border-b border-faiston-border mb-4">
-                <i class="ph-fill ph-play text-3xl text-transparent bg-clip-text bg-gradient-to-tr from-faiston-cyan via-faiston-purple to-faiston-magenta drop-shadow-[0_0_8px_rgba(0,229,255,0.5)]"></i>
-                <h1 class="text-lg font-black tracking-tight text-faiston-dark">FAISTON <span class="text-transparent bg-clip-text bg-gradient-to-r from-faiston-purple to-faiston-cyan">OPS</span></h1>
-            </div>
-
-            <div class="px-4">
-                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
-                
-                <nav class="flex flex-col gap-1 mb-8">
-                    <!-- Módulo Principal: Backoffice Redes -->
-                    <div class="flex flex-col">
-                        <a href="#" class="flex items-center justify-between bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white rounded-md p-2.5 shadow-[0_0_12px_rgba(74,0,224,0.4)] border border-transparent">
-                            <div class="flex items-center gap-2.5 font-medium text-sm">
-                                <i class="ph ph-network text-lg"></i> Backoffice Redes
-                            </div>
-                            <i class="ph ph-caret-down text-sm"></i>
-                        </a>
-                        
-                        <!-- SUB-MENU: Árvore de Clientes -->
-                        <div class="flex flex-col pl-9 py-3 gap-3 relative">
-                            <!-- Linha guia vertical -->
-                            <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
-                            
-                            <!-- Aba Ativa: Visão Geral -->
-                            <a href="#" class="text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
-                                <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan shadow-[0_0_8px_#00E5FF] animate-pulse"></div>
-                                Visão Geral
-                            </a>
-                            <!-- Clientes Específicos -->
-                            <a href="#" class="text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative group">
-                                <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                NTT
-                            </a>
-                            <a href="#" class="text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative group">
-                                <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Arcos Dourados
-                            </a>
-                            <a href="#" class="text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative group">
-                                <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Zamp
-                            </a>
-                            <a href="#" class="text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative group">
-                                <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Telcoweb
-                            </a>
-                        </div>
-                    </div>  
-                </nav>
-
-                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
-                <nav class="flex flex-col gap-1">
-                    <a href="#" class="flex items-center gap-2.5 bg-cyan-50 text-faiston-cyan font-medium text-sm rounded-md p-2.5 border border-cyan-100 shadow-[0_0_8px_rgba(0,229,255,0.15)]">
-                        <i class="ph ph-chart-line-up text-lg"></i> Dashboard
-                    </a>
-                    <a href="#" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                        <i class="ph ph-users text-lg"></i> Equipe & Fila
-                    </a>
-                </nav>
-            </div>
+    <!-- HEADER -->
+    <header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+        <div class="flex items-center gap-3">
+            <i class="ph-fill ph-play text-2xl text-transparent bg-clip-text bg-gradient-to-tr from-faiston-cyan via-faiston-purple to-faiston-magenta"></i>
+            <span class="font-black text-faiston-dark tracking-tight">FAISTON <span class="text-transparent bg-clip-text bg-gradient-to-r from-faiston-purple to-faiston-cyan">OPS</span></span>
+            <span class="w-px h-4 bg-slate-200"></span>
+            <span class="text-sm text-slate-500 font-medium">Painel do Funcionário</span>
         </div>
-
-        <div class="p-4 border-t border-faiston-border">
-            <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-md bg-gradient-to-tr from-faiston-magenta to-faiston-purple text-white flex items-center justify-center font-bold text-sm shadow-[0_0_10px_rgba(255,0,127,0.3)]">
-                    DO
-                </div>
-                <div class="flex-1">
-                    <p class="text-sm font-semibold text-faiston-dark leading-tight">Diretor Ops</p>
-                    <p class="text-xs text-slate-500">Gestor Master</p>
-                </div>
-                <i class="ph ph-gear text-slate-400 cursor-pointer hover:text-faiston-cyan hover:drop-shadow-[0_0_5px_rgba(0,229,255,0.5)] text-lg transition-all"></i>
+        <div class="flex items-center gap-3">
+            <!-- Timer Global -->
+            <div id="global-timer" class="hidden items-center gap-2 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-1.5">
+                <div class="w-2 h-2 rounded-full bg-faiston-cyan animate-pulse"></div>
+                <span class="text-xs font-semibold text-cyan-700">Em andamento:</span>
+                <span id="global-task-name" class="text-xs text-cyan-800 font-bold max-w-32 truncate"></span>
+                <span id="global-timer-display" class="timer-display text-sm font-bold text-faiston-cyan">00:00:00</span>
             </div>
-        </div>
-    </aside>
-
-    <!-- CONTEÚDO PRINCIPAL -->
-    <main class="flex-1 flex flex-col p-8 overflow-y-auto custom-scrollbar">
-        
-        <header class="flex justify-between items-start mb-8">
-            <div>
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="bg-cyan-100 text-cyan-700 text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider border border-cyan-200">Operação Ativa</span>
-                    <span class="text-xs text-slate-400">Torre de Controle</span>
-                </div>
-                <!-- O título muda dependendo do que estiver selecionado no menu lateral -->
-                <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Visão Geral - Redes</h2>
-            </div>
-            <div class="flex items-center gap-3">
-                <div class="relative">
-                    <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400"></i>
-                    <input type="text" placeholder="Localizar Chamado ou Ticket..." class="pl-9 pr-4 py-2 rounded-md border border-faiston-border focus:outline-none focus:border-faiston-cyan focus:ring-1 focus:ring-faiston-cyan focus:shadow-[0_0_10px_rgba(0,229,255,0.2)] text-sm w-64 transition-all bg-white">
-                </div>
-            </div>
-        </header>
-
-        <!-- Barra de Input Rápido -->
-        <div class="bg-white rounded-lg p-1.5 flex items-center gap-2 border border-faiston-border mb-8 shadow-sm">
-            <div class="bg-slate-100 text-slate-500 w-8 h-8 rounded flex items-center justify-center ml-1">
-                <i class="ph ph-terminal-window text-lg"></i>
-            </div>
-            <input type="text" placeholder="Comando rápido: Atualizar ticket, registrar acompanhamento..." class="flex-1 bg-transparent outline-none text-sm text-slate-700 px-2">
-            <button class="bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white px-5 py-2 rounded-md text-sm font-medium shadow-[0_0_12px_rgba(255,0,127,0.4)] hover:shadow-[0_0_18px_rgba(0,229,255,0.6)] transition-all duration-300 flex items-center gap-2">
-                Registrar Ação
-                <i class="ph ph-arrow-right font-bold"></i>
+            <button onclick="openModal()" class="bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.5)] transition-all flex items-center gap-2">
+                <i class="ph ph-plus-circle text-lg"></i> Nova Tarefa
             </button>
+            <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-xs font-bold">JS</div>
+                <span class="text-sm font-semibold text-faiston-dark">João Silva</span>
+            </div>
         </div>
+    </header>
 
-        <!-- KPIs Cards -->
-        <div class="grid grid-cols-4 gap-5 mb-8">
-            <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 hover:shadow-[0_0_15px_rgba(0,229,255,0.15)] transition-all duration-300">
-                <div class="flex justify-between items-start mb-4">
-                    <div class="p-2 rounded-md bg-cyan-50 border border-cyan-100 text-faiston-cyan">
-                        <i class="ph ph-buildings text-xl"></i>
-                    </div>
-                    <span class="flex items-center gap-1 text-emerald-600 text-xs font-medium bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100"><i class="ph ph-trend-up"></i> +2</span>
-                </div>
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Clientes Ativos</p>
-                <p class="text-2xl font-bold text-faiston-dark">4</p>
-            </div>
-            
-            <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 hover:shadow-[0_0_15px_rgba(74,0,224,0.15)] transition-all duration-300">
-                <div class="flex justify-between items-start mb-4">
-                    <div class="p-2 rounded-md bg-purple-50 border border-purple-100 text-faiston-purple">
-                        <i class="ph ph-ticket text-xl"></i>
-                    </div>
-                </div>
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Tickets Abertos</p>
-                <p class="text-2xl font-bold text-faiston-dark">64</p>
-            </div>
+    <main class="max-w-6xl mx-auto px-6 py-6">
 
-            <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 hover:shadow-[0_0_15px_rgba(255,0,127,0.15)] transition-all duration-300">
-                <div class="flex justify-between items-start mb-4">
-                    <div class="p-2 rounded-md bg-pink-50 border border-pink-100 text-faiston-magenta">
-                        <i class="ph ph-users-three text-xl"></i>
-                    </div>
-                    <span class="flex items-center gap-1 text-emerald-600 text-xs font-medium bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100"><i class="ph ph-check"></i> OK</span>
-                </div>
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Time Alocado</p>
-                <p class="text-2xl font-bold text-faiston-dark">100%</p>
+        <!-- RESUMO DO DIA -->
+        <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl p-4 border border-faiston-border">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Tarefas Hoje</p>
+                <p class="text-2xl font-bold text-faiston-dark" id="count-total">0</p>
             </div>
-
-            <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 hover:shadow-[0_0_15px_rgba(10,10,26,0.1)] transition-all duration-300">
-                <div class="flex justify-between items-start mb-4">
-                    <div class="p-2 rounded-md bg-slate-100 border border-slate-200 text-faiston-dark">
-                        <i class="ph ph-lightning text-xl"></i>
-                    </div>
-                </div>
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">SLA Cumprido</p>
-                <p class="text-2xl font-bold text-faiston-dark">94<span class="text-sm font-medium text-slate-400">/100</span></p>
+            <div class="bg-white rounded-xl p-4 border border-faiston-border">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Concluídas</p>
+                <p class="text-2xl font-bold text-emerald-600" id="count-done">0</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 border border-faiston-border">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Em Andamento</p>
+                <p class="text-2xl font-bold text-faiston-cyan" id="count-progress">0</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 border border-faiston-border">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Horas Apontadas</p>
+                <p class="text-2xl font-bold text-faiston-purple" id="count-hours">0h 00m</p>
             </div>
         </div>
 
-        <!-- GRÁFICOS -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
-            <div class="lg:col-span-2 bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-                <h3 class="text-sm font-bold text-faiston-dark mb-4">Volume de Tickets Fechados</h3>
-                <div id="chart-producao" class="w-full" style="min-height: 280px;"></div> 
+        <!-- FILTROS -->
+        <div class="flex items-center gap-3 mb-5">
+            <span class="text-sm font-semibold text-slate-500">Filtrar:</span>
+            <div class="flex gap-2">
+                <button onclick="setFilter('todos')" data-filter="todos" class="filter-btn active-filter px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border bg-faiston-dark text-white transition-all">Todos</button>
+                <button onclick="setFilter('aberto')" data-filter="aberto" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border bg-white text-slate-600 hover:bg-slate-50 transition-all">Aberto</button>
+                <button onclick="setFilter('em_andamento')" data-filter="em_andamento" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border bg-white text-slate-600 hover:bg-slate-50 transition-all">Em Andamento</button>
+                <button onclick="setFilter('concluido')" data-filter="concluido" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border bg-white text-slate-600 hover:bg-slate-50 transition-all">Concluído</button>
             </div>
+            <div class="flex gap-2 ml-auto">
+                <select id="filter-cliente" onchange="renderTasks()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-cyan">
+                    <option value="">Todos os clientes</option>
+                    <option>NTT</option>
+                    <option>Arcos Dourados</option>
+                    <option>Zamp</option>
+                    <option>Telcoweb</option>
+                </select>
+                <select id="filter-prioridade" onchange="renderTasks()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-cyan">
+                    <option value="">Todas as prioridades</option>
+                    <option>Alta</option>
+                    <option>Média</option>
+                    <option>Baixa</option>
+                </select>
+            </div>
+        </div>
 
-            <div class="bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-                <h3 class="text-sm font-bold text-faiston-dark mb-4">Status Geral da Fila</h3>
-                <div id="chart-status" class="w-full flex-1 flex items-center justify-center" style="min-height: 280px;"></div>
-            </div>
+        <!-- LISTA DE TAREFAS -->
+        <div id="tasks-container" class="flex flex-col gap-3"></div>
 
-            <div class="bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-                <h3 class="text-sm font-bold text-faiston-dark mb-4">Funil de Atendimento</h3>
-                <div id="chart-funil" class="w-full flex-1" style="min-height: 280px;"></div>
+        <!-- EMPTY STATE -->
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-16 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                <i class="ph ph-clipboard-text text-3xl text-slate-400"></i>
             </div>
-
-            <div class="lg:col-span-2 bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-                <h3 class="text-sm font-bold text-faiston-dark mb-4">Esforço por Cliente Ativo (Horas)</h3>
-                <div id="chart-barras" class="w-full flex-1" style="min-height: 280px;"></div>
-            </div>
+            <p class="font-semibold text-slate-600 mb-1">Nenhuma tarefa encontrada</p>
+            <p class="text-sm text-slate-400">Clique em "Nova Tarefa" para começar</p>
         </div>
     </main>
 
-    <script src="js/app.js"></script>
+    <!-- MODAL NOVA/EDITAR TAREFA -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/40 modal-overlay z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+                <h2 id="modal-title" class="text-lg font-bold text-faiston-dark">Nova Tarefa</h2>
+                <button onclick="closeModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
+                    <i class="ph ph-x text-slate-500"></i>
+                </button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <input type="hidden" id="edit-id">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Descrição *</label>
+                    <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan focus:ring-1 focus:ring-faiston-cyan transition-all">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Cliente *</label>
+                        <select id="input-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all bg-white">
+                            <option value="">Selecionar...</option>
+                            <option>NTT</option>
+                            <option>Arcos Dourados</option>
+                            <option>Zamp</option>
+                            <option>Telcoweb</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Prioridade</label>
+                        <select id="input-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all bg-white">
+                            <option>Média</option>
+                            <option>Alta</option>
+                            <option>Baixa</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Status</label>
+                        <select id="input-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all bg-white">
+                            <option value="aberto">Aberto</option>
+                            <option value="em_andamento">Em Andamento</option>
+                            <option value="concluido">Concluído</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Horas Manuais</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="input-horas" placeholder="0" min="0" max="23" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all text-center">
+                            <input type="number" id="input-minutos" placeholder="00" min="0" max="59" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all text-center">
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-1">horas / minutos</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3 p-6 pt-0">
+                <button onclick="closeModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                <button onclick="saveTask()" class="flex-1 bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white rounded-lg py-2.5 text-sm font-semibold shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] transition-all">Salvar Tarefa</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+let tasks = JSON.parse(localStorage.getItem('faiston_tasks') || '[]');
+let activeTimerId = null;
+let activeTaskId = null;
+let timerInterval = null;
+let currentFilter = 'todos';
+
+const clientColors = {
+    'NTT': 'bg-blue-100 text-blue-700 border-blue-200',
+    'Arcos Dourados': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    'Zamp': 'bg-purple-100 text-purple-700 border-purple-200',
+    'Telcoweb': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+};
+const priorityConfig = {
+    'Alta': { class: 'priority-alta', badge: 'bg-pink-100 text-pink-700 border-pink-200', icon: 'ph-arrow-fat-up' },
+    'Média': { class: 'priority-media', badge: 'bg-amber-100 text-amber-700 border-amber-200', icon: 'ph-equals' },
+    'Baixa': { class: 'priority-baixa', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: 'ph-arrow-fat-down' },
+};
+const statusConfig = {
+    'aberto': { label: 'Aberto', badge: 'bg-slate-100 text-slate-600 border-slate-200' },
+    'em_andamento': { label: 'Em Andamento', badge: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
+    'concluido': { label: 'Concluído', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+};
+
+function saveTasks() {
+    localStorage.setItem('faiston_tasks', JSON.stringify(tasks));
+}
+
+function formatTime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function formatHours(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h ${String(m).padStart(2,'0')}m`;
+}
+
+function startTimer(taskId) {
+    if (activeTaskId && activeTaskId !== taskId) {
+        stopTimer(activeTaskId);
+    }
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.timerRunning = true;
+    task.timerStart = Date.now();
+    task.status = 'em_andamento';
+    activeTaskId = taskId;
+
+    const globalTimer = document.getElementById('global-timer');
+    const globalTaskName = document.getElementById('global-task-name');
+    globalTimer.classList.remove('hidden');
+    globalTimer.classList.add('flex');
+    globalTaskName.textContent = task.descricao;
+
+    timerInterval = setInterval(() => {
+        const elapsed = task.timerBase + Math.floor((Date.now() - task.timerStart) / 1000);
+        document.getElementById(`timer-${taskId}`).textContent = formatTime(elapsed);
+        document.getElementById('global-timer-display').textContent = formatTime(elapsed);
+    }, 1000);
+
+    saveTasks();
+    renderTasks();
+}
+
+function stopTimer(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !task.timerRunning) return;
+    const elapsed = Math.floor((Date.now() - task.timerStart) / 1000);
+    task.timerBase += elapsed;
+    task.timerRunning = false;
+    task.timerStart = null;
+    activeTaskId = null;
+    clearInterval(timerInterval);
+    timerInterval = null;
+
+    document.getElementById('global-timer').classList.add('hidden');
+    document.getElementById('global-timer').classList.remove('flex');
+
+    saveTasks();
+    renderTasks();
+}
+
+function toggleTimer(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    if (task.timerRunning) stopTimer(taskId);
+    else startTimer(taskId);
+}
+
+function deleteTask(taskId) {
+    if (activeTaskId === taskId) stopTimer(taskId);
+    tasks = tasks.filter(t => t.id !== taskId);
+    saveTasks();
+    renderTasks();
+    updateSummary();
+}
+
+function editTask(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    document.getElementById('modal-title').textContent = 'Editar Tarefa';
+    document.getElementById('edit-id').value = taskId;
+    document.getElementById('input-descricao').value = task.descricao;
+    document.getElementById('input-cliente').value = task.cliente;
+    document.getElementById('input-prioridade').value = task.prioridade;
+    document.getElementById('input-status').value = task.status;
+    const totalSecs = task.timerBase;
+    document.getElementById('input-horas').value = Math.floor(totalSecs / 3600);
+    document.getElementById('input-minutos').value = Math.floor((totalSecs % 3600) / 60);
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+function openModal() {
+    document.getElementById('modal-title').textContent = 'Nova Tarefa';
+    document.getElementById('edit-id').value = '';
+    document.getElementById('input-descricao').value = '';
+    document.getElementById('input-cliente').value = '';
+    document.getElementById('input-prioridade').value = 'Média';
+    document.getElementById('input-status').value = 'aberto';
+    document.getElementById('input-horas').value = '';
+    document.getElementById('input-minutos').value = '';
+    document.getElementById('modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('input-descricao').focus(), 100);
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.add('hidden');
+}
+
+function saveTask() {
+    const descricao = document.getElementById('input-descricao').value.trim();
+    const cliente = document.getElementById('input-cliente').value;
+    if (!descricao || !cliente) {
+        alert('Preencha a descrição e o cliente.');
+        return;
+    }
+    const horas = parseInt(document.getElementById('input-horas').value) || 0;
+    const minutos = parseInt(document.getElementById('input-minutos').value) || 0;
+    const timerBase = (horas * 3600) + (minutos * 60);
+    const editId = document.getElementById('edit-id').value;
+
+    if (editId) {
+        const task = tasks.find(t => t.id === editId);
+        if (task) {
+            task.descricao = descricao;
+            task.cliente = cliente;
+            task.prioridade = document.getElementById('input-prioridade').value;
+            task.status = document.getElementById('input-status').value;
+            if (!task.timerRunning) task.timerBase = timerBase;
+        }
+    } else {
+        const newId = Date.now().toString();
+        tasks.unshift({
+            id: newId,
+            descricao, cliente,
+            prioridade: document.getElementById('input-prioridade').value,
+            status: 'em_andamento',
+            timerBase, timerRunning: false, timerStart: null,
+            criadoEm: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        });
+        saveTasks();
+        closeModal();
+        renderTasks();
+        updateSummary();
+        startTimer(newId);
+        return;
+    }
+
+    saveTasks();
+    closeModal();
+    renderTasks();
+    updateSummary();
+}
+
+function setFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        const isActive = btn.dataset.filter === filter;
+        btn.classList.toggle('bg-faiston-dark', isActive);
+        btn.classList.toggle('text-white', isActive);
+        btn.classList.toggle('bg-white', !isActive);
+        btn.classList.toggle('text-slate-600', !isActive);
+    });
+    renderTasks();
+}
+
+function renderTasks() {
+    const container = document.getElementById('tasks-container');
+    const emptyState = document.getElementById('empty-state');
+    const filterCliente = document.getElementById('filter-cliente').value;
+    const filterPrioridade = document.getElementById('filter-prioridade').value;
+
+    let filtered = tasks.filter(t => {
+        if (currentFilter !== 'todos' && t.status !== currentFilter) return false;
+        if (filterCliente && t.cliente !== filterCliente) return false;
+        if (filterPrioridade && t.prioridade !== filterPrioridade) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+    }
+    emptyState.classList.add('hidden');
+
+    container.innerHTML = filtered.map(task => {
+        const pc = priorityConfig[task.prioridade] || priorityConfig['Média'];
+        const sc = statusConfig[task.status] || statusConfig['aberto'];
+        const cc = clientColors[task.cliente] || 'bg-slate-100 text-slate-600 border-slate-200';
+        const elapsed = task.timerRunning
+            ? task.timerBase + Math.floor((Date.now() - task.timerStart) / 1000)
+            : task.timerBase;
+        const isRunning = task.timerRunning;
+        const isDone = task.status === 'concluido';
+
+        return `
+        <div class="task-card bg-white rounded-xl border border-faiston-border ${pc.class} ${isRunning ? 'timer-running' : ''} ${isDone ? 'opacity-60' : ''}">
+            <div class="p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-2 flex-wrap">
+                            <span class="status-badge px-2 py-0.5 rounded-md border ${sc.badge}">${sc.label}</span>
+                            <span class="status-badge px-2 py-0.5 rounded-md border ${pc.badge} flex items-center gap-1">
+                                <i class="ph ${pc.icon} text-xs"></i>${task.prioridade}
+                            </span>
+                            <span class="status-badge px-2 py-0.5 rounded-md border ${cc}">${task.cliente}</span>
+                            <span class="text-[10px] text-slate-400 ml-auto">${task.criadoEm || ''}</span>
+                        </div>
+                        <p class="text-sm font-semibold text-faiston-dark ${isDone ? 'line-through' : ''} leading-snug">${task.descricao}</p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button onclick="editTask('${task.id}')" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors">
+                            <i class="ph ph-pencil-simple text-base"></i>
+                        </button>
+                        <button onclick="deleteTask('${task.id}')" class="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
+                            <i class="ph ph-trash text-base"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TIMER -->
+                <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <i class="ph ph-clock text-slate-400 text-base"></i>
+                        <span id="timer-${task.id}" class="timer-display text-base font-bold ${isRunning ? 'text-faiston-cyan' : 'text-slate-600'}">${formatTime(elapsed)}</span>
+                        ${isRunning ? '<span class="text-[10px] text-faiston-cyan font-semibold animate-pulse">● RODANDO</span>' : ''}
+                    </div>
+                    ${!isDone ? `
+                    <button onclick="toggleTimer('${task.id}')"
+                        class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all
+                        ${isRunning
+                            ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
+                            : 'bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white shadow-[0_0_10px_rgba(74,0,224,0.3)] hover:shadow-[0_0_16px_rgba(0,229,255,0.4)]'}">
+                        <i class="ph ${isRunning ? 'ph-stop-circle' : 'ph-play-circle'} text-base"></i>
+                        ${isRunning ? 'Pausar' : 'Iniciar'}
+                    </button>
+                    ` : '<span class="text-xs text-emerald-600 font-semibold flex items-center gap-1"><i class="ph ph-check-circle"></i> Concluída</span>'}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    updateSummary();
+}
+
+function updateSummary() {
+    document.getElementById('count-total').textContent = tasks.length;
+    document.getElementById('count-done').textContent = tasks.filter(t => t.status === 'concluido').length;
+    document.getElementById('count-progress').textContent = tasks.filter(t => t.status === 'em_andamento').length;
+    const totalSecs = tasks.reduce((acc, t) => {
+        let s = t.timerBase;
+        if (t.timerRunning && t.timerStart) s += Math.floor((Date.now() - t.timerStart) / 1000);
+        return acc + s;
+    }, 0);
+    document.getElementById('count-hours').textContent = formatHours(totalSecs);
+}
+
+document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
+});
+
+// Retoma timer se estava rodando antes de fechar a página
+tasks.forEach(task => {
+    if (task.timerRunning) {
+        activeTaskId = task.id;
+        timerInterval = setInterval(() => {
+            const elapsed = task.timerBase + Math.floor((Date.now() - task.timerStart) / 1000);
+            const el = document.getElementById(`timer-${task.id}`);
+            if (el) el.textContent = formatTime(elapsed);
+            document.getElementById('global-timer-display').textContent = formatTime(elapsed);
+        }, 1000);
+        const globalTimer = document.getElementById('global-timer');
+        globalTimer.classList.remove('hidden');
+        globalTimer.classList.add('flex');
+        document.getElementById('global-task-name').textContent = task.descricao;
+    }
+});
+
+renderTasks();
+updateSummary();
+</script>
 </body>
 </html>
