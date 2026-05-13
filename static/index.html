@@ -32,11 +32,11 @@
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
             <nav class="flex flex-col gap-1 mb-8">
                 <div class="flex flex-col">
-                    <a href="#" class="flex items-center justify-between bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white rounded-md p-2.5 shadow-[0_0_12px_rgba(74,0,224,0.4)]">
-                        <div class="flex items-center gap-2.5 font-medium text-sm"><i class="ph ph-network text-lg"></i> Backoffice Redes</div>
-                        <i class="ph ph-caret-down text-sm"></i>
+                    <a href="#" onclick="toggleMenu()" class="flex items-center justify-between bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white rounded-md p-2.5 shadow-[0_0_12px_rgba(74,0,224,0.4)]">
+                        <div class="flex items-center gap-2.5 font-medium text-sm"><i class="ph ph-network text-lg"></i> Backoffice</div>
+                        <i class="ph ph-caret-down text-sm transition-transform duration-200" id="caret-menu"></i>
                     </a>
-                    <div class="flex flex-col pl-9 py-3 gap-3 relative">
+                    <div id="submenu-clientes" class="flex flex-col pl-9 py-3 gap-3 relative">
                         <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
                         <a href="#" onclick="filtrarCliente('')" data-cliente="" class="cliente-link text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan shadow-[0_0_8px_#00E5FF] animate-pulse" id="dot-geral"></div>
@@ -92,7 +92,7 @@
                 <span class="bg-cyan-100 text-cyan-700 text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider border border-cyan-200">Operação Ativa</span>
                 <span class="text-xs text-slate-400" id="header-sub">Torre de Controle</span>
             </div>
-            <h2 class="text-2xl font-bold text-faiston-dark tracking-tight" id="header-titulo">Visão Geral - Redes</h2>
+            <h2 class="text-2xl font-bold text-faiston-dark tracking-tight" id="header-titulo">Visão Geral</h2>
         </div>
         <div class="flex items-center gap-3">
             <div class="relative">
@@ -128,7 +128,7 @@
                 <div class="p-2 rounded-md bg-pink-50 border border-pink-100 text-faiston-magenta"><i class="ph ph-clock text-xl"></i></div>
             </div>
             <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Horas Apontadas</p>
-            <p class="text-2xl font-bold text-faiston-dark"><span id="kpi-horas">—</span><span class="text-sm font-medium text-slate-400">h</span></p>
+            <p class="text-2xl font-bold text-faiston-dark"><span id="kpi-horas">—</span><span class="text-sm font-medium text-slate-400" id="kpi-horas-unit">h</span></p>
         </div>
         <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 transition-all duration-300">
             <div class="flex justify-between items-start mb-4">
@@ -189,6 +189,15 @@ let clienteAtivo = '';
 let charts = {};
 const cor_cyan='#34c6f3', cor_purple='#4337e1', cor_magenta='#e7218b', cor_dark='#0b1227';
 
+let menuAberto = true;
+function toggleMenu() {
+    menuAberto = !menuAberto;
+    const submenu = document.getElementById('submenu-clientes');
+    const caret = document.getElementById('caret-menu');
+    submenu.style.display = menuAberto ? '' : 'none';
+    caret.style.transform = menuAberto ? '' : 'rotate(-90deg)';
+}
+
 async function init() {
     try {
         const res = await fetch('/api/me');
@@ -219,7 +228,7 @@ function filtrarCliente(cliente) {
         el.classList.toggle('font-medium', !isActive);
     });
     // Atualiza header
-    document.getElementById('header-titulo').textContent = cliente ? `${cliente} - Redes` : 'Visão Geral - Redes';
+    document.getElementById('header-titulo').textContent = cliente ? `${cliente} - Redes` : 'Visão Geral';
     document.getElementById('header-sub').textContent = cliente ? `Filtrado por: ${cliente}` : 'Torre de Controle';
     carregarDados(cliente);
     return false;
@@ -242,7 +251,11 @@ function renderKPIs(kpis) {
     document.getElementById('kpi-clientes-badge').textContent = `${kpis.funcionarios_ativos} func.`;
     document.getElementById('kpi-tickets').textContent = kpis.tickets_abertos;
     document.getElementById('kpi-andamento-badge').textContent = `${kpis.em_andamento} andamento`;
-    document.getElementById('kpi-horas').textContent = kpis.total_horas;
+    const totalMin = Math.round(kpis.total_horas * 60);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    document.getElementById('kpi-horas').textContent = h > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${m}m`;
+    document.getElementById('kpi-horas-unit').textContent = '';
     document.getElementById('kpi-sla').textContent = kpis.sla;
 }
 
