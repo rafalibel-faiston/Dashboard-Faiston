@@ -269,11 +269,9 @@ function renderCharts(data) {
     const hpf = data.horas_por_func;
     const nomes = hpf.map(f => f.nome.split(' ')[0]); // primeiro nome
     const horas = hpf.map(f => f.horas);
-    // Buscar contagem de tarefas por funcionário
-    const funcMap = {};
-    (data.recentes || []).forEach(t => { funcMap[t.funcionario] = (funcMap[t.funcionario]||0)+1; });
+    // Usar contagem de tarefas direto da API (já filtrada por cliente)
     const todosFuncs = hpf.map(f => f.nome);
-    const contagens = todosFuncs.map(n => funcMap[n] || 0);
+    const contagens = hpf.map(f => f.tarefas || 0);
     charts['producao'] = new ApexCharts(document.querySelector("#chart-producao"), {
         series: [
             { name: 'Tarefas', type: 'bar', data: contagens },

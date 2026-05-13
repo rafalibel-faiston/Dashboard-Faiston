@@ -314,9 +314,13 @@ def get_metricas(cliente: str = "", faiston_token: str = Cookie(None)):
         # SLA: % de tarefas concluídas sobre o total
         sla = round((concluidos / total * 100)) if total > 0 else 0
 
-        # Horas por cliente (para gráfico de barras)
-        cur.execute("""SELECT cliente, COALESCE(SUM(segundos),0) as total_seg
-            FROM tarefas GROUP BY cliente ORDER BY total_seg DESC""")
+        # Horas por cliente (para gráfico de barras) — respeita filtro
+        if cliente:
+            cur.execute("""SELECT cliente, COALESCE(SUM(segundos),0) as total_seg
+                FROM tarefas WHERE cliente=%s GROUP BY cliente ORDER BY total_seg DESC""", (cliente,))
+        else:
+            cur.execute("""SELECT cliente, COALESCE(SUM(segundos),0) as total_seg
+                FROM tarefas GROUP BY cliente ORDER BY total_seg DESC""")
         horas_por_cliente = [{"cliente": r[0], "horas": round(r[1]/3600, 1)} for r in cur.fetchall()]
 
         # Status da fila (para donut)
@@ -351,11 +355,19 @@ def get_metricas(cliente: str = "", faiston_token: str = Cookie(None)):
                      "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7]}
                     for r in cur.fetchall()]
 
-        # Horas por funcionário
-        cur.execute("""SELECT u.nome, COALESCE(SUM(t.segundos),0)
-            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
-            GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""")
-        horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1)} for r in cur.fetchall()]
+        # Horas por funcionário — respeita filtro de cliente
+        if cliente:
+            cur.execute("""SELECT u.nome, COALESCE(SUM(t.segundos),0),
+                COUNT(t.id) as total_tarefas
+                FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+                WHERE t.cliente=%s
+                GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""", (cliente,))
+        else:
+            cur.execute("""SELECT u.nome, COALESCE(SUM(t.segundos),0),
+                COUNT(t.id) as total_tarefas
+                FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+                GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""")
+        horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2]} for r in cur.fetchall()]
 
         cur.close(); conn.close()
         return {
