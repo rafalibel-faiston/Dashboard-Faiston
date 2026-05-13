@@ -254,8 +254,7 @@ function renderKPIs(kpis) {
     const totalSeg = Math.round(kpis.total_horas * 3600);
     const hh = Math.floor(totalSeg / 3600);
     const mm = Math.floor((totalSeg % 3600) / 60);
-    const ss = totalSeg % 60;
-    document.getElementById('kpi-horas').textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+    document.getElementById('kpi-horas').textContent = `${hh}h ${String(mm).padStart(2,'0')}m`;
     document.getElementById('kpi-horas-unit').textContent = '';
     document.getElementById('kpi-sla').textContent = kpis.sla;
 }
@@ -369,6 +368,7 @@ function renderLinhas(lista) {
         const sc = statusCfg[t.status] || statusCfg.aberto;
         const pc = prioCfg[t.prioridade] || prioCfg.Media;
         const h = Math.floor(t.segundos/3600), m = Math.floor((t.segundos%3600)/60);
+        const horasLabel = t.segundos > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : '<span class="text-slate-300">—</span>';
         return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
             <td class="px-5 py-3">
                 <div class="flex items-center gap-2">
@@ -380,7 +380,7 @@ function renderLinhas(lista) {
             <td class="px-5 py-3 text-slate-500 text-xs">${t.cliente}</td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${pc}">${t.prioridade}</span></td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${sc.cls}">${sc.label}</span></td>
-            <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-semibold">${h}h ${String(m).padStart(2,'0')}m</td>
+            <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-semibold">${horasLabel}</td>
         </tr>`;
     }).join('');
 }
