@@ -276,17 +276,19 @@ function renderCharts(data) {
     const contagens = todosFuncs.map(n => funcMap[n] || 0);
     charts['producao'] = new ApexCharts(document.querySelector("#chart-producao"), {
         series: [
-            { name: 'Horas', data: horas },
-            { name: 'Tarefas', data: contagens }
+            { name: 'Tarefas', type: 'bar', data: contagens },
+            { name: 'Horas', type: 'line', data: horas }
         ],
-        chart: { height: 280, type: 'bar', fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
-        colors: [cor_cyan, cor_magenta],
-        plotOptions: { bar: { borderRadius: 5, columnWidth: '50%' } },
+        chart: { height: 280, type: 'line', fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
+        colors: [cor_magenta, cor_cyan],
+        plotOptions: { bar: { borderRadius: 5, columnWidth: '40%' } },
         dataLabels: { enabled: false },
+        stroke: { width: [0, 3], curve: 'smooth' },
+        markers: { size: [0, 6], strokeWidth: 0, fillOpacity: 1 },
         xaxis: { categories: nomes, axisBorder: { show: false }, axisTicks: { show: false } },
         yaxis: [
-            { title: { text: 'Horas', style: { color: cor_cyan } } },
-            { opposite: true, title: { text: 'Tarefas', style: { color: cor_magenta } } }
+            { seriesName: 'Tarefas', title: { text: 'Tarefas', style: { color: cor_magenta } }, labels: { style: { colors: [cor_magenta] } }, min: 0 },
+            { seriesName: 'Horas', opposite: true, title: { text: 'Horas', style: { color: cor_cyan } }, labels: { style: { colors: [cor_cyan] } }, min: 0 }
         ],
         legend: { position: 'top' },
         grid: { borderColor: '#F1F5F9', strokeDashArray: 4 }
