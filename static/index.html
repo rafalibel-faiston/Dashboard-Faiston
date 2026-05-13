@@ -142,7 +142,7 @@
     <!-- GRÁFICOS -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
         <div class="lg:col-span-2 bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-            <h3 class="text-sm font-bold text-faiston-dark mb-4">Volume de Tarefas (últimos 7 dias)</h3>
+            <h3 class="text-sm font-bold text-faiston-dark mb-4">Tarefas por Funcionário</h3>
             <div id="chart-producao" style="min-height:280px;"></div>
         </div>
         <div class="bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
@@ -251,19 +251,31 @@ function destroyChart(id) {
 }
 
 function renderCharts(data) {
-    // Gráfico de área - volume semana
+    // Gráfico de barras - tarefas por funcionário
     destroyChart('producao');
-    const dias = data.volume_semana.length ? data.volume_semana.map(d => d.dia) : ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
-    const vals = data.volume_semana.length ? data.volume_semana.map(d => d.total) : [0,0,0,0,0,0,0];
+    const hpf = data.horas_por_func;
+    const nomes = hpf.map(f => f.nome.split(' ')[0]); // primeiro nome
+    const horas = hpf.map(f => f.horas);
+    // Buscar contagem de tarefas por funcionário
+    const funcMap = {};
+    (data.recentes || []).forEach(t => { funcMap[t.funcionario] = (funcMap[t.funcionario]||0)+1; });
+    const todosFuncs = hpf.map(f => f.nome);
+    const contagens = todosFuncs.map(n => funcMap[n] || 0);
     charts['producao'] = new ApexCharts(document.querySelector("#chart-producao"), {
-        series: [{ name: 'Tarefas', data: vals }],
-        chart: { height: 280, type: 'area', fontFamily: 'Inter, sans-serif', toolbar: { show: false },
-            dropShadow: { enabled: true, color: cor_cyan, top: 4, blur: 8, opacity: 0.3 } },
-        colors: [cor_cyan],
-        fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.02 } },
+        series: [
+            { name: 'Horas', data: horas },
+            { name: 'Tarefas', data: contagens }
+        ],
+        chart: { height: 280, type: 'bar', fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
+        colors: [cor_cyan, cor_magenta],
+        plotOptions: { bar: { borderRadius: 5, columnWidth: '50%' } },
         dataLabels: { enabled: false },
-        stroke: { curve: 'smooth', width: 3 },
-        xaxis: { categories: dias, axisBorder: { show: false }, axisTicks: { show: false } },
+        xaxis: { categories: nomes, axisBorder: { show: false }, axisTicks: { show: false } },
+        yaxis: [
+            { title: { text: 'Horas', style: { color: cor_cyan } } },
+            { opposite: true, title: { text: 'Tarefas', style: { color: cor_magenta } } }
+        ],
+        legend: { position: 'top' },
         grid: { borderColor: '#F1F5F9', strokeDashArray: 4 }
     });
     charts['producao'].render();
