@@ -419,6 +419,19 @@ function updateSummary() {
 document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
+// Salva o timer ao fechar/sair da página
+window.addEventListener('beforeunload', () => {
+    if (activeTaskId && timerStart) {
+        const task = tasks.find(t => t.id === activeTaskId);
+        if (task) {
+            const secsNow = task.segundos + Math.floor((Date.now() - timerStart) / 1000);
+            // Usa sendBeacon para garantir o envio mesmo ao fechar
+            const blob = new Blob([JSON.stringify({ segundos: secsNow })], { type: 'application/json' });
+            navigator.sendBeacon(`/api/tarefas/${activeTaskId}/segundos`, blob);
+        }
+    }
+});
+
 init();
 </script>
 </body>

@@ -251,10 +251,11 @@ function renderKPIs(kpis) {
     document.getElementById('kpi-clientes-badge').textContent = `${kpis.funcionarios_ativos} func.`;
     document.getElementById('kpi-tickets').textContent = kpis.tickets_abertos;
     document.getElementById('kpi-andamento-badge').textContent = `${kpis.em_andamento} andamento`;
-    const totalMin = Math.round(kpis.total_horas * 60);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    document.getElementById('kpi-horas').textContent = h > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${m}m`;
+    const totalSeg = Math.round(kpis.total_horas * 3600);
+    const hh = Math.floor(totalSeg / 3600);
+    const mm = Math.floor((totalSeg % 3600) / 60);
+    const ss = totalSeg % 60;
+    document.getElementById('kpi-horas').textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
     document.getElementById('kpi-horas-unit').textContent = '';
     document.getElementById('kpi-sla').textContent = kpis.sla;
 }
