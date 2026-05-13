@@ -386,6 +386,50 @@ def registrar_acao(acao: AcaoBackoffice, faiston_token: str = Cookie(None)):
 @app.get("/api/health")
 def health(): return {"status": "ok"}
 
+@app.get("/api/seed-dados")
+def seed_dados():
+    """Rota temporária para popular banco com dados fictícios — delete após usar"""
+    import random, hashlib
+    from datetime import datetime, timedelta
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM tarefas")
+        cur.execute("DELETE FROM usuarios WHERE usuario != 'admin'")
+        funcionarios = [
+            ("rafael","rafael123","Rafael Ribeiro Libel","funcionario"),
+            ("pedro","pedro123","Pedro Alves","funcionario"),
+            ("ezequiel","ezequiel123","Ezequiel Santos","funcionario"),
+            ("ronald","ronald123","Ronald Ferreira","funcionario"),
+            ("ana","ana123","Ana Carolina","funcionario"),
+            ("lucas","lucas123","Lucas Martins","gestor"),
+        ]
+        ids = {}
+        for usuario, senha, nome, perfil in funcionarios:
+            cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil) VALUES (%s,%s,%s,%s) ON CONFLICT (usuario) DO UPDATE SET nome=%s RETURNING id",
+                (usuario, hashlib.sha256(senha.encode()).hexdigest(), nome, perfil, nome))
+            ids[nome] = cur.fetchone()[0]
+        clientes = ["NTT","Arcos Dourados","Zamp","Telcoweb"]
+        prioridades = ["Alta","Alta","Media","Media","Media","Baixa"]
+        status_opts = ["concluido","concluido","concluido","em_andamento","aberto"]
+        descricoes = ["Abertura de chamado no NOC","Acompanhamento de incidente","Configuração de switch","Monitoramento de links MPLS","Troca de equipamento","Atualização de firmware","Relatório de disponibilidade","Escalada para fornecedor","Revisão de topologia","Acionamento de parceiro","Documentação de circuito","Teste de failover","Análise de log","Criação de tickets","Validação de SLA","Suporte remoto","Instalação de CPE","Diagnóstico de latência","Agendamento de manutenção","Follow-up de chamado crítico"]
+        now = datetime.now()
+        total = 0
+        for nome, uid in ids.items():
+            if nome == "Lucas Martins": continue
+            for _ in range(random.randint(8,15)):
+                criado_em = now - timedelta(days=random.randint(0,6), hours=random.randint(0,8), minutes=random.randint(0,59))
+                status = random.choice(status_opts)
+                segundos = random.randint(1800,14400) if status=="concluido" else random.randint(600,5400) if status=="em_andamento" else 0
+                cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (uid, random.choice(descricoes), random.choice(clientes), random.choice(prioridades), status, segundos, criado_em, criado_em))
+                total += 1
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "tarefas_criadas": total, "usuarios": [u[0] for u in funcionarios]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- PÁGINAS ---
 @app.get("/")
 def root(): return FileResponse("static/login.html")
