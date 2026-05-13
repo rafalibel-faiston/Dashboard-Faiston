@@ -206,11 +206,21 @@ function startTimer(taskId) {
     const gt = document.getElementById('global-timer');
     gt.classList.remove('hidden'); gt.classList.add('flex');
     document.getElementById('global-task-name').textContent = task.descricao;
+    let saveCounter = 0;
     timerInterval = setInterval(() => {
         const elapsed = task.segundos + Math.floor((Date.now() - timerStart) / 1000);
         const el = document.getElementById(`timer-${taskId}`);
         if (el) el.textContent = fmt(elapsed);
         document.getElementById('global-timer-display').textContent = fmt(elapsed);
+        // Salva no banco a cada 30 segundos automaticamente
+        saveCounter++;
+        if (saveCounter % 30 === 0) {
+            const secsNow = task.segundos + Math.floor((Date.now() - timerStart) / 1000);
+            fetch(`/api/tarefas/${taskId}/segundos`, {
+                method: 'PATCH', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ segundos: secsNow })
+            });
+        }
     }, 1000);
     // Salva status em andamento
     fetch(`/api/tarefas/${taskId}`, {
@@ -313,6 +323,19 @@ async function saveTask() {
     }
 }
 
+async function concluirTarefa(taskId) {
+    if (activeTaskId === taskId) await stopTimer(taskId, true);
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.status = 'concluido';
+    task._running = false;
+    await fetch(`/api/tarefas/${taskId}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ descricao: task.descricao, cliente: task.cliente, prioridade: task.prioridade, status: 'concluido', segundos: task.segundos })
+    });
+    renderTasks(); updateSummary();
+}
+
 function setFilter(f) {
     currentFilter = f;
     document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -343,7 +366,8 @@ function renderTasks() {
         const isRunning = task._running;
         const isDone = task.status === 'concluido';
         const secs = isRunning ? task.segundos + Math.floor((Date.now() - timerStart)/1000) : task.segundos;
-        const hora = new Date(task.criado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+        const dataStr = task.criado_em ? task.criado_em.replace(' ', 'T') : null;
+        const hora = dataStr ? new Date(dataStr).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--:--';
         return `
         <div class="task-card bg-white rounded-xl border border-faiston-border priority-${task.prioridade} ${isRunning ? 'timer-running' : ''} ${isDone ? 'opacity-60' : ''}">
             <div class="p-4">
@@ -369,9 +393,14 @@ function renderTasks() {
                         ${isRunning ? '<span class="text-[10px] text-faiston-cyan font-semibold animate-pulse">● RODANDO</span>' : ''}
                     </div>
                     ${!isDone ? `
-                    <button onclick="toggleTimer(${task.id})" class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${isRunning ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white shadow-[0_0_10px_rgba(74,0,224,0.3)]'}">
-                        <i class="ph ${isRunning ? 'ph-stop-circle' : 'ph-play-circle'} text-base"></i>${isRunning ? 'Pausar' : 'Iniciar'}
-                    </button>` : '<span class="text-xs text-emerald-600 font-semibold flex items-center gap-1"><i class="ph ph-check-circle"></i> Concluída</span>'}
+                    <div class="flex items-center gap-2">
+                        <button onclick="concluirTarefa(${task.id})" class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-all">
+                            <i class="ph ph-check-circle text-base"></i>Concluir
+                        </button>
+                        <button onclick="toggleTimer(${task.id})" class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${isRunning ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white shadow-[0_0_10px_rgba(74,0,224,0.3)]'}">
+                            <i class="ph ${isRunning ? 'ph-stop-circle' : 'ph-play-circle'} text-base"></i>${isRunning ? 'Pausar' : 'Iniciar'}
+                        </button>
+                    </div>` : '<span class="text-xs text-emerald-600 font-semibold flex items-center gap-1"><i class="ph ph-check-circle"></i> Concluída</span>'}
                 </div>
             </div>
         </div>`;

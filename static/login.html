@@ -144,7 +144,7 @@ async function fazerLogin() {
             return;
         }
         // Redireciona por perfil
-        if (data.perfil === 'admin') window.location.href = '/admin';
+        if (data.perfil === 'admin') window.location.href = '/dashboard';
         else if (data.perfil === 'gestor') window.location.href = '/dashboard';
         else window.location.href = '/funcionario';
     } catch(e) {
