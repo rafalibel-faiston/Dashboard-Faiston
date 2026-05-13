@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Response, Cookie
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import psycopg2
 import os, hashlib, secrets
@@ -14,7 +14,6 @@ app = FastAPI(title="Faiston Ops - API", version="1.0")
 Path("static/css").mkdir(parents=True, exist_ok=True)
 Path("static/js").mkdir(parents=True, exist_ok=True)
 
-# Sessões em memória: token -> {usuario_id, nome, perfil}
 sessions = {}
 
 def get_db():
@@ -30,7 +29,6 @@ def hash_senha(senha):
 def get_session(token: str):
     return sessions.get(token)
 
-# --- SETUP INICIAL DO BANCO ---
 def setup_banco():
     conn = get_db()
     if not conn: return
@@ -60,17 +58,13 @@ def setup_banco():
                 atualizado_em TIMESTAMP DEFAULT NOW()
             )
         """)
-        # Cria admin padrão se não existir
         cur.execute("SELECT id FROM usuarios WHERE usuario = 'admin'")
         if not cur.fetchone():
             cur.execute(
                 "INSERT INTO usuarios (usuario, senha_hash, nome, perfil) VALUES (%s, %s, %s, %s)",
                 ('admin', hash_senha('admin123'), 'Administrador', 'admin')
             )
-            print("✅ Admin padrão criado: admin / admin123")
-        conn.commit()
-        cur.close()
-        conn.close()
+        conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
         print(f"Erro setup: {e}")
@@ -86,7 +80,7 @@ class NovoUsuario(BaseModel):
     usuario: str
     senha: str
     nome: str
-    perfil: str  # admin | gestor | funcionario
+    perfil: str
 
 class AtualizarUsuario(BaseModel):
     nome: str
@@ -104,91 +98,76 @@ class TarefaModel(BaseModel):
 class AtualizarSegundos(BaseModel):
     segundos: int
 
+class AcaoBackoffice(BaseModel):
+    comando: str
+    cliente: str = "Geral"
+
 # --- AUTH ---
 @app.post("/api/login")
 def login(req: LoginRequest, response: Response):
     conn = get_db()
-    if not conn:
-        raise HTTPException(status_code=500, detail="Banco offline")
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute(
-            "SELECT id, nome, perfil FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
-            (req.usuario, hash_senha(req.senha))
-        )
+        cur.execute("SELECT id, nome, perfil FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
+                    (req.usuario, hash_senha(req.senha)))
         row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if not row:
-            raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
+        cur.close(); conn.close()
+        if not row: raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
         token = secrets.token_hex(32)
         sessions[token] = {"id": row[0], "nome": row[1], "perfil": row[2]}
         response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
         return {"sucesso": True, "perfil": row[2], "nome": row[1]}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/logout")
 def logout(response: Response, faiston_token: str = Cookie(None)):
-    if faiston_token and faiston_token in sessions:
-        del sessions[faiston_token]
+    if faiston_token and faiston_token in sessions: del sessions[faiston_token]
     response.delete_cookie("faiston_token")
     return {"sucesso": True}
 
 @app.get("/api/me")
 def me(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess:
-        raise HTTPException(status_code=401, detail="Não autenticado")
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     return sess
 
-# --- USUÁRIOS (só admin) ---
+# --- USUÁRIOS ---
 @app.get("/api/usuarios")
 def listar_usuarios(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin":
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
         cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em FROM usuarios ORDER BY criado_em DESC")
-        rows = cur.fetchall()
-        cur.close(); conn.close()
+        rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5])} for r in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/usuarios")
 def criar_usuario(u: NovoUsuario, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin":
-        raise HTTPException(status_code=403, detail="Acesso negado")
-    if u.perfil not in ("admin", "gestor", "funcionario"):
-        raise HTTPException(status_code=400, detail="Perfil inválido")
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
+    if u.perfil not in ("admin", "gestor", "funcionario"): raise HTTPException(status_code=400, detail="Perfil inválido")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO usuarios (usuario, senha_hash, nome, perfil) VALUES (%s, %s, %s, %s) RETURNING id",
-            (u.usuario, hash_senha(u.senha), u.nome, u.perfil)
-        )
+        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil) VALUES (%s, %s, %s, %s) RETURNING id",
+                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
-    except psycopg2.errors.UniqueViolation:
-        raise HTTPException(status_code=400, detail="Usuário já existe")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except psycopg2.errors.UniqueViolation: raise HTTPException(status_code=400, detail="Usuário já existe")
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/usuarios/{uid}")
 def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin":
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -201,14 +180,12 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
                         (u.nome, u.perfil, u.ativo, uid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/usuarios/{uid}")
 def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin":
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -216,8 +193,7 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
         cur.execute("DELETE FROM usuarios WHERE id=%s", (uid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 # --- TAREFAS ---
 @app.get("/api/tarefas")
@@ -229,23 +205,16 @@ def listar_tarefas(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         if sess["perfil"] in ("admin", "gestor"):
-            cur.execute("""
-                SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.criado_em, u.nome
-                FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
-                ORDER BY t.criado_em DESC
-            """)
+            cur.execute("""SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.criado_em, u.nome
+                FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id ORDER BY t.criado_em DESC""")
         else:
-            cur.execute("""
-                SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.criado_em, u.nome
+            cur.execute("""SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.criado_em, u.nome
                 FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
-                WHERE t.usuario_id = %s ORDER BY t.criado_em DESC
-            """, (sess["id"],))
-        rows = cur.fetchall()
-        cur.close(); conn.close()
+                WHERE t.usuario_id = %s ORDER BY t.criado_em DESC""", (sess["id"],))
+        rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "descricao": r[1], "cliente": r[2], "prioridade": r[3],
                  "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7]} for r in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/tarefas")
 def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
@@ -255,15 +224,12 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
-            (sess["id"], t.descricao, t.cliente, t.prioridade, t.status, t.segundos)
-        )
+        cur.execute("INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
+                    (sess["id"], t.descricao, t.cliente, t.prioridade, t.status, t.segundos))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/tarefas/{tid}")
 def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)):
@@ -273,14 +239,11 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute(
-            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
-            (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, tid, sess["id"])
-        )
+        cur.execute("UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
+                    (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, tid, sess["id"]))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.patch("/api/tarefas/{tid}/segundos")
 def atualizar_segundos(tid: int, body: AtualizarSegundos, faiston_token: str = Cookie(None)):
@@ -294,8 +257,7 @@ def atualizar_segundos(tid: int, body: AtualizarSegundos, faiston_token: str = C
                     (body.segundos, tid, sess["id"]))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/tarefas/{tid}")
 def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
@@ -305,43 +267,137 @@ def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        owner_check = "" if sess["perfil"] in ("admin", "gestor") else "AND usuario_id=%s"
         if sess["perfil"] in ("admin", "gestor"):
             cur.execute("DELETE FROM tarefas WHERE id=%s", (tid,))
         else:
             cur.execute("DELETE FROM tarefas WHERE id=%s AND usuario_id=%s", (tid, sess["id"]))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- MÉTRICAS DASHBOARD ---
+@app.get("/api/metricas")
+def get_metricas(cliente: str = "", faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        filtro = "WHERE t.cliente = %s" if cliente else ""
+        params = (cliente,) if cliente else ()
+
+        # KPIs gerais
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro}", params)
+        total = cur.fetchone()[0]
+
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro} AND t.status = 'aberto'" if cliente else "SELECT COUNT(*) FROM tarefas WHERE status = 'aberto'", params if cliente else ())
+        abertos = cur.fetchone()[0]
+
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro} AND t.status = 'concluido'" if cliente else "SELECT COUNT(*) FROM tarefas WHERE status = 'concluido'", params if cliente else ())
+        concluidos = cur.fetchone()[0]
+
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro} AND t.status = 'em_andamento'" if cliente else "SELECT COUNT(*) FROM tarefas WHERE status = 'em_andamento'", params if cliente else ())
+        em_andamento = cur.fetchone()[0]
+
+        cur.execute(f"SELECT COALESCE(SUM(segundos),0) FROM tarefas t {filtro}", params)
+        total_segundos = cur.fetchone()[0]
+
+        # Clientes ativos (distintos)
+        cur.execute("SELECT COUNT(DISTINCT cliente) FROM tarefas")
+        clientes_ativos = cur.fetchone()[0]
+
+        # Funcionários com tarefas
+        cur.execute("SELECT COUNT(DISTINCT usuario_id) FROM tarefas")
+        funcionarios_ativos = cur.fetchone()[0]
+
+        # SLA: % de tarefas concluídas sobre o total
+        sla = round((concluidos / total * 100)) if total > 0 else 0
+
+        # Horas por cliente (para gráfico de barras)
+        cur.execute("""SELECT cliente, COALESCE(SUM(segundos),0) as total_seg
+            FROM tarefas GROUP BY cliente ORDER BY total_seg DESC""")
+        horas_por_cliente = [{"cliente": r[0], "horas": round(r[1]/3600, 1)} for r in cur.fetchall()]
+
+        # Status da fila (para donut)
+        cur.execute("""SELECT status, COUNT(*) FROM tarefas t """ + filtro + """ GROUP BY status""", params)
+        status_fila = {r[0]: r[1] for r in cur.fetchall()}
+
+        # Volume por dia da semana (últimos 7 dias — para área)
+        cur.execute("""
+            SELECT TO_CHAR(criado_em, 'Dy') as dia, COUNT(*) as total
+            FROM tarefas
+            WHERE criado_em >= NOW() - INTERVAL '7 days'
+            GROUP BY TO_CHAR(criado_em, 'Dy'), DATE_TRUNC('day', criado_em)
+            ORDER BY DATE_TRUNC('day', criado_em)
+        """)
+        volume_semana = [{"dia": r[0], "total": r[1]} for r in cur.fetchall()]
+
+        # Funil de atendimento
+        funil = {
+            "Abertura": total,
+            "Triagem": total - max(0, total - abertos),
+            "Acionamento": em_andamento + concluidos,
+            "Acompanhamento": em_andamento + concluidos,
+            "Fechamento": concluidos
+        }
+
+        # Tarefas recentes
+        q = f"""SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.criado_em, u.nome
+            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+            {filtro} ORDER BY t.criado_em DESC LIMIT 10"""
+        cur.execute(q, params)
+        recentes = [{"id": r[0], "descricao": r[1], "cliente": r[2], "prioridade": r[3],
+                     "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7]}
+                    for r in cur.fetchall()]
+
+        # Horas por funcionário
+        cur.execute("""SELECT u.nome, COALESCE(SUM(t.segundos),0)
+            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+            GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""")
+        horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1)} for r in cur.fetchall()]
+
+        cur.close(); conn.close()
+        return {
+            "kpis": {
+                "total_tarefas": total,
+                "tickets_abertos": abertos,
+                "em_andamento": em_andamento,
+                "concluidos": concluidos,
+                "clientes_ativos": clientes_ativos,
+                "funcionarios_ativos": funcionarios_ativos,
+                "total_horas": round(total_segundos / 3600, 1),
+                "sla": sla
+            },
+            "horas_por_cliente": horas_por_cliente,
+            "status_fila": status_fila,
+            "volume_semana": volume_semana,
+            "funil": funil,
+            "recentes": recentes,
+            "horas_por_func": horas_por_func
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- KPIs ---
-@app.get("/api/kpis")
-def get_kpis(faiston_token: str = Cookie(None)):
-    sess = get_session(faiston_token)
-    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    return {"clientes_ativos": 4, "tickets_abertos": 64, "time_alocado": 100, "sla_cumprido": 94}
+@app.post("/api/registrar-acao")
+def registrar_acao(acao: AcaoBackoffice, faiston_token: str = Cookie(None)):
+    return {"sucesso": True, "mensagem": "Ação registrada"}
 
 @app.get("/api/health")
-def health():
-    return {"status": "ok"}
+def health(): return {"status": "ok"}
 
 # --- PÁGINAS ---
 @app.get("/")
-def root():
-    return FileResponse("static/login.html")
+def root(): return FileResponse("static/login.html")
 
 @app.get("/dashboard")
-def dashboard():
-    return FileResponse("static/index.html")
+def dashboard(): return FileResponse("static/index.html")
 
 @app.get("/funcionario")
-def funcionario():
-    return FileResponse("static/funcionario.html")
+def funcionario(): return FileResponse("static/funcionario.html")
 
 @app.get("/admin")
-def admin_page():
-    return FileResponse("static/admin.html")
+def admin_page(): return FileResponse("static/admin.html")
 
 app.mount("/css", StaticFiles(directory="static/css"), name="css")
 app.mount("/js", StaticFiles(directory="static/js"), name="js")
