@@ -1,14 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 import psycopg2
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
 
 app = FastAPI(title="Faiston Ops - API", version="1.0")
+
+# Garante que as pastas existem ao iniciar
+Path("static/css").mkdir(parents=True, exist_ok=True)
+Path("static/js").mkdir(parents=True, exist_ok=True)
 
 def get_db_connection():
     try:
@@ -51,19 +56,24 @@ def get_kpis():
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok"}
+    # Diagnóstico: mostra o que existe no filesystem
+    files = []
+    for root, dirs, filenames in os.walk("."):
+        for f in filenames:
+            files.append(os.path.join(root, f))
+    return {"status": "ok", "files": files, "cwd": os.getcwd()}
 
 @app.get("/")
 def serve_frontend():
-    return FileResponse("static/index.html")
+    index_path = "static/index.html"
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return HTMLResponse("<h1>static/index.html não encontrado</h1><p>Verifique se os arquivos foram commitados no repositório.</p>", status_code=404)
 
-app.mount("/css", StaticFiles(directory="static/css"), name="css")
-app.mount("/js", StaticFiles(directory="static/js"), name="js")
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-if __name__ == "__main__":
-    import uvicorn
-    # Railway injeta PORT automaticamente — nunca use valor fixo
-    port = int(os.environ["PORT"])
-    print(f"Iniciando na porta {port}")
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+# Monta estáticos só se as pastas existirem
+if os.path.exists("static/css"):
+    app.mount("/css", StaticFiles(directory="static/css"), name="css")
+if os.path.exists("static/js"):
+    app.mount("/js", StaticFiles(directory="static/js"), name="js")
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
