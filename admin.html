@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faiston Ops - Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] },
+                colors: { faiston: { bg:'#F8FAFC', dark:'#0A0A1A', border:'#E2E8F0', cyan:'#00E5FF', purple:'#4A00E0', magenta:'#FF007F' } } } }
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar{width:5px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
+        .tab-active { background: linear-gradient(135deg,#4A00E0,#00E5FF); color: white; }
+    </style>
+</head>
+<body class="bg-faiston-bg font-sans min-h-screen">
+
+<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div class="flex items-center gap-3">
+        <i class="ph-fill ph-play text-2xl text-transparent bg-clip-text bg-gradient-to-tr from-faiston-cyan via-faiston-purple to-faiston-magenta"></i>
+        <span class="font-black text-faiston-dark tracking-tight">FAISTON <span class="text-transparent bg-clip-text bg-gradient-to-r from-faiston-purple to-faiston-cyan">OPS</span></span>
+        <span class="w-px h-4 bg-slate-200"></span>
+        <span class="text-sm font-semibold text-faiston-purple">Painel Admin</span>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="/dashboard" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+            <i class="ph ph-chart-line-up"></i> Dashboard
+        </a>
+        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+            <i class="ph ph-sign-out"></i> Sair
+        </button>
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-magenta flex items-center justify-center text-white text-xs font-bold" id="user-avatar">A</div>
+            <span class="text-sm font-semibold text-faiston-dark" id="user-nome">Admin</span>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-6 py-8">
+    <!-- TABS -->
+    <div class="flex gap-2 mb-6">
+        <button onclick="setTab('usuarios')" id="tab-usuarios" class="tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all">
+            <i class="ph ph-users mr-1.5"></i>Usuários
+        </button>
+        <button onclick="setTab('tarefas')" id="tab-tarefas" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+            <i class="ph ph-clipboard-text mr-1.5"></i>Tarefas do Time
+        </button>
+    </div>
+
+    <!-- PAINEL USUÁRIOS -->
+    <div id="painel-usuarios">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-bold text-faiston-dark">Gerenciar Usuários</h2>
+            <button onclick="openModalUser()" class="bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] transition-all">
+                <i class="ph ph-plus-circle"></i> Novo Usuário
+            </button>
+        </div>
+        <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-faiston-border bg-slate-50">
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Usuário</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Perfil</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                        <th class="px-5 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-usuarios"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- PAINEL TAREFAS -->
+    <div id="painel-tarefas" class="hidden">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-bold text-faiston-dark">Tarefas do Time</h2>
+            <select id="filtro-func" onchange="carregarTarefas()" class="text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os funcionários</option>
+            </select>
+        </div>
+        <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-faiston-border bg-slate-50">
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Funcionário</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tarefa</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Cliente</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Prioridade</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Horas</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-tarefas"></tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<!-- MODAL USUÁRIO -->
+<div id="modal-user" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h3 id="modal-user-title" class="text-lg font-bold text-faiston-dark">Novo Usuário</h3>
+            <button onclick="closeModalUser()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-slate-500"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="edit-uid">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome completo</label>
+                <input type="text" id="u-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Usuário (login)</label>
+                    <input type="text" id="u-usuario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Perfil</label>
+                    <select id="u-perfil" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
+                        <option value="funcionario">Funcionário</option>
+                        <option value="gestor">Gestor</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha <span id="senha-hint" class="normal-case font-normal text-slate-400">(deixe em branco para não alterar)</span></label>
+                <input type="password" id="u-senha" placeholder="••••••••" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+            </div>
+            <div id="wrap-ativo" class="hidden items-center justify-between p-3 bg-slate-50 rounded-lg">
+                <span class="text-sm font-medium text-slate-700">Usuário ativo</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="u-ativo" class="sr-only peer" checked>
+                    <div class="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:bg-faiston-purple peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                </label>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="closeModalUser()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvarUsuario()" class="flex-1 bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white rounded-lg py-2.5 text-sm font-semibold shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] transition-all">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const perfilConfig = {
+    admin: { label: 'Admin', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
+    gestor: { label: 'Gestor', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+    funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
+};
+const statusCfg = {
+    aberto: 'bg-slate-100 text-slate-600',
+    em_andamento: 'bg-cyan-100 text-cyan-700',
+    concluido: 'bg-emerald-100 text-emerald-700'
+};
+const prioridadeCfg = {
+    Alta: 'bg-pink-100 text-pink-700',
+    Media: 'bg-amber-100 text-amber-700',
+    Baixa: 'bg-emerald-100 text-emerald-700'
+};
+
+let currentTab = 'usuarios';
+
+async function init() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
+        if (me.perfil !== 'admin') { window.location.href = me.perfil === 'gestor' ? '/dashboard' : '/funcionario'; return; }
+        document.getElementById('user-nome').textContent = me.nome;
+        document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
+    } catch(e) { window.location.href = '/'; }
+    carregarUsuarios();
+}
+
+async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
+}
+
+function setTab(tab) {
+    currentTab = tab;
+    document.getElementById('painel-usuarios').classList.toggle('hidden', tab !== 'usuarios');
+    document.getElementById('painel-tarefas').classList.toggle('hidden', tab !== 'tarefas');
+    document.getElementById('tab-usuarios').className = tab === 'usuarios'
+        ? 'tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all'
+        : 'bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all';
+    document.getElementById('tab-tarefas').className = tab === 'tarefas'
+        ? 'tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all'
+        : 'bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all';
+    if (tab === 'tarefas') carregarTarefas();
+}
+
+async function carregarUsuarios() {
+    const res = await fetch('/api/usuarios');
+    const usuarios = await res.json();
+    const tb = document.getElementById('tabela-usuarios');
+    const sel = document.getElementById('filtro-func');
+    sel.innerHTML = '<option value="">Todos os funcionários</option>';
+    tb.innerHTML = usuarios.map(u => {
+        const pc = perfilConfig[u.perfil] || perfilConfig.funcionario;
+        if (u.perfil === 'funcionario') sel.innerHTML += `<option value="${u.nome}">${u.nome}</option>`;
+        return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-xs font-bold">${u.nome.charAt(0)}</div>
+                    <span class="font-medium text-faiston-dark">${u.nome}</span>
+                </div>
+            </td>
+            <td class="px-5 py-3 text-slate-500 font-mono text-xs">${u.usuario}</td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
+            <td class="px-5 py-3">
+                <span class="text-xs font-semibold px-2 py-1 rounded-md ${u.ativo ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-100 text-red-600 border border-red-200'}">
+                    ${u.ativo ? 'Ativo' : 'Inativo'}
+                </span>
+            </td>
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-1 justify-end">
+                    <button onclick="editarUsuario(${u.id},'${u.usuario}','${u.nome}','${u.perfil}',${u.ativo})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>
+                    <button onclick="deletarUsuario(${u.id},'${u.nome}')" class="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><i class="ph ph-trash"></i></button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function carregarTarefas() {
+    const res = await fetch('/api/tarefas');
+    const tarefas = await res.json();
+    const filtro = document.getElementById('filtro-func').value;
+    const filtered = filtro ? tarefas.filter(t => t.funcionario === filtro) : tarefas;
+    const tb = document.getElementById('tabela-tarefas');
+    if (!filtered.length) { tb.innerHTML = '<tr><td colspan="6" class="px-5 py-8 text-center text-slate-400 text-sm">Nenhuma tarefa encontrada</td></tr>'; return; }
+    tb.innerHTML = filtered.map(t => {
+        const sc = statusCfg[t.status] || statusCfg.aberto;
+        const pc = prioridadeCfg[t.prioridade] || prioridadeCfg.Media;
+        const h = Math.floor(t.segundos/3600), m = Math.floor((t.segundos%3600)/60);
+        const statusLabel = t.status === 'em_andamento' ? 'Em Andamento' : t.status === 'concluido' ? 'Concluído' : 'Aberto';
+        return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-[10px] font-bold">${t.funcionario.charAt(0)}</div>
+                    <span class="text-sm text-slate-600">${t.funcionario}</span>
+                </div>
+            </td>
+            <td class="px-5 py-3 font-medium text-faiston-dark max-w-48 truncate">${t.descricao}</td>
+            <td class="px-5 py-3 text-sm text-slate-600">${t.cliente}</td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md ${pc}">${t.prioridade}</span></td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md ${sc}">${statusLabel}</span></td>
+            <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-semibold">${h}h ${String(m).padStart(2,'0')}m</td>
+        </tr>`;
+    }).join('');
+}
+
+function openModalUser() {
+    document.getElementById('modal-user-title').textContent = 'Novo Usuário';
+    document.getElementById('edit-uid').value = '';
+    document.getElementById('u-nome').value = '';
+    document.getElementById('u-usuario').value = '';
+    document.getElementById('u-senha').value = '';
+    document.getElementById('u-perfil').value = 'funcionario';
+    document.getElementById('u-ativo').checked = true;
+    document.getElementById('senha-hint').textContent = '';
+    document.getElementById('wrap-ativo').classList.add('hidden');
+    document.getElementById('u-usuario').disabled = false;
+    document.getElementById('modal-user').classList.remove('hidden');
+}
+
+function editarUsuario(id, usuario, nome, perfil, ativo) {
+    document.getElementById('modal-user-title').textContent = 'Editar Usuário';
+    document.getElementById('edit-uid').value = id;
+    document.getElementById('u-nome').value = nome;
+    document.getElementById('u-usuario').value = usuario;
+    document.getElementById('u-usuario').disabled = true;
+    document.getElementById('u-senha').value = '';
+    document.getElementById('u-perfil').value = perfil;
+    document.getElementById('u-ativo').checked = ativo;
+    document.getElementById('senha-hint').textContent = '(deixe em branco para não alterar)';
+    document.getElementById('wrap-ativo').classList.remove('hidden');
+    document.getElementById('wrap-ativo').classList.add('flex');
+    document.getElementById('modal-user').classList.remove('hidden');
+}
+
+function closeModalUser() {
+    document.getElementById('modal-user').classList.add('hidden');
+}
+
+async function salvarUsuario() {
+    const uid = document.getElementById('edit-uid').value;
+    const nome = document.getElementById('u-nome').value.trim();
+    const usuario = document.getElementById('u-usuario').value.trim();
+    const senha = document.getElementById('u-senha').value;
+    const perfil = document.getElementById('u-perfil').value;
+    const ativo = document.getElementById('u-ativo').checked;
+
+    if (!nome || (!uid && (!usuario || !senha))) { alert('Preencha todos os campos obrigatórios.'); return; }
+
+    try {
+        let res;
+        if (uid) {
+            res = await fetch(`/api/usuarios/${uid}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome, perfil, senha, ativo })
+            });
+        } else {
+            res = await fetch('/api/usuarios', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usuario, senha, nome, perfil })
+            });
+        }
+        const data = await res.json();
+        if (!res.ok) { alert(data.detail || 'Erro ao salvar'); return; }
+        closeModalUser();
+        carregarUsuarios();
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+async function deletarUsuario(id, nome) {
+    if (!confirm(`Deletar o usuário "${nome}"? Esta ação não pode ser desfeita.`)) return;
+    const res = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
+    if (res.ok) carregarUsuarios();
+    else alert('Erro ao deletar');
+}
+
+document.getElementById('modal-user').addEventListener('click', e => { if (e.target === document.getElementById('modal-user')) closeModalUser(); });
+
+init();
+</script>
+</body>
+</html>

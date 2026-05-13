@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faiston Ops - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #F8FAFC;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0;
+            background-image:
+                linear-gradient(rgba(74,0,224,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(74,0,224,0.04) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .card {
+            position: relative; z-index: 1;
+            background: white;
+            border-radius: 20px;
+            border: 1px solid #E2E8F0;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(10,10,26,0.08);
+        }
+        .logo {
+            display: flex; align-items: center; gap: 10px;
+            justify-content: center; margin-bottom: 32px;
+        }
+        .logo-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            background: linear-gradient(135deg, #4A00E0, #00E5FF);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .logo-text { font-size: 20px; font-weight: 900; color: #0A0A1A; letter-spacing: -0.5px; }
+        .logo-text span { background: linear-gradient(90deg, #4A00E0, #00E5FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        h2 { font-size: 22px; font-weight: 700; color: #0A0A1A; margin-bottom: 6px; }
+        p.sub { font-size: 13px; color: #94A3B8; margin-bottom: 28px; }
+        label { display: block; font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .input-wrap { position: relative; margin-bottom: 16px; }
+        .input-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94A3B8; font-size: 18px; }
+        input {
+            width: 100%; padding: 11px 14px 11px 38px;
+            border: 1px solid #E2E8F0; border-radius: 10px;
+            font-size: 14px; font-family: 'Inter', sans-serif;
+            outline: none; transition: all 0.2s; background: #F8FAFC;
+        }
+        input:focus { border-color: #4A00E0; box-shadow: 0 0 0 3px rgba(74,0,224,0.1); background: white; }
+        .btn {
+            width: 100%; padding: 13px;
+            background: linear-gradient(135deg, #4A00E0, #FF007F);
+            color: white; border: none; border-radius: 10px;
+            font-size: 14px; font-weight: 700; font-family: 'Inter', sans-serif;
+            cursor: pointer; margin-top: 8px;
+            box-shadow: 0 4px 20px rgba(255,0,127,0.3);
+            transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(74,0,224,0.4); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .error {
+            background: #FEF2F2; border: 1px solid #FECACA; color: #DC2626;
+            border-radius: 8px; padding: 10px 14px; font-size: 13px;
+            margin-bottom: 16px; display: none; align-items: center; gap-8px;
+        }
+        .error.show { display: flex; }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="card">
+        <div class="logo">
+            <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:18px"></i></div>
+            <div class="logo-text">FAISTON <span>OPS</span></div>
+        </div>
+        <h2>Bem-vindo de volta</h2>
+        <p class="sub">Entre com suas credenciais para acessar</p>
+
+        <div class="error" id="error-msg">
+            <i class="ph ph-warning-circle" style="font-size:16px;margin-right:6px"></i>
+            <span id="error-text">Usuário ou senha inválidos</span>
+        </div>
+
+        <div>
+            <label>Usuário</label>
+            <div class="input-wrap">
+                <i class="ph ph-user"></i>
+                <input type="text" id="usuario" placeholder="seu.usuario" autocomplete="username">
+            </div>
+            <label>Senha</label>
+            <div class="input-wrap">
+                <i class="ph ph-lock"></i>
+                <input type="password" id="senha" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <button class="btn" id="btn-login" onclick="fazerLogin()">
+                <i class="ph ph-sign-in"></i> Entrar
+            </button>
+        </div>
+    </div>
+
+<script>
+document.getElementById('senha').addEventListener('keydown', e => { if (e.key === 'Enter') fazerLogin(); });
+document.getElementById('usuario').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('senha').focus(); });
+
+async function fazerLogin() {
+    const usuario = document.getElementById('usuario').value.trim();
+    const senha = document.getElementById('senha').value;
+    const btn = document.getElementById('btn-login');
+    const errDiv = document.getElementById('error-msg');
+    const errText = document.getElementById('error-text');
+
+    if (!usuario || !senha) {
+        errText.textContent = 'Preencha usuário e senha.';
+        errDiv.classList.add('show');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner" style="animation:spin 1s linear infinite"></i> Entrando...';
+    errDiv.classList.remove('show');
+
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuario, senha })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errText.textContent = data.detail || 'Usuário ou senha inválidos';
+            errDiv.classList.add('show');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-sign-in"></i> Entrar';
+            return;
+        }
+        // Redireciona por perfil
+        if (data.perfil === 'admin') window.location.href = '/admin';
+        else if (data.perfil === 'gestor') window.location.href = '/dashboard';
+        else window.location.href = '/funcionario';
+    } catch(e) {
+        errText.textContent = 'Erro de conexão. Tente novamente.';
+        errDiv.classList.add('show');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-sign-in"></i> Entrar';
+    }
+}
+</script>
+<style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
+</body>
+</html>
