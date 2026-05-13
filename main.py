@@ -10,21 +10,17 @@ load_dotenv()
 
 app = FastAPI(title="Faiston Ops - API", version="1.0")
 
-# --- CONEXÃO COM O BANCO DE DADOS ---
 def get_db_connection():
     try:
-        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
         return conn
     except Exception as e:
         print(f"Erro Crítico de Banco: {e}")
         return None
 
-# --- MODELOS DE DADOS ---
 class AcaoBackoffice(BaseModel):
     comando: str
     cliente: str = "Geral"
-
-# --- ROTAS DA API ---
 
 @app.post("/api/registrar-acao")
 def registrar_acao(acao: AcaoBackoffice):
@@ -57,18 +53,16 @@ def get_kpis():
 def health_check():
     return {"status": "ok"}
 
-# --- SERVINDO O FRONT-END ---
-# IMPORTANTE: a rota "/" precisa vir ANTES do app.mount
 @app.get("/")
 def serve_frontend():
     return FileResponse("static/index.html")
 
-# Monta os arquivos estáticos DEPOIS das rotas GET
 app.mount("/css", StaticFiles(directory="static/css"), name="css")
 app.mount("/js", StaticFiles(directory="static/js"), name="js")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 8080))
+    print(f"Iniciando na porta {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
