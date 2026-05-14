@@ -414,7 +414,6 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
                 GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""")
         horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2]} for r in cur.fetchall()]
 
-        cur.close(); conn.close()
         # Taxa de conclusão por cliente
         cur.execute(
             "SELECT cliente, "
@@ -426,6 +425,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         taxa_conclusao = [{"cliente": r[0], "total": r[1], "concluidas": r[2],
             "taxa": round(r[2]/r[1]*100) if r[1] > 0 else 0} for r in taxa_rows]
 
+        cur.close(); conn.close()
         return {
             "kpis": {
                 "total_tarefas": total,
