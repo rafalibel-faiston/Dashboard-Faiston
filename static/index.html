@@ -193,17 +193,18 @@
                 <p class="text-3xl font-black text-faiston-dark"><span id="kpi-horas">—</span><span class="text-sm font-medium text-slate-400" id="kpi-horas-unit"></span></p>
             </div>
         </div>
-        <!-- SLA -->
+        <!-- Média Horas -->
         <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(10,10,26,0.08)] transition-all duration-300 group">
-            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-slate-300 to-faiston-purple"></div>
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-faiston-cyan to-faiston-purple"></div>
             <div class="p-5">
                 <div class="flex justify-between items-start mb-4">
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center text-faiston-dark group-hover:from-slate-100 group-hover:to-slate-200 transition-all">
-                        <i class="ph ph-lightning text-xl"></i>
+                        <i class="ph ph-chart-bar text-xl"></i>
                     </div>
+                    <i class="ph ph-users text-slate-300 text-lg"></i>
                 </div>
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">SLA Cumprido</p>
-                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-sla">—</span><span class="text-sm font-medium text-slate-400">/100</span></p>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Média por Funcionário</p>
+                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-media">—</span><span class="text-sm font-medium text-slate-400">h</span></p>
             </div>
         </div>
     </div>
@@ -516,7 +517,7 @@ function renderKPIs(kpis) {
     const mm = Math.floor((totalSeg % 3600) / 60);
     document.getElementById('kpi-horas').textContent = `${hh}h ${String(mm).padStart(2,'0')}m`;
     document.getElementById('kpi-horas-unit').textContent = '';
-    document.getElementById('kpi-sla').textContent = kpis.sla;
+    document.getElementById('kpi-media').textContent = kpis.media_horas_func;
 }
 
 function destroyChart(id) {

@@ -348,6 +348,16 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         # SLA: % de tarefas concluídas sobre o total
         sla = round((concluidos / total * 100)) if total > 0 else 0
 
+        # Média de horas por funcionário
+        cur.execute(
+            "SELECT COUNT(DISTINCT usuario_id), COALESCE(SUM(segundos),0) FROM tarefas t "
+            + (f"WHERE cliente=%s" if cliente else "WHERE 1=1"),
+            (cliente,) if cliente else ()
+        )
+        row_media = cur.fetchone()
+        n_funcs = max(row_media[0], 1)
+        media_horas_func = round(row_media[1] / 3600 / n_funcs, 1)
+
         # Horas por cliente (para gráfico de barras) — respeita filtro
         if cliente:
             cur.execute("""SELECT cliente, COALESCE(SUM(segundos),0) as total_seg
@@ -414,7 +424,8 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
                 "clientes_ativos": clientes_ativos,
                 "funcionarios_ativos": funcionarios_ativos,
                 "total_horas": round(total_segundos / 3600, 1),
-                "sla": sla
+                "sla": sla,
+                "media_horas_func": media_horas_func
             },
             "horas_por_cliente": horas_por_cliente,
             "status_fila": status_fila,
