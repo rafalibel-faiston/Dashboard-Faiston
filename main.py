@@ -415,6 +415,17 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2]} for r in cur.fetchall()]
 
         cur.close(); conn.close()
+        # Taxa de conclusão por cliente
+        cur.execute(
+            "SELECT cliente, "
+            "COUNT(*) as total, "
+            "SUM(CASE WHEN status='concluido' THEN 1 ELSE 0 END) as concluidas "
+            "FROM tarefas t " + filtro + " GROUP BY cliente ORDER BY total DESC",
+            params)
+        taxa_rows = cur.fetchall()
+        taxa_conclusao = [{"cliente": r[0], "total": r[1], "concluidas": r[2],
+            "taxa": round(r[2]/r[1]*100) if r[1] > 0 else 0} for r in taxa_rows]
+
         return {
             "kpis": {
                 "total_tarefas": total,
@@ -432,7 +443,8 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             "volume_semana": volume_semana,
             "funil": funil,
             "recentes": recentes,
-            "horas_por_func": horas_por_func
+            "horas_por_func": horas_por_func,
+            "taxa_conclusao": taxa_conclusao
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

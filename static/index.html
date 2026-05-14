@@ -703,14 +703,11 @@ function renderCharts(data) {
     });
     charts['prioridade'].render();
 
-    // 6. NOVO — Taxa de conclusão por cliente (radialBar)
+    // 6. NOVO — Taxa de conclusão por cliente (radialBar) — dados reais do backend
     destroyChart('conclusao');
-    const clientes_taxa = data.horas_por_cliente.map(h => h.cliente).slice(0, 4);
-    const taxas = clientes_taxa.map(c => {
-        const total = (data.recentes||[]).filter(t => t.cliente === c).length;
-        const concluidas = (data.recentes||[]).filter(t => t.cliente === c && t.status === 'Concluído').length;
-        return total > 0 ? Math.round(concluidas / total * 100) : 0;
-    });
+    const taxaData = (data.taxa_conclusao || []).slice(0, 4);
+    const clientes_taxa = taxaData.map(t => t.cliente);
+    const taxas = taxaData.map(t => t.taxa);
     charts['conclusao'] = new ApexCharts(document.querySelector("#chart-conclusao"), {
         series: taxas,
         labels: clientes_taxa,
