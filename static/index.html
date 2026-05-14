@@ -469,6 +469,38 @@ function filtrarCliente(cliente) {
     return false;
 }
 
+let statusFiltro = '';
+
+function filtrarStatus(status) {
+    // Filtra a tabela por status sem recarregar os gráficos
+    statusFiltro = statusFiltro === status ? '' : status;
+    const statusMap = { concluido: 'Concluído', em_andamento: 'Em Andamento', aberto: 'Aberto' };
+    const label = statusMap[statusFiltro] || '';
+    // Filtra as linhas da tabela
+    const linhas = document.querySelectorAll('#tabela-recentes tr');
+    linhas.forEach(tr => {
+        if (!statusFiltro) { tr.style.display = ''; return; }
+        const statusCell = tr.cells?.[4]?.textContent?.trim();
+        tr.style.display = statusCell === label ? '' : 'none';
+    });
+    // Toast de feedback
+    mostrarToastFiltro(statusFiltro ? `Filtro: ${label}` : 'Filtro removido', statusFiltro ? '🔵' : '✅');
+}
+
+function mostrarToastFiltro(msg, icon = '🔍') {
+    let toast = document.getElementById('toast-filtro');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast-filtro';
+        toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-faiston-dark text-white text-xs font-semibold px-4 py-2 rounded-full shadow-xl flex items-center gap-2 transition-all';
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+}
+
 function limparDatas() {
     document.getElementById('data-inicio').value = '';
     document.getElementById('data-fim').value = '';
@@ -542,7 +574,14 @@ function renderCharts(data) {
             { name: 'Tarefas', type: 'bar', data: contagens },
             { name: 'Horas', type: 'line', data: horas }
         ],
-        chart: { ...chartDefaults, height: 260, type: 'line', background: 'transparent' },
+        chart: { ...chartDefaults, height: 260, type: 'line', background: 'transparent',
+            events: { dataPointSelection: (e, ctx, config) => {
+                if (config.seriesIndex === 0) { // clicou na barra de tarefas
+                    const nome = nomes[config.dataPointIndex];
+                    if (nome) mostrarToastFiltro(nome);
+                }
+            }}
+        },
         theme: { mode: 'dark' },
         colors: ['#FF007F', '#00E5FF'],
         plotOptions: { bar: { borderRadius: 8, columnWidth: '40%' } },
@@ -570,10 +609,16 @@ function renderCharts(data) {
     destroyChart('status');
     const sf = data.status_fila;
     const totalFila = (sf['concluido']||0)+(sf['em_andamento']||0)+(sf['aberto']||0);
+    const statusKeys = ['concluido', 'em_andamento', 'aberto'];
     charts['status'] = new ApexCharts(document.querySelector("#chart-status"), {
         series: [sf['concluido']||0, sf['em_andamento']||0, sf['aberto']||0],
         labels: ['Concluído', 'Em Andamento', 'Aberto'],
-        chart: { ...chartDefaults, type: 'donut', height: 300 },
+        chart: { ...chartDefaults, type: 'donut', height: 300,
+            events: { dataPointSelection: (e, ctx, config) => {
+                const status = statusKeys[config.dataPointIndex];
+                if (status) filtrarStatus(status);
+            }}
+        },
         colors: ['#00E5FF', '#4A00E0', '#CBD5E1'],
         plotOptions: { pie: { donut: { size: '75%',
             labels: { show: true,
@@ -592,7 +637,12 @@ function renderCharts(data) {
     const hpc = data.horas_por_cliente;
     charts['barras'] = new ApexCharts(document.querySelector("#chart-barras"), {
         series: [{ name: 'Horas', data: hpc.map(h => h.horas) }],
-        chart: { ...chartDefaults, type: 'bar', height: 240 },
+        chart: { ...chartDefaults, type: 'bar', height: 240,
+            events: { dataPointSelection: (e, ctx, config) => {
+                const cliente = hpc[config.dataPointIndex]?.cliente;
+                if (cliente) filtrarCliente(cliente === clienteAtivo ? '' : cliente);
+            }}
+        },
         plotOptions: { bar: { horizontal: true, borderRadius: 8, barHeight: '55%',
             dataLabels: { position: 'top' } } },
         colors: ['#FF007F'],
@@ -601,7 +651,9 @@ function renderCharts(data) {
         dataLabels: { enabled: true, offsetX: 8,
             style: { fontSize: '11px', fontFamily: 'Inter, sans-serif', colors: ['#64748B'], fontWeight: 600 },
             formatter: val => val + 'h' },
-        xaxis: { categories: hpc.map(h => h.cliente), labels: { style: { fontSize: '11px', colors: '#94A3B8' } } },
+        xaxis: { categories: hpc.map(h => h.cliente), labels: { style: { fontSize: '11px', colors: '#94A3B8' } },
+            title: { text: clienteAtivo ? '' : '← clique para filtrar', style: { fontSize: '10px', color: '#CBD5E1' } } },
+        states: { active: { filter: { type: 'darken', value: 0.7 } } },
         grid: { ...gridLight, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
         tooltip: { ...ttLight, y: { formatter: val => val + ' horas' } }
     });
