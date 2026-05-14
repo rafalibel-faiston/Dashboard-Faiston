@@ -42,21 +42,33 @@
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan shadow-[0_0_8px_#00E5FF] animate-pulse" id="dot-geral"></div>
                             Visão Geral
                         </a>
-                        <a href="#" onclick="filtrarCliente('NTT')" data-cliente="NTT" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative group">
-                            <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                            NTT
+                        <a href="#" onclick="filtrarCliente('NTT')" data-cliente="NTT" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center justify-between gap-3 relative group">
+                            <div class="flex items-center gap-3">
+                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
+                                NTT
+                            </div>
+                            <a href="/relatorio/NTT" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
                         </a>
-                        <a href="#" onclick="filtrarCliente('Arcos Dourados')" data-cliente="Arcos Dourados" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative group">
-                            <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                            Arcos Dourados
+                        <a href="#" onclick="filtrarCliente('Arcos Dourados')" data-cliente="Arcos Dourados" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center justify-between gap-3 relative group">
+                            <div class="flex items-center gap-3">
+                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
+                                Arcos Dourados
+                            </div>
+                            <a href="/relatorio/Arcos%20Dourados" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
                         </a>
-                        <a href="#" onclick="filtrarCliente('Zamp')" data-cliente="Zamp" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative group">
-                            <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                            Zamp
+                        <a href="#" onclick="filtrarCliente('Zamp')" data-cliente="Zamp" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center justify-between gap-3 relative group">
+                            <div class="flex items-center gap-3">
+                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
+                                Zamp
+                            </div>
+                            <a href="/relatorio/Zamp" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
                         </a>
-                        <a href="#" onclick="filtrarCliente('Telcoweb')" data-cliente="Telcoweb" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative group">
-                            <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                            Telcoweb
+                        <a href="#" onclick="filtrarCliente('Telcoweb')" data-cliente="Telcoweb" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center justify-between gap-3 relative group">
+                            <div class="flex items-center gap-3">
+                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
+                                Telcoweb
+                            </div>
+                            <a href="/relatorio/Telcoweb" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
                         </a>
                     </div>
                 </div>
@@ -95,67 +107,170 @@
             <h2 class="text-2xl font-bold text-faiston-dark tracking-tight" id="header-titulo">Visão Geral</h2>
         </div>
         <div class="flex items-center gap-3">
+            <!-- Filtro de período -->
+            <div class="flex items-center gap-2 bg-white border border-faiston-border rounded-lg px-3 py-1.5">
+                <i class="ph ph-calendar text-slate-400 text-sm"></i>
+                <input type="date" id="data-inicio" onchange="carregarDados(clienteAtivo)" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer">
+                <span class="text-slate-300 text-xs">→</span>
+                <input type="date" id="data-fim" onchange="carregarDados(clienteAtivo)" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer">
+            </div>
+            <button onclick="limparDatas()" class="text-xs text-slate-400 hover:text-slate-700 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Limpar datas">
+                <i class="ph ph-x-circle"></i>
+            </button>
+            <!-- Busca -->
             <div class="relative">
                 <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400"></i>
-                <input type="text" id="busca-tarefa" placeholder="Buscar tarefa..." onkeyup="filtrarTabela()" class="pl-9 pr-4 py-2 rounded-md border border-faiston-border focus:outline-none focus:border-faiston-cyan text-sm w-64 transition-all bg-white">
+                <input type="text" id="busca-tarefa" placeholder="Buscar tarefa..." onkeyup="filtrarTabela()" class="pl-9 pr-4 py-2 rounded-md border border-faiston-border focus:outline-none focus:border-faiston-cyan text-sm w-48 transition-all bg-white">
             </div>
+            <!-- Exportar -->
+            <button onclick="exportarCSV()" class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition-colors" title="Exportar CSV">
+                <i class="ph ph-download-simple"></i> Exportar
+            </button>
             <button onclick="carregarDados(clienteAtivo)" class="w-9 h-9 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors" title="Atualizar">
                 <i class="ph ph-arrows-clockwise text-slate-500"></i>
             </button>
+            <!-- Sino de notificações -->
+            <div class="relative">
+                <button onclick="toggleNotificacoes()" class="w-9 h-9 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors relative" title="Notificações">
+                    <i class="ph ph-bell text-slate-500"></i>
+                    <span id="badge-notif" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-faiston-magenta text-white text-[9px] font-bold rounded-full flex items-center justify-center">0</span>
+                </button>
+                <!-- Dropdown -->
+                <div id="dropdown-notif" class="hidden absolute right-0 top-11 w-80 bg-white rounded-xl border border-faiston-border shadow-xl z-50">
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-faiston-border">
+                        <span class="text-sm font-bold text-faiston-dark">Notificações</span>
+                        <button onclick="marcarLidas()" class="text-xs text-faiston-cyan hover:underline">Marcar todas lidas</button>
+                    </div>
+                    <div id="lista-notif" class="max-h-80 overflow-y-auto">
+                        <div class="px-4 py-8 text-center text-slate-400 text-sm">Nenhuma notificação</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
     <!-- KPIs -->
-    <div class="grid grid-cols-4 gap-5 mb-8">
-        <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 hover:shadow-[0_0_15px_rgba(0,229,255,0.15)] transition-all duration-300">
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-2 rounded-md bg-cyan-50 border border-cyan-100 text-faiston-cyan"><i class="ph ph-buildings text-xl"></i></div>
-                <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100" id="kpi-clientes-badge">—</span>
+    <div class="grid grid-cols-4 gap-4 mb-6">
+        <!-- Clientes -->
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(0,229,255,0.12)] transition-all duration-300 group">
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-faiston-cyan to-faiston-purple"></div>
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-50 to-cyan-100 flex items-center justify-center text-faiston-cyan group-hover:from-cyan-100 group-hover:to-cyan-200 transition-all">
+                        <i class="ph ph-buildings text-xl"></i>
+                    </div>
+                    <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100" id="kpi-clientes-badge">—</span>
+                </div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Clientes Ativos</p>
+                <p class="text-3xl font-black text-faiston-dark" id="kpi-clientes">—</p>
             </div>
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Clientes Ativos</p>
-            <p class="text-2xl font-bold text-faiston-dark" id="kpi-clientes">—</p>
         </div>
-        <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 hover:shadow-[0_0_15px_rgba(74,0,224,0.15)] transition-all duration-300">
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-2 rounded-md bg-purple-50 border border-purple-100 text-faiston-purple"><i class="ph ph-ticket text-xl"></i></div>
-                <span class="text-[10px] font-semibold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200" id="kpi-andamento-badge">—</span>
+        <!-- Tickets -->
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(74,0,224,0.12)] transition-all duration-300 group">
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-faiston-purple to-faiston-magenta"></div>
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100 flex items-center justify-center text-faiston-purple group-hover:from-purple-100 group-hover:to-purple-200 transition-all">
+                        <i class="ph ph-ticket text-xl"></i>
+                    </div>
+                    <span class="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-full border border-purple-100" id="kpi-andamento-badge">—</span>
+                </div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Tickets Abertos</p>
+                <p class="text-3xl font-black text-faiston-dark" id="kpi-tickets">—</p>
             </div>
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Tickets Abertos</p>
-            <p class="text-2xl font-bold text-faiston-dark" id="kpi-tickets">—</p>
         </div>
-        <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 hover:shadow-[0_0_15px_rgba(255,0,127,0.15)] transition-all duration-300">
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-2 rounded-md bg-pink-50 border border-pink-100 text-faiston-magenta"><i class="ph ph-clock text-xl"></i></div>
+        <!-- Horas -->
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(255,0,127,0.12)] transition-all duration-300 group">
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-faiston-magenta to-faiston-cyan"></div>
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-50 to-pink-100 flex items-center justify-center text-faiston-magenta group-hover:from-pink-100 group-hover:to-pink-200 transition-all">
+                        <i class="ph ph-clock text-xl"></i>
+                    </div>
+                    <i class="ph ph-trend-up text-emerald-400 text-lg"></i>
+                </div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Horas Apontadas</p>
+                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-horas">—</span><span class="text-sm font-medium text-slate-400" id="kpi-horas-unit"></span></p>
             </div>
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Horas Apontadas</p>
-            <p class="text-2xl font-bold text-faiston-dark"><span id="kpi-horas">—</span><span class="text-sm font-medium text-slate-400" id="kpi-horas-unit">h</span></p>
         </div>
-        <div class="bg-white rounded-lg p-5 border border-faiston-border hover:-translate-y-1 transition-all duration-300">
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-2 rounded-md bg-slate-100 border border-slate-200 text-faiston-dark"><i class="ph ph-lightning text-xl"></i></div>
+        <!-- SLA -->
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(10,10,26,0.08)] transition-all duration-300 group">
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-slate-300 to-faiston-purple"></div>
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center text-faiston-dark group-hover:from-slate-100 group-hover:to-slate-200 transition-all">
+                        <i class="ph ph-lightning text-xl"></i>
+                    </div>
+                </div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">SLA Cumprido</p>
+                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-sla">—</span><span class="text-sm font-medium text-slate-400">/100</span></p>
             </div>
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">SLA Cumprido</p>
-            <p class="text-2xl font-bold text-faiston-dark"><span id="kpi-sla">—</span><span class="text-sm font-medium text-slate-400">/100</span></p>
         </div>
     </div>
 
-    <!-- GRÁFICOS -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
-        <div class="lg:col-span-2 bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-            <h3 class="text-sm font-bold text-faiston-dark mb-4">Tarefas por Funcionário</h3>
-            <div id="chart-producao" style="min-height:280px;"></div>
+    <!-- GRÁFICOS ROW 1 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <!-- Tarefas por Funcionário -->
+        <div class="lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#1a0050 0%,#0d0030 100%);box-shadow:0 8px 32px rgba(74,0,224,0.25)">
+            <div class="flex items-center justify-between mb-3">
+                <div>
+                    <h3 class="text-sm font-bold text-white">Tarefas por Funcionário</h3>
+                    <p class="text-[11px] text-purple-300 mt-0.5">Quantidade e horas apontadas</p>
+                </div>
+                <div class="flex gap-3 text-[10px]">
+                    <span class="flex items-center gap-1 text-pink-300"><span class="w-2 h-2 rounded-sm" style="background:#FF007F"></span>Tarefas</span>
+                    <span class="flex items-center gap-1 text-cyan-300"><span class="w-2 h-2 rounded-full" style="background:#00E5FF"></span>Horas</span>
+                </div>
+            </div>
+            <div id="chart-producao" style="min-height:260px;"></div>
         </div>
-        <div class="bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-            <h3 class="text-sm font-bold text-faiston-dark mb-4">Status Geral da Fila</h3>
+        <!-- Status da Fila -->
+        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fff 0%,#f0f4ff 100%);border:1px solid #e0e8ff;box-shadow:0 4px 20px rgba(74,0,224,0.08)">
+            <div class="mb-1">
+                <h3 class="text-sm font-bold text-faiston-dark">Status da Fila</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Distribuição por status</p>
+            </div>
             <div id="chart-status" class="flex-1 flex items-center justify-center" style="min-height:280px;"></div>
         </div>
-        <div class="bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-            <h3 class="text-sm font-bold text-faiston-dark mb-4">Funil de Atendimento</h3>
-            <div id="chart-funil" class="flex-1" style="min-height:280px;"></div>
+    </div>
+
+    <!-- GRÁFICOS ROW 2 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <!-- Esforço por Cliente -->
+        <div class="lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fff 0%,#fff5fb 100%);border:1px solid #ffe0f0;box-shadow:0 4px 20px rgba(255,0,127,0.08)">
+            <div class="mb-3">
+                <h3 class="text-sm font-bold text-faiston-dark">Esforço por Cliente</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Total de horas apontadas por cliente</p>
+            </div>
+            <div id="chart-barras" class="flex-1" style="min-height:240px;"></div>
         </div>
-        <div class="lg:col-span-2 bg-white rounded-lg p-5 shadow-sm border border-faiston-border flex flex-col">
-            <h3 class="text-sm font-bold text-faiston-dark mb-4">Esforço por Cliente (Horas)</h3>
-            <div id="chart-barras" class="flex-1" style="min-height:280px;"></div>
+        <!-- Funil -->
+        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#f0fff4 0%,#e6fffa 100%);border:1px solid #c6f6d5;box-shadow:0 4px 20px rgba(0,229,255,0.08)">
+            <div class="mb-3">
+                <h3 class="text-sm font-bold text-faiston-dark">Funil de Atendimento</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Fluxo de abertura ao fechamento</p>
+            </div>
+            <div id="chart-funil" class="flex-1" style="min-height:240px;"></div>
+        </div>
+    </div>
+
+    <!-- GRÁFICOS ROW 3 - NOVOS -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <!-- Heatmap prioridades -->
+        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fffbf0 0%,#fff8e1 100%);border:1px solid #fde68a;box-shadow:0 4px 20px rgba(245,158,11,0.08)">
+            <div class="mb-3">
+                <h3 class="text-sm font-bold text-faiston-dark">Tarefas por Prioridade</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Distribuição Alta, Média e Baixa</p>
+            </div>
+            <div id="chart-prioridade" style="min-height:220px;"></div>
+        </div>
+        <!-- Radar produtividade -->
+        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#f0f4ff 0%,#ede9fe 100%);border:1px solid #c4b5fd;box-shadow:0 4px 20px rgba(139,92,246,0.08)">
+            <div class="mb-3">
+                <h3 class="text-sm font-bold text-faiston-dark">Taxa de Conclusão por Cliente</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">% de tarefas concluídas</p>
+            </div>
+            <div id="chart-conclusao" style="min-height:220px;"></div>
         </div>
     </div>
 
@@ -187,7 +302,7 @@
 <script>
 let clienteAtivo = '';
 let charts = {};
-const cor_cyan='#34c6f3', cor_purple='#4337e1', cor_magenta='#e7218b', cor_dark='#0b1227';
+const cor_cyan='#00E5FF', cor_purple='#4A00E0', cor_magenta='#FF007F', cor_dark='#0A0A1A';
 
 let menuAberto = true;
 function toggleMenu() {
@@ -197,6 +312,122 @@ function toggleMenu() {
     submenu.style.display = menuAberto ? '' : 'none';
     caret.style.transform = menuAberto ? '' : 'rotate(-90deg)';
 }
+
+// --- NOTIFICAÇÕES ---
+let notifAberto = false;
+
+function toggleNotificacoes() {
+    notifAberto = !notifAberto;
+    document.getElementById('dropdown-notif').classList.toggle('hidden', !notifAberto);
+    if (notifAberto) carregarNotificacoes();
+}
+
+async function carregarNotificacoes() {
+    try {
+        const res = await fetch('/api/notificacoes');
+        if (!res.ok) return;
+        const notifs = await res.json();
+        const lista = document.getElementById('lista-notif');
+        if (!notifs.length) {
+            lista.innerHTML = '<div class="px-4 py-8 text-center text-slate-400 text-sm">Nenhuma notificação</div>';
+            return;
+        }
+        const tipoIcon = { nova_tarefa: 'ph-plus-circle text-blue-500', tarefa_concluida: 'ph-check-circle text-emerald-500', tarefa_iniciada: 'ph-play-circle text-cyan-500' };
+        lista.innerHTML = notifs.map(n => {
+            const icon = tipoIcon[n.tipo] || 'ph-bell text-slate-400';
+            const data = new Date(n.criado_em.replace(' ','T')).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+            return `<div class="flex items-start gap-3 px-4 py-3 border-b border-faiston-border last:border-0 ${n.lida ? 'opacity-50' : 'bg-cyan-50/30'}">
+                <i class="ph ${icon} text-lg mt-0.5 shrink-0"></i>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs text-slate-700 leading-relaxed">${n.mensagem}</p>
+                    <p class="text-[10px] text-slate-400 mt-1">${data}</p>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) {}
+}
+
+async function marcarLidas() {
+    await fetch('/api/notificacoes/marcar-lidas', { method: 'POST' });
+    document.getElementById('badge-notif').classList.add('hidden');
+    await carregarNotificacoes();
+}
+
+let ultimaNotifId = 0;
+let popupTimer = null;
+
+function togglePopupPref(ativo) {
+    localStorage.setItem('faiston_popup', ativo ? '1' : '0');
+}
+
+function popupAtivo() {
+    return localStorage.getItem('faiston_popup') !== '0';
+}
+
+function fecharPopup() {
+    const popup = document.getElementById('popup-notif');
+    popup.classList.add('hidden');
+    if (popupTimer) clearTimeout(popupTimer);
+}
+
+function mostrarPopup(notif) {
+    if (!popupAtivo()) return;
+    const icons = { nova_tarefa: '🆕', tarefa_concluida: '✅', tarefa_iniciada: '▶️' };
+    const titulos = { nova_tarefa: 'Nova tarefa criada', tarefa_concluida: 'Tarefa concluída!', tarefa_iniciada: 'Tarefa iniciada' };
+    document.getElementById('popup-icon').textContent = icons[notif.tipo] || '🔔';
+    document.getElementById('popup-titulo').textContent = titulos[notif.tipo] || 'Notificação';
+    // Remove emojis da mensagem para o popup (já tem o ícone)
+    document.getElementById('popup-mensagem').textContent = notif.mensagem.replace(/^[🆕✅▶️]\s/, '');
+    document.getElementById('popup-hora').textContent = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    document.getElementById('toggle-popup').checked = true;
+    const popup = document.getElementById('popup-notif');
+    popup.classList.remove('hidden');
+    // Fecha automaticamente após 5 segundos
+    if (popupTimer) clearTimeout(popupTimer);
+    popupTimer = setTimeout(fecharPopup, 5000);
+}
+
+async function verificarNaoLidas() {
+    try {
+        const res = await fetch('/api/notificacoes/nao-lidas');
+        if (!res.ok) return;
+        const data = await res.json();
+        const badge = document.getElementById('badge-notif');
+        if (data.count > 0) {
+            badge.textContent = data.count > 9 ? '9+' : data.count;
+            badge.classList.remove('hidden');
+            badge.classList.add('flex');
+        } else {
+            badge.classList.add('hidden');
+        }
+        // Verifica se há notificação nova para mostrar popup
+        if (data.count > 0) {
+            const resNotifs = await fetch('/api/notificacoes');
+            if (resNotifs.ok) {
+                const notifs = await resNotifs.json();
+                const naoLidas = notifs.filter(n => !n.lida);
+                if (naoLidas.length > 0) {
+                    const maisRecente = naoLidas[0];
+                    if (maisRecente.id !== ultimaNotifId) {
+                        ultimaNotifId = maisRecente.id;
+                        mostrarPopup(maisRecente);
+                    }
+                }
+            }
+        }
+    } catch(e) {}
+}
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click', e => {
+    if (!e.target.closest('.relative') || !e.target.closest('[onclick="toggleNotificacoes()"]')) {
+        const dd = document.getElementById('dropdown-notif');
+        if (dd && !dd.classList.contains('hidden') && !dd.contains(e.target)) {
+            dd.classList.add('hidden');
+            notifAberto = false;
+        }
+    }
+});
 
 async function init() {
     try {
@@ -210,6 +441,9 @@ async function init() {
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
+    // Verifica notificações a cada 15 segundos
+    await verificarNaoLidas();
+    setInterval(verificarNaoLidas, 15000);
 }
 
 async function fazerLogout() {
@@ -234,9 +468,35 @@ function filtrarCliente(cliente) {
     return false;
 }
 
+function limparDatas() {
+    document.getElementById('data-inicio').value = '';
+    document.getElementById('data-fim').value = '';
+    carregarDados(clienteAtivo);
+}
+
+function exportarCSV() {
+    const cliente = clienteAtivo;
+    const di = document.getElementById('data-inicio').value;
+    const df = document.getElementById('data-fim').value;
+    let url = '/api/exportar?';
+    const params = [];
+    if (cliente) params.push('cliente=' + encodeURIComponent(cliente));
+    if (di) params.push('data_inicio=' + di);
+    if (df) params.push('data_fim=' + df);
+    url += params.join('&');
+    window.location.href = url;
+}
+
 async function carregarDados(cliente) {
     try {
-        const url = `/api/metricas${cliente ? '?cliente=' + encodeURIComponent(cliente) : ''}`;
+        const di = document.getElementById('data-inicio')?.value || '';
+        const df = document.getElementById('data-fim')?.value || '';
+        let url = '/api/metricas?';
+        const params = [];
+        if (cliente) params.push('cliente=' + encodeURIComponent(cliente));
+        if (di) params.push('data_inicio=' + di);
+        if (df) params.push('data_fim=' + df);
+        url += params.join('&');
         const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
@@ -263,80 +523,160 @@ function destroyChart(id) {
     if (charts[id]) { charts[id].destroy(); delete charts[id]; }
 }
 
+const chartDefaults = { fontFamily:'Inter, sans-serif', toolbar:{show:false}, animations:{enabled:true,easing:'easeinout',speed:600} };
+const gridDark = { borderColor:'rgba(255,255,255,0.08)', strokeDashArray:4, padding:{left:8,right:8} };
+const gridLight = { borderColor:'#F1F5F9', strokeDashArray:4, padding:{left:8,right:8} };
+const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
+const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
+
 function renderCharts(data) {
-    // Gráfico de barras - tarefas por funcionário
+    // 1. Tarefas por Funcionário — dark card, barras + linha
     destroyChart('producao');
     const hpf = data.horas_por_func;
-    const nomes = hpf.map(f => f.nome.split(' ')[0]); // primeiro nome
-    const horas = hpf.map(f => f.horas);
-    // Usar contagem de tarefas direto da API (já filtrada por cliente)
-    const todosFuncs = hpf.map(f => f.nome);
+    const nomes = hpf.map(f => f.nome.split(' ')[0]);
+    const horas = hpf.map(f => parseFloat((f.horas||0).toFixed(1)));
     const contagens = hpf.map(f => f.tarefas || 0);
     charts['producao'] = new ApexCharts(document.querySelector("#chart-producao"), {
         series: [
             { name: 'Tarefas', type: 'bar', data: contagens },
             { name: 'Horas', type: 'line', data: horas }
         ],
-        chart: { height: 280, type: 'line', fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
-        colors: [cor_magenta, cor_cyan],
-        plotOptions: { bar: { borderRadius: 5, columnWidth: '40%' } },
+        chart: { ...chartDefaults, height: 260, type: 'line', background: 'transparent' },
+        theme: { mode: 'dark' },
+        colors: ['#FF007F', '#00E5FF'],
+        plotOptions: { bar: { borderRadius: 8, columnWidth: '40%' } },
+        fill: {
+            type: ['gradient', 'solid'],
+            gradient: { shade: 'dark', type: 'vertical', gradientToColors: ['#4A00E0'], stops: [0, 100] }
+        },
         dataLabels: { enabled: false },
         stroke: { width: [0, 3], curve: 'smooth' },
-        markers: { size: [0, 6], strokeWidth: 0, fillOpacity: 1 },
-        xaxis: { categories: nomes, axisBorder: { show: false }, axisTicks: { show: false } },
+        markers: { size: [0, 5], strokeColors: '#1a0050', strokeWidth: 2, hover: { size: 8 } },
+        xaxis: { categories: nomes, axisBorder:{show:false}, axisTicks:{show:false},
+            labels:{style:{fontSize:'12px', colors:'#a78bfa'}} },
         yaxis: [
-            { seriesName: 'Tarefas', title: { text: 'Tarefas', style: { color: cor_magenta } }, labels: { style: { colors: [cor_magenta] } }, min: 0 },
-            { seriesName: 'Horas', opposite: true, title: { text: 'Horas', style: { color: cor_cyan } }, labels: { style: { colors: [cor_cyan] } }, min: 0 }
+            { min: 0, labels: { style: { colors: ['#f9a8d4'], fontSize: '11px' } } },
+            { opposite: true, min: 0, labels: { style: { colors: ['#67e8f9'], fontSize: '11px' } } }
         ],
-        legend: { position: 'top' },
-        grid: { borderColor: '#F1F5F9', strokeDashArray: 4 }
+        legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px',
+            labels: { colors: '#e2e8f0' }, markers: { radius: 4 } },
+        grid: gridDark,
+        tooltip: { ...ttDark, shared: true, intersect: false }
     });
     charts['producao'].render();
 
-    // Donut - status
+    // 2. Donut status — gradientes por fatia
     destroyChart('status');
     const sf = data.status_fila;
-    const statusVals = [sf['concluido']||0, sf['em_andamento']||0, sf['aberto']||0];
+    const totalFila = (sf['concluido']||0)+(sf['em_andamento']||0)+(sf['aberto']||0);
     charts['status'] = new ApexCharts(document.querySelector("#chart-status"), {
-        series: statusVals,
+        series: [sf['concluido']||0, sf['em_andamento']||0, sf['aberto']||0],
         labels: ['Concluído', 'Em Andamento', 'Aberto'],
-        chart: { type: 'donut', height: 300, fontFamily: 'Inter, sans-serif' },
-        colors: [cor_cyan, cor_purple, cor_dark],
-        plotOptions: { pie: { donut: { size: '70%' } } },
+        chart: { ...chartDefaults, type: 'donut', height: 300 },
+        colors: ['#00E5FF', '#4A00E0', '#CBD5E1'],
+        plotOptions: { pie: { donut: { size: '75%',
+            labels: { show: true,
+                value: { fontSize: '28px', fontWeight: 900, color: '#0A0A1A' },
+                total: { show: true, label: 'Total', fontSize: '12px', color: '#94A3B8',
+                    formatter: () => totalFila } } } } },
         dataLabels: { enabled: false },
-        legend: { position: 'bottom' },
-        stroke: { colors: ['#fff'], width: 2 }
+        legend: { position: 'bottom', fontSize: '12px', markers: { radius: 6 } },
+        stroke: { colors: ['#f0f4ff'], width: 4 },
+        tooltip: ttLight
     });
     charts['status'].render();
 
-    // Funil
-    destroyChart('funil');
-    const funil = data.funil;
-    charts['funil'] = new ApexCharts(document.querySelector("#chart-funil"), {
-        series: [{ name: 'Volume', data: [funil['Abertura']||0, funil['Triagem']||0, funil['Acionamento']||0, funil['Acompanhamento']||0, funil['Fechamento']||0] }],
-        chart: { type: 'bar', height: 280, fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
-        plotOptions: { bar: { borderRadius: 0, horizontal: true, distributed: true, isFunnel: true } },
-        colors: [cor_cyan, '#0EA5E9', cor_purple, '#4F46E5', cor_dark],
-        dataLabels: { enabled: true, formatter: (val, opt) => opt.w.globals.labels[opt.dataPointIndex] + ': ' + val,
-            dropShadow: { enabled: true, color: '#000', blur: 2, opacity: 0.5 } },
-        xaxis: { categories: ['Abertura','Triagem','Acionamento','Acompanhamento','Fechamento'] },
-        legend: { show: false }
-    });
-    charts['funil'].render();
-
-    // Barras horizontais - horas por cliente
+    // 3. Barras horizontais — gradiente magenta→roxo
     destroyChart('barras');
     const hpc = data.horas_por_cliente;
     charts['barras'] = new ApexCharts(document.querySelector("#chart-barras"), {
         series: [{ name: 'Horas', data: hpc.map(h => h.horas) }],
-        chart: { type: 'bar', height: 280, fontFamily: 'Inter, sans-serif', toolbar: { show: false } },
-        plotOptions: { bar: { horizontal: true, borderRadius: 6, barHeight: '55%' } },
-        colors: [cor_magenta],
-        dataLabels: { enabled: false },
-        xaxis: { categories: hpc.map(h => h.cliente) },
-        grid: { borderColor: '#F1F5F9', strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } }
+        chart: { ...chartDefaults, type: 'bar', height: 240 },
+        plotOptions: { bar: { horizontal: true, borderRadius: 8, barHeight: '55%',
+            dataLabels: { position: 'top' } } },
+        colors: ['#FF007F'],
+        fill: { type: 'gradient', gradient: { shade: 'light', type: 'horizontal',
+            gradientToColors: ['#4A00E0'], opacityFrom: 1, opacityTo: 0.85, stops: [0, 100] } },
+        dataLabels: { enabled: true, offsetX: 8,
+            style: { fontSize: '11px', fontFamily: 'Inter, sans-serif', colors: ['#64748B'], fontWeight: 600 },
+            formatter: val => val + 'h' },
+        xaxis: { categories: hpc.map(h => h.cliente), labels: { style: { fontSize: '11px', colors: '#94A3B8' } } },
+        grid: { ...gridLight, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+        tooltip: { ...ttLight, y: { formatter: val => val + ' horas' } }
     });
     charts['barras'].render();
+
+    // 4. Funil — colorido com gradiente
+    destroyChart('funil');
+    const funil = data.funil;
+    charts['funil'] = new ApexCharts(document.querySelector("#chart-funil"), {
+        series: [{ name: 'Volume', data: [funil['Abertura']||0, funil['Triagem']||0, funil['Acionamento']||0, funil['Acompanhamento']||0, funil['Fechamento']||0] }],
+        chart: { ...chartDefaults, type: 'bar', height: 240 },
+        plotOptions: { bar: { borderRadius: 6, horizontal: true, distributed: true, isFunnel: true, barHeight: '70%' } },
+        colors: ['#00E5FF', '#22D3EE', '#4A00E0', '#7C3AED', '#FF007F'],
+        dataLabels: { enabled: true, style: { fontSize: '11px', fontFamily: 'Inter, sans-serif', fontWeight: 700 },
+            formatter: (val, opt) => opt.w.globals.labels[opt.dataPointIndex] + ': ' + val },
+        xaxis: { categories: ['Abertura','Triagem','Acionamento','Acompanhamento','Fechamento'],
+            labels: { style: { fontSize: '10px', colors: '#94A3B8' } } },
+        legend: { show: false },
+        grid: { ...gridLight, xaxis: { lines: { show: false } } },
+        tooltip: ttLight
+    });
+    charts['funil'].render();
+
+    // 5. NOVO — Tarefas por Prioridade (barras agrupadas por cliente)
+    destroyChart('prioridade');
+    const clientes_uniq = [...new Set((data.recentes||[]).map(t => t.cliente))].slice(0,5);
+    const alta = clientes_uniq.map(c => (data.recentes||[]).filter(t => t.cliente===c && t.prioridade==='Alta').length);
+    const media = clientes_uniq.map(c => (data.recentes||[]).filter(t => t.cliente===c && t.prioridade==='Media').length);
+    const baixa = clientes_uniq.map(c => (data.recentes||[]).filter(t => t.cliente===c && t.prioridade==='Baixa').length);
+    charts['prioridade'] = new ApexCharts(document.querySelector("#chart-prioridade"), {
+        series: [
+            { name: 'Alta', data: alta },
+            { name: 'Média', data: media },
+            { name: 'Baixa', data: baixa }
+        ],
+        chart: { ...chartDefaults, type: 'bar', height: 220, stacked: true, stackType: '100%' },
+        colors: ['#FF007F', '#F59E0B', '#10B981'],
+        plotOptions: { bar: { borderRadius: 6, columnWidth: '50%', borderRadiusApplication: 'end' } },
+        dataLabels: { enabled: false },
+        xaxis: { categories: clientes_uniq, axisBorder:{show:false}, axisTicks:{show:false},
+            labels:{style:{fontSize:'11px',colors:'#94A3B8'}} },
+        fill: { opacity: 1, type: 'gradient',
+            gradient: { shade: 'light', type: 'vertical', opacityFrom: 1, opacityTo: 0.8 } },
+        legend: { position: 'top', fontSize: '11px', markers: { radius: 4 } },
+        grid: gridLight,
+        tooltip: { ...ttLight, y: { formatter: val => val + ' tarefas' } }
+    });
+    charts['prioridade'].render();
+
+    // 6. NOVO — Taxa de conclusão por cliente (radialBar)
+    destroyChart('conclusao');
+    const clientes_taxa = data.horas_por_cliente.map(h => h.cliente).slice(0, 4);
+    const taxas = clientes_taxa.map(c => {
+        const total = (data.recentes||[]).filter(t => t.cliente === c).length;
+        const concluidas = (data.recentes||[]).filter(t => t.cliente === c && t.status === 'Concluído').length;
+        return total > 0 ? Math.round(concluidas / total * 100) : 0;
+    });
+    charts['conclusao'] = new ApexCharts(document.querySelector("#chart-conclusao"), {
+        series: taxas,
+        labels: clientes_taxa,
+        chart: { ...chartDefaults, type: 'radialBar', height: 220 },
+        colors: ['#00E5FF', '#FF007F', '#4A00E0', '#10B981'],
+        plotOptions: { radialBar: {
+            offsetY: 0,
+            startAngle: -90, endAngle: 270,
+            hollow: { margin: 5, size: '30%', background: 'transparent' },
+            track: { background: '#F1F5F9', strokeWidth: '97%' },
+            dataLabels: { name: { fontSize: '11px' }, value: { fontSize: '13px', fontWeight: 700,
+                formatter: val => val + '%' } }
+        } },
+        fill: { type: 'gradient', gradient: { shade: 'dark', type: 'horizontal',
+            gradientToColors: ['#4A00E0', '#4A00E0', '#00E5FF', '#00E5FF'], stops: [0, 100] } },
+        legend: { show: true, position: 'bottom', fontSize: '11px' },
+        tooltip: ttLight
+    });
+    charts['conclusao'].render();
 }
 
 const statusCfg = {
@@ -397,5 +737,32 @@ function filtrarTabela() {
 
 init();
 </script>
+<!-- POPUP DE NOTIFICAÇÃO -->
+<div id="popup-notif" class="hidden fixed bottom-5 right-5 z-50 max-w-sm w-full">
+    <div class="bg-white rounded-xl border border-faiston-border shadow-2xl overflow-hidden" style="box-shadow:0 8px 32px rgba(74,0,224,0.15)">
+        <div class="h-0.5 bg-gradient-to-r from-faiston-purple to-faiston-cyan"></div>
+        <div class="p-4">
+            <div class="flex items-start gap-3">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-lg" id="popup-icon">🔔</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-faiston-dark mb-0.5" id="popup-titulo">Notificação</p>
+                    <p class="text-xs text-slate-500 leading-relaxed" id="popup-mensagem"></p>
+                </div>
+                <button onclick="fecharPopup()" class="text-slate-300 hover:text-slate-500 transition-colors shrink-0">
+                    <i class="ph ph-x text-sm"></i>
+                </button>
+            </div>
+            <div class="flex items-center justify-between mt-3 pt-3 border-t border-faiston-border">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="toggle-popup" checked onchange="togglePopupPref(this.checked)"
+                        class="w-3.5 h-3.5 accent-faiston-purple cursor-pointer">
+                    <span class="text-[11px] text-slate-400">Mostrar notificações</span>
+                </label>
+                <span class="text-[10px] text-slate-300" id="popup-hora"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>

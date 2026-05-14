@@ -154,6 +154,33 @@
     </div>
 </div>
 
+<!-- MODAL COMENTÁRIOS -->
+<div id="modal-comentarios" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:85vh">
+        <div class="flex items-center justify-between p-5 border-b border-faiston-border">
+            <div>
+                <h2 class="text-base font-bold text-faiston-dark">Comentários</h2>
+                <p class="text-xs text-slate-400 mt-0.5 max-w-xs truncate" id="comentario-tarefa-nome"></p>
+            </div>
+            <button onclick="fecharComentarios()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-slate-500"></i></button>
+        </div>
+        <!-- Lista -->
+        <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-3" id="lista-comentarios">
+            <div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda</div>
+        </div>
+        <!-- Input -->
+        <div class="p-4 border-t border-faiston-border">
+            <div class="flex gap-2">
+                <input type="text" id="input-comentario" placeholder="Adicionar comentário..." onkeydown="if(event.key==='Enter') enviarComentario()"
+                    class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+                <button onclick="enviarComentario()" class="bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:shadow-[0_0_12px_rgba(0,229,255,0.3)]">
+                    <i class="ph ph-paper-plane-tilt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let tasks = [];
 let activeTaskId = null;
@@ -382,6 +409,7 @@ function renderTasks() {
                         <p class="text-sm font-semibold text-faiston-dark ${isDone ? 'line-through' : ''} leading-snug">${task.descricao}</p>
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="abrirComentarios(${task.id}, '${task.descricao.replace(/'/g, "\'")}')" class="w-8 h-8 rounded-lg hover:bg-blue-50 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors" title="Comentários"><i class="ph ph-chat-circle-dots text-base"></i></button>
                         <button onclick="editTask(${task.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple text-base"></i></button>
                         <button onclick="deleteTask(${task.id})" class="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><i class="ph ph-trash text-base"></i></button>
                     </div>
@@ -430,6 +458,66 @@ window.addEventListener('beforeunload', () => {
             navigator.sendBeacon(`/api/tarefas/${activeTaskId}/segundos`, blob);
         }
     }
+});
+
+// --- COMENTÁRIOS ---
+let tarefaAtualId = null;
+
+async function abrirComentarios(tarefaId, nome) {
+    tarefaAtualId = tarefaId;
+    document.getElementById('comentario-tarefa-nome').textContent = nome;
+    document.getElementById('modal-comentarios').classList.remove('hidden');
+    document.getElementById('input-comentario').focus();
+    await carregarComentarios();
+}
+
+function fecharComentarios() {
+    document.getElementById('modal-comentarios').classList.add('hidden');
+    tarefaAtualId = null;
+}
+
+async function carregarComentarios() {
+    if (!tarefaAtualId) return;
+    const res = await fetch(`/api/tarefas/${tarefaAtualId}/comentarios`);
+    if (!res.ok) return;
+    const comentarios = await res.json();
+    const lista = document.getElementById('lista-comentarios');
+    if (!comentarios.length) {
+        lista.innerHTML = '<div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda</div>';
+        return;
+    }
+    lista.innerHTML = comentarios.map(c => {
+        const data = new Date(c.criado_em.replace(' ','T')).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+        return `<div class="bg-slate-50 rounded-xl p-3 border border-faiston-border">
+            <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-[10px] font-bold">${c.autor.charAt(0)}</div>
+                    <span class="text-xs font-semibold text-faiston-dark">${c.autor}</span>
+                </div>
+                <span class="text-[10px] text-slate-400">${data}</span>
+            </div>
+            <p class="text-sm text-slate-700 leading-relaxed">${c.texto}</p>
+        </div>`;
+    }).join('');
+    lista.scrollTop = lista.scrollHeight;
+}
+
+async function enviarComentario() {
+    const input = document.getElementById('input-comentario');
+    const texto = input.value.trim();
+    if (!texto || !tarefaAtualId) return;
+    const res = await fetch(`/api/tarefas/${tarefaAtualId}/comentarios`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ texto })
+    });
+    if (res.ok) {
+        input.value = '';
+        await carregarComentarios();
+    }
+}
+
+document.getElementById('modal-comentarios').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal-comentarios')) fecharComentarios();
 });
 
 init();

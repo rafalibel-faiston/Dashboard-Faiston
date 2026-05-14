@@ -58,6 +58,24 @@ def setup_banco():
                 atualizado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comentarios (
+                id SERIAL PRIMARY KEY,
+                tarefa_id INTEGER REFERENCES tarefas(id) ON DELETE CASCADE,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                texto TEXT NOT NULL,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notificacoes (
+                id SERIAL PRIMARY KEY,
+                tipo VARCHAR(50) NOT NULL,
+                mensagem TEXT NOT NULL,
+                lida BOOLEAN DEFAULT FALSE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
         cur.execute("SELECT id FROM usuarios WHERE usuario = 'admin'")
         if not cur.fetchone():
             cur.execute(
@@ -227,6 +245,7 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
         cur.execute("INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
                     (sess["id"], t.descricao, t.cliente, t.prioridade, t.status, t.segundos))
         new_id = cur.fetchone()[0]
+        criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]")
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -241,6 +260,10 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
         cur = conn.cursor()
         cur.execute("UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
                     (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, tid, sess["id"]))
+        if t.status == "concluido":
+            criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]")
+        elif t.status == "em_andamento":
+            criar_notificacao(conn, "tarefa_iniciada", f"▶️ {sess['nome']} iniciou: {t.descricao[:50]} [{t.cliente}]")
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -277,15 +300,26 @@ def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
 
 # --- MÉTRICAS DASHBOARD ---
 @app.get("/api/metricas")
-def get_metricas(cliente: str = "", faiston_token: str = Cookie(None)):
+def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        filtro = "WHERE t.cliente = %s" if cliente else ""
-        params = (cliente,) if cliente else ()
+        conditions = []
+        params = []
+        if cliente:
+            conditions.append("t.cliente = %s")
+            params.append(cliente)
+        if data_inicio:
+            conditions.append("t.criado_em >= %s")
+            params.append(data_inicio + " 00:00:00")
+        if data_fim:
+            conditions.append("t.criado_em <= %s")
+            params.append(data_fim + " 23:59:59")
+        filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        params = tuple(params)
 
         # KPIs gerais
         cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro}", params)
@@ -360,12 +394,13 @@ def get_metricas(cliente: str = "", faiston_token: str = Cookie(None)):
             cur.execute("""SELECT u.nome, COALESCE(SUM(t.segundos),0),
                 COUNT(t.id) as total_tarefas
                 FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
-                WHERE t.cliente=%s
+                WHERE t.cliente=%s AND u.perfil = 'funcionario'
                 GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""", (cliente,))
         else:
             cur.execute("""SELECT u.nome, COALESCE(SUM(t.segundos),0),
                 COUNT(t.id) as total_tarefas
                 FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+                WHERE u.perfil = 'funcionario'
                 GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""")
         horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2]} for r in cur.fetchall()]
 
@@ -397,6 +432,107 @@ def registrar_acao(acao: AcaoBackoffice, faiston_token: str = Cookie(None)):
 
 @app.get("/api/health")
 def health(): return {"status": "ok"}
+
+@app.get("/api/exportar")
+def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
+    from fastapi.responses import StreamingResponse
+    import io
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        conditions = []
+        params = []
+        if cliente:
+            conditions.append("t.cliente = %s")
+            params.append(cliente)
+        if data_inicio:
+            conditions.append("t.criado_em >= %s")
+            params.append(data_inicio + " 00:00:00")
+        if data_fim:
+            conditions.append("t.criado_em <= %s")
+            params.append(data_fim + " 23:59:59")
+        filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        cur.execute(f"""SELECT u.nome, t.descricao, t.cliente, t.prioridade, t.status,
+            t.segundos, t.criado_em, t.atualizado_em
+            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+            {filtro} ORDER BY t.criado_em DESC""", tuple(params))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+
+        # Gerar XLSX com openpyxl
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Tarefas"
+
+        # Estilos
+        header_fill = PatternFill("solid", fgColor="4A00E0")
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        alt_fill = PatternFill("solid", fgColor="F8FAFC")
+        border = Border(bottom=Side(style='thin', color='E2E8F0'))
+        center = Alignment(horizontal='center', vertical='center')
+
+        # Cabeçalho
+        headers = ["Funcionário", "Tarefa", "Cliente", "Prioridade", "Status", "Horas", "Minutos", "Total (h)", "Criado em", "Atualizado em"]
+        col_widths = [25, 40, 20, 12, 15, 8, 8, 10, 18, 18]
+        for col, (h, w) in enumerate(zip(headers, col_widths), 1):
+            cell = ws.cell(row=1, column=col, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center
+            ws.column_dimensions[get_column_letter(col)].width = w
+        ws.row_dimensions[1].height = 30
+
+        # Dados
+        status_map = {"concluido": "Concluído", "em_andamento": "Em Andamento", "aberto": "Aberto"}
+        prio_colors = {"Alta": "FFE4E6", "Media": "FEF3C7", "Baixa": "D1FAE5"}
+        status_colors = {"concluido": "D1FAE5", "em_andamento": "CFFAFE", "aberto": "F1F5F9"}
+
+        for i, r in enumerate(rows, 2):
+            h = r[5] // 3600
+            m = (r[5] % 3600) // 60
+            total_h = round(r[5] / 3600, 2)
+            status_label = status_map.get(r[4], r[4])
+            row_data = [r[0], r[1], r[2], r[3], status_label, h, m, total_h,
+                str(r[6])[:16] if r[6] else "", str(r[7])[:16] if r[7] else ""]
+            fill = PatternFill("solid", fgColor="FFFFFF") if i % 2 == 0 else alt_fill
+            for col, val in enumerate(row_data, 1):
+                cell = ws.cell(row=i, column=col, value=val)
+                cell.border = border
+                cell.alignment = Alignment(vertical='center')
+                # Cor por prioridade e status
+                if col == 4 and r[3] in prio_colors:
+                    cell.fill = PatternFill("solid", fgColor=prio_colors[r[3]])
+                elif col == 5 and r[4] in status_colors:
+                    cell.fill = PatternFill("solid", fgColor=status_colors[r[4]])
+                else:
+                    cell.fill = fill
+            ws.row_dimensions[i].height = 22
+
+        # Totais
+        total_row = len(rows) + 2
+        ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True)
+        ws.cell(row=total_row, column=6, value=sum(r[5]//3600 for r in rows)).font = Font(bold=True)
+        ws.cell(row=total_row, column=8, value=round(sum(r[5] for r in rows)/3600, 2)).font = Font(bold=True)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        filename = f"faiston_tarefas{'_'+cliente if cliente else ''}{'_'+data_inicio if data_inicio else ''}.xlsx"
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/seed-dados")
 def seed_dados():
@@ -457,3 +593,170 @@ def admin_page(): return FileResponse("static/admin.html")
 
 app.mount("/css", StaticFiles(directory="static/css"), name="css")
 app.mount("/js", StaticFiles(directory="static/js"), name="js")
+
+# --- COMENTÁRIOS ---
+class ComentarioModel(BaseModel):
+    texto: str
+
+@app.get("/api/tarefas/{tid}/comentarios")
+def listar_comentarios(tid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT c.id, c.texto, c.criado_em, u.nome
+            FROM comentarios c JOIN usuarios u ON c.usuario_id = u.id
+            WHERE c.tarefa_id = %s ORDER BY c.criado_em ASC""", (tid,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "texto": r[1], "criado_em": str(r[2]), "autor": r[3]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tarefas/{tid}/comentarios")
+def criar_comentario(tid: int, c: ComentarioModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO comentarios (tarefa_id, usuario_id, texto) VALUES (%s,%s,%s) RETURNING id",
+                    (tid, sess["id"], c.texto))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/comentarios/{cid}")
+def deletar_comentario(cid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        if sess["perfil"] in ("admin", "gestor"):
+            cur.execute("DELETE FROM comentarios WHERE id=%s", (cid,))
+        else:
+            cur.execute("DELETE FROM comentarios WHERE id=%s AND usuario_id=%s", (cid, sess["id"]))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- RELATÓRIO POR CLIENTE ---
+@app.get("/api/relatorio/{cliente}")
+def get_relatorio(cliente: str, mes: str = "", faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        params_base = [cliente]
+        filtro_mes = ""
+        if mes:
+            filtro_mes = "AND DATE_TRUNC('month', t.criado_em) = DATE_TRUNC('month', %s::date)"
+            params_base.append(mes + "-01")
+
+        cur.execute(
+            "SELECT t.id, t.descricao, t.prioridade, t.status, t.segundos, t.criado_em, t.atualizado_em, u.nome "
+            "FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id "
+            "WHERE t.cliente = %s " + filtro_mes + " ORDER BY t.criado_em DESC",
+            params_base)
+        tarefas = cur.fetchall()
+
+        cur.execute(
+            "SELECT u.nome, COUNT(t.id), COALESCE(SUM(t.segundos),0) "
+            "FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id "
+            "WHERE t.cliente = %s " + filtro_mes + " GROUP BY u.nome ORDER BY SUM(t.segundos) DESC",
+            params_base)
+        por_func = cur.fetchall()
+
+        cur.execute(
+            "SELECT status, COUNT(*) FROM tarefas t WHERE t.cliente = %s " + filtro_mes + " GROUP BY status",
+            params_base)
+        status_counts = {r[0]: r[1] for r in cur.fetchall()}
+
+        cur.execute(
+            "SELECT COALESCE(SUM(segundos),0) FROM tarefas t WHERE t.cliente = %s " + filtro_mes,
+            params_base)
+        total_seg = cur.fetchone()[0]
+
+        cur.close(); conn.close()
+        status_map = {"concluido": "Concluído", "em_andamento": "Em Andamento", "aberto": "Aberto"}
+        return {
+            "cliente": cliente, "mes": mes,
+            "resumo": {
+                "total_tarefas": len(tarefas),
+                "concluidas": status_counts.get("concluido", 0),
+                "em_andamento": status_counts.get("em_andamento", 0),
+                "abertas": status_counts.get("aberto", 0),
+                "total_horas": round(total_seg / 3600, 1),
+                "sla": round(status_counts.get("concluido", 0) / len(tarefas) * 100) if tarefas else 0
+            },
+            "por_funcionario": [{"nome": r[0], "tarefas": r[1], "horas": round(r[2]/3600, 1)} for r in por_func],
+            "tarefas": [{"id": r[0], "descricao": r[1], "prioridade": r[2],
+                "status": status_map.get(r[3], r[3]), "horas": round(r[4]/3600, 1),
+                "minutos": (r[4] % 3600) // 60, "criado_em": str(r[5])[:10],
+                "funcionario": r[7]} for r in tarefas]
+        }
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/relatorio/{cliente}")
+def relatorio_page(cliente: str): return FileResponse("static/relatorio.html")
+
+# --- NOTIFICAÇÕES ---
+def criar_notificacao(conn, tipo: str, mensagem: str):
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO notificacoes (tipo, mensagem) VALUES (%s, %s)", (tipo, mensagem))
+        # Mantém só as últimas 50
+        cur.execute("DELETE FROM notificacoes WHERE id NOT IN (SELECT id FROM notificacoes ORDER BY criado_em DESC LIMIT 50)")
+        cur.close()
+    except:
+        pass
+
+@app.get("/api/notificacoes")
+def get_notificacoes(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, tipo, mensagem, lida, criado_em FROM notificacoes ORDER BY criado_em DESC LIMIT 20")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "tipo": r[1], "mensagem": r[2], "lida": r[3], "criado_em": str(r[4])} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/notificacoes/marcar-lidas")
+def marcar_lidas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE notificacoes SET lida = TRUE WHERE lida = FALSE")
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/notificacoes/nao-lidas")
+def count_nao_lidas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    if sess["perfil"] not in ("admin", "gestor"): return {"count": 0}
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM notificacoes WHERE lida = FALSE")
+        count = cur.fetchone()[0]
+        cur.close(); conn.close()
+        return {"count": count}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
