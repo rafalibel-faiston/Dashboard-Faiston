@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faiston Ops - Histórico</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] },
+            colors: { faiston: { bg:'#F8FAFC',dark:'#0A0A1A',border:'#E2E8F0',cyan:'#00E5FF',purple:'#4A00E0',magenta:'#FF007F' } } } } }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar{width:5px;height:5px}
+        .custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
+        .filter-chip { transition: all 0.15s; }
+        .filter-chip.active { background: #4A00E0; color: white; border-color: #4A00E0; }
+        tr.selected { background: #F0F4FF !important; }
+    </style>
+</head>
+<body class="bg-faiston-bg font-sans min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div class="flex items-center gap-3">
+        <a href="/dashboard" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark transition-colors">
+            <i class="ph ph-arrow-left"></i> Dashboard
+        </a>
+        <span class="w-px h-4 bg-slate-200"></span>
+        <i class="ph ph-clock-clockwise text-faiston-purple"></i>
+        <span class="text-sm font-bold text-faiston-dark">Histórico de Tarefas</span>
+    </div>
+    <div class="flex items-center gap-3">
+        <button onclick="exportarCSV()" class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition-colors">
+            <i class="ph ph-download-simple"></i> Exportar
+        </button>
+        <button onclick="logout()" class="text-slate-400 hover:text-red-500 transition-colors">
+            <i class="ph ph-sign-out text-lg"></i>
+        </button>
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-magenta flex items-center justify-center text-white text-xs font-bold" id="user-av">?</div>
+            <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 py-6">
+
+    <!-- FILTROS -->
+    <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(74,0,224,0.06)">
+        <div class="flex items-center gap-2 mb-4">
+            <i class="ph ph-funnel text-faiston-purple"></i>
+            <span class="text-sm font-bold text-faiston-dark">Filtros</span>
+            <button onclick="limparFiltros()" class="ml-auto text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1">
+                <i class="ph ph-x-circle"></i> Limpar tudo
+            </button>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+            <!-- Busca -->
+            <div class="lg:col-span-2 relative">
+                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                <input type="text" id="f-busca" placeholder="Buscar por descrição..." oninput="debounceSearch()"
+                    class="w-full pl-9 pr-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+            </div>
+            <!-- Funcionário -->
+            <div class="relative">
+                <i class="ph ph-user absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                <input type="text" id="f-funcionario" placeholder="Funcionário..." oninput="debounceSearch()"
+                    class="w-full pl-9 pr-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+            </div>
+            <!-- Datas -->
+            <div class="flex gap-2 items-center">
+                <input type="date" id="f-inicio" onchange="buscar()" class="flex-1 px-2 py-2 border border-faiston-border rounded-lg text-xs focus:outline-none focus:border-faiston-cyan transition-all">
+                <span class="text-slate-300 text-xs">→</span>
+                <input type="date" id="f-fim" onchange="buscar()" class="flex-1 px-2 py-2 border border-faiston-border rounded-lg text-xs focus:outline-none focus:border-faiston-cyan transition-all">
+            </div>
+        </div>
+        <!-- Chips de filtro rápido -->
+        <div class="flex flex-wrap gap-2">
+            <span class="text-xs text-slate-400 self-center mr-1">Cliente:</span>
+            <button onclick="toggleChip('cliente','NTT',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-purple">NTT</button>
+            <button onclick="toggleChip('cliente','Arcos Dourados',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-purple">Arcos Dourados</button>
+            <button onclick="toggleChip('cliente','Zamp',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-purple">Zamp</button>
+            <button onclick="toggleChip('cliente','Telcoweb',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-purple">Telcoweb</button>
+            <span class="w-px h-4 bg-slate-200 self-center mx-1"></span>
+            <span class="text-xs text-slate-400 self-center mr-1">Status:</span>
+            <button onclick="toggleChip('status','concluido',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-emerald-400">✅ Concluído</button>
+            <button onclick="toggleChip('status','em_andamento',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-cyan-400">▶️ Em Andamento</button>
+            <button onclick="toggleChip('status','aberto',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-slate-400">🔵 Aberto</button>
+            <span class="w-px h-4 bg-slate-200 self-center mx-1"></span>
+            <span class="text-xs text-slate-400 self-center mr-1">Prioridade:</span>
+            <button onclick="toggleChip('prioridade','Alta',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-pink-400">🔴 Alta</button>
+            <button onclick="toggleChip('prioridade','Media',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-amber-400">🟡 Média</button>
+            <button onclick="toggleChip('prioridade','Baixa',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-emerald-400">🟢 Baixa</button>
+        </div>
+    </div>
+
+    <!-- RESUMO -->
+    <div class="grid grid-cols-3 gap-4 mb-5">
+        <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center text-faiston-purple"><i class="ph ph-list-bullets text-lg"></i></div>
+            <div>
+                <p class="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">Total encontrado</p>
+                <p class="text-xl font-black text-faiston-dark" id="r-total">—</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-pink-50 flex items-center justify-center text-faiston-magenta"><i class="ph ph-clock text-lg"></i></div>
+            <div>
+                <p class="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">Horas no filtro</p>
+                <p class="text-xl font-black text-faiston-dark" id="r-horas">—</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><i class="ph ph-check-circle text-lg"></i></div>
+            <div>
+                <p class="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">Concluídas</p>
+                <p class="text-xl font-black text-emerald-600" id="r-concluidas">—</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABELA -->
+    <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(74,0,224,0.06)">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-faiston-dark">Tarefas</span>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-400">
+                <span>Itens por página:</span>
+                <select id="por-pagina" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-faiston-cyan bg-white">
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-faiston-border bg-slate-50">
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-faiston-purple" onclick="ordenar('funcionario')">Funcionário <i class="ph ph-arrows-down-up text-[10px]"></i></th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tarefa</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-faiston-purple" onclick="ordenar('cliente')">Cliente <i class="ph ph-arrows-down-up text-[10px]"></i></th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Prioridade</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-faiston-purple" onclick="ordenar('horas')">Horas <i class="ph ph-arrows-down-up text-[10px]"></i></th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-faiston-purple" onclick="ordenar('data')">Data <i class="ph ph-arrows-down-up text-[10px]"></i></th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-body"></tbody>
+            </table>
+        </div>
+        <!-- PAGINAÇÃO -->
+        <div class="flex items-center justify-between px-5 py-4 border-t border-faiston-border">
+            <span class="text-xs text-slate-400" id="pag-info">—</span>
+            <div class="flex items-center gap-1" id="pag-btns"></div>
+        </div>
+    </div>
+</main>
+
+<script>
+const prioCfg = { Alta:'bg-pink-100 text-pink-700', Media:'bg-amber-100 text-amber-700', Média:'bg-amber-100 text-amber-700', Baixa:'bg-emerald-100 text-emerald-700' };
+const statusCfg = { 'Concluído':'bg-emerald-100 text-emerald-700', 'Em Andamento':'bg-cyan-100 text-cyan-700', 'Aberto':'bg-slate-100 text-slate-600' };
+
+let pagina = 1;
+let filtros = { cliente:'', status:'', prioridade:'' };
+let debounceTimer = null;
+let ordemAtual = { campo: 'data', dir: 'desc' };
+let dadosAtuais = [];
+
+async function init() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
+        if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
+        document.getElementById('user-nome').textContent = me.nome;
+        document.getElementById('user-av').textContent = me.nome.charAt(0).toUpperCase();
+    } catch(e) { window.location.href = '/'; return; }
+    buscar();
+}
+
+async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
+}
+
+function debounceSearch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => { pagina = 1; buscar(); }, 400);
+}
+
+function toggleChip(campo, valor, btn) {
+    const ativo = btn.classList.contains('active');
+    // Desativa todos os chips do mesmo campo
+    document.querySelectorAll('.filter-chip').forEach(c => {
+        if (c.getAttribute('onclick')?.includes(`'${campo}'`)) {
+            c.classList.remove('active');
+        }
+    });
+    if (!ativo) {
+        btn.classList.add('active');
+        filtros[campo] = valor;
+    } else {
+        filtros[campo] = '';
+    }
+    pagina = 1;
+    buscar();
+}
+
+function limparFiltros() {
+    document.getElementById('f-busca').value = '';
+    document.getElementById('f-funcionario').value = '';
+    document.getElementById('f-inicio').value = '';
+    document.getElementById('f-fim').value = '';
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    filtros = { cliente:'', status:'', prioridade:'' };
+    pagina = 1;
+    buscar();
+}
+
+async function buscar() {
+    const params = new URLSearchParams({
+        page: pagina,
+        por_pagina: document.getElementById('por-pagina').value,
+        busca: document.getElementById('f-busca').value,
+        funcionario: document.getElementById('f-funcionario').value,
+        data_inicio: document.getElementById('f-inicio').value,
+        data_fim: document.getElementById('f-fim').value,
+        ...filtros
+    });
+    try {
+        const res = await fetch('/api/historico?' + params);
+        if (!res.ok) return;
+        const data = await res.json();
+        dadosAtuais = data.tarefas;
+        renderTabela(data);
+        renderPaginacao(data);
+        renderResumo(data.resumo);
+        document.getElementById('count-label').textContent = `${data.total} tarefas`;
+    } catch(e) { console.error(e); }
+}
+
+function renderResumo(r) {
+    document.getElementById('r-total').textContent = r.total;
+    document.getElementById('r-horas').textContent = r.total_horas + 'h';
+    document.getElementById('r-concluidas').textContent = r.concluidas;
+}
+
+function ordenar(campo) {
+    if (ordemAtual.campo === campo) {
+        ordemAtual.dir = ordemAtual.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        ordemAtual = { campo, dir: 'asc' };
+    }
+    const sorted = [...dadosAtuais].sort((a, b) => {
+        let va, vb;
+        if (campo === 'funcionario') { va = a.funcionario; vb = b.funcionario; }
+        else if (campo === 'cliente') { va = a.cliente; vb = b.cliente; }
+        else if (campo === 'horas') { va = a.segundos; vb = b.segundos; }
+        else { va = a.criado_em; vb = b.criado_em; }
+        if (typeof va === 'string') return ordemAtual.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        return ordemAtual.dir === 'asc' ? va - vb : vb - va;
+    });
+    dadosAtuais = sorted;
+    renderLinhas(sorted);
+}
+
+function renderTabela(data) {
+    renderLinhas(data.tarefas);
+}
+
+function renderLinhas(tarefas) {
+    const tb = document.getElementById('tabela-body');
+    if (!tarefas.length) {
+        tb.innerHTML = `<tr><td colspan="7" class="px-5 py-12 text-center text-slate-400">
+            <i class="ph ph-magnifying-glass text-3xl block mb-2"></i>Nenhuma tarefa encontrada
+        </td></tr>`;
+        return;
+    }
+    tb.innerHTML = tarefas.map((t, i) => {
+        const pc = prioCfg[t.prioridade] || prioCfg.Media;
+        const sc = statusCfg[t.status] || statusCfg.Aberto;
+        const h = Math.floor(t.segundos/3600);
+        const m = Math.floor((t.segundos%3600)/60);
+        const horasLabel = t.segundos > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : '<span class="text-slate-300">—</span>';
+        return `<tr class="border-b border-faiston-border hover:bg-slate-50/80 transition-colors cursor-default ${i%2===0?'':'bg-slate-50/30'}">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-[10px] font-bold shrink-0">${t.funcionario.charAt(0)}</div>
+                    <span class="text-xs text-slate-600 font-medium">${t.funcionario.split(' ')[0]}</span>
+                </div>
+            </td>
+            <td class="px-5 py-3 max-w-xs">
+                <p class="text-sm font-medium text-faiston-dark truncate" title="${t.descricao}">${t.descricao}</p>
+            </td>
+            <td class="px-5 py-3">
+                <span class="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">${t.cliente}</span>
+            </td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${pc}">${t.prioridade}</span></td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${sc}">${t.status}</span></td>
+            <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-bold">${horasLabel}</td>
+            <td class="px-5 py-3 text-xs text-slate-400">${t.criado_em}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderPaginacao(data) {
+    const info = document.getElementById('pag-info');
+    const btns = document.getElementById('pag-btns');
+    const inicio = (data.pagina - 1) * data.por_pagina + 1;
+    const fim = Math.min(data.pagina * data.por_pagina, data.total);
+    info.textContent = `Mostrando ${inicio}–${fim} de ${data.total}`;
+
+    const pages = [];
+    pages.push('<button onclick="irPara('+data.pagina+'-1)" class="w-8 h-8 rounded-lg border border-faiston-border flex items-center justify-center text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-colors" '+(data.pagina<=1?'disabled':'')+'><i class="ph ph-caret-left text-sm"></i></button>');
+
+    let start = Math.max(1, data.pagina - 2);
+    let end = Math.min(data.total_paginas, data.pagina + 2);
+    if (start > 1) pages.push('<span class="text-slate-300 text-xs px-1">...</span>');
+    for (let i = start; i <= end; i++) {
+        const ativo = i === data.pagina;
+        pages.push(`<button onclick="irPara(${i})" class="w-8 h-8 rounded-lg border text-xs font-semibold transition-colors ${ativo ? 'bg-faiston-purple border-faiston-purple text-white' : 'border-faiston-border text-slate-600 hover:bg-slate-50'}">${i}</button>`);
+    }
+    if (end < data.total_paginas) pages.push('<span class="text-slate-300 text-xs px-1">...</span>');
+    pages.push('<button onclick="irPara('+data.pagina+'+1)" class="w-8 h-8 rounded-lg border border-faiston-border flex items-center justify-center text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-colors" '+(data.pagina>=data.total_paginas?'disabled':'')+'><i class="ph ph-caret-right text-sm"></i></button>');
+    btns.innerHTML = pages.join('');
+}
+
+function irPara(p) {
+    const total = parseInt(document.getElementById('pag-info').textContent.split('de ')[1]) || 0;
+    const porPag = parseInt(document.getElementById('por-pagina').value);
+    const maxPag = Math.ceil(total / porPag);
+    pagina = Math.max(1, Math.min(p, maxPag));
+    buscar();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function exportarCSV() {
+    const params = new URLSearchParams({
+        cliente: filtros.cliente,
+        data_inicio: document.getElementById('f-inicio').value,
+        data_fim: document.getElementById('f-fim').value,
+    });
+    window.location.href = '/api/exportar?' + params;
+}
+
+init();
+</script>
+</body>
+</html>
