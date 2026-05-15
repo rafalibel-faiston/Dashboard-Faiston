@@ -26,7 +26,7 @@
     <div>
         <div class="flex items-center gap-2 p-6 border-b border-faiston-border mb-4">
             <i class="ph-fill ph-play text-3xl text-transparent bg-clip-text bg-gradient-to-tr from-faiston-cyan via-faiston-purple to-faiston-magenta"></i>
-            <h1 class="text-lg font-black tracking-tight text-faiston-dark">FAISTON</h1>
+            <h1 class="text-lg font-black tracking-tight text-faiston-dark">FAISTON <span class="text-transparent bg-clip-text bg-gradient-to-r from-faiston-purple to-faiston-cyan">OPS</span></h1>
         </div>
         <div class="px-4">
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
@@ -81,6 +81,9 @@
                 <a href="/historico" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-lg"></i> Histórico
                 </a>
+                <a href="/clientes" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-buildings text-lg"></i> Clientes
+                </a>
                 <a href="/apresentacao" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-presentation-chart text-lg"></i> Apresentação
                 </a>
@@ -129,6 +132,9 @@
                 <input type="text" id="busca-tarefa" placeholder="Buscar tarefa..." onkeyup="filtrarTabela()" class="pl-9 pr-4 py-2 rounded-md border border-faiston-border focus:outline-none focus:border-faiston-cyan text-sm w-48 transition-all bg-white">
             </div>
             <!-- Exportar -->
+            <select id="filtro-funcionario" onchange="carregarDados(clienteAtivo)" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-cyan" title="Filtrar por funcionário">
+                <option value="">Todos os funcionários</option>
+            </select>
             <button onclick="exportarCSV()" class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-100 transition-colors" title="Exportar CSV">
                 <i class="ph ph-download-simple"></i> Exportar
             </button>
@@ -244,7 +250,7 @@
     <!-- GRÁFICOS ROW 2 -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <!-- Esforço por Cliente -->
-        <div class="lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fff 0%,#f0f4ff 100%);border:1px solid #e0e8ff;box-shadow:0 4px 20px rgba(255,0,127,0.08)">
+        <div class="lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fff 0%,#fff5fb 100%);border:1px solid #ffe0f0;box-shadow:0 4px 20px rgba(255,0,127,0.08)">
             <div class="mb-3">
                 <h3 class="text-sm font-bold text-faiston-dark">Esforço por Cliente</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">Total de horas apontadas por cliente</p>
@@ -252,7 +258,7 @@
             <div id="chart-barras" class="flex-1" style="min-height:240px;"></div>
         </div>
         <!-- Funil -->
-        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fff 0%,#f0f4ff 100%);border:1px solid #e0e8ff;box-shadow:0 4px 20px rgba(0,229,255,0.08)">
+        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#f0fff4 0%,#e6fffa 100%);border:1px solid #c6f6d5;box-shadow:0 4px 20px rgba(0,229,255,0.08)">
             <div class="mb-3">
                 <h3 class="text-sm font-bold text-faiston-dark">Funil de Atendimento</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">Fluxo de abertura ao fechamento</p>
@@ -264,7 +270,7 @@
     <!-- GRÁFICOS ROW 3 - NOVOS -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <!-- Heatmap prioridades -->
-        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fff 0%,#f0f4ff 100%);border:1px solid #e0e8ff;box-shadow:0 4px 20px rgba(245,158,11,0.08)">
+        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fffbf0 0%,#fff8e1 100%);border:1px solid #fde68a;box-shadow:0 4px 20px rgba(245,158,11,0.08)">
             <div class="mb-3">
                 <h3 class="text-sm font-bold text-faiston-dark">Tarefas por Prioridade</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">Distribuição Alta, Média e Baixa</p>
@@ -272,7 +278,7 @@
             <div id="chart-prioridade" style="min-height:220px;"></div>
         </div>
         <!-- Radar produtividade -->
-        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#fff 0%,#f0f4ff 100%);border:1px solid #e0e8ff;box-shadow:0 4px 20px rgba(139,92,246,0.08)">
+        <div class="rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg,#f0f4ff 0%,#ede9fe 100%);border:1px solid #c4b5fd;box-shadow:0 4px 20px rgba(139,92,246,0.08)">
             <div class="mb-3">
                 <h3 class="text-sm font-bold text-faiston-dark">Taxa de Conclusão por Cliente</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">% de tarefas concluídas</p>
@@ -448,6 +454,19 @@ async function init() {
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
+    // Carrega lista de funcionários para o filtro
+    try {
+        const resFuncs = await fetch('/api/usuarios');
+        if (resFuncs.ok) {
+            const funcs = await resFuncs.json();
+            const sel = document.getElementById('filtro-funcionario');
+            funcs.filter(u => u.perfil === 'funcionario').forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u.nome; opt.textContent = u.nome.split(' ')[0];
+                sel.appendChild(opt);
+            });
+        }
+    } catch(e) {}
     // Verifica notificações a cada 15 segundos
     await verificarNaoLidas();
     setInterval(verificarNaoLidas, 15000);
@@ -530,9 +549,11 @@ async function carregarDados(cliente) {
     try {
         const di = document.getElementById('data-inicio')?.value || '';
         const df = document.getElementById('data-fim')?.value || '';
+        const func = document.getElementById('filtro-funcionario')?.value || '';
         let url = '/api/metricas?';
         const params = [];
         if (cliente) params.push('cliente=' + encodeURIComponent(cliente));
+        if (func) params.push('funcionario=' + encodeURIComponent(func));
         if (di) params.push('data_inicio=' + di);
         if (df) params.push('data_fim=' + df);
         url += params.join('&');

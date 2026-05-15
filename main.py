@@ -300,7 +300,7 @@ def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
 
 # --- MÉTRICAS DASHBOARD ---
 @app.get("/api/metricas")
-def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
+def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -312,6 +312,9 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         if cliente:
             conditions.append("t.cliente = %s")
             params.append(cliente)
+        if funcionario:
+            conditions.append("u.nome ILIKE %s")
+            params.append(f"%{funcionario}%")
         if data_inicio:
             conditions.append("t.criado_em >= %s")
             params.append(data_inicio + " 00:00:00")
@@ -957,3 +960,89 @@ def deletar_nota(nid: int, faiston_token: str = Cookie(None)):
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- CLIENTES ---
+@app.get("/api/clientes")
+def listar_clientes(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS clientes (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(100) UNIQUE NOT NULL,
+                contato VARCHAR(100),
+                email VARCHAR(100),
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        # Migrar clientes existentes das tarefas
+        cur.execute("""
+            INSERT INTO clientes (nome)
+            SELECT DISTINCT cliente FROM tarefas
+            WHERE cliente IS NOT NULL AND cliente != ''
+            ON CONFLICT (nome) DO NOTHING
+        """)
+        conn.commit()
+        cur.execute("SELECT id, nome, contato, email, ativo, criado_em FROM clientes WHERE ativo=TRUE ORDER BY nome")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1], "contato": r[2], "email": r[3], "ativo": r[4], "criado_em": str(r[5])[:10]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class ClienteModel(BaseModel):
+    nome: str
+    contato: str = ""
+    email: str = ""
+    ativo: bool = True
+
+@app.post("/api/clientes")
+def criar_cliente(c: ClienteModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO clientes (nome, contato, email) VALUES (%s,%s,%s) RETURNING id",
+                    (c.nome, c.contato, c.email))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except psycopg2.errors.UniqueViolation:
+        raise HTTPException(status_code=400, detail="Cliente já existe")
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/clientes/{cid}")
+def atualizar_cliente(cid: int, c: ClienteModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE clientes SET nome=%s, contato=%s, email=%s, ativo=%s WHERE id=%s",
+                    (c.nome, c.contato, c.email, c.ativo, cid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/clientes/{cid}")
+def deletar_cliente(cid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE clientes SET ativo=FALSE WHERE id=%s", (cid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/clientes")
+def clientes_page(): return FileResponse("static/clientes.html")

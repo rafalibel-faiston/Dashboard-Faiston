@@ -119,7 +119,6 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Cliente *</label>
                     <select id="input-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all bg-white">
                         <option value="">Selecionar...</option>
-                        <option>NTT</option><option>Arcos Dourados</option><option>Zamp</option><option>Telcoweb</option>
                     </select>
                 </div>
                 <div>
@@ -265,6 +264,21 @@ async function init() {
     } catch(e) { window.location.href = '/'; return; }
     await carregarTarefas();
     await carregarNotas();
+    // Carrega clientes dinamicamente
+    try {
+        const resC = await fetch('/api/clientes');
+        if (resC.ok) {
+            const cls = await resC.json();
+            const sel = document.getElementById('input-cliente');
+            const selFiltro = document.getElementById('filter-cliente');
+            cls.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.nome; opt.textContent = c.nome;
+                sel.appendChild(opt.cloneNode(true));
+                if (selFiltro) selFiltro.appendChild(opt);
+            });
+        }
+    } catch(e) {}
 }
 
 async function logout() {
@@ -393,9 +407,19 @@ async function saveTask() {
 
     if (editId) {
         const task = tasks.find(t => t.id == editId);
-        if (task && !task._running) {
+        if (task) {
+            // Para timer se mudou para aberto ou concluido
+            if (task._running && body.status !== 'em_andamento') {
+                await stopTimer(parseInt(editId), true);
+            }
             await fetch(`/api/tarefas/${editId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
             Object.assign(task, body);
+            // Inicia timer se mudou para em_andamento
+            if (!task._running && body.status === 'em_andamento') {
+                closeModal(); renderTasks(); updateSummary();
+                startTimer(parseInt(editId));
+                return;
+            }
         }
         closeModal(); renderTasks(); updateSummary();
     } else {
