@@ -696,7 +696,7 @@ function renderCharts(data) {
             { name: 'Baixa', data: baixa }
         ],
         chart: { ...chartDefaults, type: 'bar', height: 220, stacked: true, stackType: '100%' },
-        colors: ['#FF007F', '#F59E0B', '#10B981'],
+        colors: ['#FF007F', '#4A00E0', '#00E5FF'],
         plotOptions: { bar: { borderRadius: 6, columnWidth: '50%', borderRadiusApplication: 'end' } },
         dataLabels: { enabled: false },
         xaxis: { categories: clientes_uniq, axisBorder:{show:false}, axisTicks:{show:false},
@@ -718,7 +718,7 @@ function renderCharts(data) {
         series: taxas,
         labels: clientes_taxa,
         chart: { ...chartDefaults, type: 'radialBar', height: 220 },
-        colors: ['#00E5FF', '#FF007F', '#4A00E0', '#10B981'],
+        colors: ['#00E5FF', '#4A00E0', '#FF007F', '#7C3AED'],
         plotOptions: { radialBar: {
             offsetY: 0,
             startAngle: -90, endAngle: 270,

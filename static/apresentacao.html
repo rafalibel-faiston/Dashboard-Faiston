@@ -8,147 +8,116 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; }
         body {
             font-family: 'DM Sans', sans-serif;
             background: #080818;
             color: #E2E8F0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
+            display: flex; flex-direction: column;
         }
         .bg {
             position: fixed; inset: 0; z-index: 0;
             background:
-                radial-gradient(ellipse 60% 50% at 80% 20%, rgba(74,0,224,0.18) 0%, transparent 60%),
-                radial-gradient(ellipse 40% 40% at 20% 80%, rgba(0,229,255,0.08) 0%, transparent 60%),
-                linear-gradient(rgba(74,0,224,0.04) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(74,0,224,0.04) 1px, transparent 1px);
-            background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
+                radial-gradient(ellipse 55% 60% at 85% 10%, rgba(74,0,224,0.2) 0%, transparent 60%),
+                radial-gradient(ellipse 40% 40% at 15% 90%, rgba(0,229,255,0.07) 0%, transparent 60%),
+                radial-gradient(ellipse 30% 30% at 50% 50%, rgba(255,0,127,0.04) 0%, transparent 60%),
+                linear-gradient(rgba(74,0,224,0.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(74,0,224,0.035) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 100% 100%, 44px 44px, 44px 44px;
         }
         .page {
             position: relative; z-index: 1;
-            width: 100%; padding: 32px 60px;
-            display: flex; flex-direction: column;
-            gap: 28px; flex: 1;
+            width: 100%; height: 100vh;
+            padding: 24px 48px;
+            display: grid;
+            grid-template-rows: auto auto 1fr auto auto;
+            gap: 20px;
         }
 
         /* HEADER */
         .header { display: flex; align-items: center; justify-content: space-between; }
         .logo { display: flex; align-items: center; gap: 10px; }
-        .logo-icon {
-            width: 34px; height: 34px; border-radius: 9px;
-            background: linear-gradient(135deg, #4A00E0, #00E5FF);
-            display: flex; align-items: center; justify-content: center;
-        }
-        .logo-text { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+        .logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #4A00E0, #00E5FF); display: flex; align-items: center; justify-content: center; }
+        .logo-text { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800; }
         .logo-text span { background: linear-gradient(90deg, #4A00E0, #00E5FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .badge {
-            display: flex; align-items: center; gap: 6px;
-            font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
-            color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1);
-            padding: 5px 12px; border-radius: 100px;
-        }
-        .dot-live { width: 6px; height: 6px; border-radius: 50%; background: #00E5FF; animation: p 2s infinite; }
+        .live-badge { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.35); border: 1px solid rgba(255,255,255,0.08); padding: 4px 12px; border-radius: 100px; }
+        .dot-live { width: 5px; height: 5px; border-radius: 50%; background: #00E5FF; animation: p 2s infinite; }
         @keyframes p { 0%,100%{opacity:1}50%{opacity:0.3} }
 
         /* HERO */
-        .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; }
-        .hero-left {}
-        .hero-tag { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: #00E5FF; margin-bottom: 12px; }
-        .hero-title {
-            font-family: 'Syne', sans-serif;
-            font-size: 52px; font-weight: 800; line-height: 1.05; letter-spacing: -2px;
-            margin-bottom: 16px;
-        }
-        .grad { background: linear-gradient(135deg, #00E5FF, #4A00E0, #FF007F); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .hero-desc { font-size: 14px; color: rgba(255,255,255,0.45); line-height: 1.7; margin-bottom: 20px; max-width: 420px; }
-        .pills { display: flex; flex-wrap: wrap; gap: 8px; }
-        .pill {
-            font-size: 11px; font-weight: 500; padding: 5px 12px; border-radius: 100px;
-            border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6);
-            background: rgba(255,255,255,0.04);
-        }
-        .pill.c { border-color: rgba(0,229,255,0.3); color: #00E5FF; background: rgba(0,229,255,0.08); }
+        .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+        .hero-eyebrow { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #00E5FF; margin-bottom: 10px; }
+        .hero-title { font-family: 'Syne', sans-serif; font-size: clamp(36px, 4.5vw, 58px); font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 12px; }
+        .grad { background: linear-gradient(135deg, #00E5FF 0%, #4A00E0 50%, #FF007F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero-desc { font-size: 13px; color: rgba(255,255,255,0.4); line-height: 1.7; margin-bottom: 16px; }
+        .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+        .pill { font-size: 10px; font-weight: 500; padding: 4px 10px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); }
+        .pill.c { border-color: rgba(0,229,255,0.3); color: #00E5FF; background: rgba(0,229,255,0.07); }
 
         /* STATS */
-        .hero-right { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .stat {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 14px; padding: 18px 20px;
-            position: relative; overflow: hidden;
-            transition: all 0.3s;
-        }
-        .stat:hover { border-color: rgba(0,229,255,0.2); }
-        .stat-num { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
-        .stat-label { font-size: 11px; color: rgba(255,255,255,0.35); }
-        .stat.s1 { border-top: 2px solid #00E5FF; } .stat.s1 .stat-num { color: #00E5FF; }
-        .stat.s2 { border-top: 2px solid #4A00E0; } .stat.s2 .stat-num { color: #a78bfa; }
-        .stat.s3 { border-top: 2px solid #FF007F; } .stat.s3 .stat-num { color: #FF007F; }
-        .stat.s4 { border-top: 2px solid #10B981; } .stat.s4 .stat-num { color: #10B981; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 20px 22px; }
+        .stat-num { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+        .stat-label { font-size: 11px; color: rgba(255,255,255,0.3); }
+        .s1 { border-top: 2px solid #00E5FF; } .s1 .stat-num { color: #00E5FF; }
+        .s2 { border-top: 2px solid #7C3AED; } .s2 .stat-num { color: #a78bfa; }
+        .s3 { border-top: 2px solid #FF007F; } .s3 .stat-num { color: #FF007F; }
+        .s4 { border-top: 2px solid #10B981; } .s4 .stat-num { color: #10B981; }
 
         /* DIVIDER */
-        .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
+        .div { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent); }
 
-        /* GRID FEATURES */
-        .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        /* FEATURES */
+        .features { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; align-content: start; }
         .feat {
-            background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 12px; padding: 16px;
-            display: flex; align-items: flex-start; gap: 12px;
-            transition: all 0.3s;
+            background: rgba(255,255,255,0.025);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px; padding: 14px;
+            display: flex; flex-direction: column; gap: 8px;
+            transition: all 0.25s;
         }
-        .feat:hover { border-color: rgba(0,229,255,0.2); background: rgba(0,229,255,0.04); transform: translateY(-1px); }
-        .feat-icon {
-            width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
-            background: linear-gradient(135deg, rgba(74,0,224,0.3), rgba(0,229,255,0.15));
-            display: flex; align-items: center; justify-content: center;
-            font-size: 17px; color: #00E5FF;
-        }
-        .feat-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-        .feat-desc { font-size: 11px; color: rgba(255,255,255,0.38); line-height: 1.5; }
+        .feat:hover { border-color: rgba(0,229,255,0.25); background: rgba(0,229,255,0.04); transform: translateY(-2px); }
+        .feat-top { display: flex; align-items: center; gap: 8px; }
+        .feat-icon { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, rgba(74,0,224,0.4), rgba(0,229,255,0.2)); display: flex; align-items: center; justify-content: center; font-size: 15px; color: #00E5FF; flex-shrink: 0; }
+        .feat-title { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; line-height: 1.3; }
+        .feat-desc { font-size: 10px; color: rgba(255,255,255,0.35); line-height: 1.5; }
 
         /* BOTTOM */
-        .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .stack-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-        .stack-item {
-            display: flex; align-items: center; gap: 7px;
-            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 8px; padding: 7px 12px;
+        .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: center; }
+        .stack-items { display: flex; flex-wrap: wrap; gap: 7px; }
+        .stack-item { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 7px; padding: 5px 10px; }
+        .sdot { width: 5px; height: 5px; border-radius: 50%; }
+        .sname { font-size: 11px; color: rgba(255,255,255,0.55); }
+        .access {
+            background: linear-gradient(135deg, rgba(74,0,224,0.15), rgba(0,229,255,0.08));
+            border: 1px solid rgba(0,229,255,0.2);
+            border-radius: 12px; padding: 14px 20px;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
         }
-        .stack-dot { width: 6px; height: 6px; border-radius: 50%; }
-        .stack-name { font-size: 12px; color: rgba(255,255,255,0.6); }
-        .access-box {
-            background: rgba(0,229,255,0.04); border: 1px solid rgba(0,229,255,0.15);
-            border-radius: 12px; padding: 16px 20px;
-            display: flex; align-items: center; justify-content: space-between; gap: 16px;
-        }
-        .access-url { font-size: 12px; color: #00E5FF; font-weight: 500; }
-        .access-creds { display: flex; gap: 12px; }
-        .cred { text-align: right; }
-        .cred-role { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.3); }
-        .cred-val { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.7); }
-        .cred-val span { color: #00E5FF; }
-
-        .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.25); margin-bottom: 10px; }
+        .access-url { font-size: 11px; color: #00E5FF; font-weight: 500; }
+        .access-url small { display: block; font-size: 9px; color: rgba(255,255,255,0.3); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.1em; }
+        .creds { display: flex; gap: 16px; }
+        .cred small { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.25); margin-bottom: 3px; }
+        .cred span { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.6); }
+        .cred span b { color: #00E5FF; font-weight: 700; }
+        .sec-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.2); margin-bottom: 8px; }
     </style>
 </head>
 <body>
 <div class="bg"></div>
 <div class="page">
 
-    <!-- HEADER -->
     <div class="header">
         <div class="logo">
-            <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:14px"></i></div>
+            <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:13px"></i></div>
             <div class="logo-text">FAISTON <span>OPS</span></div>
         </div>
-        <div class="badge"><div class="dot-live"></div> Sistema em produção</div>
+        <div class="live-badge"><div class="dot-live"></div> Sistema em produção</div>
     </div>
 
-    <!-- HERO -->
     <div class="hero">
-        <div class="hero-left">
-            <div class="hero-tag">Faiston Istech — Backoffice & Redes</div>
+        <div>
+            <div class="hero-eyebrow">Faiston Istech — Backoffice & Redes</div>
             <h1 class="hero-title">Operação em<br><span class="grad">tempo real.</span><br>Zero planilha.</h1>
             <p class="hero-desc">Sistema de gestão operacional construído do zero — controle de tarefas, apontamento de horas e relatórios por cliente em uma única plataforma.</p>
             <div class="pills">
@@ -159,7 +128,7 @@
                 <div class="pill">Tempo real</div>
             </div>
         </div>
-        <div class="hero-right">
+        <div class="stats">
             <div class="stat s1"><div class="stat-num">6+</div><div class="stat-label">gráficos interativos</div></div>
             <div class="stat s2"><div class="stat-num">3</div><div class="stat-label">perfis de acesso</div></div>
             <div class="stat s3"><div class="stat-num">0</div><div class="stat-label">planilhas manuais</div></div>
@@ -167,70 +136,65 @@
         </div>
     </div>
 
-    <div class="divider"></div>
+    <div class="div"></div>
 
-    <!-- FEATURES -->
     <div>
-        <div class="section-label">O que foi construído</div>
+        <div class="sec-label">O que foi construído</div>
         <div class="features">
             <div class="feat">
-                <div class="feat-icon"><i class="ph ph-chart-line-up"></i></div>
-                <div><div class="feat-title">Dashboard em tempo real</div><div class="feat-desc">6 gráficos com filtro por cliente, período e drill-down clicando nas barras</div></div>
+                <div class="feat-top"><div class="feat-icon"><i class="ph ph-chart-line-up"></i></div><div class="feat-title">Dashboard em tempo real</div></div>
+                <div class="feat-desc">6 gráficos com filtro por cliente, período e drill-down clicando nas barras</div>
             </div>
             <div class="feat">
-                <div class="feat-icon"><i class="ph ph-timer"></i></div>
-                <div><div class="feat-title">Timer ao vivo</div><div class="feat-desc">Start/stop por tarefa com auto-save a cada 30s e salvamento ao fechar o browser</div></div>
+                <div class="feat-top"><div class="feat-icon"><i class="ph ph-timer"></i></div><div class="feat-title">Timer ao vivo</div></div>
+                <div class="feat-desc">Start/stop por tarefa com auto-save a cada 30s e ao fechar o browser</div>
             </div>
             <div class="feat">
-                <div class="feat-icon"><i class="ph ph-file-pdf"></i></div>
-                <div><div class="feat-title">Relatório por cliente</div><div class="feat-desc">Capa, KPIs, tabela de tarefas e exportação PDF/XLSX formatado em segundos</div></div>
+                <div class="feat-top"><div class="feat-icon"><i class="ph ph-file-pdf"></i></div><div class="feat-title">Relatório por cliente</div></div>
+                <div class="feat-desc">Capa, KPIs, tabela de tarefas e exportação PDF/XLSX em segundos</div>
             </div>
             <div class="feat">
-                <div class="feat-icon"><i class="ph ph-bell-ringing"></i></div>
-                <div><div class="feat-title">Notificações em tempo real</div><div class="feat-desc">Popup e sino para o gestor quando tarefa é criada, iniciada ou concluída</div></div>
+                <div class="feat-top"><div class="feat-icon"><i class="ph ph-bell-ringing"></i></div><div class="feat-title">Notificações</div></div>
+                <div class="feat-desc">Popup e sino para o gestor quando tarefa é criada, iniciada ou concluída</div>
             </div>
             <div class="feat">
-                <div class="feat-icon"><i class="ph ph-clock-clockwise"></i></div>
-                <div><div class="feat-title">Histórico completo</div><div class="feat-desc">Paginação, chips de filtro por cliente/status/prioridade e exportação XLSX</div></div>
+                <div class="feat-top"><div class="feat-icon"><i class="ph ph-clock-clockwise"></i></div><div class="feat-title">Histórico completo</div></div>
+                <div class="feat-desc">Paginação, filtros avançados por cliente, status, prioridade e exportação</div>
             </div>
             <div class="feat">
-                <div class="feat-icon"><i class="ph ph-users-three"></i></div>
-                <div><div class="feat-title">Gestão de usuários</div><div class="feat-desc">Admin cria e gerencia perfis: Admin, Gestor e Funcionário com acessos distintos</div></div>
+                <div class="feat-top"><div class="feat-icon"><i class="ph ph-users-three"></i></div><div class="feat-title">Gestão de usuários</div></div>
+                <div class="feat-desc">Admin cria perfis Admin, Gestor e Funcionário com acessos distintos</div>
             </div>
         </div>
     </div>
 
-    <div class="divider"></div>
+    <div class="div"></div>
 
-    <!-- BOTTOM -->
     <div class="bottom">
         <div>
-            <div class="section-label">Stack tecnológica</div>
-            <div class="stack-row">
-                <div class="stack-item"><div class="stack-dot" style="background:#00E5FF"></div><span class="stack-name">Python + FastAPI</span></div>
-                <div class="stack-item"><div class="stack-dot" style="background:#a78bfa"></div><span class="stack-name">PostgreSQL</span></div>
-                <div class="stack-item"><div class="stack-dot" style="background:#FF007F"></div><span class="stack-name">HTML + Tailwind</span></div>
-                <div class="stack-item"><div class="stack-dot" style="background:#10B981"></div><span class="stack-name">Railway</span></div>
-                <div class="stack-item"><div class="stack-dot" style="background:#F59E0B"></div><span class="stack-name">ApexCharts</span></div>
-                <div class="stack-item"><div class="stack-dot" style="background:#64748B"></div><span class="stack-name">GitHub CI/CD</span></div>
+            <div class="sec-label">Stack tecnológica</div>
+            <div class="stack-items">
+                <div class="stack-item"><div class="sdot" style="background:#00E5FF"></div><span class="sname">Python + FastAPI</span></div>
+                <div class="stack-item"><div class="sdot" style="background:#a78bfa"></div><span class="sname">PostgreSQL</span></div>
+                <div class="stack-item"><div class="sdot" style="background:#FF007F"></div><span class="sname">HTML + Tailwind</span></div>
+                <div class="stack-item"><div class="sdot" style="background:#10B981"></div><span class="sname">Railway</span></div>
+                <div class="stack-item"><div class="sdot" style="background:#F59E0B"></div><span class="sname">ApexCharts</span></div>
+                <div class="stack-item"><div class="sdot" style="background:#64748B"></div><span class="sname">GitHub CI/CD</span></div>
             </div>
         </div>
         <div>
-            <div class="section-label">Acesso ao vivo</div>
-            <div class="access-box">
+            <div class="sec-label">Acesso ao vivo</div>
+            <div class="access">
                 <div>
-                    <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-bottom:4px">URL de produção</div>
-                    <div class="access-url">dashboard-faiston-production.up.railway.app</div>
+                    <div class="access-url">
+                        <small>URL de produção</small>
+                        dashboard-faiston-production.up.railway.app
+                    </div>
                 </div>
-                <div class="access-creds">
-                    <div class="cred">
-                        <div class="cred-role">Admin</div>
-                        <div class="cred-val">admin / <span>admin123</span></div>
-                    </div>
-                    <div class="cred">
-                        <div class="cred-role">Funcionário</div>
-                        <div class="cred-val">pedro / <span>pedro123</span></div>
-                    </div>
+                <div class="creds">
+                    <div class="cred"><small>Admin</small><span>admin / <b>admin123</b></span></div>
+                    <div class="cred"><small>Funcionário</small><span>pedro / <b>pedro123</b></span></div>
+                    <div class="cred"><small>Gestor</small><span>lucas / <b>lucas123</b></span></div>
                 </div>
             </div>
         </div>
