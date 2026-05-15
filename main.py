@@ -730,6 +730,9 @@ def get_relatorio(cliente: str, mes: str = "", faiston_token: str = Cookie(None)
 @app.get("/relatorio/{cliente}")
 def relatorio_page(cliente: str): return FileResponse("static/relatorio.html")
 
+@app.get("/apresentacao")
+def apresentacao_page(): return FileResponse("static/apresentacao.html")
+
 # --- NOTIFICAÇÕES ---
 def criar_notificacao(conn, tipo: str, mensagem: str):
     try:
