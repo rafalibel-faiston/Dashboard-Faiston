@@ -4,599 +4,239 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Faiston Ops — Apresentação</title>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
-        :root {
-            --cyan: #00E5FF;
-            --purple: #4A00E0;
-            --magenta: #FF007F;
-            --dark: #0A0A1A;
-            --dark2: #12122A;
-            --dark3: #1a1a35;
-            --text: #E2E8F0;
-            --muted: #64748B;
-        }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        html { scroll-behavior: smooth; scroll-snap-type: y mandatory; }
-
         body {
             font-family: 'DM Sans', sans-serif;
-            background: var(--dark);
-            color: var(--text);
-            overflow-x: hidden;
-        }
-
-        h1, h2, h3, .syne { font-family: 'Syne', sans-serif; }
-
-        /* GRID BG */
-        .grid-bg {
-            position: fixed; inset: 0; z-index: 0; pointer-events: none;
-            background-image:
-                linear-gradient(rgba(74,0,224,0.06) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(74,0,224,0.06) 1px, transparent 1px);
-            background-size: 48px 48px;
-        }
-
-        /* ORBS */
-        .orb {
-            position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0;
-        }
-        .orb1 { width: 500px; height: 500px; background: rgba(74,0,224,0.15); top: -150px; right: -150px; }
-        .orb2 { width: 400px; height: 400px; background: rgba(0,229,255,0.08); bottom: 100px; left: -100px; }
-        .orb3 { width: 300px; height: 300px; background: rgba(255,0,127,0.08); top: 50%; right: 10%; }
-
-        /* SECTIONS */
-        section {
-            position: relative; z-index: 1;
+            background: #080818;
+            color: #E2E8F0;
             min-height: 100vh;
-            scroll-snap-align: start;
-            display: flex; flex-direction: column;
-            justify-content: center;
-            padding: 60px 80px;
-            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
-        .inner {
-            max-width: 1200px;
-            width: 100%;
-            margin: 0 auto;
+        .bg {
+            position: fixed; inset: 0; z-index: 0;
+            background:
+                radial-gradient(ellipse 60% 50% at 80% 20%, rgba(74,0,224,0.18) 0%, transparent 60%),
+                radial-gradient(ellipse 40% 40% at 20% 80%, rgba(0,229,255,0.08) 0%, transparent 60%),
+                linear-gradient(rgba(74,0,224,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(74,0,224,0.04) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
+        }
+        .page {
+            position: relative; z-index: 1;
+            max-width: 1100px; margin: 0 auto;
+            width: 100%; padding: 32px 48px;
+            display: flex; flex-direction: column;
+            gap: 28px; flex: 1;
         }
 
-        /* NAV */
-        nav {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-            display: flex; align-items: center; justify-content: center;
-            padding: 16px 80px;
-            background: rgba(10,10,26,0.8);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-        nav .nav-inner {
-            max-width: 1200px; width: 100%;
-            display: flex; align-items: center; justify-content: space-between;
-        }
+        /* HEADER */
+        .header { display: flex; align-items: center; justify-content: space-between; }
         .logo { display: flex; align-items: center; gap: 10px; }
         .logo-icon {
-            width: 36px; height: 36px; border-radius: 10px;
-            background: linear-gradient(135deg, var(--purple), var(--cyan));
+            width: 34px; height: 34px; border-radius: 9px;
+            background: linear-gradient(135deg, #4A00E0, #00E5FF);
             display: flex; align-items: center; justify-content: center;
         }
-        .logo-text { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; letter-spacing: -0.5px; }
-        .logo-text span { background: linear-gradient(90deg, var(--purple), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .nav-dots { display: flex; gap: 8px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.2); cursor: pointer; transition: all 0.3s; }
-        .dot.active { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
-
-        /* TAGS */
-        .tag {
-            display: inline-flex; align-items: center; gap: 6px;
-            font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+        .logo-text { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+        .logo-text span { background: linear-gradient(90deg, #4A00E0, #00E5FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .badge {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+            color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1);
             padding: 5px 12px; border-radius: 100px;
-            border: 1px solid rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.5);
-            margin-bottom: 20px;
         }
-        .tag .dot-pulse {
-            width: 6px; height: 6px; border-radius: 50%; background: var(--cyan);
-            animation: pulse 2s ease-in-out infinite;
-        }
-        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+        .dot-live { width: 6px; height: 6px; border-radius: 50%; background: #00E5FF; animation: p 2s infinite; }
+        @keyframes p { 0%,100%{opacity:1}50%{opacity:0.3} }
 
         /* HERO */
-        #hero { padding-top: 100px; }
-        .hero-eyebrow { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--cyan); margin-bottom: 16px; }
+        .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; }
+        .hero-left {}
+        .hero-tag { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: #00E5FF; margin-bottom: 12px; }
         .hero-title {
             font-family: 'Syne', sans-serif;
-            font-size: clamp(48px, 6vw, 80px);
-            font-weight: 800;
-            line-height: 1.05;
-            letter-spacing: -2px;
-            margin-bottom: 24px;
+            font-size: 52px; font-weight: 800; line-height: 1.05; letter-spacing: -2px;
+            margin-bottom: 16px;
         }
-        .hero-title .grad {
-            background: linear-gradient(135deg, var(--cyan), var(--purple), var(--magenta));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
-        .hero-sub { font-size: 18px; color: rgba(255,255,255,0.5); max-width: 560px; line-height: 1.7; margin-bottom: 40px; }
-        .hero-pills { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 60px; }
+        .grad { background: linear-gradient(135deg, #00E5FF, #4A00E0, #FF007F); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero-desc { font-size: 14px; color: rgba(255,255,255,0.45); line-height: 1.7; margin-bottom: 20px; max-width: 420px; }
+        .pills { display: flex; flex-wrap: wrap; gap: 8px; }
         .pill {
-            padding: 8px 18px; border-radius: 100px;
-            font-size: 13px; font-weight: 500;
-            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 11px; font-weight: 500; padding: 5px 12px; border-radius: 100px;
+            border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6);
             background: rgba(255,255,255,0.04);
-            color: rgba(255,255,255,0.7);
         }
-        .pill.accent { border-color: rgba(0,229,255,0.3); background: rgba(0,229,255,0.08); color: var(--cyan); }
-        .hero-stats { display: flex; gap: 48px; }
-        .stat-num { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; line-height: 1; }
-        .stat-num .unit { font-size: 18px; color: var(--cyan); }
-        .stat-label { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+        .pill.c { border-color: rgba(0,229,255,0.3); color: #00E5FF; background: rgba(0,229,255,0.08); }
 
-        /* PROBLEM */
-        #problema { background: linear-gradient(180deg, var(--dark) 0%, var(--dark2) 100%); }
-        .section-title {
-            font-family: 'Syne', sans-serif;
-            font-size: clamp(32px, 4vw, 52px);
-            font-weight: 800; letter-spacing: -1px;
-            margin-bottom: 12px;
-        }
-        .section-sub { font-size: 16px; color: rgba(255,255,255,0.4); margin-bottom: 48px; }
-        .problems-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-        .prob-card {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 16px; padding: 24px;
+        /* STATS */
+        .hero-right { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 14px; padding: 18px 20px;
             position: relative; overflow: hidden;
             transition: all 0.3s;
         }
-        .prob-card:hover { border-color: rgba(255,0,127,0.3); background: rgba(255,0,127,0.04); transform: translateY(-2px); }
-        .prob-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, transparent, rgba(255,0,127,0.5), transparent);
-        }
-        .prob-icon { font-size: 28px; margin-bottom: 12px; color: rgba(255,0,127,0.6); }
-        .prob-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-        .prob-desc { font-size: 13px; color: rgba(255,255,255,0.4); line-height: 1.6; }
+        .stat:hover { border-color: rgba(0,229,255,0.2); }
+        .stat-num { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+        .stat-label { font-size: 11px; color: rgba(255,255,255,0.35); }
+        .stat.s1 { border-top: 2px solid #00E5FF; } .stat.s1 .stat-num { color: #00E5FF; }
+        .stat.s2 { border-top: 2px solid #4A00E0; } .stat.s2 .stat-num { color: #a78bfa; }
+        .stat.s3 { border-top: 2px solid #FF007F; } .stat.s3 .stat-num { color: #FF007F; }
+        .stat.s4 { border-top: 2px solid #10B981; } .stat.s4 .stat-num { color: #10B981; }
 
-        /* SOLUTION */
-        #solucao { background: var(--dark2); }
-        .solution-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-        .sol-card {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 16px; padding: 24px;
-            position: relative; overflow: hidden;
+        /* DIVIDER */
+        .divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
+
+        /* GRID FEATURES */
+        .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .feat {
+            background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px; padding: 16px;
+            display: flex; align-items: flex-start; gap: 12px;
             transition: all 0.3s;
         }
-        .sol-card:hover { border-color: rgba(0,229,255,0.3); transform: translateY(-2px); }
-        .sol-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, transparent, rgba(0,229,255,0.5), transparent);
-        }
-        .sol-icon {
-            width: 44px; height: 44px; border-radius: 12px;
-            background: linear-gradient(135deg, rgba(74,0,224,0.3), rgba(0,229,255,0.2));
+        .feat:hover { border-color: rgba(0,229,255,0.2); background: rgba(0,229,255,0.04); transform: translateY(-1px); }
+        .feat-icon {
+            width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
+            background: linear-gradient(135deg, rgba(74,0,224,0.3), rgba(0,229,255,0.15));
             display: flex; align-items: center; justify-content: center;
-            font-size: 20px; color: var(--cyan); margin-bottom: 14px;
+            font-size: 17px; color: #00E5FF;
         }
-        .sol-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-        .sol-desc { font-size: 13px; color: rgba(255,255,255,0.4); line-height: 1.6; }
+        .feat-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+        .feat-desc { font-size: 11px; color: rgba(255,255,255,0.38); line-height: 1.5; }
 
-        /* STACK */
-        #stack { background: linear-gradient(180deg, var(--dark2) 0%, var(--dark) 100%); }
-        .stack-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
-        .stack-items { display: flex; flex-direction: column; gap: 12px; }
+        /* BOTTOM */
+        .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .stack-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .stack-item {
-            display: flex; align-items: center; gap: 16px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.06);
+            display: flex; align-items: center; gap: 7px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px; padding: 7px 12px;
+        }
+        .stack-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .stack-name { font-size: 12px; color: rgba(255,255,255,0.6); }
+        .access-box {
+            background: rgba(0,229,255,0.04); border: 1px solid rgba(0,229,255,0.15);
             border-radius: 12px; padding: 16px 20px;
-            transition: all 0.3s;
+            display: flex; align-items: center; justify-content: space-between; gap: 16px;
         }
-        .stack-item:hover { border-color: rgba(74,0,224,0.4); background: rgba(74,0,224,0.06); }
-        .stack-badge {
-            font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 800;
-            letter-spacing: 0.1em; padding: 4px 10px; border-radius: 6px;
-            min-width: 70px; text-align: center;
-        }
-        .badge-python { background: rgba(0,229,255,0.15); color: var(--cyan); }
-        .badge-pg { background: rgba(74,0,224,0.15); color: #a78bfa; }
-        .badge-js { background: rgba(255,0,127,0.15); color: #f9a8d4; }
-        .badge-railway { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
-        .badge-tailwind { background: rgba(0,229,255,0.1); color: var(--cyan); }
-        .badge-apex { background: rgba(255,0,127,0.1); color: #f9a8d4; }
-        .stack-name { font-weight: 500; font-size: 14px; }
-        .stack-role { font-size: 12px; color: rgba(255,255,255,0.35); }
-        .arch-box {
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 20px; padding: 32px;
-        }
-        .arch-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-        .arch-node {
-            flex: 1; background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 10px; padding: 12px 16px; text-align: center;
-            font-size: 12px; font-weight: 500;
-        }
-        .arch-node.primary { border-color: rgba(74,0,224,0.4); background: rgba(74,0,224,0.1); color: #a78bfa; }
-        .arch-node.accent { border-color: rgba(0,229,255,0.3); background: rgba(0,229,255,0.08); color: var(--cyan); }
-        .arch-arrow { color: rgba(255,255,255,0.2); font-size: 18px; }
-        .arch-label { font-size: 11px; color: rgba(255,255,255,0.3); text-align: center; margin-top: 8px; }
+        .access-url { font-size: 12px; color: #00E5FF; font-weight: 500; }
+        .access-creds { display: flex; gap: 12px; }
+        .cred { text-align: right; }
+        .cred-role { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.3); }
+        .cred-val { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.7); }
+        .cred-val span { color: #00E5FF; }
 
-        /* METRICS */
-        #metricas {
-            background: var(--dark);
-            text-align: center;
-        }
-        .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 48px; }
-        .met-card {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 20px; padding: 32px 20px;
-            position: relative; overflow: hidden;
-            transition: all 0.4s;
-        }
-        .met-card:hover { transform: translateY(-4px); }
-        .met-card:nth-child(1) { border-top: 2px solid var(--cyan); }
-        .met-card:nth-child(2) { border-top: 2px solid var(--purple); }
-        .met-card:nth-child(3) { border-top: 2px solid var(--magenta); }
-        .met-card:nth-child(4) { border-top: 2px solid #10B981; }
-        .met-num {
-            font-family: 'Syne', sans-serif;
-            font-size: 52px; font-weight: 800; line-height: 1;
-            margin-bottom: 8px;
-        }
-        .met-card:nth-child(1) .met-num { color: var(--cyan); }
-        .met-card:nth-child(2) .met-num { color: #a78bfa; }
-        .met-card:nth-child(3) .met-num { color: var(--magenta); }
-        .met-card:nth-child(4) .met-num { color: #10B981; }
-        .met-label { font-size: 13px; color: rgba(255,255,255,0.4); }
-
-        /* CTA */
-        #cta {
-            background: linear-gradient(135deg, var(--dark2) 0%, #0d0030 100%);
-            text-align: center; align-items: center;
-        }
-        .cta-title {
-            font-family: 'Syne', sans-serif;
-            font-size: clamp(40px, 5vw, 64px);
-            font-weight: 800; letter-spacing: -2px;
-            margin-bottom: 20px;
-        }
-        .cta-sub { font-size: 17px; color: rgba(255,255,255,0.45); margin-bottom: 40px; }
-        .cta-url {
-            display: inline-flex; align-items: center; gap: 12px;
-            background: rgba(0,229,255,0.08);
-            border: 1px solid rgba(0,229,255,0.25);
-            border-radius: 12px; padding: 16px 28px;
-            font-family: 'DM Sans', monospace; font-size: 15px; color: var(--cyan);
-            margin-bottom: 48px; letter-spacing: 0.02em;
-        }
-        .creds {
-            display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
-        }
-        .cred {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 10px; padding: 14px 24px; text-align: left;
-        }
-        .cred-role { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.35); margin-bottom: 6px; }
-        .cred-info { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
-        .cred-info span { color: var(--cyan); }
-
-        /* SCROLL INDICATOR */
-        .scroll-hint {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            display: flex; flex-direction: column; align-items: center; gap: 8px;
-            color: rgba(255,255,255,0.2); font-size: 11px; letter-spacing: 0.1em;
-        }
-        .scroll-hint i { animation: bounce 2s ease-in-out infinite; }
-        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(6px)} }
-
-        /* ANIMATIONS */
-        .fade-in { opacity: 0; transform: translateY(20px); transition: all 0.7s ease; }
-        .fade-in.visible { opacity: 1; transform: translateY(0); }
-        .fade-in-d1 { transition-delay: 0.1s; }
-        .fade-in-d2 { transition-delay: 0.2s; }
-        .fade-in-d3 { transition-delay: 0.3s; }
-        .fade-in-d4 { transition-delay: 0.4s; }
-        .fade-in-d5 { transition-delay: 0.5s; }
+        .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.25); margin-bottom: 10px; }
     </style>
 </head>
 <body>
+<div class="bg"></div>
+<div class="page">
 
-<div class="grid-bg"></div>
-<div class="orb orb1"></div>
-<div class="orb orb2"></div>
-<div class="orb orb3"></div>
+    <!-- HEADER -->
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:14px"></i></div>
+            <div class="logo-text">FAISTON <span>OPS</span></div>
+        </div>
+        <div class="badge"><div class="dot-live"></div> Sistema em produção</div>
+    </div>
 
-<!-- NAV -->
-<nav><div class="nav-inner">
-    <div class="logo">
-        <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:16px"></i></div>
-        <div class="logo-text syne">FAISTON <span>OPS</span></div>
+    <!-- HERO -->
+    <div class="hero">
+        <div class="hero-left">
+            <div class="hero-tag">Faiston Istech — Backoffice & Redes</div>
+            <h1 class="hero-title">Operação em<br><span class="grad">tempo real.</span><br>Zero planilha.</h1>
+            <p class="hero-desc">Sistema de gestão operacional construído do zero — controle de tarefas, apontamento de horas e relatórios por cliente em uma única plataforma.</p>
+            <div class="pills">
+                <div class="pill c">Python + FastAPI</div>
+                <div class="pill">PostgreSQL</div>
+                <div class="pill">Deploy automático</div>
+                <div class="pill">Multi-perfil</div>
+                <div class="pill">Tempo real</div>
+            </div>
+        </div>
+        <div class="hero-right">
+            <div class="stat s1"><div class="stat-num">6+</div><div class="stat-label">gráficos interativos</div></div>
+            <div class="stat s2"><div class="stat-num">3</div><div class="stat-label">perfis de acesso</div></div>
+            <div class="stat s3"><div class="stat-num">0</div><div class="stat-label">planilhas manuais</div></div>
+            <div class="stat s4"><div class="stat-num">~2s</div><div class="stat-label">para gerar relatório</div></div>
+        </div>
     </div>
-    <div class="nav-dots">
-        <div class="dot active" onclick="scrollTo(0)"></div>
-        <div class="dot" onclick="document.getElementById('problema').scrollIntoView({behavior:'smooth'})"></div>
-        <div class="dot" onclick="document.getElementById('solucao').scrollIntoView({behavior:'smooth'})"></div>
-        <div class="dot" onclick="document.getElementById('stack').scrollIntoView({behavior:'smooth'})"></div>
-        <div class="dot" onclick="document.getElementById('metricas').scrollIntoView({behavior:'smooth'})"></div>
-        <div class="dot" onclick="document.getElementById('cta').scrollIntoView({behavior:'smooth'})"></div>
-    </div>
-</div></nav>
 
-<!-- HERO -->
-<section id="hero"><div class="inner">
-    <div class="tag"><div class="dot-pulse"></div> Apresentação do sistema</div>
-    <div class="hero-eyebrow fade-in">Faiston Istech — Backoffice & Redes</div>
-    <h1 class="hero-title fade-in fade-in-d1">
-        Operação em<br>
-        <span class="grad">tempo real.</span><br>
-        Zero planilha.
-    </h1>
-    <p class="hero-sub fade-in fade-in-d2">
-        Sistema de gestão operacional construído do zero para o time de backoffice da Faiston — controle de tarefas, apontamento de horas e relatórios por cliente em uma única plataforma.
-    </p>
-    <div class="hero-pills fade-in fade-in-d3">
-        <div class="pill accent">Python + FastAPI</div>
-        <div class="pill">PostgreSQL</div>
-        <div class="pill">Deploy automático</div>
-        <div class="pill">Tempo real</div>
-        <div class="pill">Multi-perfil</div>
+    <div class="divider"></div>
+
+    <!-- FEATURES -->
+    <div>
+        <div class="section-label">O que foi construído</div>
+        <div class="features">
+            <div class="feat">
+                <div class="feat-icon"><i class="ph ph-chart-line-up"></i></div>
+                <div><div class="feat-title">Dashboard em tempo real</div><div class="feat-desc">6 gráficos com filtro por cliente, período e drill-down clicando nas barras</div></div>
+            </div>
+            <div class="feat">
+                <div class="feat-icon"><i class="ph ph-timer"></i></div>
+                <div><div class="feat-title">Timer ao vivo</div><div class="feat-desc">Start/stop por tarefa com auto-save a cada 30s e salvamento ao fechar o browser</div></div>
+            </div>
+            <div class="feat">
+                <div class="feat-icon"><i class="ph ph-file-pdf"></i></div>
+                <div><div class="feat-title">Relatório por cliente</div><div class="feat-desc">Capa, KPIs, tabela de tarefas e exportação PDF/XLSX formatado em segundos</div></div>
+            </div>
+            <div class="feat">
+                <div class="feat-icon"><i class="ph ph-bell-ringing"></i></div>
+                <div><div class="feat-title">Notificações em tempo real</div><div class="feat-desc">Popup e sino para o gestor quando tarefa é criada, iniciada ou concluída</div></div>
+            </div>
+            <div class="feat">
+                <div class="feat-icon"><i class="ph ph-clock-clockwise"></i></div>
+                <div><div class="feat-title">Histórico completo</div><div class="feat-desc">Paginação, chips de filtro por cliente/status/prioridade e exportação XLSX</div></div>
+            </div>
+            <div class="feat">
+                <div class="feat-icon"><i class="ph ph-users-three"></i></div>
+                <div><div class="feat-title">Gestão de usuários</div><div class="feat-desc">Admin cria e gerencia perfis: Admin, Gestor e Funcionário com acessos distintos</div></div>
+            </div>
+        </div>
     </div>
-    <div class="hero-stats fade-in fade-in-d4">
+
+    <div class="divider"></div>
+
+    <!-- BOTTOM -->
+    <div class="bottom">
         <div>
-            <div class="stat-num">6<span class="unit">+</span></div>
-            <div class="stat-label">gráficos interativos</div>
+            <div class="section-label">Stack tecnológica</div>
+            <div class="stack-row">
+                <div class="stack-item"><div class="stack-dot" style="background:#00E5FF"></div><span class="stack-name">Python + FastAPI</span></div>
+                <div class="stack-item"><div class="stack-dot" style="background:#a78bfa"></div><span class="stack-name">PostgreSQL</span></div>
+                <div class="stack-item"><div class="stack-dot" style="background:#FF007F"></div><span class="stack-name">HTML + Tailwind</span></div>
+                <div class="stack-item"><div class="stack-dot" style="background:#10B981"></div><span class="stack-name">Railway</span></div>
+                <div class="stack-item"><div class="stack-dot" style="background:#F59E0B"></div><span class="stack-name">ApexCharts</span></div>
+                <div class="stack-item"><div class="stack-dot" style="background:#64748B"></div><span class="stack-name">GitHub CI/CD</span></div>
+            </div>
         </div>
         <div>
-            <div class="stat-num">3</div>
-            <div class="stat-label">perfis de acesso</div>
-        </div>
-        <div>
-            <div class="stat-num">0</div>
-            <div class="stat-label">planilhas manuais</div>
-        </div>
-        <div>
-            <div class="stat-num">~2<span class="unit">s</span></div>
-            <div class="stat-label">para gerar relatório</div>
-        </div>
-    </div>
-    <div class="scroll-hint">
-        <span>SCROLL</span>
-        <i class="ph ph-caret-down"></i>
-    </div>
-</section>
-
-<!-- PROBLEMA -->
-<section id="problema"><div class="inner">
-    <div class="tag"><i class="ph ph-warning" style="font-size:12px"></i> Antes do sistema</div>
-    <h2 class="section-title fade-in">O que estava<br>travando a operação</h2>
-    <p class="section-sub fade-in fade-in-d1">6 problemas críticos que o time enfrentava todo dia</p>
-    <div class="problems-grid">
-        <div class="prob-card fade-in fade-in-d1">
-            <div class="prob-icon"><i class="ph ph-file-xls"></i></div>
-            <div class="prob-title">Planilhas descentralizadas</div>
-            <div class="prob-desc">Cada funcionário com sua própria planilha. Sem visibilidade do gestor em tempo real.</div>
-        </div>
-        <div class="prob-card fade-in fade-in-d2">
-            <div class="prob-icon"><i class="ph ph-clock"></i></div>
-            <div class="prob-title">Horas apontadas no final do dia</div>
-            <div class="prob-desc">Apontamento manual e retroativo, sujeito a esquecimento e imprecisão.</div>
-        </div>
-        <div class="prob-card fade-in fade-in-d3">
-            <div class="prob-icon"><i class="ph ph-chart-bar"></i></div>
-            <div class="prob-title">Sem visão por cliente</div>
-            <div class="prob-desc">Impossível saber quanto esforço cada cliente consumiu no mês sem consolidar manualmente.</div>
-        </div>
-        <div class="prob-card fade-in fade-in-d1">
-            <div class="prob-icon"><i class="ph ph-file-doc"></i></div>
-            <div class="prob-title">Relatório feito à mão</div>
-            <div class="prob-desc">Horas de trabalho para consolidar dados e montar apresentação para o cliente.</div>
-        </div>
-        <div class="prob-card fade-in fade-in-d2">
-            <div class="prob-icon"><i class="ph ph-chat-circle-dots"></i></div>
-            <div class="prob-title">Comunicação por WhatsApp</div>
-            <div class="prob-desc">Atualizações e comentários de tarefas perdidos em grupos, sem rastreabilidade.</div>
-        </div>
-        <div class="prob-card fade-in fade-in-d3">
-            <div class="prob-icon"><i class="ph ph-magnifying-glass"></i></div>
-            <div class="prob-title">Sem histórico estruturado</div>
-            <div class="prob-desc">Difícil rastrear o que foi feito, por quem e quando, para auditorias ou revisões.</div>
-        </div>
-    </div>
-</div></section>
-
-<!-- SOLUÇÃO -->
-<section id="solucao"><div class="inner">
-    <div class="tag"><i class="ph ph-check-circle" style="font-size:12px;color:var(--cyan)"></i> Com o Faiston Ops</div>
-    <h2 class="section-title fade-in">Cada problema<br><span style="background:linear-gradient(90deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent">resolvido</span></h2>
-    <p class="section-sub fade-in fade-in-d1">Funcionalidades construídas para o contexto real da operação</p>
-    <div class="solution-grid">
-        <div class="sol-card fade-in fade-in-d1">
-            <div class="sol-icon"><i class="ph ph-chart-line-up"></i></div>
-            <div class="sol-title">Dashboard em tempo real</div>
-            <div class="sol-desc">6 gráficos interativos com filtro por cliente, período e drill-down clicando nas barras.</div>
-        </div>
-        <div class="sol-card fade-in fade-in-d2">
-            <div class="sol-icon"><i class="ph ph-timer"></i></div>
-            <div class="sol-title">Timer ao vivo</div>
-            <div class="sol-desc">Start/stop por tarefa. Auto-save a cada 30s. Salva automaticamente ao fechar o navegador.</div>
-        </div>
-        <div class="sol-card fade-in fade-in-d3">
-            <div class="sol-icon"><i class="ph ph-file-pdf"></i></div>
-            <div class="sol-title">Relatório por cliente</div>
-            <div class="sol-desc">Acessa /relatorio/NTT e tem capa, KPIs, tabela de tarefas e exportação PDF em segundos.</div>
-        </div>
-        <div class="sol-card fade-in fade-in-d1">
-            <div class="sol-icon"><i class="ph ph-bell-ringing"></i></div>
-            <div class="sol-title">Notificações em tempo real</div>
-            <div class="sol-desc">Popup e sino para o gestor quando tarefa é criada, iniciada ou concluída. Toggle on/off.</div>
-        </div>
-        <div class="sol-card fade-in fade-in-d2">
-            <div class="sol-icon"><i class="ph ph-chat-circle-dots"></i></div>
-            <div class="sol-title">Comentários por tarefa</div>
-            <div class="sol-desc">Registro de observações com histórico, autor e horário. Substitui o WhatsApp operacional.</div>
-        </div>
-        <div class="sol-card fade-in fade-in-d3">
-            <div class="sol-icon"><i class="ph ph-clock-clockwise"></i></div>
-            <div class="sol-title">Histórico completo</div>
-            <div class="sol-desc">Paginação, filtros por cliente/status/prioridade/período e exportação XLSX formatada.</div>
-        </div>
-    </div>
-</div></section>
-
-<!-- STACK -->
-<section id="stack"><div class="inner">
-    <div class="tag"><i class="ph ph-code" style="font-size:12px"></i> Tecnologia</div>
-    <h2 class="section-title fade-in">Stack técnica</h2>
-    <p class="section-sub fade-in fade-in-d1">Escolhas deliberadas para performance, custo e manutenção</p>
-    <div class="stack-layout">
-        <div class="stack-items fade-in fade-in-d1">
-            <div class="stack-item">
-                <span class="stack-badge badge-python">Python</span>
+            <div class="section-label">Acesso ao vivo</div>
+            <div class="access-box">
                 <div>
-                    <div class="stack-name">FastAPI</div>
-                    <div class="stack-role">Backend + API REST + autenticação</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-bottom:4px">URL de produção</div>
+                    <div class="access-url">dashboard-faiston-production.up.railway.app</div>
                 </div>
-            </div>
-            <div class="stack-item">
-                <span class="stack-badge badge-pg">PostgreSQL</span>
-                <div>
-                    <div class="stack-name">Banco de dados</div>
-                    <div class="stack-role">Usuários, tarefas, comentários, notificações</div>
-                </div>
-            </div>
-            <div class="stack-item">
-                <span class="stack-badge badge-js">JavaScript</span>
-                <div>
-                    <div class="stack-name">Frontend puro</div>
-                    <div class="stack-role">Sem framework — HTML + Tailwind + fetch API</div>
-                </div>
-            </div>
-            <div class="stack-item">
-                <span class="stack-badge badge-apex">ApexCharts</span>
-                <div>
-                    <div class="stack-name">Visualização de dados</div>
-                    <div class="stack-role">6 tipos de gráfico com animações e drill-down</div>
-                </div>
-            </div>
-            <div class="stack-item">
-                <span class="stack-badge badge-railway">Railway</span>
-                <div>
-                    <div class="stack-name">Infraestrutura</div>
-                    <div class="stack-role">Deploy via GitHub push — HTTPS automático</div>
-                </div>
-            </div>
-        </div>
-        <div class="arch-box fade-in fade-in-d2">
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:rgba(255,255,255,0.3);margin-bottom:20px">Arquitetura</div>
-            <div class="arch-row">
-                <div class="arch-node accent">GitHub</div>
-                <div class="arch-arrow">→</div>
-                <div class="arch-node primary">Railway</div>
-            </div>
-            <div class="arch-label" style="margin-bottom:16px">push → deploy automático</div>
-            <div class="arch-row">
-                <div class="arch-node accent">Browser</div>
-                <div class="arch-arrow">⇄</div>
-                <div class="arch-node primary">FastAPI</div>
-                <div class="arch-arrow">⇄</div>
-                <div class="arch-node">PostgreSQL</div>
-            </div>
-            <div class="arch-label" style="margin-bottom:16px">fetch API → endpoints REST → SQL</div>
-            <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:20px;margin-top:4px">
-                <div style="font-size:12px;color:rgba(255,255,255,0.3);margin-bottom:12px">5 tabelas no banco</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                    <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(74,0,224,0.15);color:#a78bfa">usuarios</span>
-                    <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(74,0,224,0.15);color:#a78bfa">tarefas</span>
-                    <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(74,0,224,0.15);color:#a78bfa">comentarios</span>
-                    <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(74,0,224,0.15);color:#a78bfa">notificacoes</span>
+                <div class="access-creds">
+                    <div class="cred">
+                        <div class="cred-role">Admin</div>
+                        <div class="cred-val">admin / <span>admin123</span></div>
+                    </div>
+                    <div class="cred">
+                        <div class="cred-role">Funcionário</div>
+                        <div class="cred-val">pedro / <span>pedro123</span></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div></section>
 
-<!-- MÉTRICAS -->
-<section id="metricas"><div class="inner" style="text-align:center">
-    <div class="tag" style="justify-content:center"><i class="ph ph-lightning" style="font-size:12px;color:var(--cyan)"></i> Capacidade</div>
-    <h2 class="section-title fade-in">O sistema aguenta</h2>
-    <p class="section-sub fade-in fade-in-d1">Estimativas de capacidade na infraestrutura atual</p>
-    <div class="metrics-grid">
-        <div class="met-card fade-in fade-in-d1">
-            <div class="met-num">50</div>
-            <div class="met-label">usuários simultâneos<br>sem degradação</div>
-        </div>
-        <div class="met-card fade-in fade-in-d2">
-            <div class="met-num">500k</div>
-            <div class="met-label">tarefas no banco<br>sem impacto</div>
-        </div>
-        <div class="met-card fade-in fade-in-d3">
-            <div class="met-num">∞</div>
-            <div class="met-label">dias de operação<br>sem limite de tempo</div>
-        </div>
-        <div class="met-card fade-in fade-in-d4">
-            <div class="met-num" style="font-size:36px">$5<span style="font-size:16px;color:#10B981">/mês</span></div>
-            <div class="met-label">custo atual de<br>infraestrutura</div>
-        </div>
-    </div>
-</div></section>
-
-<!-- CTA -->
-<section id="cta"><div class="inner" style="display:flex;flex-direction:column;align-items:center;text-align:center">
-    <div class="tag" style="justify-content:center"><div class="dot-pulse"></div> Ao vivo agora</div>
-    <h2 class="cta-title fade-in">
-        Acesse e<br>
-        <span style="background:linear-gradient(135deg,var(--cyan),var(--purple),var(--magenta));-webkit-background-clip:text;-webkit-text-fill-color:transparent">explore ao vivo</span>
-    </h2>
-    <p class="cta-sub fade-in fade-in-d1">O sistema está rodando em produção agora mesmo</p>
-    <div class="cta-url fade-in fade-in-d2">
-        <i class="ph ph-globe"></i>
-        dashboard-faiston-production.up.railway.app
-    </div>
-    <div class="creds fade-in fade-in-d3">
-        <div class="cred">
-            <div class="cred-role">Admin</div>
-            <div class="cred-info">admin / <span>admin123</span></div>
-        </div>
-        <div class="cred">
-            <div class="cred-role">Funcionário</div>
-            <div class="cred-info">pedro / <span>pedro123</span></div>
-        </div>
-        <div class="cred">
-            <div class="cred-role">Gestor</div>
-            <div class="cred-info">lucas / <span>lucas123</span></div>
-        </div>
-    </div>
-</section>
-
-<script>
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-        if (e.isIntersecting) e.target.classList.add('visible');
-    });
-}, { threshold: 0.1 });
-
-document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
-
-const sections = document.querySelectorAll('section');
-const dots = document.querySelectorAll('.dot');
-
-const sectionObserver = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-        if (e.isIntersecting) {
-            const idx = [...sections].indexOf(e.target);
-            dots.forEach((d, i) => d.classList.toggle('active', i === idx));
-        }
-    });
-}, { threshold: 0.5 });
-
-sections.forEach(s => sectionObserver.observe(s));
-</script>
+</div>
 </body>
 </html>
