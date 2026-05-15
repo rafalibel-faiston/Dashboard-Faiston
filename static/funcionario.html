@@ -53,9 +53,8 @@
     </div>
 </header>
 
-<main class="px-6 py-6" style="display:grid;grid-template-columns:1fr 340px;gap:20px;max-width:1400px;margin:0 auto">
-<div>
-    <div class="grid grid-cols-4 gap-4 mb-6">
+<main class="max-w-6xl mx-auto px-6 py-6">
+<div class="grid grid-cols-4 gap-4 mb-6">
         <div class="bg-white rounded-xl p-4 border border-faiston-border">
             <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Tarefas</p>
             <p class="text-2xl font-bold text-faiston-dark" id="count-total">0</p>
@@ -525,13 +524,29 @@ let notaAtualId = null;
 let alterado = false;
 let autoSaveTimer = null;
 
+let notasAberto = false;
+
+function toggleNotas() {
+    notasAberto = !notasAberto;
+    document.getElementById('notas-collapsed').classList.toggle('hidden', notasAberto);
+    const exp = document.getElementById('notas-expanded');
+    exp.classList.toggle('hidden', !notasAberto);
+    if (notasAberto) exp.style.display = 'flex';
+    else exp.style.display = '';
+    document.getElementById('notas-caret').className = notasAberto
+        ? 'ph ph-caret-down text-faiston-purple text-sm'
+        : 'ph ph-caret-up text-slate-400 text-sm';
+}
+
 async function carregarNotas() {
     const res = await fetch('/api/notas');
     if (!res.ok) return;
     notas = await res.json();
     renderListaNotas();
-    if (notas.length > 0) selecionarNota(notas[0].id);
-    else mostrarVazioSidebar();
+    const label = document.getElementById('notas-count-label');
+    if (label) label.textContent = notas.length > 0 ? `${notas.length} nota${notas.length>1?'s':''}` : 'Nenhuma nota';
+    if (notas.length > 0 && !notaAtualId) selecionarNota(notas[0].id);
+    else if (!notas.length) mostrarVazioSidebar();
 }
 
 function renderListaNotas() {
@@ -686,5 +701,75 @@ document.getElementById('modal-comentarios').addEventListener('click', e => {
 
 init();
 </script>
+<!-- CARD FLUTUANTE DE NOTAS -->
+<div id="notas-widget" style="position:fixed;bottom:24px;right:24px;z-index:40;width:340px">
+
+    <!-- COLLAPSED: só o botão -->
+    <div id="notas-collapsed" onclick="toggleNotas()" 
+        class="cursor-pointer flex items-center gap-3 bg-white border border-faiston-border rounded-xl px-4 py-3 shadow-lg hover:shadow-[0_4px_20px_rgba(74,0,224,0.15)] transition-all"
+        style="box-shadow:0 4px 20px rgba(74,0,224,0.1)">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center flex-shrink-0">
+            <i class="ph ph-note-pencil text-white text-sm"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+            <p class="text-xs font-bold text-faiston-dark">Minhas Notas</p>
+            <p class="text-[10px] text-slate-400" id="notas-count-label">carregando...</p>
+        </div>
+        <i class="ph ph-caret-up text-slate-400 text-sm" id="notas-caret"></i>
+    </div>
+
+    <!-- EXPANDED: painel completo -->
+    <div id="notas-expanded" class="hidden bg-white border border-faiston-border rounded-2xl overflow-hidden mt-2"
+        style="box-shadow:0 8px 32px rgba(74,0,224,0.15);max-height:520px;display:flex;flex-direction:column">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-faiston-border flex-shrink-0"
+            style="background:linear-gradient(135deg,rgba(74,0,224,0.05),rgba(0,229,255,0.02))">
+            <div class="flex items-center gap-2">
+                <i class="ph ph-note-pencil text-faiston-purple"></i>
+                <span class="text-sm font-bold text-faiston-dark">Minhas Notas</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="novaNota()" class="flex items-center gap-1 bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white px-3 py-1 rounded-lg text-xs font-semibold">
+                    <i class="ph ph-plus text-xs"></i> Nova
+                </button>
+                <button onclick="toggleNotas()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
+                    <i class="ph ph-caret-down text-slate-400 text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Lista -->
+        <div id="notas-sidebar-lista" class="overflow-y-auto custom-scrollbar flex-shrink-0" style="max-height:180px"></div>
+
+        <!-- Empty -->
+        <div id="notas-sidebar-empty" class="hidden flex-col items-center justify-center py-8 text-center">
+            <i class="ph ph-note text-3xl text-slate-200 mb-2"></i>
+            <p class="text-xs text-slate-400 font-medium">Nenhuma nota ainda</p>
+            <p class="text-[10px] text-slate-300 mt-1">Clique em Nova para começar</p>
+        </div>
+
+        <!-- Editor -->
+        <div id="notas-sidebar-editor" class="hidden border-t border-faiston-border flex-col flex-1">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-faiston-border bg-slate-50 flex-shrink-0">
+                <input type="text" id="nota-titulo-s" placeholder="Título da nota..."
+                    class="flex-1 text-xs font-bold text-faiston-dark outline-none bg-transparent placeholder-slate-300"
+                    oninput="marcarAlterado()">
+                <button onclick="salvarNotaAtual()" class="text-[10px] text-faiston-cyan font-semibold hover:underline flex-shrink-0">Salvar</button>
+                <button onclick="deletarNotaAtual()" class="text-slate-200 hover:text-red-400 transition-colors flex-shrink-0">
+                    <i class="ph ph-trash text-xs"></i>
+                </button>
+            </div>
+            <textarea id="nota-texto-s" placeholder="Escreva suas observações, anotações para a semana..."
+                class="w-full outline-none resize-none text-xs text-slate-600 leading-relaxed placeholder-slate-300 p-4 flex-1"
+                style="min-height:140px" oninput="marcarAlterado()"></textarea>
+            <div class="px-4 py-2 border-t border-faiston-border flex items-center justify-between bg-slate-50 flex-shrink-0">
+                <span class="text-[10px] text-slate-300" id="nota-status-s">—</span>
+                <span class="text-[10px] text-slate-300" id="nota-chars-s">0 caracteres</span>
+            </div>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
