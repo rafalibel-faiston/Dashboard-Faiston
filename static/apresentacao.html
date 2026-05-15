@@ -29,12 +29,12 @@
         }
         .card {
             position: relative; z-index: 1;
-            width: 92vw; max-width: 1400px;
+            width: 96vw; max-width: 1600px;
             background: rgba(255,255,255,0.02);
             border: 1px solid rgba(255,255,255,0.07);
             border-radius: 24px;
-            padding: 36px 44px;
-            display: flex; flex-direction: column; gap: 24px;
+            padding: 44px 56px;
+            display: flex; flex-direction: column; gap: 28px;
         }
 
         /* TOP BAR */
@@ -50,15 +50,15 @@
         /* HERO ROW */
         .hero-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: center; }
         .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #00E5FF; margin-bottom: 10px; }
-        .title { font-family: 'Syne', sans-serif; font-size: clamp(32px, 3.8vw, 52px); font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 12px; }
+        .title { font-family: 'Syne', sans-serif; font-size: clamp(38px, 4.5vw, 64px); font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 12px; }
         .grad { background: linear-gradient(135deg, #00E5FF, #7C3AED, #FF007F); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .desc { font-size: 13px; color: rgba(255,255,255,0.4); line-height: 1.7; margin-bottom: 14px; }
+        .desc { font-size: 14px; color: rgba(255,255,255,0.4); line-height: 1.7; margin-bottom: 16px; }
         .pills { display: flex; flex-wrap: wrap; gap: 6px; }
         .pill { font-size: 10px; padding: 4px 10px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
         .pill.hi { border-color: rgba(0,229,255,0.3); color: #00E5FF; background: rgba(0,229,255,0.07); }
         .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px 18px; }
-        .stat-n { font-family: 'Syne', sans-serif; font-size: 30px; font-weight: 800; line-height: 1; margin-bottom: 3px; }
+        .stat-n { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
         .stat-l { font-size: 10px; color: rgba(255,255,255,0.3); }
         .s1{border-top:2px solid #00E5FF}.s1 .stat-n{color:#00E5FF}
         .s2{border-top:2px solid #7C3AED}.s2 .stat-n{color:#a78bfa}
@@ -70,12 +70,12 @@
 
         /* FEATURES */
         .feat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-        .feat { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 14px; transition: all 0.2s; }
+        .feat { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 16px 16px; transition: all 0.2s; }
         .feat:hover { border-color: rgba(0,229,255,0.2); background: rgba(0,229,255,0.04); transform: translateY(-2px); }
         .feat-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
         .feat-ico { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, rgba(74,0,224,0.4), rgba(0,229,255,0.2)); display: flex; align-items: center; justify-content: center; font-size: 13px; color: #00E5FF; flex-shrink: 0; }
-        .feat-t { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; line-height: 1.3; }
-        .feat-d { font-size: 10px; color: rgba(255,255,255,0.32); line-height: 1.5; }
+        .feat-t { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; line-height: 1.3; }
+        .feat-d { font-size: 11px; color: rgba(255,255,255,0.32); line-height: 1.5; }
 
         /* BOTTOM */
         .bottom-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; align-items: center; }
@@ -100,7 +100,7 @@
     <div class="topbar">
         <div class="logo">
             <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:13px"></i></div>
-            <div class="logo-text">FAISTON</div>
+            <div class="logo-text">FAISTON <span>OPS</span></div>
         </div>
         <div class="live"><div class="dot"></div> Sistema em produção</div>
     </div>
