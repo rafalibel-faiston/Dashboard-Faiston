@@ -882,3 +882,78 @@ def get_historico(
 
 @app.get("/historico")
 def historico_page(): return FileResponse("static/historico.html")
+
+# --- NOTAS PESSOAIS ---
+class NotaModel(BaseModel):
+    titulo: str
+    texto: str
+
+@app.get("/api/notas")
+def listar_notas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS notas (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                titulo VARCHAR(200) NOT NULL,
+                texto TEXT,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+        cur.execute("""SELECT id, titulo, texto, criado_em, atualizado_em
+            FROM notas WHERE usuario_id = %s ORDER BY atualizado_em DESC""",
+            (sess["id"],))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "titulo": r[1], "texto": r[2],
+                 "criado_em": str(r[3])[:16], "atualizado_em": str(r[4])[:16]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/notas")
+def criar_nota(n: NotaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO notas (usuario_id, titulo, texto) VALUES (%s,%s,%s) RETURNING id",
+                    (sess["id"], n.titulo, n.texto))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/notas/{nid}")
+def atualizar_nota(nid: int, n: NotaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE notas SET titulo=%s, texto=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
+                    (n.titulo, n.texto, nid, sess["id"]))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/notas/{nid}")
+def deletar_nota(nid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM notas WHERE id=%s AND usuario_id=%s", (nid, sess["id"]))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
