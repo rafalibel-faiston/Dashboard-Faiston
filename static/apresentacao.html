@@ -58,15 +58,24 @@
             padding: 60px 80px;
             overflow: hidden;
         }
+        .inner {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+        }
 
         /* NAV */
         nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex; align-items: center; justify-content: center;
             padding: 16px 80px;
             background: rgba(10,10,26,0.8);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        nav .nav-inner {
+            max-width: 1200px; width: 100%;
+            display: flex; align-items: center; justify-content: space-between;
         }
         .logo { display: flex; align-items: center; gap: 10px; }
         .logo-icon {
@@ -305,7 +314,7 @@
 <div class="orb orb3"></div>
 
 <!-- NAV -->
-<nav>
+<nav><div class="nav-inner">
     <div class="logo">
         <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:16px"></i></div>
         <div class="logo-text syne">FAISTON <span>OPS</span></div>
@@ -318,10 +327,10 @@
         <div class="dot" onclick="document.getElementById('metricas').scrollIntoView({behavior:'smooth'})"></div>
         <div class="dot" onclick="document.getElementById('cta').scrollIntoView({behavior:'smooth'})"></div>
     </div>
-</nav>
+</div></nav>
 
 <!-- HERO -->
-<section id="hero">
+<section id="hero"><div class="inner">
     <div class="tag"><div class="dot-pulse"></div> Apresentação do sistema</div>
     <div class="hero-eyebrow fade-in">Faiston Istech — Backoffice & Redes</div>
     <h1 class="hero-title fade-in fade-in-d1">
@@ -364,7 +373,7 @@
 </section>
 
 <!-- PROBLEMA -->
-<section id="problema">
+<section id="problema"><div class="inner">
     <div class="tag"><i class="ph ph-warning" style="font-size:12px"></i> Antes do sistema</div>
     <h2 class="section-title fade-in">O que estava<br>travando a operação</h2>
     <p class="section-sub fade-in fade-in-d1">6 problemas críticos que o time enfrentava todo dia</p>
@@ -400,10 +409,10 @@
             <div class="prob-desc">Difícil rastrear o que foi feito, por quem e quando, para auditorias ou revisões.</div>
         </div>
     </div>
-</section>
+</div></section>
 
 <!-- SOLUÇÃO -->
-<section id="solucao">
+<section id="solucao"><div class="inner">
     <div class="tag"><i class="ph ph-check-circle" style="font-size:12px;color:var(--cyan)"></i> Com o Faiston Ops</div>
     <h2 class="section-title fade-in">Cada problema<br><span style="background:linear-gradient(90deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent">resolvido</span></h2>
     <p class="section-sub fade-in fade-in-d1">Funcionalidades construídas para o contexto real da operação</p>
@@ -439,10 +448,10 @@
             <div class="sol-desc">Paginação, filtros por cliente/status/prioridade/período e exportação XLSX formatada.</div>
         </div>
     </div>
-</section>
+</div></section>
 
 <!-- STACK -->
-<section id="stack">
+<section id="stack"><div class="inner">
     <div class="tag"><i class="ph ph-code" style="font-size:12px"></i> Tecnologia</div>
     <h2 class="section-title fade-in">Stack técnica</h2>
     <p class="section-sub fade-in fade-in-d1">Escolhas deliberadas para performance, custo e manutenção</p>
@@ -511,10 +520,10 @@
             </div>
         </div>
     </div>
-</section>
+</div></section>
 
 <!-- MÉTRICAS -->
-<section id="metricas">
+<section id="metricas"><div class="inner" style="text-align:center">
     <div class="tag" style="justify-content:center"><i class="ph ph-lightning" style="font-size:12px;color:var(--cyan)"></i> Capacidade</div>
     <h2 class="section-title fade-in">O sistema aguenta</h2>
     <p class="section-sub fade-in fade-in-d1">Estimativas de capacidade na infraestrutura atual</p>
@@ -536,10 +545,10 @@
             <div class="met-label">custo atual de<br>infraestrutura</div>
         </div>
     </div>
-</section>
+</div></section>
 
 <!-- CTA -->
-<section id="cta">
+<section id="cta"><div class="inner" style="display:flex;flex-direction:column;align-items:center;text-align:center">
     <div class="tag" style="justify-content:center"><div class="dot-pulse"></div> Ao vivo agora</div>
     <h2 class="cta-title fade-in">
         Acesse e<br>
