@@ -495,6 +495,30 @@ function filtrarCliente(cliente) {
 }
 
 let statusFiltro = '';
+let funcionarioFiltro = '';
+
+function filtrarFuncionario(nome) {
+    const sel = document.getElementById('filtro-funcionario');
+    if (!sel) return;
+    if (funcionarioFiltro === nome) {
+        // Clicou de novo — remove o filtro
+        funcionarioFiltro = '';
+        sel.value = '';
+        mostrarToastFiltro('Filtro removido', '✅');
+    } else {
+        funcionarioFiltro = nome;
+        // Tenta selecionar no select
+        const primeiroNome = nome.split(' ')[0];
+        for (let opt of sel.options) {
+            if (opt.value === nome || opt.textContent === primeiroNome) {
+                sel.value = opt.value;
+                break;
+            }
+        }
+        mostrarToastFiltro(`Funcionário: ${primeiroNome}`, '👤');
+    }
+    carregarDados(clienteAtivo);
+}
 
 function filtrarStatus(status) {
     // Filtra a tabela por status sem recarregar os gráficos
@@ -603,9 +627,9 @@ function renderCharts(data) {
         ],
         chart: { ...chartDefaults, height: 260, type: 'line', background: 'transparent',
             events: { dataPointSelection: (e, ctx, config) => {
-                if (config.seriesIndex === 0) { // clicou na barra de tarefas
-                    const nome = nomes[config.dataPointIndex];
-                    if (nome) mostrarToastFiltro(nome);
+                if (config.seriesIndex === 0) {
+                    const nomeCompleto = hpf[config.dataPointIndex]?.nome;
+                    if (nomeCompleto) filtrarFuncionario(nomeCompleto);
                 }
             }}
         },
