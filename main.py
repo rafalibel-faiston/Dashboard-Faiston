@@ -333,13 +333,16 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {filtro}", params)
         total = cur.fetchone()[0]
 
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {fwhere(\"t.status = 'aberto'\")}", params)
+        w_aberto = fwhere("t.status = 'aberto'")
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {w_aberto}", params)
         abertos = cur.fetchone()[0]
 
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {fwhere(\"t.status = 'concluido'\")}", params)
+        w_concluido = fwhere("t.status = 'concluido'")
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {w_concluido}", params)
         concluidos = cur.fetchone()[0]
 
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {fwhere(\"t.status = 'em_andamento'\")}", params)
+        w_andamento = fwhere("t.status = 'em_andamento'")
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {w_andamento}", params)
         em_andamento = cur.fetchone()[0]
 
         cur.execute(f"SELECT COALESCE(SUM(t.segundos),0) FROM tarefas t {join_u} {filtro}", params)
