@@ -401,7 +401,7 @@ async function saveTask() {
     const body = {
         descricao, cliente,
         prioridade: document.getElementById('input-prioridade').value,
-        status: editId ? document.getElementById('input-status').value : 'em_andamento',
+        status: document.getElementById('input-status').value,
         segundos
     };
 
@@ -428,7 +428,7 @@ async function saveTask() {
         const newTask = { id: data.id, ...body, _running: false, funcionario: '' };
         tasks.unshift(newTask);
         closeModal(); renderTasks(); updateSummary();
-        startTimer(data.id);
+        if (body.status === 'em_andamento') startTimer(data.id);
     }
 }
 
