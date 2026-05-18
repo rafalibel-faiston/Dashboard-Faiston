@@ -324,20 +324,25 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         params = tuple(params)
 
+        # JOIN usuarios necessário quando filtro por funcionário referencia u.nome
+        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if funcionario else ""
+        # Helpers para adicionar condição de status sem quebrar o filtro existente
+        def fwhere(extra): return f"{filtro} AND {extra}" if filtro else f"WHERE {extra}"
+
         # KPIs gerais
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro}", params)
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {filtro}", params)
         total = cur.fetchone()[0]
 
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro} AND t.status = 'aberto'" if cliente else "SELECT COUNT(*) FROM tarefas WHERE status = 'aberto'", params if cliente else ())
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {fwhere(\"t.status = 'aberto'\")}", params)
         abertos = cur.fetchone()[0]
 
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro} AND t.status = 'concluido'" if cliente else "SELECT COUNT(*) FROM tarefas WHERE status = 'concluido'", params if cliente else ())
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {fwhere(\"t.status = 'concluido'\")}", params)
         concluidos = cur.fetchone()[0]
 
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {filtro} AND t.status = 'em_andamento'" if cliente else "SELECT COUNT(*) FROM tarefas WHERE status = 'em_andamento'", params if cliente else ())
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {fwhere(\"t.status = 'em_andamento'\")}", params)
         em_andamento = cur.fetchone()[0]
 
-        cur.execute(f"SELECT COALESCE(SUM(segundos),0) FROM tarefas t {filtro}", params)
+        cur.execute(f"SELECT COALESCE(SUM(t.segundos),0) FROM tarefas t {join_u} {filtro}", params)
         total_segundos = cur.fetchone()[0]
 
         # Clientes ativos (distintos)
@@ -351,27 +356,25 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         # SLA: % de tarefas concluídas sobre o total
         sla = round((concluidos / total * 100)) if total > 0 else 0
 
-        # Média de horas por funcionário
+        # Média de horas por funcionário — respeita todos os filtros
         cur.execute(
-            "SELECT COUNT(DISTINCT usuario_id), COALESCE(SUM(segundos),0) FROM tarefas t "
-            + (f"WHERE cliente=%s" if cliente else "WHERE 1=1"),
-            (cliente,) if cliente else ()
+            f"SELECT COUNT(DISTINCT t.usuario_id), COALESCE(SUM(t.segundos),0) FROM tarefas t {join_u} {filtro}",
+            params
         )
         row_media = cur.fetchone()
         n_funcs = max(row_media[0], 1)
         media_horas_func = round(row_media[1] / 3600 / n_funcs, 1)
 
-        # Horas por cliente (para gráfico de barras) — respeita filtro
-        if cliente:
-            cur.execute("""SELECT cliente, COALESCE(SUM(segundos),0) as total_seg
-                FROM tarefas WHERE cliente=%s GROUP BY cliente ORDER BY total_seg DESC""", (cliente,))
-        else:
-            cur.execute("""SELECT cliente, COALESCE(SUM(segundos),0) as total_seg
-                FROM tarefas GROUP BY cliente ORDER BY total_seg DESC""")
+        # Horas por cliente — respeita todos os filtros
+        cur.execute(
+            f"SELECT t.cliente, COALESCE(SUM(t.segundos),0) as total_seg "
+            f"FROM tarefas t {join_u} {filtro} GROUP BY t.cliente ORDER BY total_seg DESC",
+            params
+        )
         horas_por_cliente = [{"cliente": r[0], "horas": round(r[1]/3600, 1)} for r in cur.fetchall()]
 
         # Status da fila (para donut)
-        cur.execute("""SELECT status, COUNT(*) FROM tarefas t """ + filtro + """ GROUP BY status""", params)
+        cur.execute(f"SELECT t.status, COUNT(*) FROM tarefas t {join_u} {filtro} GROUP BY t.status", params)
         status_fila = {r[0]: r[1] for r in cur.fetchall()}
 
         # Volume por dia da semana (últimos 7 dias — para área)
@@ -402,27 +405,22 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
                      "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7]}
                     for r in cur.fetchall()]
 
-        # Horas por funcionário — respeita filtro de cliente
-        if cliente:
-            cur.execute("""SELECT u.nome, COALESCE(SUM(t.segundos),0),
-                COUNT(t.id) as total_tarefas
-                FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
-                WHERE t.cliente=%s AND u.perfil = 'funcionario'
-                GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""", (cliente,))
-        else:
-            cur.execute("""SELECT u.nome, COALESCE(SUM(t.segundos),0),
-                COUNT(t.id) as total_tarefas
-                FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
-                WHERE u.perfil = 'funcionario'
-                GROUP BY u.nome ORDER BY SUM(t.segundos) DESC""")
+        # Horas por funcionário — respeita todos os filtros
+        func_conds = list(conditions) + ["u.perfil = 'funcionario'"]
+        func_filtro = "WHERE " + " AND ".join(func_conds)
+        cur.execute(
+            f"SELECT u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas "
+            f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id "
+            f"{func_filtro} GROUP BY u.nome ORDER BY SUM(t.segundos) DESC",
+            params
+        )
         horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2]} for r in cur.fetchall()]
 
-        # Taxa de conclusão por cliente
+        # Taxa de conclusão por cliente — respeita todos os filtros
         cur.execute(
-            "SELECT cliente, "
-            "COUNT(*) as total, "
-            "SUM(CASE WHEN status='concluido' THEN 1 ELSE 0 END) as concluidas "
-            "FROM tarefas t " + filtro + " GROUP BY cliente ORDER BY total DESC",
+            f"SELECT t.cliente, COUNT(*) as total, "
+            f"SUM(CASE WHEN t.status='concluido' THEN 1 ELSE 0 END) as concluidas "
+            f"FROM tarefas t {join_u} {filtro} GROUP BY t.cliente ORDER BY total DESC",
             params)
         taxa_rows = cur.fetchall()
         taxa_conclusao = [{"cliente": r[0], "total": r[1], "concluidas": r[2],

@@ -1,25 +1,85 @@
 /* Customização fina que o Tailwind precisaria de muitas classes para fazer */
 
-/* Sombra suave e elegante para o menu lateral */
 .custom-shadow {
     box-shadow: 4px 0 24px rgba(15, 23, 42, 0.04);
 }
 
-/* Barra de rolagem no estilo Mac/SaaS (Mais fina e discreta) */
-.custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #CBD5E1; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94A3B8; }
+
+/* ===== TEMA ESCURO — via CSS variables nativas ===== */
+
+:root {
+    --th-bg:        #F8FAFC;
+    --th-surface:   #ffffff;
+    --th-border:    #E2E8F0;
+    --th-text:      #0A0A1A;
+    --th-muted:     #64748B;
+    --th-subtle:    #94A3B8;
+    --th-hover:     #F1F5F9;
+    --th-input:     #ffffff;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
+[data-theme="dark"] {
+    --th-bg:        #0D0D1A;
+    --th-surface:   #141428;
+    --th-border:    #1E2240;
+    --th-text:      #E2E8F0;
+    --th-muted:     #94A3B8;
+    --th-subtle:    #475569;
+    --th-hover:     #1a1a30;
+    --th-input:     #1a1a30;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: #CBD5E1; /* Slate 300 */
-    border-radius: 10px;
-}
+/* Fundo geral */
+[data-theme="dark"] body { background-color: var(--th-bg) !important; color: var(--th-text) !important; }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: #94A3B8; /* Slate 400 */
+/* Superfícies brancas */
+[data-theme="dark"] .bg-white              { background-color: var(--th-surface) !important; }
+[data-theme="dark"] .bg-faiston-bg         { background-color: var(--th-bg) !important; }
+[data-theme="dark"] .bg-slate-50           { background-color: var(--th-hover) !important; }
+[data-theme="dark"] .bg-slate-100          { background-color: #1E2240 !important; }
+[data-theme="dark"] aside                  { background-color: var(--th-surface) !important; border-color: var(--th-border) !important; }
+
+/* Bordas */
+[data-theme="dark"] .border-faiston-border { border-color: var(--th-border) !important; }
+[data-theme="dark"] .border-slate-100      { border-color: var(--th-border) !important; }
+
+/* Textos */
+[data-theme="dark"] .text-faiston-dark,
+[data-theme="dark"] .text-slate-800,
+[data-theme="dark"] .text-slate-900        { color: var(--th-text) !important; }
+[data-theme="dark"] .text-slate-600,
+[data-theme="dark"] .text-slate-500        { color: var(--th-muted) !important; }
+[data-theme="dark"] .text-slate-400,
+[data-theme="dark"] .text-slate-300        { color: var(--th-subtle) !important; }
+
+/* Inputs, selects */
+[data-theme="dark"] input,
+[data-theme="dark"] select                 { background-color: var(--th-input) !important; color: var(--th-text) !important; border-color: var(--th-border) !important; }
+[data-theme="dark"] input::placeholder     { color: var(--th-subtle) !important; }
+
+/* Hover em botões neutros */
+[data-theme="dark"] .hover\:bg-slate-50:hover,
+[data-theme="dark"] .hover\:bg-slate-100:hover { background-color: var(--th-hover) !important; }
+
+/* Tabela */
+[data-theme="dark"] thead tr              { background-color: var(--th-hover) !important; }
+[data-theme="dark"] tbody tr:hover        { background-color: var(--th-hover) !important; }
+
+/* Cards de gráfico com inline style — override via classe dedicada */
+[data-theme="dark"] .chart-card          { background: var(--th-surface) !important; border-color: var(--th-border) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important; }
+
+/* Botão de tema */
+.btn-theme {
+    width: 2.25rem; height: 2.25rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--th-border);
+    background-color: var(--th-surface);
+    color: var(--th-muted);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s;
 }
+.btn-theme:hover { background-color: var(--th-hover); }
