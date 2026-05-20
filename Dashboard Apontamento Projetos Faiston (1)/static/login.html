@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #F4F5FA;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0;
+            background-image:
+                linear-gradient(rgba(91,46,224,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(91,46,224,0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .blob {
+            position: fixed; border-radius: 50%; filter: blur(20px); pointer-events: none; z-index: 0;
+        }
+        .blob-1 { top: -20%; right: -10%; width: 520px; height: 520px; background: radial-gradient(circle, rgba(184,38,201,0.20), transparent 60%); }
+        .blob-2 { bottom: -15%; left: -5%; width: 480px; height: 480px; background: radial-gradient(circle, rgba(6,215,230,0.18), transparent 60%); }
+        @keyframes slide-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .card {
+            position: relative; z-index: 1;
+            background: white;
+            border-radius: 28px;
+            border: 1px solid #E5E8F0;
+            padding: 44px 40px 36px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 24px 48px -16px rgba(13,15,35,0.12), 0 4px 12px -4px rgba(13,15,35,0.05);
+            animation: slide-up 320ms cubic-bezier(0.2,0.8,0.2,1) both;
+        }
+        .logo {
+            display: flex; align-items: center; gap: 12px;
+            justify-content: center; margin-bottom: 28px;
+        }
+        .logo-icon {
+            width: 48px; height: 48px; border-radius: 13px;
+            background: linear-gradient(135deg, #3B6BFF 0%, #5B2EE0 55%, #C026D3 100%);
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid rgba(255,255,255,0.18);
+            box-shadow: 0 12px 32px -8px rgba(91,46,224,0.45);
+        }
+        .logo-text {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            font-size: 26px; font-weight: 700; color: #0B0D1F; letter-spacing: -0.03em;
+        }
+        h2 { font-size: 26px; font-weight: 700; color: #0B0D1F; margin-bottom: 6px; letter-spacing: -0.02em; text-align: center; }
+        p.sub { font-size: 14px; color: #5E647A; margin-bottom: 28px; text-align: center; }
+        label { display: block; font-size: 10px; font-weight: 700; color: #9097AC; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
+        .input-wrap { position: relative; margin-bottom: 14px; }
+        .input-wrap i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9097AC; font-size: 18px; }
+        input {
+            width: 100%; padding: 12px 14px 12px 42px;
+            border: 1px solid #E5E8F0; border-radius: 12px;
+            font-size: 14px; font-family: 'Inter', sans-serif; color: #0B0D1F;
+            outline: none; transition: all 0.2s; background: white;
+        }
+        input:focus { border-color: #5B2EE0; box-shadow: 0 0 0 3px rgba(91,46,224,0.12); }
+        input::placeholder { color: #9097AC; }
+        .btn {
+            width: 100%; padding: 14px;
+            background: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
+            color: white; border: none; border-radius: 12px;
+            font-size: 15px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; margin-top: 8px;
+            box-shadow: 0 12px 32px -8px rgba(184,38,201,0.45), 0 4px 12px -4px rgba(91,46,224,0.35);
+            transition: transform 0.12s ease, box-shadow 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+        .spin { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.9s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error {
+            background: rgba(236,72,153,0.06); border: 1px solid rgba(236,72,153,0.2); color: #B91C5C;
+            border-radius: 10px; padding: 10px 14px; font-size: 13px;
+            margin-bottom: 16px; display: none; align-items: center; gap: 8px;
+        }
+        .error.show { display: flex; }
+        .foot { text-align: center; margin-top: 22px; font-size: 11px; color: #9097AC; letter-spacing: 0.04em; }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="card">
+        <div class="logo">
+            <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:22px"></i></div>
+            <div class="logo-text">FAISTON</div>
+        </div>
+        <h2>Bem-vindo de volta</h2>
+        <p class="sub">Entre com suas credenciais para acessar o painel</p>
+
+        <div class="error" id="error-msg">
+            <i class="ph ph-warning-circle" style="font-size:16px"></i>
+            <span id="error-text">Usuário ou senha inválidos</span>
+        </div>
+
+        <div>
+            <label>Usuário</label>
+            <div class="input-wrap">
+                <i class="ph ph-user"></i>
+                <input type="text" id="usuario" placeholder="seu.usuario" autocomplete="username">
+            </div>
+            <label>Senha</label>
+            <div class="input-wrap">
+                <i class="ph ph-lock"></i>
+                <input type="password" id="senha" placeholder="••••••••" autocomplete="current-password">
+            </div>
+            <button class="btn" id="btn-login" onclick="fazerLogin()">
+                <i class="ph ph-sign-in"></i> Entrar
+            </button>
+        </div>
+
+        <div class="foot">Faiston OPS · Torre de Controle</div>
+    </div>
+
+<script>
+document.getElementById('senha').addEventListener('keydown', e => { if (e.key === 'Enter') fazerLogin(); });
+document.getElementById('usuario').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('senha').focus(); });
+
+async function fazerLogin() {
+    const usuario = document.getElementById('usuario').value.trim();
+    const senha = document.getElementById('senha').value;
+    const btn = document.getElementById('btn-login');
+    const errDiv = document.getElementById('error-msg');
+    const errText = document.getElementById('error-text');
+
+    if (!usuario || !senha) {
+        errText.textContent = 'Preencha usuário e senha.';
+        errDiv.classList.add('show');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner" style="animation:spin 1s linear infinite"></i> Entrando...';
+    errDiv.classList.remove('show');
+
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuario, senha })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errText.textContent = data.detail || 'Usuário ou senha inválidos';
+            errDiv.classList.add('show');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-sign-in"></i> Entrar';
+            return;
+        }
+        // Redireciona por perfil
+        if (data.perfil === 'admin') window.location.href = '/dashboard';
+        else if (data.perfil === 'gestor') window.location.href = '/dashboard';
+        else window.location.href = '/funcionario';
+    } catch(e) {
+        errText.textContent = 'Erro de conexão. Tente novamente.';
+        errDiv.classList.add('show');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-sign-in"></i> Entrar';
+    }
+}
+</script>
+<style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
+</body>
+</html>

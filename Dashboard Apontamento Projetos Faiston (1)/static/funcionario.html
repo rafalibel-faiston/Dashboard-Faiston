@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Funcionário</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } } } }
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --grad: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
+            --glow: 0 12px 32px -8px rgba(184,38,201,0.45), 0 4px 12px -4px rgba(91,46,224,0.35);
+            --shadow-card: 0 1px 2px rgba(13,15,35,0.04), 0 1px 1px rgba(13,15,35,0.02);
+            --shadow-hover: 0 24px 48px -16px rgba(13,15,35,0.12), 0 4px 12px -4px rgba(13,15,35,0.05);
+        }
+        .grad-bg { background: var(--grad); }
+        .grad-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+        .btn-grad { background: var(--grad); box-shadow: var(--glow); transition: transform .12s ease, box-shadow .2s ease; }
+        .btn-grad:hover { transform: translateY(-1px); }
+        .timer-running { animation: pulse-border 1.6s ease-in-out infinite; border-color: #5B2EE0 !important; }
+        @keyframes pulse-border { 0%,100%{box-shadow:0 0 0 0 rgba(91,46,224,0.35)}50%{box-shadow:0 0 0 8px rgba(91,46,224,0)} }
+        .custom-scrollbar::-webkit-scrollbar{width:5px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
+        .task-card{transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease}
+        .task-card:hover{transform:translateY(-2px); box-shadow: var(--shadow-hover)}
+        .timer-display{font-family:'JetBrains Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums; letter-spacing:0.02em}
+        @keyframes slide-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-up { animation: slide-up 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+        .pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+        @keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.85); } }
+    </style>
+</head>
+<body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
+
+<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-[10px] grad-bg flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
+            <i class="ph-fill ph-play text-white text-base"></i>
+        </div>
+        <span class="font-extrabold tracking-tight text-faiston-dark text-[15px]">FAISTON <span class="grad-text">OPS</span></span>
+        <span class="w-px h-4 bg-slate-200 mx-1"></span>
+        <span class="text-sm text-slate-500 font-medium">Minhas Tarefas</span>
+    </div>
+    <div class="flex items-center gap-3">
+        <div id="global-timer" class="hidden items-center gap-2 bg-white border border-faiston-purple/30 rounded-lg px-3 py-1.5 shadow-[0_0_0_4px_rgba(91,46,224,0.06)]">
+            <div class="w-2 h-2 rounded-full bg-faiston-purple pulse-dot"></div>
+            <span class="text-[11px] font-semibold text-faiston-muted uppercase tracking-wider">Rodando</span>
+            <span id="global-task-name" class="text-xs text-faiston-dark font-bold max-w-32 truncate"></span>
+            <span id="global-timer-display" class="timer-display text-sm font-bold text-faiston-purple">00:00:00</span>
+        </div>
+        <button onclick="openModal()" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+            <i class="ph ph-plus-circle text-lg"></i> Nova Tarefa
+        </button>
+
+        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <i class="ph ph-sign-out"></i> Sair
+        </button>
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+            <div class="w-9 h-9 rounded-full grad-bg flex items-center justify-center text-white text-xs font-bold shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]" id="user-avatar">?</div>
+            <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-6 py-7">
+<div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-2xl p-5 border border-faiston-border shadow-[var(--shadow-card)]">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2">Tarefas</p>
+            <p class="text-3xl font-bold text-faiston-dark tracking-tight" id="count-total">0</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-faiston-border shadow-[var(--shadow-card)]">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2">Concluídas</p>
+            <p class="text-3xl font-bold text-faiston-purple tracking-tight" id="count-done">0</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-faiston-border shadow-[var(--shadow-card)]">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2">Em Andamento</p>
+            <p class="text-3xl font-bold text-faiston-cyan tracking-tight" id="count-progress">0</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-faiston-border shadow-[var(--shadow-card)]">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2">Horas Apontadas</p>
+            <p class="text-3xl font-bold grad-text tracking-tight" id="count-hours">0h 00m</p>
+        </div>
+    </div>
+
+    <div class="flex items-center gap-3 mb-5 flex-wrap">
+        <span class="text-sm font-semibold text-faiston-muted">Filtrar:</span>
+        <div class="flex gap-1 p-1 bg-slate-100 rounded-xl">
+            <button onclick="setFilter('todos')" data-filter="todos" class="filter-btn bg-faiston-dark text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">Todos</button>
+            <button onclick="setFilter('aberto')" data-filter="aberto" class="filter-btn bg-transparent text-faiston-muted px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-faiston-dark transition-all">Aberto</button>
+            <button onclick="setFilter('em_andamento')" data-filter="em_andamento" class="filter-btn bg-transparent text-faiston-muted px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-faiston-dark transition-all">Em Andamento</button>
+            <button onclick="setFilter('concluido')" data-filter="concluido" class="filter-btn bg-transparent text-faiston-muted px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-faiston-dark transition-all">Concluído</button>
+        </div>
+        <div class="flex gap-2 ml-auto">
+            <select id="filter-cliente" onchange="renderTasks()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-faiston-muted focus:outline-none focus:border-faiston-purple cursor-pointer">
+                <option value="">Todos os clientes</option>
+                <option>NTT</option><option>Arcos Dourados</option><option>Zamp</option><option>Telcoweb</option>
+            </select>
+            <select id="filter-prioridade" onchange="renderTasks()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-faiston-muted focus:outline-none focus:border-faiston-purple cursor-pointer">
+                <option value="">Todas as prioridades</option>
+                <option>Alta</option><option>Media</option><option>Baixa</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="tasks-container" class="flex flex-col gap-3"></div>
+    <div id="empty-state" class="hidden flex-col items-center justify-center py-16 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4"><i class="ph ph-clipboard-text text-3xl text-slate-400"></i></div>
+        <p class="font-semibold text-slate-600 mb-1">Nenhuma tarefa encontrada</p>
+        <p class="text-sm text-slate-400">Clique em "Nova Tarefa" para começar</p>
+    </div>
+</main>
+
+<!-- MODAL -->
+<div id="modal" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden slide-up border border-faiston-border">
+        <div class="grad-bg px-6 py-4 flex items-center gap-3 relative overflow-hidden">
+            <div class="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/15 pointer-events-none"></div>
+            <span class="px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm text-[10px] font-bold text-white tracking-[0.08em] uppercase">Nova Tarefa</span>
+            <span id="modal-title" class="text-white/90 text-sm font-medium">Criação de tarefa</span>
+            <button onclick="closeModal()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors"><i class="ph ph-x"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="edit-id">
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição <span class="text-faiston-pink">*</span></label>
+                <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/20 transition-all">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Cliente <span class="text-faiston-pink">*</span></label>
+                    <select id="input-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                        <option value="">Selecionar...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
+                    <select id="input-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                        <option value="Media">Média</option><option value="Alta">Alta</option><option value="Baixa">Baixa</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Status</label>
+                    <select id="input-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                        <option value="aberto">Aberto</option>
+                        <option value="em_andamento">Em Andamento</option>
+                        <option value="concluido">Concluído</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Horas Manuais</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="input-horas" placeholder="0" min="0" max="23" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all text-center">
+                        <input type="number" id="input-minutos" placeholder="00" min="0" max="59" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all text-center">
+                    </div>
+                    <p class="text-[10px] text-faiston-faint mt-1">horas / minutos</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 px-6 pb-6">
+            <button onclick="closeModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-faiston-muted hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="saveTask()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-2"><i class="ph ph-floppy-disk"></i> Salvar Tarefa</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NOTAS -->
+<div id="modal-notas" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl flex overflow-hidden" style="width:860px;max-width:95vw;height:540px">
+        <!-- SIDEBAR LISTA -->
+        <div class="w-64 border-r border-faiston-border flex flex-col bg-slate-50">
+            <div class="flex items-center justify-between p-4 border-b border-faiston-border">
+                <div class="flex items-center gap-2">
+                    <i class="ph ph-note-pencil text-faiston-purple"></i>
+                    <span class="text-sm font-bold text-faiston-dark">Minhas Notas</span>
+                </div>
+                <button onclick="fecharNotas()" class="w-7 h-7 rounded-lg hover:bg-slate-200 flex items-center justify-center transition-colors">
+                    <i class="ph ph-x text-slate-400 text-sm"></i>
+                </button>
+            </div>
+            <div class="p-3">
+                <button onclick="novaNota()" class="w-full flex items-center gap-2 bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white rounded-lg px-3 py-2 text-xs font-semibold hover:shadow-[0_0_12px_rgba(0,229,255,0.3)] transition-all">
+                    <i class="ph ph-plus"></i> Nova nota
+                </button>
+            </div>
+            <div id="lista-notas" class="flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-1"></div>
+        </div>
+        <!-- EDITOR -->
+        <div class="flex-1 flex flex-col">
+            <div id="notas-empty" class="flex-1 flex flex-col items-center justify-center text-center p-8">
+                <i class="ph ph-note text-5xl text-slate-200 mb-3"></i>
+                <p class="text-sm font-semibold text-slate-400">Selecione uma nota ou crie uma nova</p>
+            </div>
+            <div id="notas-editor" class="hidden flex-1 flex flex-col">
+                <div class="p-4 border-b border-faiston-border flex items-center gap-3">
+                    <input type="text" id="nota-titulo" placeholder="Título da nota..."
+                        class="flex-1 text-base font-bold text-faiston-dark outline-none bg-transparent placeholder-slate-300"
+                        oninput="marcarAlterado()">
+                    <div class="flex items-center gap-2">
+                        <span id="nota-status" class="text-[10px] text-slate-300">—</span>
+                        <button onclick="salvarNotaAtual()" class="flex items-center gap-1.5 bg-faiston-purple text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-purple-700 transition-colors">
+                            <i class="ph ph-floppy-disk"></i> Salvar
+                        </button>
+                        <button onclick="deletarNotaAtual()" class="w-7 h-7 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-slate-300 hover:text-faiston-pink transition-colors">
+                            <i class="ph ph-trash text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 p-4">
+                    <textarea id="nota-texto" placeholder="Escreva suas observações, anotações para a semana..."
+                        class="w-full h-full outline-none resize-none text-sm text-slate-700 leading-relaxed placeholder-slate-300 bg-transparent"
+                        oninput="marcarAlterado()"></textarea>
+                </div>
+                <div class="px-4 py-2 border-t border-faiston-border flex items-center justify-between">
+                    <span class="text-[10px] text-slate-300" id="nota-data">—</span>
+                    <span class="text-[10px] text-slate-300" id="nota-chars">0 caracteres</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL COMENTÁRIOS -->
+<div id="modal-comentarios" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:85vh">
+        <div class="flex items-center justify-between p-5 border-b border-faiston-border">
+            <div>
+                <h2 class="text-base font-bold text-faiston-dark">Comentários</h2>
+                <p class="text-xs text-slate-400 mt-0.5 max-w-xs truncate" id="comentario-tarefa-nome"></p>
+            </div>
+            <button onclick="fecharComentarios()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-slate-500"></i></button>
+        </div>
+        <!-- Lista -->
+        <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-3" id="lista-comentarios">
+            <div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda</div>
+        </div>
+        <!-- Input -->
+        <div class="p-4 border-t border-faiston-border">
+            <div class="flex gap-2">
+                <input type="text" id="input-comentario" placeholder="Adicionar comentário..." onkeydown="if(event.key==='Enter') enviarComentario()"
+                    class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+                <button onclick="enviarComentario()" class="bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:shadow-[0_0_12px_rgba(0,229,255,0.3)]">
+                    <i class="ph ph-paper-plane-tilt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let tasks = [];
+let activeTaskId = null;
+let timerInterval = null;
+let timerSeconds = 0;
+let timerStart = null;
+let currentFilter = 'todos';
+
+const clientColors = {
+    'NTT':'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20',
+    'Arcos Dourados':'bg-faiston-magenta/10 text-faiston-magenta border-faiston-magenta/20',
+    'Zamp':'bg-faiston-pink/10 text-faiston-pink border-faiston-pink/20',
+    'Telcoweb':'bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30',
+    'Servidores':'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20',
+    'Havan':'bg-faiston-pink/10 text-faiston-pink border-faiston-pink/20'
+};
+const priorityConfig = {
+    'Alta':{ badge:'bg-faiston-magenta/10 text-faiston-magenta border-faiston-magenta/20', icon:'ph-flag' },
+    'Media':{ badge:'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20', icon:'ph-flag' },
+    'Baixa':{ badge:'bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30', icon:'ph-flag' }
+};
+const statusConfig = {
+    'aberto':{ label:'Aberto', badge:'bg-slate-100 text-faiston-muted border-slate-200' },
+    'em_andamento':{ label:'Em Andamento', badge:'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20' },
+    'concluido':{ label:'Concluído', badge:'bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30' }
+};
+
+function fmt(s) { return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+function fmtH(s) { return `${Math.floor(s/3600)}h ${String(Math.floor((s%3600)/60)).padStart(2,'0')}m`; }
+
+async function init() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
+        if (me.perfil === 'admin') { window.location.href = '/admin'; return; }
+        if (me.perfil === 'gestor') { window.location.href = '/dashboard'; return; }
+        document.getElementById('user-nome').textContent = me.nome;
+        document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
+    } catch(e) { window.location.href = '/'; return; }
+    await carregarTarefas();
+    await carregarNotas();
+    // Carrega clientes dinamicamente
+    try {
+        const resC = await fetch('/api/clientes');
+        if (resC.ok) {
+            const cls = await resC.json();
+            const sel = document.getElementById('input-cliente');
+            const selFiltro = document.getElementById('filter-cliente');
+            cls.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.nome; opt.textContent = c.nome;
+                sel.appendChild(opt.cloneNode(true));
+                if (selFiltro) selFiltro.appendChild(opt);
+            });
+        }
+    } catch(e) {}
+}
+
+async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
+}
+
+async function carregarTarefas() {
+    const res = await fetch('/api/tarefas');
+    if (!res.ok) return;
+    tasks = await res.json();
+    renderTasks();
+    updateSummary();
+}
+
+function startTimer(taskId) {
+    if (activeTaskId && activeTaskId !== taskId) stopTimer(activeTaskId, true);
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    timerSeconds = task.segundos;
+    timerStart = Date.now();
+    activeTaskId = taskId;
+    task._running = true;
+    const gt = document.getElementById('global-timer');
+    gt.classList.remove('hidden'); gt.classList.add('flex');
+    document.getElementById('global-task-name').textContent = task.descricao;
+    let saveCounter = 0;
+    timerInterval = setInterval(() => {
+        const elapsed = task.segundos + Math.floor((Date.now() - timerStart) / 1000);
+        const el = document.getElementById(`timer-${taskId}`);
+        if (el) el.textContent = fmt(elapsed);
+        document.getElementById('global-timer-display').textContent = fmt(elapsed);
+        // Salva no banco a cada 30 segundos automaticamente
+        saveCounter++;
+        if (saveCounter % 30 === 0) {
+            const secsNow = task.segundos + Math.floor((Date.now() - timerStart) / 1000);
+            fetch(`/api/tarefas/${taskId}/segundos`, {
+                method: 'PATCH', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ segundos: secsNow })
+            });
+        }
+    }, 1000);
+    // Salva status em andamento
+    fetch(`/api/tarefas/${taskId}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ descricao: task.descricao, cliente: task.cliente, prioridade: task.prioridade, status: 'em_andamento', segundos: task.segundos })
+    });
+    task.status = 'em_andamento';
+    renderTasks();
+}
+
+async function stopTimer(taskId, silent = false) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !task._running) return;
+    const elapsed = Math.floor((Date.now() - timerStart) / 1000);
+    task.segundos += elapsed;
+    task._running = false;
+    activeTaskId = null;
+    clearInterval(timerInterval); timerInterval = null; timerStart = null;
+    document.getElementById('global-timer').classList.add('hidden');
+    document.getElementById('global-timer').classList.remove('flex');
+    await fetch(`/api/tarefas/${taskId}/segundos`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ segundos: task.segundos })
+    });
+    if (!silent) renderTasks();
+}
+
+function toggleTimer(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    if (task._running) stopTimer(taskId);
+    else startTimer(taskId);
+}
+
+async function deleteTask(taskId) {
+    if (activeTaskId === taskId) await stopTimer(taskId, true);
+    await fetch(`/api/tarefas/${taskId}`, { method: 'DELETE' });
+    tasks = tasks.filter(t => t.id !== taskId);
+    renderTasks(); updateSummary();
+}
+
+function editTask(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    document.getElementById('modal-title').textContent = 'Editar Tarefa';
+    document.getElementById('edit-id').value = taskId;
+    document.getElementById('input-descricao').value = task.descricao;
+    document.getElementById('input-cliente').value = task.cliente;
+    document.getElementById('input-prioridade').value = task.prioridade;
+    document.getElementById('input-status').value = task.status;
+    document.getElementById('input-horas').value = Math.floor(task.segundos / 3600);
+    document.getElementById('input-minutos').value = Math.floor((task.segundos % 3600) / 60);
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+function openModal() {
+    document.getElementById('modal-title').textContent = 'Nova Tarefa';
+    document.getElementById('edit-id').value = '';
+    document.getElementById('input-descricao').value = '';
+    document.getElementById('input-cliente').value = '';
+    document.getElementById('input-prioridade').value = 'Media';
+    document.getElementById('input-status').value = 'aberto';
+    document.getElementById('input-horas').value = '';
+    document.getElementById('input-minutos').value = '';
+    document.getElementById('modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('input-descricao').focus(), 100);
+}
+
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+async function saveTask() {
+    const descricao = document.getElementById('input-descricao').value.trim();
+    const cliente = document.getElementById('input-cliente').value;
+    if (!descricao || !cliente) { alert('Preencha a descrição e o cliente.'); return; }
+    const horas = parseInt(document.getElementById('input-horas').value) || 0;
+    const minutos = parseInt(document.getElementById('input-minutos').value) || 0;
+    const segundos = (horas * 3600) + (minutos * 60);
+    const editId = document.getElementById('edit-id').value;
+    const body = {
+        descricao, cliente,
+        prioridade: document.getElementById('input-prioridade').value,
+        status: document.getElementById('input-status').value,
+        segundos
+    };
+
+    if (editId) {
+        const task = tasks.find(t => t.id == editId);
+        if (task) {
+            // Para timer se mudou para aberto ou concluido
+            if (task._running && body.status !== 'em_andamento') {
+                await stopTimer(parseInt(editId), true);
+            }
+            await fetch(`/api/tarefas/${editId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+            Object.assign(task, body);
+            // Inicia timer se mudou para em_andamento
+            if (!task._running && body.status === 'em_andamento') {
+                closeModal(); renderTasks(); updateSummary();
+                startTimer(parseInt(editId));
+                return;
+            }
+        }
+        closeModal(); renderTasks(); updateSummary();
+    } else {
+        const res = await fetch('/api/tarefas', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json();
+        const newTask = { id: data.id, ...body, _running: false, funcionario: '' };
+        tasks.unshift(newTask);
+        closeModal(); renderTasks(); updateSummary();
+        if (body.status === 'em_andamento') startTimer(data.id);
+    }
+}
+
+async function concluirTarefa(taskId) {
+    if (activeTaskId === taskId) await stopTimer(taskId, true);
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.status = 'concluido';
+    task._running = false;
+    await fetch(`/api/tarefas/${taskId}`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ descricao: task.descricao, cliente: task.cliente, prioridade: task.prioridade, status: 'concluido', segundos: task.segundos })
+    });
+    renderTasks(); updateSummary();
+}
+
+function setFilter(f) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        const active = btn.dataset.filter === f;
+        btn.classList.toggle('bg-faiston-dark', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-transparent', !active);
+        btn.classList.toggle('text-faiston-muted', !active);
+    });
+    renderTasks();
+}
+
+function renderTasks() {
+    const container = document.getElementById('tasks-container');
+    const empty = document.getElementById('empty-state');
+    const fc = document.getElementById('filter-cliente').value;
+    const fp = document.getElementById('filter-prioridade').value;
+    let filtered = tasks.filter(t => {
+        if (currentFilter !== 'todos' && t.status !== currentFilter) return false;
+        if (fc && t.cliente !== fc) return false;
+        if (fp && t.prioridade !== fp) return false;
+        return true;
+    });
+    if (!filtered.length) { container.innerHTML = ''; empty.classList.remove('hidden'); empty.classList.add('flex'); return; }
+    empty.classList.add('hidden'); empty.classList.remove('flex');
+    container.innerHTML = filtered.map(task => {
+        const pc = priorityConfig[task.prioridade] || priorityConfig['Media'];
+        const sc = statusConfig[task.status] || statusConfig['aberto'];
+        const cc = clientColors[task.cliente] || 'bg-slate-100 text-slate-600 border-slate-200';
+        const isRunning = task._running;
+        const isDone = task.status === 'concluido';
+        const secs = isRunning ? task.segundos + Math.floor((Date.now() - timerStart)/1000) : task.segundos;
+        const dataStr = task.criado_em ? task.criado_em.replace(' ', 'T') : null;
+        const hora = dataStr ? new Date(dataStr).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--:--';
+        return `
+        <div class="task-card slide-up bg-white rounded-2xl border ${isRunning ? 'border-faiston-purple timer-running' : 'border-faiston-border'} shadow-[var(--shadow-card)] ${isDone ? 'opacity-70' : ''} relative overflow-hidden">
+            ${isRunning ? '<div class="absolute top-0 left-0 right-0 h-[3px] grad-bg"></div>' : ''}
+            <div class="p-5">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-3 flex-wrap">
+                            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md border ${sc.badge}">${sc.label}</span>
+                            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md border ${pc.badge} flex items-center gap-1"><i class="ph ${pc.icon} text-[10px]"></i>${task.prioridade}</span>
+                            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md border ${cc}">${task.cliente}</span>
+                            <span class="text-[10px] text-faiston-faint ml-auto font-medium">${hora}</span>
+                        </div>
+                        <p class="text-base font-semibold text-faiston-dark tracking-tight ${isDone ? 'line-through text-faiston-faint' : ''} leading-snug">${task.descricao}</p>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="abrirComentarios(${task.id}, '${task.descricao.replace(/'/g, "\'")}')" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors" title="Comentários"><i class="ph ph-chat-circle-dots text-base"></i></button>
+                        <button onclick="editTask(${task.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-faiston-faint hover:text-faiston-dark transition-colors"><i class="ph ph-pencil-simple text-base"></i></button>
+                        <button onclick="deleteTask(${task.id})" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-trash text-base"></i></button>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+                    <div class="flex items-center gap-3">
+                        <i class="ph ph-clock ${isRunning ? 'text-faiston-purple' : 'text-faiston-faint'} text-lg"></i>
+                        <span id="timer-${task.id}" class="timer-display text-2xl font-bold tracking-tight ${isRunning ? 'text-faiston-purple' : isDone ? 'text-faiston-faint' : 'text-faiston-dark'}">${fmt(secs)}</span>
+                        ${isRunning ? '<span class="pulse-dot w-2 h-2 rounded-full bg-faiston-magenta shadow-[0_0_12px_rgba(184,38,201,0.6)]"></span>' : ''}
+                    </div>
+                    ${!isDone ? `
+                    <div class="flex items-center gap-2">
+                        <button onclick="concluirTarefa(${task.id})" class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-white border border-faiston-border text-faiston-muted hover:border-faiston-cyan hover:text-faiston-cyan transition-all">
+                            <i class="ph ph-check-circle text-base"></i>Concluir
+                        </button>
+                        <button onclick="toggleTimer(${task.id})" class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${isRunning ? 'bg-faiston-dark text-white' : 'btn-grad text-white'}">
+                            <i class="ph ${isRunning ? 'ph-pause' : 'ph-play'} text-base"></i>${isRunning ? 'Pausar' : 'Iniciar'}
+                        </button>
+                    </div>` : '<span class="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-faiston-cyan/10 text-faiston-cyan"><i class="ph ph-check-circle"></i> Concluída</span>'}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+    updateSummary();
+}
+
+function updateSummary() {
+    document.getElementById('count-total').textContent = tasks.length;
+    document.getElementById('count-done').textContent = tasks.filter(t => t.status === 'concluido').length;
+    document.getElementById('count-progress').textContent = tasks.filter(t => t.status === 'em_andamento').length;
+    const total = tasks.reduce((a,t) => a + (t._running ? t.segundos + Math.floor((Date.now()-timerStart)/1000) : t.segundos), 0);
+    document.getElementById('count-hours').textContent = fmtH(total);
+}
+
+document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// Salva o timer ao fechar/sair da página
+window.addEventListener('beforeunload', () => {
+    if (activeTaskId && timerStart) {
+        const task = tasks.find(t => t.id === activeTaskId);
+        if (task) {
+            const secsNow = task.segundos + Math.floor((Date.now() - timerStart) / 1000);
+            // Usa sendBeacon para garantir o envio mesmo ao fechar
+            const blob = new Blob([JSON.stringify({ segundos: secsNow })], { type: 'application/json' });
+            navigator.sendBeacon(`/api/tarefas/${activeTaskId}/segundos`, blob);
+        }
+    }
+});
+
+// --- NOTAS ---
+let notas = [];
+let notaAtualId = null;
+let alterado = false;
+let autoSaveTimer = null;
+
+let notasAberto = false;
+
+function toggleNotas() {
+    notasAberto = !notasAberto;
+    document.getElementById('notas-collapsed').classList.toggle('hidden', notasAberto);
+    const exp = document.getElementById('notas-expanded');
+    exp.classList.toggle('hidden', !notasAberto);
+    if (notasAberto) exp.style.display = 'flex';
+    else exp.style.display = '';
+    document.getElementById('notas-caret').className = notasAberto
+        ? 'ph ph-caret-down text-faiston-purple text-sm'
+        : 'ph ph-caret-up text-slate-400 text-sm';
+}
+
+async function carregarNotas() {
+    const res = await fetch('/api/notas');
+    if (!res.ok) return;
+    notas = await res.json();
+    renderListaNotas();
+    const label = document.getElementById('notas-count-label');
+    if (label) label.textContent = notas.length > 0 ? `${notas.length} nota${notas.length>1?'s':''}` : 'Nenhuma nota';
+    if (notas.length > 0 && !notaAtualId) selecionarNota(notas[0].id);
+    else if (!notas.length) mostrarVazioSidebar();
+}
+
+function renderListaNotas() {
+    const lista = document.getElementById('notas-sidebar-lista');
+    document.getElementById('notas-sidebar-empty').classList.toggle('hidden', notas.length > 0);
+    if (!notas.length) { lista.innerHTML = ''; return; }
+    lista.innerHTML = notas.map(n => `
+        <div onclick="selecionarNota(${n.id})" id="nota-item-${n.id}"
+            class="cursor-pointer px-4 py-3 border-b border-faiston-border hover:bg-slate-50 transition-colors ${notaAtualId === n.id ? 'bg-faiston-purple/10 border-l-2 border-l-faiston-purple' : ''}">
+            <p class="text-xs font-bold text-faiston-dark truncate">${n.titulo || 'Sem título'}</p>
+            <p class="text-[10px] text-slate-400 mt-0.5 truncate">${(n.texto||'').substring(0,50)}${(n.texto||'').length>50?'...':''}</p>
+            <p class="text-[9px] text-slate-300 mt-1">${n.atualizado_em}</p>
+        </div>`).join('');
+}
+
+function selecionarNota(id) {
+    if (alterado && notaAtualId) salvarNotaAtual();
+    notaAtualId = id;
+    const nota = notas.find(n => n.id === id);
+    if (!nota) return;
+    document.getElementById('notas-sidebar-empty').classList.add('hidden');
+    document.getElementById('notas-sidebar-editor').classList.remove('hidden');
+    document.getElementById('nota-titulo-s').value = nota.titulo;
+    document.getElementById('nota-texto-s').value = nota.texto || '';
+    document.getElementById('nota-status-s').textContent = 'Salvo';
+    document.getElementById('nota-chars-s').textContent = `${(nota.texto||'').length} car.`;
+    alterado = false;
+    renderListaNotas();
+}
+
+function mostrarVazioSidebar() {
+    document.getElementById('notas-sidebar-empty').classList.remove('hidden');
+    document.getElementById('notas-sidebar-editor').classList.add('hidden');
+}
+
+function marcarAlterado() {
+    alterado = true;
+    document.getElementById('nota-status-s').textContent = 'Não salvo...';
+    const txt = document.getElementById('nota-texto-s').value;
+    document.getElementById('nota-chars-s').textContent = `${txt.length} car.`;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => salvarNotaAtual(), 2000);
+}
+
+async function salvarNotaAtual() {
+    if (!notaAtualId && !alterado) return;
+    const titulo = document.getElementById('nota-titulo-s').value.trim() || 'Sem título';
+    const texto = document.getElementById('nota-texto-s').value;
+    clearTimeout(autoSaveTimer);
+    try {
+        if (notaAtualId === 'nova') {
+            const res = await fetch('/api/notas', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ titulo, texto })
+            });
+            const data = await res.json();
+            notaAtualId = data.id;
+        } else {
+            await fetch(`/api/notas/${notaAtualId}`, {
+                method: 'PUT', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ titulo, texto })
+            });
+        }
+        alterado = false;
+        document.getElementById('nota-status-s').textContent = 'Salvo ✓';
+        await carregarNotas();
+    } catch(e) {}
+}
+
+async function novaNota() {
+    if (alterado) await salvarNotaAtual();
+    notaAtualId = 'nova';
+    document.getElementById('notas-sidebar-empty').classList.add('hidden');
+    document.getElementById('notas-sidebar-editor').classList.remove('hidden');
+    document.getElementById('nota-titulo-s').value = '';
+    document.getElementById('nota-texto-s').value = '';
+    document.getElementById('nota-status-s').textContent = 'Nova nota';
+    document.getElementById('nota-chars-s').textContent = '0 car.';
+    alterado = false;
+    setTimeout(() => document.getElementById('nota-titulo-s').focus(), 50);
+}
+
+async function deletarNotaAtual() {
+    if (!notaAtualId || notaAtualId === 'nova') { mostrarVazioSidebar(); return; }
+    if (!confirm('Deletar esta nota?')) return;
+    await fetch(`/api/notas/${notaAtualId}`, { method: 'DELETE' });
+    notaAtualId = null; alterado = false;
+    await carregarNotas();
+    if (notas.length > 0) selecionarNota(notas[0].id);
+    else mostrarVazioSidebar();
+}
+
+// --- COMENTÁRIOS ---
+let tarefaAtualId = null;
+
+async function abrirComentarios(tarefaId, nome) {
+    tarefaAtualId = tarefaId;
+    document.getElementById('comentario-tarefa-nome').textContent = nome;
+    document.getElementById('modal-comentarios').classList.remove('hidden');
+    document.getElementById('input-comentario').focus();
+    await carregarComentarios();
+}
+
+function fecharComentarios() {
+    document.getElementById('modal-comentarios').classList.add('hidden');
+    tarefaAtualId = null;
+}
+
+async function carregarComentarios() {
+    if (!tarefaAtualId) return;
+    const res = await fetch(`/api/tarefas/${tarefaAtualId}/comentarios`);
+    if (!res.ok) return;
+    const comentarios = await res.json();
+    const lista = document.getElementById('lista-comentarios');
+    if (!comentarios.length) {
+        lista.innerHTML = '<div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda</div>';
+        return;
+    }
+    lista.innerHTML = comentarios.map(c => {
+        const data = new Date(c.criado_em.replace(' ','T')).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+        return `<div class="bg-slate-50 rounded-xl p-3 border border-faiston-border">
+            <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-[10px] font-bold">${c.autor.charAt(0)}</div>
+                    <span class="text-xs font-semibold text-faiston-dark">${c.autor}</span>
+                </div>
+                <span class="text-[10px] text-slate-400">${data}</span>
+            </div>
+            <p class="text-sm text-slate-700 leading-relaxed">${c.texto}</p>
+        </div>`;
+    }).join('');
+    lista.scrollTop = lista.scrollHeight;
+}
+
+async function enviarComentario() {
+    const input = document.getElementById('input-comentario');
+    const texto = input.value.trim();
+    if (!texto || !tarefaAtualId) return;
+    const res = await fetch(`/api/tarefas/${tarefaAtualId}/comentarios`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ texto })
+    });
+    if (res.ok) {
+        input.value = '';
+        await carregarComentarios();
+    }
+}
+
+document.getElementById('modal-comentarios').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal-comentarios')) fecharComentarios();
+});
+
+init();
+</script>
+<!-- CARD FLUTUANTE DE NOTAS -->
+<div id="notas-widget" style="position:fixed;bottom:24px;right:24px;z-index:40;width:340px">
+
+    <!-- COLLAPSED: só o botão -->
+    <div id="notas-collapsed" onclick="toggleNotas()" 
+        class="cursor-pointer flex items-center gap-3 bg-white border border-faiston-border rounded-xl px-4 py-3 shadow-lg hover:shadow-[0_4px_20px_rgba(74,0,224,0.15)] transition-all"
+        style="box-shadow:0 4px 20px rgba(74,0,224,0.1)">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center flex-shrink-0">
+            <i class="ph ph-note-pencil text-white text-sm"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+            <p class="text-xs font-bold text-faiston-dark">Minhas Notas</p>
+            <p class="text-[10px] text-slate-400" id="notas-count-label">carregando...</p>
+        </div>
+        <i class="ph ph-caret-up text-slate-400 text-sm" id="notas-caret"></i>
+    </div>
+
+    <!-- EXPANDED: painel completo -->
+    <div id="notas-expanded" class="hidden bg-white border border-faiston-border rounded-2xl overflow-hidden mt-2"
+        style="box-shadow:0 8px 32px rgba(74,0,224,0.15);max-height:520px;display:flex;flex-direction:column">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-faiston-border flex-shrink-0"
+            style="background:linear-gradient(135deg,rgba(74,0,224,0.05),rgba(0,229,255,0.02))">
+            <div class="flex items-center gap-2">
+                <i class="ph ph-note-pencil text-faiston-purple"></i>
+                <span class="text-sm font-bold text-faiston-dark">Minhas Notas</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="novaNota()" class="flex items-center gap-1 bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white px-3 py-1 rounded-lg text-xs font-semibold">
+                    <i class="ph ph-plus text-xs"></i> Nova
+                </button>
+                <button onclick="toggleNotas()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
+                    <i class="ph ph-caret-down text-slate-400 text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Lista -->
+        <div id="notas-sidebar-lista" class="overflow-y-auto custom-scrollbar flex-shrink-0" style="max-height:180px"></div>
+
+        <!-- Empty -->
+        <div id="notas-sidebar-empty" class="hidden flex-col items-center justify-center py-8 text-center">
+            <i class="ph ph-note text-3xl text-slate-200 mb-2"></i>
+            <p class="text-xs text-slate-400 font-medium">Nenhuma nota ainda</p>
+            <p class="text-[10px] text-slate-300 mt-1">Clique em Nova para começar</p>
+        </div>
+
+        <!-- Editor -->
+        <div id="notas-sidebar-editor" class="hidden border-t border-faiston-border flex-col flex-1">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-faiston-border bg-slate-50 flex-shrink-0">
+                <input type="text" id="nota-titulo-s" placeholder="Título da nota..."
+                    class="flex-1 text-xs font-bold text-faiston-dark outline-none bg-transparent placeholder-slate-300"
+                    oninput="marcarAlterado()">
+                <button onclick="salvarNotaAtual()" class="text-[10px] text-faiston-cyan font-semibold hover:underline flex-shrink-0">Salvar</button>
+                <button onclick="deletarNotaAtual()" class="text-slate-200 hover:text-red-400 transition-colors flex-shrink-0">
+                    <i class="ph ph-trash text-xs"></i>
+                </button>
+            </div>
+            <textarea id="nota-texto-s" placeholder="Escreva suas observações, anotações para a semana..."
+                class="w-full outline-none resize-none text-xs text-slate-600 leading-relaxed placeholder-slate-300 p-4 flex-1"
+                style="min-height:140px" oninput="marcarAlterado()"></textarea>
+            <div class="px-4 py-2 border-t border-faiston-border flex items-center justify-between bg-slate-50 flex-shrink-0">
+                <span class="text-[10px] text-slate-300" id="nota-status-s">—</span>
+                <span class="text-[10px] text-slate-300" id="nota-chars-s">0 caracteres</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
