@@ -4,11 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatório</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] },
-            colors: { faiston: { bg:'#F8FAFC',dark:'#0A0A1A',border:'#E2E8F0',cyan:'#00E5FF',purple:'#4A00E0',magenta:'#FF007F' } } } } }
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899', chart_pink:'#EC4899'
+                } }
+            }}
+        }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
@@ -39,7 +48,7 @@
         <button onclick="window.print()" class="flex items-center gap-2 bg-white border border-faiston-border text-slate-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors">
             <i class="ph ph-printer"></i> Imprimir
         </button>
-        <button onclick="exportarPDF()" class="flex items-center gap-2 bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] transition-all">
+        <button onclick="exportarPDF()" class="flex items-center gap-2 grad-bg text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-[0_0_12px_rgba(236, 72, 153,0.3)] hover:shadow-[0_0_18px_rgba(6, 215, 230,0.4)] transition-all">
             <i class="ph ph-download-simple"></i> Exportar PDF
         </button>
     </div>
@@ -49,10 +58,10 @@
 <div class="max-w-4xl mx-auto px-6 py-8" id="relatorio-content">
 
     <!-- CAPA -->
-    <div class="bg-white rounded-2xl border border-faiston-border p-8 mb-6" style="background: linear-gradient(135deg, #0A0A1A 0%, #1a0050 50%, #0A0A1A 100%);">
+    <div class="bg-white rounded-2xl border border-faiston-border p-8 mb-6" style="background: linear-gradient(135deg, #0B0D1F 0%, #1a0050 50%, #0B0D1F 100%);">
         <div class="flex items-center justify-between mb-8">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-faiston-cyan to-faiston-purple flex items-center justify-center">
+                <div class="w-10 h-10 rounded-xl grad-bg-cool flex items-center justify-center">
                     <i class="ph-fill ph-play text-white text-xl"></i>
                 </div>
                 <div>
@@ -90,22 +99,22 @@
 
     <!-- STATUS -->
     <div class="grid grid-cols-3 gap-3 mb-6">
-        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center"><i class="ph ph-check-circle text-emerald-600"></i></div>
+        <div class="bg-emerald-50 border border-faiston-cyan/30 rounded-xl p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center"><i class="ph ph-check-circle text-faiston-cyan"></i></div>
             <div>
-                <p class="text-xl font-black text-emerald-700" id="r-concluidas">—</p>
-                <p class="text-[11px] text-emerald-600 font-medium">Concluídas</p>
+                <p class="text-xl font-black text-faiston-cyan" id="r-concluidas">—</p>
+                <p class="text-[11px] text-faiston-cyan font-medium">Concluídas</p>
             </div>
         </div>
-        <div class="bg-cyan-50 border border-cyan-100 rounded-xl p-4 flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center"><i class="ph ph-spinner text-cyan-600"></i></div>
+        <div class="bg-cyan-50 border border-faiston-cyan/30 rounded-xl p-4 flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-faiston-cyan/10 flex items-center justify-center"><i class="ph ph-spinner text-cyan-600"></i></div>
             <div>
-                <p class="text-xl font-black text-cyan-700" id="r-andamento">—</p>
+                <p class="text-xl font-black text-faiston-cyan" id="r-andamento">—</p>
                 <p class="text-[11px] text-cyan-600 font-medium">Em Andamento</p>
             </div>
         </div>
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><i class="ph ph-clock text-slate-500"></i></div>
+            <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><i class="ph ph-clock text-faiston-muted"></i></div>
             <div>
                 <p class="text-xl font-black text-slate-600" id="r-abertas">—</p>
                 <p class="text-[11px] text-slate-500 font-medium">Abertas</p>
@@ -125,7 +134,7 @@
     <div class="bg-white rounded-xl border border-faiston-border mb-6">
         <div class="flex items-center justify-between p-5 border-b border-faiston-border">
             <h2 class="text-sm font-bold text-faiston-dark">Detalhamento de Tarefas</h2>
-            <span class="text-xs text-slate-400" id="count-tarefas">—</span>
+            <span class="text-xs text-faiston-faint" id="count-tarefas">—</span>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -152,8 +161,8 @@
 
 <script>
 const cliente = window.location.pathname.split('/relatorio/')[1];
-const prioCfg = { Alta:'bg-pink-100 text-pink-700', Media:'bg-amber-100 text-amber-700', Baixa:'bg-emerald-100 text-emerald-700' };
-const statusCfg = { 'Concluído':'bg-emerald-100 text-emerald-700', 'Em Andamento':'bg-cyan-100 text-cyan-700', 'Aberto':'bg-slate-100 text-slate-600' };
+const prioCfg = { Alta:'bg-faiston-magenta/10 text-faiston-magenta', Media:'bg-faiston-purple/10 text-faiston-purple', Baixa:'bg-faiston-cyan/10 text-faiston-cyan' };
+const statusCfg = { 'Concluído':'bg-faiston-cyan/10 text-faiston-cyan', 'Em Andamento':'bg-faiston-cyan/10 text-faiston-cyan', 'Aberto':'bg-slate-100 text-slate-600' };
 
 async function init() {
     try {
@@ -198,14 +207,14 @@ function renderRelatorio(data) {
     const maxHoras = Math.max(...data.por_funcionario.map(f => f.horas), 1);
     document.getElementById('tabela-funcionarios').innerHTML = data.por_funcionario.map(f => `
         <div class="flex items-center gap-4 mb-3 last:mb-0">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-xs font-bold shrink-0">${f.nome.charAt(0)}</div>
+            <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold shrink-0">${f.nome.charAt(0)}</div>
             <div class="flex-1">
                 <div class="flex items-center justify-between mb-1">
                     <span class="text-sm font-semibold text-faiston-dark">${f.nome}</span>
-                    <span class="text-xs text-slate-500">${f.tarefas} tarefas · ${f.horas}h</span>
+                    <span class="text-xs text-faiston-muted">${f.tarefas} tarefas · ${f.horas}h</span>
                 </div>
                 <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div class="h-full rounded-full bg-gradient-to-r from-faiston-purple to-faiston-cyan transition-all" style="width:${(f.horas/maxHoras*100).toFixed(0)}%"></div>
+                    <div class="h-full rounded-full grad-bg transition-all" style="width:${(f.horas/maxHoras*100).toFixed(0)}%"></div>
                 </div>
             </div>
         </div>`).join('');
@@ -221,7 +230,7 @@ function renderRelatorio(data) {
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${pc}">${t.prioridade}</span></td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${sc}">${t.status}</span></td>
             <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-semibold">${horasLabel}</td>
-            <td class="px-5 py-3 text-xs text-slate-400">${t.criado_em}</td>
+            <td class="px-5 py-3 text-xs text-faiston-faint">${t.criado_em}</td>
         </tr>`;
     }).join('');
 }

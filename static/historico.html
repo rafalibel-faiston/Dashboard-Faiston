@@ -4,18 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Histórico</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] },
-            colors: { faiston: { bg:'#F8FAFC',dark:'#0A0A1A',border:'#E2E8F0',cyan:'#00E5FF',purple:'#4A00E0',magenta:'#FF007F' } } } } }
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899', chart_pink:'#EC4899'
+                } }
+            }}
+        }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
         .custom-scrollbar::-webkit-scrollbar{width:5px;height:5px}
         .custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
         .filter-chip { transition: all 0.15s; }
-        .filter-chip.active { background: #4A00E0; color: white; border-color: #4A00E0; }
+        .filter-chip.active { background: #5B2EE0; color: white; border-color: #5B2EE0; }
         tr.selected { background: #F0F4FF !important; }
     </style>
 </head>
@@ -32,14 +41,14 @@
         <span class="text-sm font-bold text-faiston-dark">Histórico de Tarefas</span>
     </div>
     <div class="flex items-center gap-3">
-        <button onclick="exportarCSV()" class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition-colors">
+        <button onclick="exportarCSV()" class="flex items-center gap-2 bg-faiston-cyan/10 border border-faiston-cyan/30 text-faiston-cyan px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-faiston-cyan/20 transition-colors">
             <i class="ph ph-download-simple"></i> Exportar
         </button>
-        <button onclick="logout()" class="text-slate-400 hover:text-red-500 transition-colors">
+        <button onclick="logout()" class="text-faiston-faint hover:text-faiston-pink transition-colors">
             <i class="ph ph-sign-out text-lg"></i>
         </button>
         <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-magenta flex items-center justify-center text-white text-xs font-bold" id="user-av">?</div>
+            <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-av">?</div>
             <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
         </div>
     </div>
@@ -48,7 +57,7 @@
 <main class="max-w-7xl mx-auto px-6 py-6">
 
     <!-- FILTROS -->
-    <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(74,0,224,0.06)">
+    <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
         <div class="flex items-center gap-2 mb-4">
             <i class="ph ph-funnel text-faiston-purple"></i>
             <span class="text-sm font-bold text-faiston-dark">Filtros</span>
@@ -85,21 +94,21 @@
             <button onclick="toggleChip('cliente','Telcoweb',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-purple">Telcoweb</button>
             <span class="w-px h-4 bg-slate-200 self-center mx-1"></span>
             <span class="text-xs text-slate-400 self-center mr-1">Status:</span>
-            <button onclick="toggleChip('status','concluido',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-emerald-400">✅ Concluído</button>
-            <button onclick="toggleChip('status','em_andamento',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-cyan-400">▶️ Em Andamento</button>
-            <button onclick="toggleChip('status','aberto',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-slate-400">🔵 Aberto</button>
+            <button onclick="toggleChip('status','concluido',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-cyan">✅ Concluído</button>
+            <button onclick="toggleChip('status','em_andamento',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-cyan">▶️ Em Andamento</button>
+            <button onclick="toggleChip('status','aberto',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-faint">🔵 Aberto</button>
             <span class="w-px h-4 bg-slate-200 self-center mx-1"></span>
             <span class="text-xs text-slate-400 self-center mr-1">Prioridade:</span>
             <button onclick="toggleChip('prioridade','Alta',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-pink-400">🔴 Alta</button>
             <button onclick="toggleChip('prioridade','Media',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-amber-400">🟡 Média</button>
-            <button onclick="toggleChip('prioridade','Baixa',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-emerald-400">🟢 Baixa</button>
+            <button onclick="toggleChip('prioridade','Baixa',this)" class="filter-chip text-xs px-3 py-1 rounded-full border border-faiston-border bg-white text-slate-600 hover:border-faiston-cyan">🟢 Baixa</button>
         </div>
     </div>
 
     <!-- RESUMO -->
     <div class="grid grid-cols-3 gap-4 mb-5">
         <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center text-faiston-purple"><i class="ph ph-list-bullets text-lg"></i></div>
+            <div class="w-9 h-9 rounded-lg bg-faiston-purple/10 flex items-center justify-center text-faiston-purple"><i class="ph ph-list-bullets text-lg"></i></div>
             <div>
                 <p class="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">Total encontrado</p>
                 <p class="text-xl font-black text-faiston-dark" id="r-total">—</p>
@@ -113,22 +122,22 @@
             </div>
         </div>
         <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><i class="ph ph-check-circle text-lg"></i></div>
+            <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-faiston-cyan"><i class="ph ph-check-circle text-lg"></i></div>
             <div>
                 <p class="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">Concluídas</p>
-                <p class="text-xl font-black text-emerald-600" id="r-concluidas">—</p>
+                <p class="text-xl font-black text-faiston-cyan" id="r-concluidas">—</p>
             </div>
         </div>
     </div>
 
     <!-- TABELA -->
-    <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(74,0,224,0.06)">
+    <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
         <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
             <div class="flex items-center gap-2">
                 <span class="text-sm font-bold text-faiston-dark">Tarefas</span>
                 <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
             </div>
-            <div class="flex items-center gap-2 text-xs text-slate-400">
+            <div class="flex items-center gap-2 text-xs text-faiston-faint">
                 <span>Itens por página:</span>
                 <select id="por-pagina" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-faiston-cyan bg-white">
                     <option value="20">20</option>
@@ -155,15 +164,15 @@
         </div>
         <!-- PAGINAÇÃO -->
         <div class="flex items-center justify-between px-5 py-4 border-t border-faiston-border">
-            <span class="text-xs text-slate-400" id="pag-info">—</span>
+            <span class="text-xs text-faiston-faint" id="pag-info">—</span>
             <div class="flex items-center gap-1" id="pag-btns"></div>
         </div>
     </div>
 </main>
 
 <script>
-const prioCfg = { Alta:'bg-pink-100 text-pink-700', Media:'bg-amber-100 text-amber-700', Média:'bg-amber-100 text-amber-700', Baixa:'bg-emerald-100 text-emerald-700' };
-const statusCfg = { 'Concluído':'bg-emerald-100 text-emerald-700', 'Em Andamento':'bg-cyan-100 text-cyan-700', 'Aberto':'bg-slate-100 text-slate-600' };
+const prioCfg = { Alta:'bg-faiston-magenta/10 text-faiston-magenta', Media:'bg-faiston-purple/10 text-faiston-purple', Média:'bg-faiston-purple/10 text-faiston-purple', Baixa:'bg-faiston-cyan/10 text-faiston-cyan' };
+const statusCfg = { 'Concluído':'bg-faiston-cyan/10 text-faiston-cyan', 'Em Andamento':'bg-faiston-cyan/10 text-faiston-cyan', 'Aberto':'bg-slate-100 text-slate-600' };
 
 let pagina = 1;
 let filtros = { cliente:'', status:'', prioridade:'' };
@@ -276,7 +285,7 @@ function renderTabela(data) {
 function renderLinhas(tarefas) {
     const tb = document.getElementById('tabela-body');
     if (!tarefas.length) {
-        tb.innerHTML = `<tr><td colspan="7" class="px-5 py-12 text-center text-slate-400">
+        tb.innerHTML = `<tr><td colspan="7" class="px-5 py-12 text-center text-faiston-faint">
             <i class="ph ph-magnifying-glass text-3xl block mb-2"></i>Nenhuma tarefa encontrada
         </td></tr>`;
         return;
@@ -290,7 +299,7 @@ function renderLinhas(tarefas) {
         return `<tr class="border-b border-faiston-border hover:bg-slate-50/80 transition-colors cursor-default ${i%2===0?'':'bg-slate-50/30'}">
             <td class="px-5 py-3">
                 <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-[10px] font-bold shrink-0">${t.funcionario.charAt(0)}</div>
+                    <div class="w-7 h-7 rounded-lg grad-bg flex items-center justify-center text-white text-[10px] font-bold shrink-0">${t.funcionario.charAt(0)}</div>
                     <span class="text-xs text-slate-600 font-medium">${t.funcionario.split(' ')[0]}</span>
                 </div>
             </td>
@@ -303,7 +312,7 @@ function renderLinhas(tarefas) {
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${pc}">${t.prioridade}</span></td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-md ${sc}">${t.status}</span></td>
             <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-bold">${horasLabel}</td>
-            <td class="px-5 py-3 text-xs text-slate-400">${t.criado_em}</td>
+            <td class="px-5 py-3 text-xs text-faiston-faint">${t.criado_em}</td>
         </tr>`;
     }).join('');
 }

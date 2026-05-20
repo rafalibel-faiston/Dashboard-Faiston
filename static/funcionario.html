@@ -9,84 +9,104 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] },
-                colors: { faiston: { bg:'#F8FAFC', dark:'#0A0A1A', border:'#E2E8F0', cyan:'#00E5FF', purple:'#4A00E0', magenta:'#FF007F' } } } }
+            theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } } } }
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
-        .timer-running { animation: pulse-border 1.5s ease-in-out infinite; }
-        @keyframes pulse-border { 0%,100%{box-shadow:0 0 0 0 rgba(0,229,255,0.4)}50%{box-shadow:0 0 0 6px rgba(0,229,255,0)} }
+        :root {
+            --grad: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
+            --glow: 0 12px 32px -8px rgba(184,38,201,0.45), 0 4px 12px -4px rgba(91,46,224,0.35);
+            --shadow-card: 0 1px 2px rgba(13,15,35,0.04), 0 1px 1px rgba(13,15,35,0.02);
+            --shadow-hover: 0 24px 48px -16px rgba(13,15,35,0.12), 0 4px 12px -4px rgba(13,15,35,0.05);
+        }
+        .grad-bg { background: var(--grad); }
+        .grad-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+        .btn-grad { background: var(--grad); box-shadow: var(--glow); transition: transform .12s ease, box-shadow .2s ease; }
+        .btn-grad:hover { transform: translateY(-1px); }
+        .timer-running { animation: pulse-border 1.6s ease-in-out infinite; border-color: #5B2EE0 !important; }
+        @keyframes pulse-border { 0%,100%{box-shadow:0 0 0 0 rgba(91,46,224,0.35)}50%{box-shadow:0 0 0 8px rgba(91,46,224,0)} }
         .custom-scrollbar::-webkit-scrollbar{width:5px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
-        .task-card{transition:all 0.2s ease}.task-card:hover{transform:translateY(-2px)}
-        .priority-Alta{border-left:3px solid #FF007F}.priority-Media{border-left:3px solid #F59E0B}.priority-Baixa{border-left:3px solid #10B981}
-        .timer-display{font-variant-numeric:tabular-nums;letter-spacing:0.05em}
+        .task-card{transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease}
+        .task-card:hover{transform:translateY(-2px); box-shadow: var(--shadow-hover)}
+        .timer-display{font-family:'JetBrains Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums; letter-spacing:0.02em}
+        @keyframes slide-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-up { animation: slide-up 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+        .pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+        @keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.85); } }
     </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
 
 <header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
     <div class="flex items-center gap-3">
-        <i class="ph-fill ph-play text-2xl text-transparent bg-clip-text bg-gradient-to-tr from-faiston-cyan via-faiston-purple to-faiston-magenta"></i>
-        <span class="font-black text-faiston-dark tracking-tight">FAISTON <span class="text-transparent bg-clip-text bg-gradient-to-r from-faiston-purple to-faiston-cyan">OPS</span></span>
-        <span class="w-px h-4 bg-slate-200"></span>
+        <div class="w-9 h-9 rounded-[10px] grad-bg flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
+            <i class="ph-fill ph-play text-white text-base"></i>
+        </div>
+        <span class="font-extrabold tracking-tight text-faiston-dark text-[15px]">FAISTON <span class="grad-text">OPS</span></span>
+        <span class="w-px h-4 bg-slate-200 mx-1"></span>
         <span class="text-sm text-slate-500 font-medium">Minhas Tarefas</span>
     </div>
     <div class="flex items-center gap-3">
-        <div id="global-timer" class="hidden items-center gap-2 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-1.5">
-            <div class="w-2 h-2 rounded-full bg-faiston-cyan animate-pulse"></div>
-            <span class="text-xs font-semibold text-cyan-700">Em andamento:</span>
-            <span id="global-task-name" class="text-xs text-cyan-800 font-bold max-w-32 truncate"></span>
-            <span id="global-timer-display" class="timer-display text-sm font-bold text-faiston-cyan">00:00:00</span>
+        <div id="global-timer" class="hidden items-center gap-2 bg-white border border-faiston-purple/30 rounded-lg px-3 py-1.5 shadow-[0_0_0_4px_rgba(91,46,224,0.06)]">
+            <div class="w-2 h-2 rounded-full bg-faiston-purple pulse-dot"></div>
+            <span class="text-[11px] font-semibold text-faiston-muted uppercase tracking-wider">Rodando</span>
+            <span id="global-task-name" class="text-xs text-faiston-dark font-bold max-w-32 truncate"></span>
+            <span id="global-timer-display" class="timer-display text-sm font-bold text-faiston-purple">00:00:00</span>
         </div>
-        <button onclick="openModal()" class="bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.5)] transition-all flex items-center gap-2">
+        <button onclick="openModal()" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
             <i class="ph ph-plus-circle text-lg"></i> Nova Tarefa
         </button>
 
-        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
             <i class="ph ph-sign-out"></i> Sair
         </button>
         <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-xs font-bold" id="user-avatar">?</div>
+            <div class="w-9 h-9 rounded-full grad-bg flex items-center justify-center text-white text-xs font-bold shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]" id="user-avatar">?</div>
             <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
         </div>
     </div>
 </header>
 
-<main class="max-w-6xl mx-auto px-6 py-6">
+<main class="max-w-6xl mx-auto px-6 py-7">
 <div class="grid grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-xl p-4 border border-faiston-border">
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Tarefas</p>
-            <p class="text-2xl font-bold text-faiston-dark" id="count-total">0</p>
+        <div class="bg-white rounded-2xl p-5 border border-faiston-border shadow-[var(--shadow-card)]">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2">Tarefas</p>
+            <p class="text-3xl font-bold text-faiston-dark tracking-tight" id="count-total">0</p>
         </div>
-        <div class="bg-white rounded-xl p-4 border border-faiston-border">
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Concluídas</p>
-            <p class="text-2xl font-bold text-emerald-600" id="count-done">0</p>
+        <div class="bg-white rounded-2xl p-5 border border-faiston-border shadow-[var(--shadow-card)]">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2">Concluídas</p>
+            <p class="text-3xl font-bold text-faiston-purple tracking-tight" id="count-done">0</p>
         </div>
-        <div class="bg-white rounded-xl p-4 border border-faiston-border">
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Em Andamento</p>
-            <p class="text-2xl font-bold text-faiston-cyan" id="count-progress">0</p>
+        <div class="bg-white rounded-2xl p-5 border border-faiston-border shadow-[var(--shadow-card)]">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2">Em Andamento</p>
+            <p class="text-3xl font-bold text-faiston-cyan tracking-tight" id="count-progress">0</p>
         </div>
-        <div class="bg-white rounded-xl p-4 border border-faiston-border">
-            <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Horas Apontadas</p>
-            <p class="text-2xl font-bold text-faiston-purple" id="count-hours">0h 00m</p>
+        <div class="bg-white rounded-2xl p-5 border border-faiston-border shadow-[var(--shadow-card)]">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2">Horas Apontadas</p>
+            <p class="text-3xl font-bold grad-text tracking-tight" id="count-hours">0h 00m</p>
         </div>
     </div>
 
-    <div class="flex items-center gap-3 mb-5">
-        <span class="text-sm font-semibold text-slate-500">Filtrar:</span>
-        <div class="flex gap-2">
-            <button onclick="setFilter('todos')" data-filter="todos" class="filter-btn bg-faiston-dark text-white px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border transition-all">Todos</button>
-            <button onclick="setFilter('aberto')" data-filter="aberto" class="filter-btn bg-white text-slate-600 px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border hover:bg-slate-50 transition-all">Aberto</button>
-            <button onclick="setFilter('em_andamento')" data-filter="em_andamento" class="filter-btn bg-white text-slate-600 px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border hover:bg-slate-50 transition-all">Em Andamento</button>
-            <button onclick="setFilter('concluido')" data-filter="concluido" class="filter-btn bg-white text-slate-600 px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border hover:bg-slate-50 transition-all">Concluído</button>
+    <div class="flex items-center gap-3 mb-5 flex-wrap">
+        <span class="text-sm font-semibold text-faiston-muted">Filtrar:</span>
+        <div class="flex gap-1 p-1 bg-slate-100 rounded-xl">
+            <button onclick="setFilter('todos')" data-filter="todos" class="filter-btn bg-faiston-dark text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all">Todos</button>
+            <button onclick="setFilter('aberto')" data-filter="aberto" class="filter-btn bg-transparent text-faiston-muted px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-faiston-dark transition-all">Aberto</button>
+            <button onclick="setFilter('em_andamento')" data-filter="em_andamento" class="filter-btn bg-transparent text-faiston-muted px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-faiston-dark transition-all">Em Andamento</button>
+            <button onclick="setFilter('concluido')" data-filter="concluido" class="filter-btn bg-transparent text-faiston-muted px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-faiston-dark transition-all">Concluído</button>
         </div>
         <div class="flex gap-2 ml-auto">
-            <select id="filter-cliente" onchange="renderTasks()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-cyan">
+            <select id="filter-cliente" onchange="renderTasks()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-faiston-muted focus:outline-none focus:border-faiston-purple cursor-pointer">
                 <option value="">Todos os clientes</option>
                 <option>NTT</option><option>Arcos Dourados</option><option>Zamp</option><option>Telcoweb</option>
             </select>
-            <select id="filter-prioridade" onchange="renderTasks()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-cyan">
+            <select id="filter-prioridade" onchange="renderTasks()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-faiston-muted focus:outline-none focus:border-faiston-purple cursor-pointer">
                 <option value="">Todas as prioridades</option>
                 <option>Alta</option><option>Media</option><option>Baixa</option>
             </select>
@@ -102,54 +122,56 @@
 </main>
 
 <!-- MODAL -->
-<div id="modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
-            <h2 id="modal-title" class="text-lg font-bold text-faiston-dark">Nova Tarefa</h2>
-            <button onclick="closeModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-slate-500"></i></button>
+<div id="modal" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden slide-up border border-faiston-border">
+        <div class="grad-bg px-6 py-4 flex items-center gap-3 relative overflow-hidden">
+            <div class="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/15 pointer-events-none"></div>
+            <span class="px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm text-[10px] font-bold text-white tracking-[0.08em] uppercase">Nova Tarefa</span>
+            <span id="modal-title" class="text-white/90 text-sm font-medium">Criação de tarefa</span>
+            <button onclick="closeModal()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors"><i class="ph ph-x"></i></button>
         </div>
         <div class="p-6 flex flex-col gap-4">
             <input type="hidden" id="edit-id">
             <div>
-                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Descrição *</label>
-                <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan focus:ring-1 focus:ring-faiston-cyan transition-all">
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição <span class="text-faiston-pink">*</span></label>
+                <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/20 transition-all">
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Cliente *</label>
-                    <select id="input-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all bg-white">
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Cliente <span class="text-faiston-pink">*</span></label>
+                    <select id="input-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                         <option value="">Selecionar...</option>
                     </select>
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Prioridade</label>
-                    <select id="input-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all bg-white">
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
+                    <select id="input-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                         <option value="Media">Média</option><option value="Alta">Alta</option><option value="Baixa">Baixa</option>
                     </select>
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Status</label>
-                    <select id="input-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all bg-white">
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Status</label>
+                    <select id="input-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                         <option value="aberto">Aberto</option>
                         <option value="em_andamento">Em Andamento</option>
                         <option value="concluido">Concluído</option>
                     </select>
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Horas Manuais</label>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Horas Manuais</label>
                     <div class="flex gap-2">
-                        <input type="number" id="input-horas" placeholder="0" min="0" max="23" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all text-center">
-                        <input type="number" id="input-minutos" placeholder="00" min="0" max="59" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all text-center">
+                        <input type="number" id="input-horas" placeholder="0" min="0" max="23" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all text-center">
+                        <input type="number" id="input-minutos" placeholder="00" min="0" max="59" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all text-center">
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1">horas / minutos</p>
+                    <p class="text-[10px] text-faiston-faint mt-1">horas / minutos</p>
                 </div>
             </div>
         </div>
-        <div class="flex gap-3 p-6 pt-0">
-            <button onclick="closeModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
-            <button onclick="saveTask()" class="flex-1 bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white rounded-lg py-2.5 text-sm font-semibold shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] transition-all">Salvar Tarefa</button>
+        <div class="flex gap-3 px-6 pb-6">
+            <button onclick="closeModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-faiston-muted hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="saveTask()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-2"><i class="ph ph-floppy-disk"></i> Salvar Tarefa</button>
         </div>
     </div>
 </div>
@@ -191,7 +213,7 @@
                         <button onclick="salvarNotaAtual()" class="flex items-center gap-1.5 bg-faiston-purple text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-purple-700 transition-colors">
                             <i class="ph ph-floppy-disk"></i> Salvar
                         </button>
-                        <button onclick="deletarNotaAtual()" class="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors">
+                        <button onclick="deletarNotaAtual()" class="w-7 h-7 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-slate-300 hover:text-faiston-pink transition-colors">
                             <i class="ph ph-trash text-sm"></i>
                         </button>
                     </div>
@@ -245,9 +267,24 @@ let timerSeconds = 0;
 let timerStart = null;
 let currentFilter = 'todos';
 
-const clientColors = { 'NTT':'bg-blue-100 text-blue-700 border-blue-200','Arcos Dourados':'bg-yellow-100 text-yellow-700 border-yellow-200','Zamp':'bg-purple-100 text-purple-700 border-purple-200','Telcoweb':'bg-emerald-100 text-emerald-700 border-emerald-200' };
-const priorityConfig = { 'Alta':{ badge:'bg-pink-100 text-pink-700 border-pink-200',icon:'ph-arrow-fat-up' },'Media':{ badge:'bg-amber-100 text-amber-700 border-amber-200',icon:'ph-equals' },'Baixa':{ badge:'bg-emerald-100 text-emerald-700 border-emerald-200',icon:'ph-arrow-fat-down' } };
-const statusConfig = { 'aberto':{ label:'Aberto',badge:'bg-slate-100 text-slate-600 border-slate-200' },'em_andamento':{ label:'Em Andamento',badge:'bg-cyan-100 text-cyan-700 border-cyan-200' },'concluido':{ label:'Concluído',badge:'bg-emerald-100 text-emerald-700 border-emerald-200' } };
+const clientColors = {
+    'NTT':'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20',
+    'Arcos Dourados':'bg-faiston-magenta/10 text-faiston-magenta border-faiston-magenta/20',
+    'Zamp':'bg-faiston-pink/10 text-faiston-pink border-faiston-pink/20',
+    'Telcoweb':'bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30',
+    'Servidores':'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20',
+    'Havan':'bg-faiston-pink/10 text-faiston-pink border-faiston-pink/20'
+};
+const priorityConfig = {
+    'Alta':{ badge:'bg-faiston-magenta/10 text-faiston-magenta border-faiston-magenta/20', icon:'ph-flag' },
+    'Media':{ badge:'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20', icon:'ph-flag' },
+    'Baixa':{ badge:'bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30', icon:'ph-flag' }
+};
+const statusConfig = {
+    'aberto':{ label:'Aberto', badge:'bg-slate-100 text-faiston-muted border-slate-200' },
+    'em_andamento':{ label:'Em Andamento', badge:'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20' },
+    'concluido':{ label:'Concluído', badge:'bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30' }
+};
 
 function fmt(s) { return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
 function fmtH(s) { return `${Math.floor(s/3600)}h ${String(Math.floor((s%3600)/60)).padStart(2,'0')}m`; }
@@ -449,8 +486,10 @@ function setFilter(f) {
     currentFilter = f;
     document.querySelectorAll('.filter-btn').forEach(btn => {
         const active = btn.dataset.filter === f;
-        btn.classList.toggle('bg-faiston-dark', active); btn.classList.toggle('text-white', active);
-        btn.classList.toggle('bg-white', !active); btn.classList.toggle('text-slate-600', !active);
+        btn.classList.toggle('bg-faiston-dark', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-transparent', !active);
+        btn.classList.toggle('text-faiston-muted', !active);
     });
     renderTasks();
 }
@@ -478,39 +517,40 @@ function renderTasks() {
         const dataStr = task.criado_em ? task.criado_em.replace(' ', 'T') : null;
         const hora = dataStr ? new Date(dataStr).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--:--';
         return `
-        <div class="task-card bg-white rounded-xl border border-faiston-border priority-${task.prioridade} ${isRunning ? 'timer-running' : ''} ${isDone ? 'opacity-60' : ''}">
-            <div class="p-4">
+        <div class="task-card slide-up bg-white rounded-2xl border ${isRunning ? 'border-faiston-purple timer-running' : 'border-faiston-border'} shadow-[var(--shadow-card)] ${isDone ? 'opacity-70' : ''} relative overflow-hidden">
+            ${isRunning ? '<div class="absolute top-0 left-0 right-0 h-[3px] grad-bg"></div>' : ''}
+            <div class="p-5">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <div class="flex items-center gap-2 mb-3 flex-wrap">
                             <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md border ${sc.badge}">${sc.label}</span>
-                            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md border ${pc.badge} flex items-center gap-1"><i class="ph ${pc.icon} text-xs"></i>${task.prioridade}</span>
+                            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md border ${pc.badge} flex items-center gap-1"><i class="ph ${pc.icon} text-[10px]"></i>${task.prioridade}</span>
                             <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md border ${cc}">${task.cliente}</span>
-                            <span class="text-[10px] text-slate-400 ml-auto">${hora}</span>
+                            <span class="text-[10px] text-faiston-faint ml-auto font-medium">${hora}</span>
                         </div>
-                        <p class="text-sm font-semibold text-faiston-dark ${isDone ? 'line-through' : ''} leading-snug">${task.descricao}</p>
+                        <p class="text-base font-semibold text-faiston-dark tracking-tight ${isDone ? 'line-through text-faiston-faint' : ''} leading-snug">${task.descricao}</p>
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
-                        <button onclick="abrirComentarios(${task.id}, '${task.descricao.replace(/'/g, "\'")}')" class="w-8 h-8 rounded-lg hover:bg-blue-50 flex items-center justify-center text-slate-400 hover:text-blue-500 transition-colors" title="Comentários"><i class="ph ph-chat-circle-dots text-base"></i></button>
-                        <button onclick="editTask(${task.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple text-base"></i></button>
-                        <button onclick="deleteTask(${task.id})" class="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><i class="ph ph-trash text-base"></i></button>
+                        <button onclick="abrirComentarios(${task.id}, '${task.descricao.replace(/'/g, "\'")}')" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors" title="Comentários"><i class="ph ph-chat-circle-dots text-base"></i></button>
+                        <button onclick="editTask(${task.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-faiston-faint hover:text-faiston-dark transition-colors"><i class="ph ph-pencil-simple text-base"></i></button>
+                        <button onclick="deleteTask(${task.id})" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-trash text-base"></i></button>
                     </div>
                 </div>
-                <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
-                    <div class="flex items-center gap-2">
-                        <i class="ph ph-clock text-slate-400 text-base"></i>
-                        <span id="timer-${task.id}" class="timer-display text-base font-bold ${isRunning ? 'text-faiston-cyan' : 'text-slate-600'}">${fmt(secs)}</span>
-                        ${isRunning ? '<span class="text-[10px] text-faiston-cyan font-semibold animate-pulse">● RODANDO</span>' : ''}
+                <div class="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+                    <div class="flex items-center gap-3">
+                        <i class="ph ph-clock ${isRunning ? 'text-faiston-purple' : 'text-faiston-faint'} text-lg"></i>
+                        <span id="timer-${task.id}" class="timer-display text-2xl font-bold tracking-tight ${isRunning ? 'text-faiston-purple' : isDone ? 'text-faiston-faint' : 'text-faiston-dark'}">${fmt(secs)}</span>
+                        ${isRunning ? '<span class="pulse-dot w-2 h-2 rounded-full bg-faiston-magenta shadow-[0_0_12px_rgba(184,38,201,0.6)]"></span>' : ''}
                     </div>
                     ${!isDone ? `
                     <div class="flex items-center gap-2">
-                        <button onclick="concluirTarefa(${task.id})" class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-all">
+                        <button onclick="concluirTarefa(${task.id})" class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-white border border-faiston-border text-faiston-muted hover:border-faiston-cyan hover:text-faiston-cyan transition-all">
                             <i class="ph ph-check-circle text-base"></i>Concluir
                         </button>
-                        <button onclick="toggleTimer(${task.id})" class="flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${isRunning ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white shadow-[0_0_10px_rgba(74,0,224,0.3)]'}">
-                            <i class="ph ${isRunning ? 'ph-stop-circle' : 'ph-play-circle'} text-base"></i>${isRunning ? 'Pausar' : 'Iniciar'}
+                        <button onclick="toggleTimer(${task.id})" class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${isRunning ? 'bg-faiston-dark text-white' : 'btn-grad text-white'}">
+                            <i class="ph ${isRunning ? 'ph-pause' : 'ph-play'} text-base"></i>${isRunning ? 'Pausar' : 'Iniciar'}
                         </button>
-                    </div>` : '<span class="text-xs text-emerald-600 font-semibold flex items-center gap-1"><i class="ph ph-check-circle"></i> Concluída</span>'}
+                    </div>` : '<span class="text-xs font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-faiston-cyan/10 text-faiston-cyan"><i class="ph ph-check-circle"></i> Concluída</span>'}
                 </div>
             </div>
         </div>`;
@@ -579,7 +619,7 @@ function renderListaNotas() {
     if (!notas.length) { lista.innerHTML = ''; return; }
     lista.innerHTML = notas.map(n => `
         <div onclick="selecionarNota(${n.id})" id="nota-item-${n.id}"
-            class="cursor-pointer px-4 py-3 border-b border-faiston-border hover:bg-slate-50 transition-colors ${notaAtualId === n.id ? 'bg-purple-50 border-l-2 border-l-faiston-purple' : ''}">
+            class="cursor-pointer px-4 py-3 border-b border-faiston-border hover:bg-slate-50 transition-colors ${notaAtualId === n.id ? 'bg-faiston-purple/10 border-l-2 border-l-faiston-purple' : ''}">
             <p class="text-xs font-bold text-faiston-dark truncate">${n.titulo || 'Sem título'}</p>
             <p class="text-[10px] text-slate-400 mt-0.5 truncate">${(n.texto||'').substring(0,50)}${(n.texto||'').length>50?'...':''}</p>
             <p class="text-[9px] text-slate-300 mt-1">${n.atualizado_em}</p>

@@ -21,10 +21,10 @@
         .bg {
             position: fixed; inset: 0; z-index: 0;
             background:
-                radial-gradient(ellipse 50% 60% at 90% 5%, rgba(74,0,224,0.22) 0%, transparent 55%),
-                radial-gradient(ellipse 35% 35% at 10% 95%, rgba(0,229,255,0.08) 0%, transparent 55%),
-                linear-gradient(rgba(74,0,224,0.035) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(74,0,224,0.035) 1px, transparent 1px);
+                radial-gradient(ellipse 50% 60% at 90% 5%, rgba(91, 46, 224,0.22) 0%, transparent 55%),
+                radial-gradient(ellipse 35% 35% at 10% 95%, rgba(6, 215, 230,0.08) 0%, transparent 55%),
+                linear-gradient(rgba(91, 46, 224,0.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(91, 46, 224,0.035) 1px, transparent 1px);
             background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
         }
         .card {
@@ -40,29 +40,29 @@
         /* TOP BAR */
         .topbar { display: flex; align-items: center; justify-content: space-between; }
         .logo { display: flex; align-items: center; gap: 10px; }
-        .logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #4A00E0, #00E5FF); display: flex; align-items: center; justify-content: center; }
+        .logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #5B2EE0, #06D7E6); display: flex; align-items: center; justify-content: center; }
         .logo-text { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800; }
-        .logo-text span { background: linear-gradient(90deg, #4A00E0, #00E5FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo-text span { background: linear-gradient(90deg, #5B2EE0, #06D7E6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .live { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.08); padding: 4px 12px; border-radius: 100px; }
-        .dot { width: 5px; height: 5px; border-radius: 50%; background: #00E5FF; animation: p 2s infinite; }
+        .dot { width: 5px; height: 5px; border-radius: 50%; background: #06D7E6; animation: p 2s infinite; }
         @keyframes p { 0%,100%{opacity:1}50%{opacity:0.3} }
 
         /* HERO ROW */
         .hero-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: center; }
-        .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #00E5FF; margin-bottom: 10px; }
+        .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #06D7E6; margin-bottom: 10px; }
         .title { font-family: 'Syne', sans-serif; font-size: clamp(38px, 4.5vw, 64px); font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 12px; }
-        .grad { background: linear-gradient(135deg, #00E5FF, #7C3AED, #FF007F); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .grad { background: linear-gradient(135deg, #06D7E6, #7C3AED, #EC4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .desc { font-size: 14px; color: rgba(255,255,255,0.4); line-height: 1.7; margin-bottom: 16px; }
         .pills { display: flex; flex-wrap: wrap; gap: 6px; }
         .pill { font-size: 10px; padding: 4px 10px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
-        .pill.hi { border-color: rgba(0,229,255,0.3); color: #00E5FF; background: rgba(0,229,255,0.07); }
+        .pill.hi { border-color: rgba(6, 215, 230,0.3); color: #06D7E6; background: rgba(6, 215, 230,0.07); }
         .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px 18px; }
         .stat-n { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
         .stat-l { font-size: 10px; color: rgba(255,255,255,0.3); }
-        .s1{border-top:2px solid #00E5FF}.s1 .stat-n{color:#00E5FF}
+        .s1{border-top:2px solid #06D7E6}.s1 .stat-n{color:#06D7E6}
         .s2{border-top:2px solid #7C3AED}.s2 .stat-n{color:#a78bfa}
-        .s3{border-top:2px solid #FF007F}.s3 .stat-n{color:#FF007F}
+        .s3{border-top:2px solid #EC4899}.s3 .stat-n{color:#EC4899}
         .s4{border-top:2px solid #10B981}.s4 .stat-n{color:#10B981}
 
         /* DIVIDER */
@@ -71,9 +71,9 @@
         /* FEATURES */
         .feat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
         .feat { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 16px 16px; transition: all 0.2s; }
-        .feat:hover { border-color: rgba(0,229,255,0.2); background: rgba(0,229,255,0.04); transform: translateY(-2px); }
+        .feat:hover { border-color: rgba(6, 215, 230,0.2); background: rgba(6, 215, 230,0.04); transform: translateY(-2px); }
         .feat-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-        .feat-ico { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, rgba(74,0,224,0.4), rgba(0,229,255,0.2)); display: flex; align-items: center; justify-content: center; font-size: 13px; color: #00E5FF; flex-shrink: 0; }
+        .feat-ico { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, rgba(91, 46, 224,0.4), rgba(6, 215, 230,0.2)); display: flex; align-items: center; justify-content: center; font-size: 13px; color: #06D7E6; flex-shrink: 0; }
         .feat-t { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; line-height: 1.3; }
         .feat-d { font-size: 11px; color: rgba(255,255,255,0.32); line-height: 1.5; }
 
@@ -84,13 +84,13 @@
         .si { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; padding: 5px 9px; }
         .sd { width: 5px; height: 5px; border-radius: 50%; }
         .sn { font-size: 10px; color: rgba(255,255,255,0.5); }
-        .access { background: linear-gradient(135deg, rgba(74,0,224,0.12), rgba(0,229,255,0.06)); border: 1px solid rgba(0,229,255,0.18); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+        .access { background: linear-gradient(135deg, rgba(91, 46, 224,0.12), rgba(6, 215, 230,0.06)); border: 1px solid rgba(6, 215, 230,0.18); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
         .aurl small { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.25); margin-bottom: 3px; }
-        .aurl span { font-size: 12px; color: #00E5FF; font-weight: 500; }
+        .aurl span { font-size: 12px; color: #06D7E6; font-weight: 500; }
         .creds { display: flex; gap: 20px; }
         .cr small { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.22); margin-bottom: 3px; }
         .cr span { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.55); }
-        .cr b { color: #00E5FF; }
+        .cr b { color: #06D7E6; }
     </style>
 </head>
 <body>
@@ -146,9 +146,9 @@
         <div>
             <div class="sec-l">Stack tecnológica</div>
             <div class="stack-list">
-                <div class="si"><div class="sd" style="background:#00E5FF"></div><span class="sn">Python + FastAPI</span></div>
+                <div class="si"><div class="sd" style="background:#06D7E6"></div><span class="sn">Python + FastAPI</span></div>
                 <div class="si"><div class="sd" style="background:#a78bfa"></div><span class="sn">PostgreSQL</span></div>
-                <div class="si"><div class="sd" style="background:#FF007F"></div><span class="sn">HTML + Tailwind</span></div>
+                <div class="si"><div class="sd" style="background:#EC4899"></div><span class="sn">HTML + Tailwind</span></div>
                 <div class="si"><div class="sd" style="background:#10B981"></div><span class="sn">Railway</span></div>
                 <div class="si"><div class="sd" style="background:#F59E0B"></div><span class="sn">ApexCharts</span></div>
                 <div class="si"><div class="sd" style="background:#64748B"></div><span class="sn">GitHub CI/CD</span></div>

@@ -4,18 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { fontFamily: { sans: ['Inter','sans-serif'] },
-                colors: { faiston: { bg:'#F8FAFC', dark:'#0A0A1A', border:'#E2E8F0', cyan:'#00E5FF', purple:'#4A00E0', magenta:'#FF007F' } } } }
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899', chart_pink:'#EC4899'
+                } }
+            }}
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
         .custom-scrollbar::-webkit-scrollbar{width:5px}.custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
-        .tab-active { background: linear-gradient(135deg,#4A00E0,#00E5FF); color: white; }
+        .tab-active { background: linear-gradient(135deg,#5B2EE0,#06D7E6); color: white; }
     </style>
 </head>
 <body class="bg-faiston-bg font-sans min-h-screen">
@@ -31,11 +38,11 @@
         <a href="/dashboard" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
             <i class="ph ph-chart-line-up"></i> Dashboard
         </a>
-        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-pink px-3 py-1.5 rounded-lg hover:bg-faiston-pink/10 transition-colors">
             <i class="ph ph-sign-out"></i> Sair
         </button>
         <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
-            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-magenta flex items-center justify-center text-white text-xs font-bold" id="user-avatar">A</div>
+            <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-avatar">A</div>
             <span class="text-sm font-semibold text-faiston-dark" id="user-nome">Admin</span>
         </div>
     </div>
@@ -56,7 +63,7 @@
     <div id="painel-usuarios">
         <div class="flex items-center justify-between mb-5">
             <h2 class="text-lg font-bold text-faiston-dark">Gerenciar Usuários</h2>
-            <button onclick="openModalUser()" class="bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] transition-all">
+            <button onclick="openModalUser()" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
                 <i class="ph ph-plus-circle"></i> Novo Usuário
             </button>
         </div>
@@ -107,7 +114,7 @@
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div class="flex items-center justify-between p-6 border-b border-faiston-border">
             <h3 id="modal-user-title" class="text-lg font-bold text-faiston-dark">Novo Usuário</h3>
-            <button onclick="closeModalUser()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-slate-500"></i></button>
+            <button onclick="closeModalUser()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
         <div class="p-6 flex flex-col gap-4">
             <input type="hidden" id="edit-uid">
@@ -130,7 +137,7 @@
                 </div>
             </div>
             <div>
-                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha <span id="senha-hint" class="normal-case font-normal text-slate-400">(deixe em branco para não alterar)</span></label>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha <span id="senha-hint" class="normal-case font-normal text-faiston-faint">(deixe em branco para não alterar)</span></label>
                 <input type="password" id="u-senha" placeholder="••••••••" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
             </div>
             <div id="wrap-ativo" class="hidden items-center justify-between p-3 bg-slate-50 rounded-lg">
@@ -143,7 +150,7 @@
         </div>
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="closeModalUser()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
-            <button onclick="salvarUsuario()" class="flex-1 bg-gradient-to-r from-faiston-purple to-faiston-magenta text-white rounded-lg py-2.5 text-sm font-semibold shadow-[0_0_12px_rgba(255,0,127,0.3)] hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] transition-all">Salvar</button>
+            <button onclick="salvarUsuario()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
         </div>
     </div>
 </div>
@@ -151,18 +158,18 @@
 <script>
 const perfilConfig = {
     admin: { label: 'Admin', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
-    gestor: { label: 'Gestor', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+    gestor: { label: 'Gestor', cls: 'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20' },
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
 };
 const statusCfg = {
     aberto: 'bg-slate-100 text-slate-600',
-    em_andamento: 'bg-cyan-100 text-cyan-700',
-    concluido: 'bg-emerald-100 text-emerald-700'
+    em_andamento: 'bg-faiston-cyan/10 text-faiston-cyan',
+    concluido: 'bg-faiston-cyan/10 text-faiston-cyan'
 };
 const prioridadeCfg = {
-    Alta: 'bg-pink-100 text-pink-700',
-    Media: 'bg-amber-100 text-amber-700',
-    Baixa: 'bg-emerald-100 text-emerald-700'
+    Alta: 'bg-faiston-magenta/10 text-faiston-magenta',
+    Media: 'bg-faiston-purple/10 text-faiston-purple',
+    Baixa: 'bg-faiston-cyan/10 text-faiston-cyan'
 };
 
 let currentTab = 'usuarios';
@@ -209,21 +216,21 @@ async function carregarUsuarios() {
         return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
             <td class="px-5 py-3">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-xs font-bold">${u.nome.charAt(0)}</div>
+                    <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold">${u.nome.charAt(0)}</div>
                     <span class="font-medium text-faiston-dark">${u.nome}</span>
                 </div>
             </td>
             <td class="px-5 py-3 text-slate-500 font-mono text-xs">${u.usuario}</td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
             <td class="px-5 py-3">
-                <span class="text-xs font-semibold px-2 py-1 rounded-md ${u.ativo ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-100 text-red-600 border border-red-200'}">
+                <span class="text-xs font-semibold px-2 py-1 rounded-md ${u.ativo ? 'bg-faiston-cyan/10 text-faiston-cyan border border-faiston-cyan/30' : 'bg-red-100 text-red-600 border border-red-200'}">
                     ${u.ativo ? 'Ativo' : 'Inativo'}
                 </span>
             </td>
             <td class="px-5 py-3">
                 <div class="flex items-center gap-1 justify-end">
                     <button onclick="editarUsuario(${u.id},'${u.usuario}','${u.nome}','${u.perfil}',${u.ativo})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>
-                    <button onclick="deletarUsuario(${u.id},'${u.nome}')" class="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"><i class="ph ph-trash"></i></button>
+                    <button onclick="deletarUsuario(${u.id},'${u.nome}')" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-trash"></i></button>
                 </div>
             </td>
         </tr>`;
@@ -245,7 +252,7 @@ async function carregarTarefas() {
         return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
             <td class="px-5 py-3">
                 <div class="flex items-center gap-2">
-                    <div class="w-6 h-6 rounded bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-[10px] font-bold">${t.funcionario.charAt(0)}</div>
+                    <div class="w-6 h-6 rounded grad-bg flex items-center justify-center text-white text-[10px] font-bold">${t.funcionario.charAt(0)}</div>
                     <span class="text-sm text-slate-600">${t.funcionario}</span>
                 </div>
             </td>
