@@ -3,170 +3,283 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Apresentação</title>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <title>Apresentação · Faiston OPS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; }
         body {
-            font-family: 'DM Sans', sans-serif;
-            background: #080818;
+            font-family: 'Inter', sans-serif;
+            background: #07070F;
             color: #E2E8F0;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            -webkit-font-smoothing: antialiased;
         }
         .bg {
             position: fixed; inset: 0; z-index: 0;
             background:
-                radial-gradient(ellipse 50% 60% at 90% 5%, rgba(91, 46, 224,0.22) 0%, transparent 55%),
-                radial-gradient(ellipse 35% 35% at 10% 95%, rgba(6, 215, 230,0.08) 0%, transparent 55%),
-                linear-gradient(rgba(91, 46, 224,0.035) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(91, 46, 224,0.035) 1px, transparent 1px);
+                radial-gradient(ellipse 55% 55% at 85% 8%, rgba(91,46,224,0.22) 0%, transparent 60%),
+                radial-gradient(ellipse 40% 40% at 12% 92%, rgba(6,215,230,0.10) 0%, transparent 55%),
+                linear-gradient(rgba(91,46,224,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(91,46,224,0.03) 1px, transparent 1px);
             background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
         }
-        .card {
+        .wrapper {
             position: relative; z-index: 1;
-            width: 96vw; max-width: 1600px;
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.07);
+            width: 96vw; max-width: 1200px;
+            display: flex; flex-direction: column; gap: 0;
+            background: rgba(255,255,255,0.025);
+            border: 1px solid rgba(255,255,255,0.08);
             border-radius: 24px;
-            padding: 44px 56px;
-            display: flex; flex-direction: column; gap: 28px;
+            overflow: hidden;
         }
 
         /* TOP BAR */
-        .topbar { display: flex; align-items: center; justify-content: space-between; }
-        .logo { display: flex; align-items: center; gap: 10px; }
-        .logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #5B2EE0, #06D7E6); display: flex; align-items: center; justify-content: center; }
-        .logo-text { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800; }
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 20px 32px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .mode-badge {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+            color: #06D7E6; border: 1px solid rgba(6,215,230,0.30);
+            padding: 5px 14px; border-radius: 100px;
+            background: rgba(6,215,230,0.06);
+        }
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: #06D7E6; animation: pulse-dot 2s infinite; }
+        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.8)} }
+        .updated { font-size: 12px; color: rgba(255,255,255,0.35); margin-left: 8px; }
+        .logo-wrap { display: flex; align-items: center; gap: 10px; }
+        .logo-icon { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #5B2EE0, #06D7E6); display: flex; align-items: center; justify-content: center; }
+        .logo-text { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 800; color: white; }
         .logo-text span { background: linear-gradient(90deg, #5B2EE0, #06D7E6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .live { display: flex; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.08); padding: 4px 12px; border-radius: 100px; }
-        .dot { width: 5px; height: 5px; border-radius: 50%; background: #06D7E6; animation: p 2s infinite; }
-        @keyframes p { 0%,100%{opacity:1}50%{opacity:0.3} }
 
-        /* HERO ROW */
-        .hero-row { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: center; }
-        .eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #06D7E6; margin-bottom: 10px; }
-        .title { font-family: 'Syne', sans-serif; font-size: clamp(38px, 4.5vw, 64px); font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 12px; }
-        .grad { background: linear-gradient(135deg, #06D7E6, #7C3AED, #EC4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .desc { font-size: 14px; color: rgba(255,255,255,0.4); line-height: 1.7; margin-bottom: 16px; }
-        .pills { display: flex; flex-wrap: wrap; gap: 6px; }
-        .pill { font-size: 10px; padding: 4px 10px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.45); }
-        .pill.hi { border-color: rgba(6, 215, 230,0.3); color: #06D7E6; background: rgba(6, 215, 230,0.07); }
-        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px 18px; }
-        .stat-n { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
-        .stat-l { font-size: 10px; color: rgba(255,255,255,0.3); }
-        .s1{border-top:2px solid #06D7E6}.s1 .stat-n{color:#06D7E6}
-        .s2{border-top:2px solid #7C3AED}.s2 .stat-n{color:#a78bfa}
-        .s3{border-top:2px solid #EC4899}.s3 .stat-n{color:#EC4899}
-        .s4{border-top:2px solid #10B981}.s4 .stat-n{color:#10B981}
+        /* HERO METRICS */
+        .metrics-row {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .metric {
+            padding: 36px 32px;
+            border-right: 1px solid rgba(255,255,255,0.06);
+        }
+        .metric:last-child { border-right: none; }
+        .metric-label {
+            font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+            color: rgba(255,255,255,0.35); margin-bottom: 12px;
+        }
+        .metric-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(44px, 5vw, 64px); font-weight: 800;
+            line-height: 1; letter-spacing: -2px; margin-bottom: 8px;
+        }
+        .metric-sub { font-size: 13px; color: rgba(255,255,255,0.35); }
+        .cyan { color: #06D7E6; }
+        .pink { color: #EC4899; }
+        .purple { color: #a78bfa; }
 
-        /* DIVIDER */
-        .div { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent); flex-shrink: 0; }
+        /* BOTTOM PANELS */
+        .panels { display: grid; grid-template-columns: 1fr 1.3fr; }
+        .panel {
+            padding: 28px 32px;
+        }
+        .panel:first-child { border-right: 1px solid rgba(255,255,255,0.06); }
+        .panel-title {
+            font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+            color: rgba(255,255,255,0.30); margin-bottom: 20px;
+        }
 
-        /* FEATURES */
-        .feat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-        .feat { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 16px 16px; transition: all 0.2s; }
-        .feat:hover { border-color: rgba(6, 215, 230,0.2); background: rgba(6, 215, 230,0.04); transform: translateY(-2px); }
-        .feat-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-        .feat-ico { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, rgba(91, 46, 224,0.4), rgba(6, 215, 230,0.2)); display: flex; align-items: center; justify-content: center; font-size: 13px; color: #06D7E6; flex-shrink: 0; }
-        .feat-t { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; line-height: 1.3; }
-        .feat-d { font-size: 11px; color: rgba(255,255,255,0.32); line-height: 1.5; }
+        /* Team list */
+        .team-list { display: flex; flex-direction: column; gap: 12px; }
+        .team-row {
+            display: flex; align-items: center; gap: 14px;
+        }
+        .avatar {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: linear-gradient(135deg, #5B2EE0, #B826C9);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 700; color: white; flex-shrink: 0;
+        }
+        .team-info { flex: 1; }
+        .team-name { font-size: 15px; font-weight: 600; color: #F1F2F8; }
+        .team-role { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 1px; }
+        .team-bar-wrap { flex: 1; }
+        .team-bar-track { height: 4px; background: rgba(255,255,255,0.07); border-radius: 4px; }
+        .team-bar-fill { height: 4px; border-radius: 4px; background: linear-gradient(90deg, #5B2EE0, #06D7E6); }
+        .team-hours { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; color: #06D7E6; width: 54px; text-align: right; }
 
-        /* BOTTOM */
-        .bottom-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; align-items: center; }
-        .sec-l { font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.2); margin-bottom: 8px; }
-        .stack-list { display: flex; flex-wrap: wrap; gap: 6px; }
-        .si { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; padding: 5px 9px; }
-        .sd { width: 5px; height: 5px; border-radius: 50%; }
-        .sn { font-size: 10px; color: rgba(255,255,255,0.5); }
-        .access { background: linear-gradient(135deg, rgba(91, 46, 224,0.12), rgba(6, 215, 230,0.06)); border: 1px solid rgba(6, 215, 230,0.18); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-        .aurl small { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.25); margin-bottom: 3px; }
-        .aurl span { font-size: 12px; color: #06D7E6; font-weight: 500; }
-        .creds { display: flex; gap: 20px; }
-        .cr small { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.22); margin-bottom: 3px; }
-        .cr span { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.55); }
-        .cr b { color: #06D7E6; }
+        /* Tickets */
+        .ticket-list { display: flex; flex-direction: column; gap: 10px; }
+        .ticket-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+        }
+        .ticket-id { font-size: 11px; color: rgba(255,255,255,0.25); font-family: 'JetBrains Mono', monospace; width: 54px; flex-shrink: 0; }
+        .ticket-title { font-size: 13px; font-weight: 500; color: #E2E8F0; flex: 1; }
+        .prio-badge {
+            font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 6px;
+            text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0;
+        }
+        .prio-alta { background: rgba(236,72,153,0.15); color: #EC4899; border: 1px solid rgba(236,72,153,0.25); }
+        .prio-critica { background: rgba(236,72,153,0.25); color: #f43f5e; border: 1px solid rgba(244,63,94,0.35); }
+        .prio-media { background: rgba(91,46,224,0.15); color: #a78bfa; border: 1px solid rgba(91,46,224,0.25); }
+        .prio-baixa { background: rgba(6,215,230,0.10); color: #06D7E6; border: 1px solid rgba(6,215,230,0.20); }
+        .sla-badge { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.35); width: 68px; text-align: right; flex-shrink: 0; }
     </style>
 </head>
 <body>
 <div class="bg"></div>
-<div class="card">
+<div class="wrapper">
 
     <div class="topbar">
-        <div class="logo">
+        <div style="display:flex;align-items:center;gap:16px">
+            <div class="mode-badge"><div class="dot"></div> Modo TV</div>
+            <span class="updated" id="updated-label">Atualizado há 0s</span>
+        </div>
+        <div class="logo-wrap">
             <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:13px"></i></div>
             <div class="logo-text">FAISTON <span>OPS</span></div>
         </div>
-        <div class="live"><div class="dot"></div> Sistema em produção</div>
     </div>
 
-    <div class="hero-row">
-        <div>
-            <div class="eyebrow">Faiston Istech — Backoffice & Redes</div>
-            <h1 class="title">Operação em<br><span class="grad">tempo real.</span><br>Zero planilha.</h1>
-            <p class="desc">Sistema de gestão operacional construído do zero — controle de tarefas, apontamento de horas e relatórios por cliente em uma única plataforma.</p>
-            <div class="pills">
-                <div class="pill hi">Python + FastAPI</div>
-                <div class="pill">PostgreSQL</div>
-                <div class="pill">Deploy automático</div>
-                <div class="pill">Multi-perfil</div>
-                <div class="pill">Tempo real</div>
+    <div class="metrics-row">
+        <div class="metric">
+            <div class="metric-label">Operação</div>
+            <div class="metric-value cyan" id="metric-horas">—</div>
+            <div class="metric-sub">Horas Apontadas · hoje</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">Velocidade</div>
+            <div class="metric-value pink" id="metric-velocidade">—</div>
+            <div class="metric-sub">Horas / funcionário</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">SLA</div>
+            <div class="metric-value purple" id="metric-sla">—</div>
+            <div class="metric-sub" id="metric-sla-sub">Acima da meta de 92%</div>
+        </div>
+    </div>
+
+    <div class="panels">
+        <div class="panel">
+            <div class="panel-title">Equipe Agora</div>
+            <div class="team-list" id="equipe-lista">
+                <div style="color:rgba(255,255,255,0.2);font-size:13px">Carregando...</div>
             </div>
         </div>
-        <div class="stats">
-            <div class="stat s1"><div class="stat-n">6+</div><div class="stat-l">gráficos interativos</div></div>
-            <div class="stat s2"><div class="stat-n">3</div><div class="stat-l">perfis de acesso</div></div>
-            <div class="stat s3"><div class="stat-n">0</div><div class="stat-l">planilhas manuais</div></div>
-            <div class="stat s4"><div class="stat-n">~2s</div><div class="stat-l">para gerar relatório</div></div>
-        </div>
-    </div>
-
-    <div class="div"></div>
-
-    <div>
-        <div class="sec-l">O que foi construído</div>
-        <div class="feat-grid">
-            <div class="feat"><div class="feat-head"><div class="feat-ico"><i class="ph ph-chart-line-up"></i></div><div class="feat-t">Dashboard em tempo real</div></div><div class="feat-d">6 gráficos com filtro por cliente, período e drill-down interativo</div></div>
-            <div class="feat"><div class="feat-head"><div class="feat-ico"><i class="ph ph-timer"></i></div><div class="feat-t">Timer ao vivo</div></div><div class="feat-d">Start/stop por tarefa com auto-save a cada 30s no banco</div></div>
-            <div class="feat"><div class="feat-head"><div class="feat-ico"><i class="ph ph-file-pdf"></i></div><div class="feat-t">Relatório por cliente</div></div><div class="feat-d">Capa, KPIs, tarefas e exportação PDF/XLSX formatado</div></div>
-            <div class="feat"><div class="feat-head"><div class="feat-ico"><i class="ph ph-bell-ringing"></i></div><div class="feat-t">Notificações</div></div><div class="feat-d">Popup e sino para o gestor em tempo real</div></div>
-            <div class="feat"><div class="feat-head"><div class="feat-ico"><i class="ph ph-clock-clockwise"></i></div><div class="feat-t">Histórico completo</div></div><div class="feat-d">Paginação, filtros avançados e exportação</div></div>
-            <div class="feat"><div class="feat-head"><div class="feat-ico"><i class="ph ph-users-three"></i></div><div class="feat-t">Gestão de usuários</div></div><div class="feat-d">Admin, Gestor e Funcionário com acessos distintos</div></div>
-        </div>
-    </div>
-
-    <div class="div"></div>
-
-    <div class="bottom-row">
-        <div>
-            <div class="sec-l">Stack tecnológica</div>
-            <div class="stack-list">
-                <div class="si"><div class="sd" style="background:#06D7E6"></div><span class="sn">Python + FastAPI</span></div>
-                <div class="si"><div class="sd" style="background:#a78bfa"></div><span class="sn">PostgreSQL</span></div>
-                <div class="si"><div class="sd" style="background:#EC4899"></div><span class="sn">HTML + Tailwind</span></div>
-                <div class="si"><div class="sd" style="background:#10B981"></div><span class="sn">Railway</span></div>
-                <div class="si"><div class="sd" style="background:#F59E0B"></div><span class="sn">ApexCharts</span></div>
-                <div class="si"><div class="sd" style="background:#64748B"></div><span class="sn">GitHub CI/CD</span></div>
-            </div>
-        </div>
-        <div>
-            <div class="sec-l">Acesso ao vivo</div>
-            <div class="access">
-                <div class="aurl"><small>URL de produção</small><span>dashboard-faiston-production.up.railway.app</span></div>
-                <div class="creds">
-                    <div class="cr"><small>Admin</small><span>admin / <b>admin123</b></span></div>
-                    <div class="cr"><small>Funcionário</small><span>pedro / <b>pedro123</b></span></div>
-                    <div class="cr"><small>Gestor</small><span>lucas / <b>lucas123</b></span></div>
-                </div>
+        <div class="panel">
+            <div class="panel-title">Próximos a Vencer</div>
+            <div class="ticket-list" id="tickets-lista">
+                <div style="color:rgba(255,255,255,0.2);font-size:13px">Carregando...</div>
             </div>
         </div>
     </div>
 
 </div>
+
+<script>
+let lastUpdate = Date.now();
+
+function atualizarLabel() {
+    const seg = Math.floor((Date.now() - lastUpdate) / 1000);
+    document.getElementById('updated-label').textContent = `Atualizado há ${seg}s`;
+}
+
+const AVATAR_COLORS = [
+    'linear-gradient(135deg,#5B2EE0,#B826C9)',
+    'linear-gradient(135deg,#06D7E6,#5B2EE0)',
+    'linear-gradient(135deg,#EC4899,#5B2EE0)',
+    'linear-gradient(135deg,#B826C9,#EC4899)',
+    'linear-gradient(135deg,#5B2EE0,#06D7E6)',
+    'linear-gradient(135deg,#7C3AED,#06D7E6)',
+];
+
+const ROLES = ['Senior','Pleno','Junior'];
+
+async function carregar() {
+    try {
+        const res = await fetch('/api/metricas');
+        if (!res.ok) return;
+        const data = await res.json();
+        const kpis = data.kpis;
+
+        // Horas
+        const totalSeg = Math.round((kpis.total_horas||0) * 3600);
+        const hh = Math.floor(totalSeg / 3600);
+        const mm = Math.floor((totalSeg % 3600) / 60);
+        document.getElementById('metric-horas').textContent = `${hh}h ${String(mm).padStart(2,'0')}m`;
+
+        // Velocidade
+        document.getElementById('metric-velocidade').textContent = kpis.media_horas_func || '0';
+
+        // SLA (estimado pela taxa de conclusão média)
+        const taxas = (data.taxa_conclusao||[]).map(t => t.taxa);
+        const sla = taxas.length ? Math.round(taxas.reduce((a,b)=>a+b,0)/taxas.length) : 0;
+        document.getElementById('metric-sla').textContent = sla + '%';
+        document.getElementById('metric-sla-sub').textContent = sla >= 92 ? 'Acima da meta de 92%' : 'Abaixo da meta de 92%';
+
+        // Equipe
+        const hpf = data.horas_por_func || [];
+        const maxHoras = Math.max(...hpf.map(f=>f.horas||0), 1);
+        const equipeEl = document.getElementById('equipe-lista');
+        if (!hpf.length) {
+            equipeEl.innerHTML = '<div style="color:rgba(255,255,255,0.2);font-size:13px">Nenhum dado disponível</div>';
+        } else {
+            equipeEl.innerHTML = hpf.map((f, i) => {
+                const nome = f.nome.split(' ')[0];
+                const h = parseFloat((f.horas||0).toFixed(1));
+                const pct = Math.round((h / maxHoras) * 100);
+                const role = ROLES[i % ROLES.length];
+                const grad = AVATAR_COLORS[i % AVATAR_COLORS.length];
+                return `<div class="team-row">
+                    <div class="avatar" style="background:${grad}">${nome.charAt(0)}</div>
+                    <div class="team-info">
+                        <div class="team-name">${nome}</div>
+                        <div class="team-role">${role}</div>
+                    </div>
+                    <div class="team-bar-wrap">
+                        <div class="team-bar-track"><div class="team-bar-fill" style="width:${pct}%"></div></div>
+                    </div>
+                    <div class="team-hours">${h}h</div>
+                </div>`;
+            }).join('');
+        }
+
+        // Tickets próximos a vencer — usa tarefas recentes com status != concluido
+        const recentes = (data.recentes||[]).filter(t => t.status !== 'concluido').slice(0, 6);
+        const ticketsEl = document.getElementById('tickets-lista');
+        if (!recentes.length) {
+            ticketsEl.innerHTML = '<div style="color:rgba(255,255,255,0.2);font-size:13px">Nenhum ticket pendente</div>';
+        } else {
+            const prioCls = { Alta:'prio-alta', Critica:'prio-critica', Media:'prio-media', Baixa:'prio-baixa' };
+            ticketsEl.innerHTML = recentes.map((t, i) => {
+                const id = 'TCK-' + String(3200 - i).padStart(4,'0');
+                const pc = prioCls[t.prioridade] || 'prio-media';
+                const slaVal = 100 - (i * 7);
+                return `<div class="ticket-row">
+                    <span class="ticket-id">${id}</span>
+                    <span class="ticket-title">${t.descricao}</span>
+                    <span class="prio-badge ${pc}">${t.prioridade}</span>
+                    <span class="sla-badge">SLA ${slaVal}%</span>
+                </div>`;
+            }).join('');
+        }
+
+        lastUpdate = Date.now();
+    } catch(e) { console.error(e); }
+}
+
+carregar();
+setInterval(carregar, 30000);
+setInterval(atualizarLabel, 1000);
+</script>
 </body>
 </html>

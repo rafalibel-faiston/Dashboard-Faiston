@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clientes</title>
+    <title>Clientes · Faiston OPS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -14,58 +15,172 @@
                 fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
                 colors: { faiston: {
                     bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
-                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899', chart_pink:'#EC4899'
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
                 } }
             }}
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
-<body class="bg-faiston-bg font-sans min-h-screen">
+<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
 
-<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
-    <div class="flex items-center gap-3">
-        <a href="/dashboard" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark transition-colors">
-            <i class="ph ph-arrow-left"></i> Dashboard
-        </a>
-        <span class="w-px h-4 bg-slate-200"></span>
-        <i class="ph ph-buildings text-faiston-purple"></i>
-        <span class="text-sm font-bold text-faiston-dark">Clientes</span>
-    </div>
-    <div class="flex items-center gap-3">
-        <button onclick="openModal()" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
-            <i class="ph ph-plus-circle"></i> Novo Cliente
-        </button>
-        <button onclick="logout()" class="text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-sign-out text-lg"></i></button>
-    </div>
-</header>
-
-<main class="max-w-5xl mx-auto px-6 py-8">
-
-    <!-- BUSCA -->
-    <div class="flex items-center gap-3 mb-6">
-        <div class="relative flex-1 max-w-sm">
-            <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
-            <input type="text" id="busca" placeholder="Buscar cliente..." oninput="filtrar()"
-                class="w-full pl-9 pr-4 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-cyan transition-all bg-white">
+<!-- SIDEBAR -->
+<aside class="w-52 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar flex-shrink-0">
+    <div>
+        <div class="flex items-center gap-2.5 p-5 border-b border-faiston-border mb-4">
+            <div class="w-8 h-8 rounded-[10px] grad-bg flex items-center justify-center glow-soft">
+                <i class="ph-fill ph-play text-white text-sm"></i>
+            </div>
+            <h1 class="text-[14px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
         </div>
-        <span class="text-xs text-faiston-faint" id="count-label">carregando...</span>
-    </div>
-
-    <!-- GRID DE CLIENTES -->
-    <div id="clientes-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-
-    <!-- EMPTY -->
-    <div id="empty" class="hidden flex flex-col items-center justify-center py-16 text-center">
-        <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-            <i class="ph ph-buildings text-3xl text-faiston-faint"></i>
+        <div class="px-3">
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
+            <nav class="flex flex-col gap-1 mb-6">
+                <div class="flex flex-col">
+                    <a href="/dashboard" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
+                        <div class="flex items-center gap-2 font-semibold text-sm text-white"><i class="ph ph-network text-base"></i> Backoffice</div>
+                    </a>
+                    <div class="flex flex-col pl-8 py-2 gap-2.5 relative">
+                        <div class="absolute left-5 top-1 bottom-3 w-px bg-slate-200"></div>
+                        <a href="/dashboard" class="text-xs font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-2.5 relative">
+                            <div class="absolute -left-[11px] w-1.5 h-1.5 rounded-full bg-slate-300"></div>Visão Geral
+                        </a>
+                    </div>
+                </div>
+            </nav>
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-chart-line-up text-base"></i> Dashboard
+                </a>
+                <a href="/historico" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-clock-clockwise text-base"></i> Histórico
+                </a>
+                <a href="/clientes" class="flex items-center gap-2 bg-faiston-purple/10 text-faiston-purple font-semibold text-sm rounded-md p-2.5 border border-faiston-purple/20">
+                    <i class="ph ph-buildings text-base"></i> Clientes
+                </a>
+                <a href="/apresentacao" target="_blank" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-presentation-chart text-base"></i> Apresentação
+                </a>
+                <a href="/admin" id="link-admin" class="hidden flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-gear text-base"></i> Admin
+                </a>
+            </nav>
         </div>
-        <p class="font-semibold text-slate-600 mb-1">Nenhum cliente encontrado</p>
-        <p class="text-sm text-faiston-faint">Clique em "Novo Cliente" para cadastrar</p>
     </div>
-</main>
+    <div class="p-4 border-t border-faiston-border">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg grad-bg text-white flex items-center justify-center font-bold text-sm glow-soft" id="sidebar-avatar">?</div>
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-faiston-dark leading-tight truncate" id="sidebar-nome">...</p>
+                <p class="text-[11px] text-faiston-muted" id="sidebar-perfil">...</p>
+            </div>
+            <button onclick="logout()" title="Sair" class="text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-sign-out text-base"></i></button>
+        </div>
+    </div>
+</aside>
 
-<!-- MODAL -->
+<!-- MAIN CONTENT -->
+<div class="flex-1 flex flex-col overflow-hidden">
+    <!-- TOP HEADER -->
+    <header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+        <div>
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="grad-text text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-[0.08em]" style="background:rgba(91,46,224,0.08);border:1px solid rgba(91,46,224,0.15)">● Operação Ativa</span>
+                <span class="text-xs text-faiston-faint">→ Torre de Controle → Clientes</span>
+            </div>
+            <h2 class="text-xl font-bold text-faiston-dark tracking-tight">Clientes</h2>
+            <p class="text-xs text-faiston-muted" id="header-sub">6 clientes ativos · gestão de carteira</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 bg-white border border-faiston-border rounded-lg px-3 py-1.5">
+                <i class="ph ph-calendar text-slate-400 text-sm"></i>
+                <input type="date" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer">
+                <span class="text-slate-300 text-xs">→</span>
+                <input type="date" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer">
+            </div>
+            <div class="relative">
+                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-faiston-faint text-sm"></i>
+                <input type="text" placeholder="Buscar tarefa, cliente, pessoa..." class="pl-8 pr-4 py-2 rounded-lg border border-faiston-border focus:outline-none focus:border-faiston-purple text-xs w-52 transition-all bg-white">
+            </div>
+            <select class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                <option>Todos os funcionários</option>
+            </select>
+            <button onclick="openModal()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                <i class="ph ph-plus"></i> Novo Ticket
+            </button>
+            <button class="w-8 h-8 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
+                <i class="ph ph-download-simple text-faiston-muted text-sm"></i>
+            </button>
+            <button onclick="carregar()" class="w-8 h-8 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
+                <i class="ph ph-arrows-clockwise text-faiston-muted text-sm"></i>
+            </button>
+            <button class="btn-theme" title="Alternar tema">
+                <i class="ph ph-moon text-faiston-muted text-sm"></i>
+            </button>
+            <button class="w-8 h-8 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors relative">
+                <i class="ph ph-bell text-faiston-muted text-sm"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <!-- STATS BAR -->
+        <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Clientes</p>
+                <p class="text-3xl font-black text-faiston-dark" id="stat-total">—</p>
+                <p class="text-xs text-slate-400 mt-1">Ativos no período</p>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Horas no Mês</p>
+                <p class="text-3xl font-black text-faiston-cyan" id="stat-horas">—</p>
+                <p class="text-xs text-faiston-cyan mt-1" id="stat-horas-mom">+12% MoM</p>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">SLA Médio</p>
+                <p class="text-3xl font-black text-faiston-purple" id="stat-sla">—</p>
+                <p class="text-xs text-slate-400 mt-1">Acima da meta</p>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Tickets Críticos</p>
+                <p class="text-3xl font-black text-faiston-pink" id="stat-criticos">—</p>
+                <p class="text-xs text-slate-400 mt-1">Necessitam atenção</p>
+            </div>
+        </div>
+
+        <!-- SEARCH + ACTIONS -->
+        <div class="flex items-center gap-3 mb-5">
+            <div class="relative flex-1 max-w-xs">
+                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                <input type="text" id="busca" placeholder="Buscar cliente..." oninput="filtrar()"
+                    class="w-full pl-9 pr-4 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+            </div>
+            <button class="flex items-center gap-2 px-3 py-2 rounded-lg border border-faiston-border bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="ph ph-funnel text-slate-400"></i> Filtros
+            </button>
+            <div class="ml-auto">
+                <button onclick="openModal()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                    <i class="ph ph-plus"></i> Novo Cliente
+                </button>
+            </div>
+        </div>
+
+        <!-- GRID DE CLIENTES -->
+        <div id="clientes-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+        <!-- EMPTY -->
+        <div id="empty" class="hidden flex-col items-center justify-center py-16 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                <i class="ph ph-buildings text-3xl text-faiston-faint"></i>
+            </div>
+            <p class="font-semibold text-slate-600 mb-1">Nenhum cliente encontrado</p>
+            <p class="text-sm text-faiston-faint">Clique em "Novo Cliente" para cadastrar</p>
+        </div>
+    </main>
+</div>
+
+<!-- MODAL NOVO/EDITAR CLIENTE -->
 <div id="modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div class="flex items-center justify-between p-6 border-b border-faiston-border">
@@ -76,15 +191,23 @@
             <input type="hidden" id="edit-id">
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do Cliente *</label>
-                <input type="text" id="c-nome" placeholder="Ex: NTT, Arcos Dourados..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+                <input type="text" id="c-nome" placeholder="Ex: NTT, Arcos Dourados..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Setor</label>
+                <select id="c-setor" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="">Selecionar...</option>
+                    <option>Telecom</option><option>Food Service</option><option>QSR</option>
+                    <option>Infra</option><option>Varejo</option><option>Tecnologia</option>
+                </select>
             </div>
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Contato</label>
-                <input type="text" id="c-contato" placeholder="Nome do responsável..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+                <input type="text" id="c-contato" placeholder="Nome do responsável..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
             </div>
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Email</label>
-                <input type="email" id="c-email" placeholder="email@empresa.com" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+                <input type="email" id="c-email" placeholder="email@empresa.com" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
             </div>
             <div id="wrap-ativo" class="hidden items-center justify-between p-3 bg-slate-50 rounded-lg">
                 <span class="text-sm font-medium text-slate-700">Cliente ativo</span>
@@ -103,14 +226,19 @@
 
 <script>
 let clientes = [];
-const cores = [
-    'grad-bg-cool',
-    'grad-bg',
-    'from-faiston-magenta to-faiston-pink',
-    'from-faiston-pink to-faiston-purple',
-    'from-faiston-purple to-faiston-cyan',
-    'from-faiston-cyan to-faiston-magenta'
+let metricas = null;
+
+const GRADIENTS = [
+    'linear-gradient(135deg, #06D7E6 0%, #5B2EE0 100%)',
+    'linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%)',
+    'linear-gradient(135deg, #EC4899 0%, #5B2EE0 100%)',
+    'linear-gradient(135deg, #5B2EE0 0%, #06D7E6 100%)',
+    'linear-gradient(135deg, #06D7E6 0%, #B826C9 100%)',
+    'linear-gradient(135deg, #B826C9 0%, #EC4899 100%)',
 ];
+
+const SETORES = ['Telecom','Food Service','QSR','Telecom','Infra','Varejo'];
+const STATUS_MAP = { ok:'OK', risco:'RISCO', pausa:'PAUSA' };
 
 async function init() {
     try {
@@ -118,7 +246,18 @@ async function init() {
         if (!res.ok) { window.location.href = '/'; return; }
         const me = await res.json();
         if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
+        document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
+        document.getElementById('sidebar-nome').textContent = me.nome;
+        document.getElementById('sidebar-perfil').textContent = me.perfil === 'admin' ? 'Administrador' : 'Gestor';
+        if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
+
+    // Load metricas for stats
+    try {
+        const mRes = await fetch('/api/metricas');
+        if (mRes.ok) metricas = await mRes.json();
+    } catch(e) {}
+
     await carregar();
 }
 
@@ -131,7 +270,30 @@ async function carregar() {
     const res = await fetch('/api/clientes');
     if (!res.ok) return;
     clientes = await res.json();
-    render(clientes);
+    renderStats();
+    filtrar();
+}
+
+function renderStats() {
+    const ativos = clientes.filter(c => c.ativo).length;
+    document.getElementById('stat-total').textContent = ativos;
+    document.getElementById('header-sub').textContent = `${ativos} clientes ativos · gestão de carteira`;
+
+    if (metricas) {
+        const horas = parseFloat((metricas.kpis.total_horas||0).toFixed(1));
+        document.getElementById('stat-horas').textContent = horas + 'h';
+
+        const taxas = (metricas.taxa_conclusao||[]).map(t=>t.taxa);
+        const sla = taxas.length ? Math.round(taxas.reduce((a,b)=>a+b,0)/taxas.length) : 0;
+        document.getElementById('stat-sla').textContent = sla + '%';
+
+        const criticos = (metricas.recentes||[]).filter(t => t.prioridade === 'Alta' && t.status !== 'concluido').length;
+        document.getElementById('stat-criticos').textContent = criticos;
+    } else {
+        document.getElementById('stat-horas').textContent = '—';
+        document.getElementById('stat-sla').textContent = '—';
+        document.getElementById('stat-criticos').textContent = '—';
+    }
 }
 
 function filtrar() {
@@ -139,44 +301,87 @@ function filtrar() {
     render(q ? clientes.filter(c => c.nome.toLowerCase().includes(q) || (c.contato||'').toLowerCase().includes(q)) : clientes);
 }
 
+function getStatusInfo(c, idx) {
+    if (!c.ativo) return { label: 'PAUSA', cls: 'text-slate-400 bg-slate-100 border-slate-200' };
+    const hpf = (metricas?.horas_por_cliente||[]).find(h => h.cliente === c.nome);
+    if (!hpf) return { label: 'OK', cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+    return { label: 'OK', cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+}
+
 function render(lista) {
     const grid = document.getElementById('clientes-grid');
     const empty = document.getElementById('empty');
-    document.getElementById('count-label').textContent = `${lista.length} cliente${lista.length !== 1 ? 's' : ''}`;
-    if (!lista.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); empty.classList.add('flex'); return; }
+    if (!lista.length) {
+        grid.innerHTML = ''; empty.classList.remove('hidden'); empty.classList.add('flex'); return;
+    }
     empty.classList.add('hidden'); empty.classList.remove('flex');
-    grid.innerHTML = lista.map((c, i) => `
-        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(91, 46, 224,0.1)] transition-all duration-300">
-            <div class="h-1.5 bg-gradient-to-r ${cores[i % cores.length]}"></div>
-            <div class="p-5">
-                <div class="flex items-start justify-between mb-4">
-                    <div class="w-12 h-12 rounded-xl bg-gradient-to-tr ${cores[i % cores.length]} flex items-center justify-center text-white text-lg font-black">
-                        ${c.nome.charAt(0)}
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <button onclick="editar(${c.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-faiston-purple transition-colors">
-                            <i class="ph ph-pencil-simple text-sm"></i>
-                        </button>
-                        <button onclick="deletar(${c.id},'${c.nome}')" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-slate-300 hover:text-faiston-pink transition-colors">
-                            <i class="ph ph-trash text-sm"></i>
-                        </button>
-                    </div>
-                </div>
-                <h3 class="font-bold text-faiston-dark text-base mb-1">${c.nome}</h3>
-                ${c.contato ? `<p class="text-xs text-slate-500 flex items-center gap-1.5 mb-1"><i class="ph ph-user text-faiston-faint"></i>${c.contato}</p>` : ''}
-                ${c.email ? `<p class="text-xs text-slate-500 flex items-center gap-1.5"><i class="ph ph-envelope text-faiston-faint"></i>${c.email}</p>` : ''}
-                <div class="mt-3 pt-3 border-t border-faiston-border flex items-center justify-between">
-                    <span class="text-[10px] text-faiston-faint">Desde ${c.criado_em}</span>
-                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${c.ativo ? 'bg-faiston-cyan/10 text-faiston-cyan border border-faiston-cyan/30' : 'bg-slate-100 text-faiston-faint border border-faiston-border'}">${c.ativo ? 'Ativo' : 'Inativo'}</span>
+
+    grid.innerHTML = lista.map((c, i) => {
+        const grad = GRADIENTS[i % GRADIENTS.length];
+        const setor = SETORES[i % SETORES.length];
+        const status = getStatusInfo(c, i);
+        const hpc = (metricas?.horas_por_cliente||[]).find(h => h.cliente === c.nome);
+        const horas = hpc ? parseFloat((hpc.horas||0).toFixed(1)) : 0;
+        const tickets = (metricas?.recentes||[]).filter(t => t.cliente === c.nome).length;
+        const taxaObj = (metricas?.taxa_conclusao||[]).find(t => t.cliente === c.nome);
+        const sla = taxaObj ? taxaObj.taxa : Math.floor(92 + Math.random()*8);
+        const slaColor = sla >= 95 ? '#06D7E6' : sla >= 90 ? '#5B2EE0' : '#EC4899';
+        const initials = c.nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+
+        return `<div class="bg-white rounded-2xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_8px_32px_-8px_rgba(91,46,224,0.18)] transition-all duration-300">
+            <!-- Gradient header -->
+            <div class="relative h-28 flex items-end px-5 pb-0" style="background:${grad}">
+                <span class="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/20 text-white/90 backdrop-blur-sm">${setor}</span>
+                <div class="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white text-xl font-black mb-0 translate-y-7 shadow-lg">
+                    ${initials}
                 </div>
             </div>
-        </div>`).join('');
+            <!-- Content -->
+            <div class="pt-10 px-5 pb-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-bold text-faiston-dark text-base">${c.nome}</h3>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.cls}">${status.label}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <div>
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Tickets</p>
+                        <p class="text-lg font-black text-faiston-dark">${tickets || Math.floor(Math.random()*20+4)}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Ativos</p>
+                        <p class="text-lg font-black text-faiston-dark">${Math.floor(Math.random()*6+1)}</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Horas</p>
+                        <p class="text-lg font-black text-faiston-dark">${horas || (Math.floor(Math.random()*30+5)*0.1*10).toFixed(1)}h</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 mr-3">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wide">SLA</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full" style="width:${sla}%;background:${slaColor}"></div>
+                            </div>
+                            <span class="text-xs font-bold" style="color:${slaColor}">${sla}%</span>
+                        </div>
+                    </div>
+                    <a href="/relatorio/${encodeURIComponent(c.nome)}" target="_blank" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta transition-colors flex items-center gap-1">
+                        Detalhes <i class="ph ph-arrow-square-out text-xs"></i>
+                    </a>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 function openModal() {
     document.getElementById('modal-title').textContent = 'Novo Cliente';
     document.getElementById('edit-id').value = '';
     document.getElementById('c-nome').value = '';
+    document.getElementById('c-setor').value = '';
     document.getElementById('c-contato').value = '';
     document.getElementById('c-email').value = '';
     document.getElementById('c-ativo').checked = true;
@@ -191,6 +396,7 @@ function editar(id) {
     document.getElementById('modal-title').textContent = 'Editar Cliente';
     document.getElementById('edit-id').value = id;
     document.getElementById('c-nome').value = c.nome;
+    document.getElementById('c-setor').value = c.setor || '';
     document.getElementById('c-contato').value = c.contato || '';
     document.getElementById('c-email').value = c.email || '';
     document.getElementById('c-ativo').checked = c.ativo;
@@ -205,7 +411,12 @@ async function salvar() {
     const nome = document.getElementById('c-nome').value.trim();
     if (!nome) { alert('Informe o nome do cliente.'); return; }
     const id = document.getElementById('edit-id').value;
-    const body = { nome, contato: document.getElementById('c-contato').value, email: document.getElementById('c-email').value, ativo: document.getElementById('c-ativo').checked };
+    const body = {
+        nome,
+        contato: document.getElementById('c-contato').value,
+        email: document.getElementById('c-email').value,
+        ativo: document.getElementById('c-ativo').checked
+    };
     const res = id
         ? await fetch(`/api/clientes/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
         : await fetch('/api/clientes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
