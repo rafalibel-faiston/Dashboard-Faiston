@@ -44,38 +44,11 @@
                     </a>
                     <div id="submenu-clientes" class="flex flex-col pl-9 py-3 gap-3 relative">
                         <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
-                        <a href="#" onclick="filtrarCliente('')" data-cliente="" class="cliente-link text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
+                        <a href="#" onclick="filtrarCliente(''); return false;" data-cliente="" class="cliente-link text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan shadow-[0_0_8px_#06D7E6] animate-pulse" id="dot-geral"></div>
                             Visão Geral
                         </a>
-                        <div class="flex items-center justify-between relative group">
-                            <a href="#" onclick="filtrarCliente('NTT')" data-cliente="NTT" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                NTT
-                            </a>
-                            <a href="/relatorio/NTT" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                        </div>
-                        <div class="flex items-center justify-between relative group">
-                            <a href="#" onclick="filtrarCliente('Arcos Dourados')" data-cliente="Arcos Dourados" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Arcos Dourados
-                            </a>
-                            <a href="/relatorio/Arcos%20Dourados" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                        </div>
-                        <div class="flex items-center justify-between relative group">
-                            <a href="#" onclick="filtrarCliente('Zamp')" data-cliente="Zamp" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Zamp
-                            </a>
-                            <a href="/relatorio/Zamp" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                        </div>
-                        <div class="flex items-center justify-between relative group">
-                            <a href="#" onclick="filtrarCliente('Telcoweb')" data-cliente="Telcoweb" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Telcoweb
-                            </a>
-                            <a href="/relatorio/Telcoweb" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                        </div>
+                        <div id="lista-clientes-sidebar"></div>
                     </div>
                 </div>
             </nav>
@@ -227,7 +200,7 @@
                     <span class="text-[10px] font-bold text-faiston-purple bg-faiston-purple/10 px-2 py-1 rounded-full border border-faiston-purple/20">Acima da meta</span>
                 </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Média por Funcionário</p>
-                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-media">—</span><span class="text-sm font-medium text-faiston-faint">h</span></p>
+                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-media">—</span><span class="text-sm font-medium text-faiston-faint"> h/func</span></p>
             </div>
         </div>
     </div>
@@ -235,15 +208,15 @@
     <!-- GRÁFICOS ROW 1 -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <!-- Tarefas por Funcionário -->
-        <div class="lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg, #11111E 0%, #0B0D1F 100%);box-shadow:0 8px 32px -8px rgba(91,46,224,0.35), 0 4px 16px -8px rgba(184,38,201,0.25)">
+        <div class="chart-card lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:#fff;border:1px solid #E5E8F0;box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <div class="flex items-center justify-between mb-3">
                 <div>
-                    <h3 class="text-sm font-bold text-white">Tarefas por Funcionário</h3>
-                    <p class="text-[11px] text-purple-300 mt-0.5">Quantidade e horas apontadas</p>
+                    <h3 class="text-sm font-bold text-faiston-dark">Tarefas por Funcionário</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Quantidade e horas apontadas no período</p>
                 </div>
                 <div class="flex gap-3 text-[10px]">
-                    <span class="flex items-center gap-1 text-pink-300"><span class="w-2 h-2 rounded-sm" style="background:#EC4899"></span>Tarefas</span>
-                    <span class="flex items-center gap-1 text-cyan-300"><span class="w-2 h-2 rounded-full" style="background:#06D7E6"></span>Horas</span>
+                    <span class="flex items-center gap-1 text-faiston-pink font-semibold"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#EC4899"></span> Tarefas</span>
+                    <span class="flex items-center gap-1 text-faiston-cyan font-semibold"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#06D7E6"></span> Horas</span>
                 </div>
             </div>
             <div id="chart-producao" style="min-height:260px;"></div>
@@ -465,6 +438,29 @@ async function init() {
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
+
+    // Carrega clientes para a sidebar e para o filtro do modal
+    try {
+        const resCls = await fetch('/api/clientes');
+        if (resCls.ok) {
+            const cls = await resCls.json();
+            const DOT_COLORS = ['#06D7E6','#5B2EE0','#EC4899','#06D7E6','#B826C9','#EC4899'];
+            const listaSidebar = document.getElementById('lista-clientes-sidebar');
+            listaSidebar.innerHTML = cls.filter(c => c.ativo).map((c, i) => {
+                const cor = DOT_COLORS[i % DOT_COLORS.length];
+                const nome = c.nome;
+                const url = '/relatorio/' + encodeURIComponent(nome);
+                return `<div class="flex items-center justify-between relative group">
+                    <a href="#" onclick="filtrarCliente('${nome.replace(/'/g,"\\'")}'); return false;" data-cliente="${nome}" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
+                        <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full transition-colors" style="background:${cor}"></div>
+                        ${nome}
+                    </a>
+                    <a href="${url}" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
+                </div>`;
+            }).join('');
+        }
+    } catch(e) {}
+
     // Carrega lista de funcionários para o filtro
     try {
         const resFuncs = await fetch('/api/usuarios');
@@ -490,16 +486,16 @@ async function fazerLogout() {
 
 function filtrarCliente(cliente) {
     clienteAtivo = cliente;
-    // Atualiza sidebar
+    // Atualiza sidebar — links dinâmicos e estáticos
     document.querySelectorAll('.cliente-link').forEach(el => {
         const isActive = el.dataset.cliente === cliente;
         el.classList.toggle('font-bold', isActive);
         el.classList.toggle('text-faiston-cyan', isActive);
-        el.classList.toggle('text-slate-500', !isActive);
+        el.classList.toggle('text-slate-500', !isActive && el.dataset.cliente !== '');
         el.classList.toggle('font-medium', !isActive);
     });
     // Atualiza header
-    document.getElementById('header-titulo').textContent = cliente ? `${cliente}` : 'Visão Geral';
+    document.getElementById('header-titulo').textContent = cliente ? cliente : 'Visão Geral';
     document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
     carregarDados(cliente);
     return false;
@@ -605,7 +601,7 @@ function renderKPIs(kpis) {
     document.getElementById('kpi-clientes').textContent = kpis.clientes_ativos;
     document.getElementById('kpi-clientes-badge').textContent = `${kpis.funcionarios_ativos} func.`;
     document.getElementById('kpi-tickets').textContent = kpis.tickets_abertos;
-    document.getElementById('kpi-andamento-badge').textContent = `${kpis.em_andamento} andamento`;
+    document.getElementById('kpi-andamento-badge').textContent = `${kpis.em_andamento} em andamento`;
     const totalSeg = Math.round(kpis.total_horas * 3600);
     const hh = Math.floor(totalSeg / 3600);
     const mm = Math.floor((totalSeg % 3600) / 60);
@@ -625,7 +621,7 @@ const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:
 const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
 
 function renderCharts(data) {
-    // 1. Tarefas por Funcionário — dark card, barras + linha
+    // 1. Tarefas por Funcionário — white card, barras gradiente + linha cyan
     destroyChart('producao');
     const hpf = data.horas_por_func;
     const nomes = hpf.map(f => f.nome.split(' ')[0]);
@@ -644,26 +640,24 @@ function renderCharts(data) {
                 }
             }}
         },
-        theme: { mode: 'dark' },
         colors: ['#EC4899', '#06D7E6'],
-        plotOptions: { bar: { borderRadius: 8, columnWidth: '40%' } },
+        plotOptions: { bar: { borderRadius: 8, columnWidth: '42%' } },
         fill: {
             type: ['gradient', 'solid'],
-            gradient: { shade: 'dark', type: 'vertical', gradientToColors: ['#5B2EE0'], stops: [0, 100] }
+            gradient: { shade: 'light', type: 'vertical', gradientToColors: ['#5B2EE0'], opacityFrom: 1, opacityTo: 0.85, stops: [0, 100] }
         },
         dataLabels: { enabled: false },
-        stroke: { width: [0, 3], curve: 'smooth' },
-        markers: { size: [0, 5], strokeColors: '#1a0050', strokeWidth: 2, hover: { size: 8 } },
+        stroke: { width: [0, 2.5], curve: 'smooth' },
+        markers: { size: [0, 5], strokeColors: '#fff', strokeWidth: 2, hover: { size: 7 } },
         xaxis: { categories: nomes, axisBorder:{show:false}, axisTicks:{show:false},
-            labels:{style:{fontSize:'12px', colors:'#a78bfa'}} },
+            labels:{style:{fontSize:'12px', colors:'#94A3B8', fontFamily:'Inter,sans-serif'}} },
         yaxis: [
-            { min: 0, labels: { style: { colors: ['#f9a8d4'], fontSize: '11px' } } },
-            { opposite: true, min: 0, labels: { style: { colors: ['#67e8f9'], fontSize: '11px' } } }
+            { min: 0, labels: { style: { colors: ['#94A3B8'], fontSize: '11px', fontFamily:'Inter,sans-serif' } } },
+            { opposite: true, min: 0, labels: { style: { colors: ['#94A3B8'], fontSize: '11px', fontFamily:'Inter,sans-serif' } } }
         ],
-        legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px',
-            labels: { colors: '#e2e8f0' }, markers: { radius: 4 } },
-        grid: gridDark,
-        tooltip: { ...ttDark, shared: true, intersect: false }
+        legend: { show: false },
+        grid: { ...gridLight, padding: { left: 4, right: 4 } },
+        tooltip: { ...ttLight, shared: true, intersect: false }
     });
     charts['producao'].render();
 
