@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Login · Faiston OPS</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
@@ -58,32 +58,65 @@
             font-size: 26px; font-weight: 700; color: #0B0D1F; letter-spacing: -0.03em;
         }
         h2 { font-size: 26px; font-weight: 700; color: #0B0D1F; margin-bottom: 6px; letter-spacing: -0.02em; text-align: center; }
-        p.sub { font-size: 14px; color: #5E647A; margin-bottom: 28px; text-align: center; }
+        p.sub { font-size: 14px; color: #5E647A; margin-bottom: 24px; text-align: center; }
+
+        /* Role tabs */
+        .role-tabs {
+            display: flex; background: #F4F5FA; border-radius: 12px; padding: 4px; margin-bottom: 24px;
+            border: 1px solid #E5E8F0;
+        }
+        .role-tab {
+            flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+            padding: 9px 12px; border-radius: 9px; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.18s; color: #9097AC; background: transparent; border: none;
+            font-family: 'Inter', sans-serif;
+        }
+        .role-tab.active {
+            background: white; color: #0B0D1F;
+            box-shadow: 0 1px 4px rgba(13,15,35,0.10), 0 1px 2px rgba(13,15,35,0.06);
+        }
+
         label { display: block; font-size: 10px; font-weight: 700; color: #9097AC; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
         .input-wrap { position: relative; margin-bottom: 14px; }
-        .input-wrap i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9097AC; font-size: 18px; }
-        input {
+        .input-wrap .ico-left { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9097AC; font-size: 18px; }
+        .input-wrap .ico-right { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #9097AC; font-size: 18px; cursor: pointer; background: none; border: none; padding: 0; display: flex; align-items: center; }
+        .input-wrap .ico-right:hover { color: #5B2EE0; }
+        input[type="text"], input[type="password"] {
             width: 100%; padding: 12px 14px 12px 42px;
             border: 1px solid #E5E8F0; border-radius: 12px;
             font-size: 14px; font-family: 'Inter', sans-serif; color: #0B0D1F;
             outline: none; transition: all 0.2s; background: white;
         }
-        input:focus { border-color: #5B2EE0; box-shadow: 0 0 0 3px rgba(91,46,224,0.12); }
+        input[type="text"]:focus, input[type="password"]:focus { border-color: #5B2EE0; box-shadow: 0 0 0 3px rgba(91,46,224,0.12); }
         input::placeholder { color: #9097AC; }
+
+        /* Remember + forgot row */
+        .row-extras {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 20px; margin-top: -4px;
+        }
+        .remember { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .remember input[type="checkbox"] {
+            width: 16px; height: 16px; padding: 0;
+            border: 1.5px solid #CBD5E1; border-radius: 4px;
+            accent-color: #5B2EE0; cursor: pointer;
+        }
+        .remember span { font-size: 13px; color: #5E647A; font-weight: 500; }
+        .forgot { font-size: 13px; color: #5B2EE0; font-weight: 600; text-decoration: none; }
+        .forgot:hover { text-decoration: underline; }
+
         .btn {
             width: 100%; padding: 14px;
             background: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
             color: white; border: none; border-radius: 12px;
             font-size: 15px; font-weight: 600; font-family: 'Inter', sans-serif;
-            cursor: pointer; margin-top: 8px;
+            cursor: pointer;
             box-shadow: 0 12px 32px -8px rgba(184,38,201,0.45), 0 4px 12px -4px rgba(91,46,224,0.35);
             transition: transform 0.12s ease, box-shadow 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 10px;
         }
         .btn:hover { transform: translateY(-1px); }
         .btn:active { transform: translateY(0); }
         .btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
-        .spin { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.9s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
         .error {
             background: rgba(236,72,153,0.06); border: 1px solid rgba(236,72,153,0.2); color: #B91C5C;
             border-radius: 10px; padding: 10px 14px; font-size: 13px;
@@ -105,6 +138,16 @@
         <h2>Bem-vindo de volta</h2>
         <p class="sub">Entre com suas credenciais para acessar o painel</p>
 
+        <!-- Role tabs -->
+        <div class="role-tabs">
+            <button class="role-tab active" id="tab-admin" onclick="setRole('admin')">
+                <i class="ph ph-shield-check" style="font-size:15px"></i> Administrador
+            </button>
+            <button class="role-tab" id="tab-func" onclick="setRole('funcionario')">
+                <i class="ph ph-user" style="font-size:15px"></i> Funcionário
+            </button>
+        </div>
+
         <div class="error" id="error-msg">
             <i class="ph ph-warning-circle" style="font-size:16px"></i>
             <span id="error-text">Usuário ou senha inválidos</span>
@@ -113,23 +156,51 @@
         <div>
             <label>Usuário</label>
             <div class="input-wrap">
-                <i class="ph ph-user"></i>
+                <i class="ph ph-user ico-left"></i>
                 <input type="text" id="usuario" placeholder="seu.usuario" autocomplete="username">
             </div>
             <label>Senha</label>
             <div class="input-wrap">
-                <i class="ph ph-lock"></i>
+                <i class="ph ph-lock ico-left"></i>
                 <input type="password" id="senha" placeholder="••••••••" autocomplete="current-password">
+                <button class="ico-right" onclick="toggleSenha()" title="Mostrar senha" tabindex="-1">
+                    <i class="ph ph-eye" id="icon-eye"></i>
+                </button>
             </div>
+
+            <div class="row-extras">
+                <label class="remember">
+                    <input type="checkbox" id="manter-conectado" checked>
+                    <span>Manter conectado</span>
+                </label>
+                <a href="#" class="forgot" onclick="return false;">Esqueci a senha</a>
+            </div>
+
             <button class="btn" id="btn-login" onclick="fazerLogin()">
-                <i class="ph ph-sign-in"></i> Entrar
+                <i class="ph ph-arrow-right"></i> Entrar
             </button>
         </div>
 
-        <div class="foot">Faiston OPS · Torre de Controle</div>
+        <div class="foot">v 2.4.1 · Faiston OPS · Torre de Controle</div>
     </div>
 
 <script>
+let roleAtivo = 'admin';
+
+function setRole(role) {
+    roleAtivo = role;
+    document.getElementById('tab-admin').classList.toggle('active', role === 'admin');
+    document.getElementById('tab-func').classList.toggle('active', role === 'funcionario');
+}
+
+function toggleSenha() {
+    const input = document.getElementById('senha');
+    const icon = document.getElementById('icon-eye');
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    icon.className = isHidden ? 'ph ph-eye-slash' : 'ph ph-eye';
+}
+
 document.getElementById('senha').addEventListener('keydown', e => { if (e.key === 'Enter') fazerLogin(); });
 document.getElementById('usuario').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('senha').focus(); });
 
@@ -161,10 +232,9 @@ async function fazerLogin() {
             errText.textContent = data.detail || 'Usuário ou senha inválidos';
             errDiv.classList.add('show');
             btn.disabled = false;
-            btn.innerHTML = '<i class="ph ph-sign-in"></i> Entrar';
+            btn.innerHTML = '<i class="ph ph-arrow-right"></i> Entrar';
             return;
         }
-        // Redireciona por perfil
         if (data.perfil === 'admin') window.location.href = '/dashboard';
         else if (data.perfil === 'gestor') window.location.href = '/dashboard';
         else window.location.href = '/funcionario';
@@ -172,7 +242,7 @@ async function fazerLogin() {
         errText.textContent = 'Erro de conexão. Tente novamente.';
         errDiv.classList.add('show');
         btn.disabled = false;
-        btn.innerHTML = '<i class="ph ph-sign-in"></i> Entrar';
+        btn.innerHTML = '<i class="ph ph-arrow-right"></i> Entrar';
     }
 }
 </script>

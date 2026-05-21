@@ -44,38 +44,11 @@
                     </a>
                     <div id="submenu-clientes" class="flex flex-col pl-9 py-3 gap-3 relative">
                         <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
-                        <a href="#" onclick="filtrarCliente('')" data-cliente="" class="cliente-link text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
+                        <a href="#" onclick="filtrarCliente(''); return false;" data-cliente="" class="cliente-link text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan shadow-[0_0_8px_#06D7E6] animate-pulse" id="dot-geral"></div>
                             Visão Geral
                         </a>
-                        <div class="flex items-center justify-between relative group">
-                            <a href="#" onclick="filtrarCliente('NTT')" data-cliente="NTT" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                NTT
-                            </a>
-                            <a href="/relatorio/NTT" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                        </div>
-                        <div class="flex items-center justify-between relative group">
-                            <a href="#" onclick="filtrarCliente('Arcos Dourados')" data-cliente="Arcos Dourados" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Arcos Dourados
-                            </a>
-                            <a href="/relatorio/Arcos%20Dourados" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                        </div>
-                        <div class="flex items-center justify-between relative group">
-                            <a href="#" onclick="filtrarCliente('Zamp')" data-cliente="Zamp" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Zamp
-                            </a>
-                            <a href="/relatorio/Zamp" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                        </div>
-                        <div class="flex items-center justify-between relative group">
-                            <a href="#" onclick="filtrarCliente('Telcoweb')" data-cliente="Telcoweb" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                                <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-faiston-purple transition-colors"></div>
-                                Telcoweb
-                            </a>
-                            <a href="/relatorio/Telcoweb" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                        </div>
+                        <div id="lista-clientes-sidebar"></div>
                     </div>
                 </div>
             </nav>
@@ -117,9 +90,10 @@
         <div>
             <div class="flex items-center gap-2 mb-1">
                 <span class="grad-text text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-[0.08em]" style="background:rgba(91,46,224,0.08);border:1px solid rgba(91,46,224,0.15)">● Operação Ativa</span>
-                <span class="text-xs text-faiston-faint" id="header-sub">Torre de Controle</span>
+                <span class="text-xs text-faiston-faint">→ Torre de Controle → <span id="header-sub">Visão Geral</span></span>
             </div>
             <h2 class="text-2xl font-bold text-faiston-dark tracking-tight" id="header-titulo">Visão Geral</h2>
+            <p class="text-xs text-faiston-muted mt-0.5" id="header-date"></p>
         </div>
         <div class="flex items-center gap-3">
             <!-- Filtro de período -->
@@ -129,20 +103,21 @@
                 <span class="text-slate-300 text-xs">→</span>
                 <input type="date" id="data-fim" onchange="carregarDados(clienteAtivo)" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer">
             </div>
-            <button onclick="limparDatas()" class="text-xs text-slate-400 hover:text-slate-700 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors" title="Limpar datas">
-                <i class="ph ph-x-circle"></i>
-            </button>
             <!-- Busca -->
             <div class="relative">
-                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-faiston-faint"></i>
-                <input type="text" id="busca-tarefa" placeholder="Buscar tarefa..." onkeyup="filtrarTabela()" class="pl-9 pr-4 py-2 rounded-md border border-faiston-border focus:outline-none focus:border-faiston-cyan text-sm w-48 transition-all bg-white">
+                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-faiston-faint text-sm"></i>
+                <input type="text" id="busca-tarefa" placeholder="Buscar tarefa, cliente, pessoa..." onkeyup="filtrarTabela()" class="pl-9 pr-4 py-2 rounded-lg border border-faiston-border focus:outline-none focus:border-faiston-purple text-xs w-56 transition-all bg-white">
             </div>
-            <!-- Exportar -->
-            <select id="filtro-funcionario" onchange="carregarDados(clienteAtivo)" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-cyan" title="Filtrar por funcionário">
+            <!-- Filtro funcionário -->
+            <select id="filtro-funcionario" onchange="carregarDados(clienteAtivo)" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple" title="Filtrar por funcionário">
                 <option value="">Todos os funcionários</option>
             </select>
-            <button onclick="exportarCSV()" class="flex items-center gap-2 bg-faiston-cyan/10 border border-faiston-cyan/30 text-faiston-cyan px-3 py-2 rounded-lg text-sm font-semibold hover:bg-faiston-cyan/20 transition-colors" title="Exportar CSV">
-                <i class="ph ph-download-simple"></i> Exportar
+            <!-- Novo Ticket -->
+            <button onclick="abrirModalTicket()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                <i class="ph ph-plus text-base"></i> Novo Ticket
+            </button>
+            <button onclick="exportarCSV()" class="w-9 h-9 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors" title="Exportar CSV">
+                <i class="ph ph-download-simple text-faiston-muted"></i>
             </button>
             <button onclick="carregarDados(clienteAtivo)" class="w-9 h-9 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors" title="Atualizar">
                 <i class="ph ph-arrows-clockwise text-faiston-muted"></i>
@@ -180,7 +155,7 @@
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-50 to-cyan-100 flex items-center justify-center text-faiston-cyan group-hover:from-cyan-100 group-hover:to-cyan-200 transition-all">
                         <i class="ph ph-buildings text-xl"></i>
                     </div>
-                    <span class="text-[10px] font-bold text-faiston-cyan bg-emerald-50 px-2 py-1 rounded-full border border-faiston-cyan/30" id="kpi-clientes-badge">—</span>
+                    <span class="text-[10px] font-bold text-faiston-cyan bg-cyan-50 px-2 py-1 rounded-full border border-faiston-cyan/30" id="kpi-clientes-badge">—</span>
                 </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Clientes Ativos</p>
                 <p class="text-3xl font-black text-faiston-dark" id="kpi-clientes">—</p>
@@ -208,7 +183,7 @@
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-50 to-pink-100 flex items-center justify-center text-faiston-magenta group-hover:from-pink-100 group-hover:to-pink-200 transition-all">
                         <i class="ph ph-clock text-xl"></i>
                     </div>
-                    <i class="ph ph-trend-up text-faiston-cyan text-lg"></i>
+                    <span class="text-[10px] font-bold text-faiston-cyan bg-cyan-50 px-2 py-1 rounded-full border border-faiston-cyan/30">+12% vs. semana</span>
                 </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Horas Apontadas</p>
                 <p class="text-3xl font-black text-faiston-dark"><span id="kpi-horas">—</span><span class="text-sm font-medium text-faiston-faint" id="kpi-horas-unit"></span></p>
@@ -222,10 +197,10 @@
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center text-faiston-dark group-hover:from-slate-100 group-hover:to-slate-200 transition-all">
                         <i class="ph ph-chart-bar text-xl"></i>
                     </div>
-                    <i class="ph ph-users text-slate-300 text-lg"></i>
+                    <span class="text-[10px] font-bold text-faiston-purple bg-faiston-purple/10 px-2 py-1 rounded-full border border-faiston-purple/20">Acima da meta</span>
                 </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Média por Funcionário</p>
-                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-media">—</span><span class="text-sm font-medium text-faiston-faint">h</span></p>
+                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-media">—</span><span class="text-sm font-medium text-faiston-faint"> h/func</span></p>
             </div>
         </div>
     </div>
@@ -233,15 +208,15 @@
     <!-- GRÁFICOS ROW 1 -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <!-- Tarefas por Funcionário -->
-        <div class="lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:linear-gradient(135deg, #11111E 0%, #0B0D1F 100%);box-shadow:0 8px 32px -8px rgba(91,46,224,0.35), 0 4px 16px -8px rgba(184,38,201,0.25)">
+        <div class="chart-card lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:#fff;border:1px solid #E5E8F0;box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <div class="flex items-center justify-between mb-3">
                 <div>
-                    <h3 class="text-sm font-bold text-white">Tarefas por Funcionário</h3>
-                    <p class="text-[11px] text-purple-300 mt-0.5">Quantidade e horas apontadas</p>
+                    <h3 class="text-sm font-bold text-faiston-dark">Tarefas por Funcionário</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Quantidade e horas apontadas no período</p>
                 </div>
                 <div class="flex gap-3 text-[10px]">
-                    <span class="flex items-center gap-1 text-pink-300"><span class="w-2 h-2 rounded-sm" style="background:#EC4899"></span>Tarefas</span>
-                    <span class="flex items-center gap-1 text-cyan-300"><span class="w-2 h-2 rounded-full" style="background:#06D7E6"></span>Horas</span>
+                    <span class="flex items-center gap-1 text-faiston-pink font-semibold"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#EC4899"></span> Tarefas</span>
+                    <span class="flex items-center gap-1 text-faiston-cyan font-semibold"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#06D7E6"></span> Horas</span>
                 </div>
             </div>
             <div id="chart-producao" style="min-height:260px;"></div>
@@ -463,6 +438,29 @@ async function init() {
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
+
+    // Carrega clientes para a sidebar e para o filtro do modal
+    try {
+        const resCls = await fetch('/api/clientes');
+        if (resCls.ok) {
+            const cls = await resCls.json();
+            const DOT_COLORS = ['#06D7E6','#5B2EE0','#EC4899','#06D7E6','#B826C9','#EC4899'];
+            const listaSidebar = document.getElementById('lista-clientes-sidebar');
+            listaSidebar.innerHTML = cls.filter(c => c.ativo).map((c, i) => {
+                const cor = DOT_COLORS[i % DOT_COLORS.length];
+                const nome = c.nome;
+                const url = '/relatorio/' + encodeURIComponent(nome);
+                return `<div class="flex items-center justify-between relative group">
+                    <a href="#" onclick="filtrarCliente('${nome.replace(/'/g,"\\'")}'); return false;" data-cliente="${nome}" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
+                        <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full transition-colors" style="background:${cor}"></div>
+                        ${nome}
+                    </a>
+                    <a href="${url}" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
+                </div>`;
+            }).join('');
+        }
+    } catch(e) {}
+
     // Carrega lista de funcionários para o filtro
     try {
         const resFuncs = await fetch('/api/usuarios');
@@ -488,17 +486,17 @@ async function fazerLogout() {
 
 function filtrarCliente(cliente) {
     clienteAtivo = cliente;
-    // Atualiza sidebar
+    // Atualiza sidebar — links dinâmicos e estáticos
     document.querySelectorAll('.cliente-link').forEach(el => {
         const isActive = el.dataset.cliente === cliente;
         el.classList.toggle('font-bold', isActive);
         el.classList.toggle('text-faiston-cyan', isActive);
-        el.classList.toggle('text-slate-500', !isActive);
+        el.classList.toggle('text-slate-500', !isActive && el.dataset.cliente !== '');
         el.classList.toggle('font-medium', !isActive);
     });
     // Atualiza header
-    document.getElementById('header-titulo').textContent = cliente ? `${cliente} - Redes` : 'Visão Geral';
-    document.getElementById('header-sub').textContent = cliente ? `Filtrado por: ${cliente}` : 'Torre de Controle';
+    document.getElementById('header-titulo').textContent = cliente ? cliente : 'Visão Geral';
+    document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
     carregarDados(cliente);
     return false;
 }
@@ -603,7 +601,7 @@ function renderKPIs(kpis) {
     document.getElementById('kpi-clientes').textContent = kpis.clientes_ativos;
     document.getElementById('kpi-clientes-badge').textContent = `${kpis.funcionarios_ativos} func.`;
     document.getElementById('kpi-tickets').textContent = kpis.tickets_abertos;
-    document.getElementById('kpi-andamento-badge').textContent = `${kpis.em_andamento} andamento`;
+    document.getElementById('kpi-andamento-badge').textContent = `${kpis.em_andamento} em andamento`;
     const totalSeg = Math.round(kpis.total_horas * 3600);
     const hh = Math.floor(totalSeg / 3600);
     const mm = Math.floor((totalSeg % 3600) / 60);
@@ -623,7 +621,7 @@ const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:
 const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
 
 function renderCharts(data) {
-    // 1. Tarefas por Funcionário — dark card, barras + linha
+    // 1. Tarefas por Funcionário — white card, barras gradiente + linha cyan
     destroyChart('producao');
     const hpf = data.horas_por_func;
     const nomes = hpf.map(f => f.nome.split(' ')[0]);
@@ -642,26 +640,24 @@ function renderCharts(data) {
                 }
             }}
         },
-        theme: { mode: 'dark' },
         colors: ['#EC4899', '#06D7E6'],
-        plotOptions: { bar: { borderRadius: 8, columnWidth: '40%' } },
+        plotOptions: { bar: { borderRadius: 8, columnWidth: '42%' } },
         fill: {
             type: ['gradient', 'solid'],
-            gradient: { shade: 'dark', type: 'vertical', gradientToColors: ['#5B2EE0'], stops: [0, 100] }
+            gradient: { shade: 'light', type: 'vertical', gradientToColors: ['#5B2EE0'], opacityFrom: 1, opacityTo: 0.85, stops: [0, 100] }
         },
         dataLabels: { enabled: false },
-        stroke: { width: [0, 3], curve: 'smooth' },
-        markers: { size: [0, 5], strokeColors: '#1a0050', strokeWidth: 2, hover: { size: 8 } },
+        stroke: { width: [0, 2.5], curve: 'smooth' },
+        markers: { size: [0, 5], strokeColors: '#fff', strokeWidth: 2, hover: { size: 7 } },
         xaxis: { categories: nomes, axisBorder:{show:false}, axisTicks:{show:false},
-            labels:{style:{fontSize:'12px', colors:'#a78bfa'}} },
+            labels:{style:{fontSize:'12px', colors:'#94A3B8', fontFamily:'Inter,sans-serif'}} },
         yaxis: [
-            { min: 0, labels: { style: { colors: ['#f9a8d4'], fontSize: '11px' } } },
-            { opposite: true, min: 0, labels: { style: { colors: ['#67e8f9'], fontSize: '11px' } } }
+            { min: 0, labels: { style: { colors: ['#94A3B8'], fontSize: '11px', fontFamily:'Inter,sans-serif' } } },
+            { opposite: true, min: 0, labels: { style: { colors: ['#94A3B8'], fontSize: '11px', fontFamily:'Inter,sans-serif' } } }
         ],
-        legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px',
-            labels: { colors: '#e2e8f0' }, markers: { radius: 4 } },
-        grid: gridDark,
-        tooltip: { ...ttDark, shared: true, intersect: false }
+        legend: { show: false },
+        grid: { ...gridLight, padding: { left: 4, right: 4 } },
+        tooltip: { ...ttLight, shared: true, intersect: false }
     });
     charts['producao'].render();
 
@@ -867,8 +863,297 @@ function toggleTema() {
     if (saved === 'dark') aplicarTema(true);
 })();
 
+// Data no header
+(function() {
+    const now = new Date();
+    const label = now.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    const el = document.getElementById('header-date');
+    if (el) el.textContent = 'Operação consolidada · ' + label;
+})();
+
+// --- MODAL NOVO TICKET ---
+let prioAtiva = 'Media';
+let statusAtivo = 'aberto';
+let timerModalRunning = false;
+let timerModalInterval = null;
+let timerModalSeg = 0;
+let clienteSelecionado = '';
+
+function abrirModalTicket() {
+    document.getElementById('modal-ticket').classList.remove('hidden');
+    carregarDadosModal();
+}
+
+function fecharModalTicket() {
+    document.getElementById('modal-ticket').classList.add('hidden');
+    if (timerModalInterval) { clearInterval(timerModalInterval); timerModalInterval = null; timerModalRunning = false; }
+}
+
+async function carregarDadosModal() {
+    // Clientes
+    try {
+        const res = await fetch('/api/clientes');
+        if (res.ok) {
+            const cls = await res.json();
+            const wrap = document.getElementById('nt-clientes-pills');
+            wrap.innerHTML = cls.filter(c => c.ativo).map((c, i) => {
+                const colors = ['faiston-purple','faiston-cyan','faiston-magenta','faiston-cyan','faiston-purple','faiston-pink'];
+                const col = colors[i % colors.length];
+                return `<button onclick="selecionarCliente('${c.nome}', this)" data-nome="${c.nome}"
+                    class="cliente-pill text-xs font-semibold px-3 py-1.5 rounded-full border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all">
+                    ${c.nome}
+                </button>`;
+            }).join('');
+        }
+    } catch(e) {}
+    // Funcionários para responsável
+    try {
+        const res = await fetch('/api/usuarios');
+        if (res.ok) {
+            const users = await res.json();
+            const sel = document.getElementById('nt-responsavel');
+            sel.innerHTML = '<option value="">Selecionar...</option>' +
+                users.filter(u => u.perfil === 'funcionario').map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+        }
+    } catch(e) {}
+}
+
+function selecionarCliente(nome, btn) {
+    clienteSelecionado = nome;
+    document.querySelectorAll('.cliente-pill').forEach(b => {
+        b.className = 'cliente-pill text-xs font-semibold px-3 py-1.5 rounded-full border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all';
+    });
+    btn.className = 'cliente-pill text-xs font-semibold px-3 py-1.5 rounded-full border border-faiston-purple bg-faiston-purple/10 text-faiston-purple transition-all';
+}
+
+function setPrioridade(prio) {
+    prioAtiva = prio;
+    document.querySelectorAll('.prio-btn').forEach(b => {
+        const isActive = b.dataset.prio === prio;
+        b.className = isActive
+            ? 'prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-purple bg-faiston-purple/10 text-faiston-purple transition-all'
+            : 'prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all';
+        const icon = b.querySelector('i');
+        if (icon) icon.className = isActive ? 'ph-fill ph-flag text-sm' : 'ph ph-flag text-sm';
+    });
+}
+
+function setStatusTicket(status) {
+    statusAtivo = status;
+    document.querySelectorAll('.status-btn').forEach(b => {
+        const isActive = b.dataset.status === status;
+        if (isActive) {
+            b.className = 'status-btn w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-left bg-faiston-purple/5 text-faiston-dark';
+            b.innerHTML = b.innerHTML.replace(/<i.*<\/i>/, '') + ' <i class="ph ph-check text-faiston-purple"></i>';
+        } else {
+            b.className = 'status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors';
+            const checkEl = b.querySelector('i.ph-check');
+            if (checkEl) checkEl.remove();
+        }
+    });
+}
+
+function toggleTimerModal() {
+    timerModalRunning = !timerModalRunning;
+    const icon = document.getElementById('nt-timer-icon');
+    if (timerModalRunning) {
+        icon.className = 'ph-fill ph-stop text-sm';
+        timerModalInterval = setInterval(() => {
+            timerModalSeg++;
+            const h = Math.floor(timerModalSeg/3600), m = Math.floor((timerModalSeg%3600)/60), s = timerModalSeg%60;
+            document.getElementById('nt-timer-display').textContent =
+                `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }, 1000);
+    } else {
+        icon.className = 'ph-fill ph-play text-sm';
+        clearInterval(timerModalInterval);
+    }
+}
+
+function removerTag(btn) { btn.closest('span').remove(); }
+
+function adicionarTag(e) {
+    if (e.key !== 'Enter' && e.key !== ',') return;
+    e.preventDefault();
+    const val = e.target.value.trim().replace(/,/g,'');
+    if (!val) return;
+    const span = document.createElement('span');
+    span.className = 'flex items-center gap-1.5 text-xs font-semibold text-faiston-purple bg-faiston-purple/10 border border-faiston-purple/20 px-2 py-1 rounded-md';
+    span.innerHTML = `<i class="ph ph-tag text-xs"></i> ${val} <button class="hover:text-faiston-pink" onclick="removerTag(this)"><i class="ph ph-x text-[10px]"></i></button>`;
+    e.target.parentNode.insertBefore(span, e.target);
+    e.target.value = '';
+}
+
+async function criarTicket() {
+    const titulo = document.getElementById('nt-titulo').value.trim();
+    const descricao = document.getElementById('nt-descricao').value.trim();
+    const responsavelId = document.getElementById('nt-responsavel').value;
+
+    if (!titulo) { alert('Informe o título do ticket.'); return; }
+    if (!clienteSelecionado) { alert('Selecione um cliente.'); return; }
+    if (!responsavelId) { alert('Selecione um responsável.'); return; }
+
+    const horasManual = parseInt(document.getElementById('nt-horas-manual').value || '0');
+    const segundos = horasManual * 3600 + timerModalSeg;
+
+    try {
+        const res = await fetch('/api/tarefas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                descricao: titulo + (descricao ? ' — ' + descricao : ''),
+                cliente: clienteSelecionado,
+                prioridade: prioAtiva,
+                status: statusAtivo,
+                funcionario_id: parseInt(responsavelId),
+                segundos
+            })
+        });
+        if (res.ok) {
+            fecharModalTicket();
+            carregarDados(clienteAtivo);
+        } else {
+            const err = await res.json();
+            alert(err.detail || 'Erro ao criar ticket');
+        }
+    } catch(e) {
+        alert('Erro de conexão');
+    }
+}
+
+document.getElementById('modal-ticket').addEventListener('click', e => {
+    if (e.target === document.getElementById('modal-ticket')) fecharModalTicket();
+});
+
 init();
 </script>
+<!-- MODAL NOVO TICKET -->
+<div id="modal-ticket" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.5)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-faiston-border" style="max-height:90vh;overflow-y:auto">
+        <!-- Modal header -->
+        <div class="grad-bg px-6 py-4 flex items-center gap-3 relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/10 pointer-events-none"></div>
+            <span class="px-2.5 py-1 rounded-full bg-white/20 text-[10px] font-bold text-white tracking-[0.08em] uppercase">Novo Ticket</span>
+            <span class="text-white/85 text-sm font-medium">Criação de ticket</span>
+            <button onclick="fecharModalTicket()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+        <!-- Modal body -->
+        <div class="grid grid-cols-2 gap-0 divide-x divide-faiston-border">
+            <!-- Left column -->
+            <div class="p-6 flex flex-col gap-5">
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Título <span class="text-faiston-pink">*</span></label>
+                    <input type="text" id="nt-titulo" placeholder="Ex: Migração rota IP — anel sul" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/10 transition-all">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição</label>
+                    <textarea id="nt-descricao" placeholder="Descreva a tarefa, contexto, links e critérios de aceite..." rows="4" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/10 transition-all resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Tags</label>
+                    <div class="min-h-10 border border-faiston-border rounded-lg px-3 py-2 flex flex-wrap gap-2 items-center cursor-text" onclick="document.getElementById('nt-tag-input').focus()">
+                        <span class="flex items-center gap-1.5 text-xs font-semibold text-faiston-purple bg-faiston-purple/10 border border-faiston-purple/20 px-2 py-1 rounded-md">
+                            <i class="ph ph-tag text-xs"></i> servidor <button class="hover:text-faiston-pink" onclick="removerTag(this)"><i class="ph ph-x text-[10px]"></i></button>
+                        </span>
+                        <span class="flex items-center gap-1.5 text-xs font-semibold text-faiston-cyan bg-faiston-cyan/10 border border-faiston-cyan/20 px-2 py-1 rounded-md">
+                            <i class="ph ph-tag text-xs"></i> infra <button class="hover:text-faiston-pink" onclick="removerTag(this)"><i class="ph ph-x text-[10px]"></i></button>
+                        </span>
+                        <input type="text" id="nt-tag-input" placeholder="+ adicionar tag" class="text-xs text-faiston-faint outline-none bg-transparent flex-1 min-w-24" onkeydown="adicionarTag(event)">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Apontamentos</label>
+                    <div class="bg-slate-50 rounded-xl p-4 border border-faiston-border">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-3">
+                                <button id="nt-timer-btn" onclick="toggleTimerModal()" class="w-10 h-10 rounded-full grad-bg flex items-center justify-center text-white shadow-[0_4px_12px_-4px_rgba(91,46,224,0.5)] hover:scale-105 transition-transform">
+                                    <i class="ph-fill ph-play text-sm" id="nt-timer-icon"></i>
+                                </button>
+                                <div>
+                                    <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-wider">Cronômetro</p>
+                                    <p class="font-mono text-xl font-bold text-faiston-dark" id="nt-timer-display">00:00:00</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-wider">Total Apontado</p>
+                                <p class="text-xl font-bold text-faiston-dark">0h</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="number" id="nt-horas-manual" placeholder="0" min="0" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:border-faiston-purple bg-white">
+                            <button class="px-4 py-2 rounded-lg bg-faiston-dark text-white text-sm font-semibold hover:bg-faiston-purple transition-colors">Apontar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Right column -->
+            <div class="p-6 flex flex-col gap-5">
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Cliente <span class="text-faiston-pink">*</span></label>
+                    <div id="nt-clientes-pills" class="flex flex-wrap gap-2"></div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Responsável</label>
+                    <select id="nt-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                        <option value="">Selecionar...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Prioridade</label>
+                    <div class="flex gap-2">
+                        <button onclick="setPrioridade('Baixa')" data-prio="Baixa" class="prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all">
+                            <i class="ph ph-flag text-sm"></i> Baixa
+                        </button>
+                        <button onclick="setPrioridade('Media')" data-prio="Media" class="prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-purple bg-faiston-purple/10 text-faiston-purple transition-all">
+                            <i class="ph-fill ph-flag text-sm"></i> Média
+                        </button>
+                        <button onclick="setPrioridade('Alta')" data-prio="Alta" class="prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-border text-slate-500 hover:border-faiston-magenta hover:text-faiston-magenta transition-all">
+                            <i class="ph ph-flag text-sm"></i> Alta
+                        </button>
+                        <button onclick="setPrioridade('Critica')" data-prio="Critica" class="prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-border text-slate-500 hover:border-faiston-pink hover:text-faiston-pink transition-all">
+                            <i class="ph ph-flag text-sm"></i> Crítica
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Status</label>
+                    <div class="border border-faiston-border rounded-xl overflow-hidden divide-y divide-faiston-border">
+                        <button onclick="setStatusTicket('aberto')" data-status="aberto" class="status-btn w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-left bg-faiston-purple/5 text-faiston-dark">
+                            <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-slate-300"></span> Aberto</span>
+                            <i class="ph ph-check text-faiston-purple"></i>
+                        </button>
+                        <button onclick="setStatusTicket('em_andamento')" data-status="em_andamento" class="status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-faiston-purple"></span> Em andamento
+                        </button>
+                        <button onclick="setStatusTicket('revisao')" data-status="revisao" class="status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-faiston-pink"></span> Em revisão
+                        </button>
+                        <button onclick="setStatusTicket('concluido')" data-status="concluido" class="status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors">
+                            <span class="w-2 h-2 rounded-full bg-faiston-cyan"></span> Concluído
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Anexos</label>
+                    <div class="border-2 border-dashed border-faiston-border rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-faiston-purple hover:bg-faiston-purple/5 transition-all">
+                        <i class="ph ph-paperclip text-2xl text-slate-300"></i>
+                        <p class="text-xs text-faiston-faint font-medium">Arraste arquivos ou clique para enviar</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Modal footer -->
+        <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-faiston-border bg-slate-50/50">
+            <button onclick="fecharModalTicket()" class="px-5 py-2.5 rounded-lg border border-faiston-border text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">Cancelar</button>
+            <button onclick="criarTicket()" class="px-5 py-2.5 rounded-lg btn-grad text-white text-sm font-semibold flex items-center gap-2">
+                <i class="ph ph-plus"></i> Criar ticket
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- POPUP DE NOTIFICAÇÃO -->
 <div id="popup-notif" class="hidden fixed bottom-5 right-5 z-50 max-w-sm w-full">
     <div class="bg-white rounded-xl border border-faiston-border shadow-2xl overflow-hidden" style="box-shadow:0 8px 32px rgba(91, 46, 224,0.15)">
