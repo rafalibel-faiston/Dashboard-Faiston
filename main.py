@@ -155,7 +155,7 @@ def me(faiston_token: str = Cookie(None)):
 @app.get("/api/usuarios")
 def listar_usuarios(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
