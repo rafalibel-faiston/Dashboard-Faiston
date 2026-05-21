@@ -468,38 +468,8 @@ async function init() {
         }
     } catch(e) {}
 
-    // Carrega funcionários: sidebar Backoffice + select do header
-    try {
-        const resFuncs = await fetch('/api/funcionarios');
-        if (!resFuncs.ok) { console.error('Erro ao carregar funcionários:', resFuncs.status); }
-        else {
-            const funcs = await resFuncs.json();
-            const FUNC_COLORS = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#a78bfa','#34d399'];
-            const listaSidebar = document.getElementById('lista-funcionarios-sidebar');
-            if (!listaSidebar) { console.error('Elemento lista-funcionarios-sidebar não encontrado'); }
-            else if (!funcs.length) {
-                listaSidebar.innerHTML = '<span class="text-xs text-slate-400 italic">Sem funcionários</span>';
-            } else {
-                listaSidebar.innerHTML = funcs.map((u, i) => {
-                    const cor = FUNC_COLORS[i % FUNC_COLORS.length];
-                    const nome = u.nome;
-                    const primeiro = nome.split(' ')[0];
-                    return `<a href="#" onclick="filtrarFuncionarioSidebar('${nome.replace(/'/g,"\\'")}'); return false;" data-func="${nome}" class="func-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative">
-                        <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full" style="background:${cor}"></div>
-                        ${primeiro}
-                    </a>`;
-                }).join('');
-
-                // Select do header
-                const sel = document.getElementById('filtro-funcionario');
-                funcs.forEach(u => {
-                    const opt = document.createElement('option');
-                    opt.value = u.nome; opt.textContent = u.nome.split(' ')[0];
-                    sel.appendChild(opt);
-                });
-            }
-        }
-    } catch(e) { console.error('Erro ao carregar funcionários:', e); }
+    // Funcionários são populados dentro de popularSidebarFuncionarios()
+    // chamado automaticamente após carregarDados() retornar os dados
     // Verifica notificações a cada 15 segundos
     await verificarNaoLidas();
     setInterval(verificarNaoLidas, 15000);
@@ -562,6 +532,44 @@ function filtrarFuncionarioSidebar(nome) {
     if (nome) mostrarToastFiltro(`Funcionário: ${nome.split(' ')[0]}`, '👤');
     carregarDados(clienteAtivo);
     return false;
+}
+
+const FUNC_COLORS_SB = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#a78bfa','#34d399'];
+let _sidebarFuncsCarregados = false;
+
+function popularSidebarFuncionarios(hpf) {
+    // Só popula uma vez (evita duplicar itens no auto-refresh)
+    if (_sidebarFuncsCarregados) return;
+    if (!hpf || !hpf.length) return;
+    _sidebarFuncsCarregados = true;
+
+    const listaSidebar = document.getElementById('lista-funcionarios-sidebar');
+    if (!listaSidebar) return;
+
+    const sel = document.getElementById('filtro-funcionario');
+
+    listaSidebar.innerHTML = hpf.map((u, i) => {
+        const cor = FUNC_COLORS_SB[i % FUNC_COLORS_SB.length];
+        const nome = u.nome;
+        const primeiro = nome.split(' ')[0];
+        return `<a href="#" onclick="filtrarFuncionarioSidebar('${nome.replace(/'/g,"\\'")}'); return false;"
+            data-func="${nome}"
+            class="func-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative">
+            <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full" style="background:${cor}"></div>
+            ${primeiro}
+        </a>`;
+    }).join('');
+
+    // Popula também o select do header (limpa antes para não duplicar)
+    if (sel) {
+        while (sel.options.length > 1) sel.remove(1);
+        hpf.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.nome;
+            opt.textContent = u.nome.split(' ')[0];
+            sel.appendChild(opt);
+        });
+    }
 }
 
 let statusFiltro = '';
@@ -657,6 +665,7 @@ async function carregarDados(cliente) {
         renderKPIs(data.kpis);
         renderCharts(data);
         renderTabela(data.recentes);
+        popularSidebarFuncionarios(data.horas_por_func || []);
     } catch(e) { console.error(e); }
 }
 
