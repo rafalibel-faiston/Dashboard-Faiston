@@ -22,6 +22,7 @@
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden selection:bg-faiston-cyan selection:text-faiston-dark">
 
@@ -208,7 +209,7 @@
     <!-- GRÁFICOS ROW 1 -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <!-- Tarefas por Funcionário -->
-        <div class="chart-card lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:#fff;border:1px solid #E5E8F0;box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+        <div class="chart-card bg-white border border-faiston-border lg:col-span-2 rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <div class="flex items-center justify-between mb-3">
                 <div>
                     <h3 class="text-sm font-bold text-faiston-dark">Tarefas por Funcionário</h3>
@@ -222,7 +223,7 @@
             <div id="chart-producao" style="min-height:260px;"></div>
         </div>
         <!-- Status da Fila -->
-        <div class="chart-card rounded-2xl p-5 flex flex-col" style="background:#fff;border:1px solid #E5E8F0;box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <div class="mb-1">
                 <h3 class="text-sm font-bold text-faiston-dark">Status da Fila</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">Distribuição por status</p>
@@ -234,7 +235,7 @@
     <!-- GRÁFICOS ROW 2 -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <!-- Esforço por Cliente -->
-        <div class="chart-card lg:col-span-2 rounded-2xl p-5 flex flex-col" style="background:#fff;border:1px solid #E5E8F0;box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+        <div class="chart-card bg-white border border-faiston-border lg:col-span-2 rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <div class="mb-3">
                 <h3 class="text-sm font-bold text-faiston-dark">Esforço por Cliente</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">Total de horas apontadas por cliente</p>
@@ -242,7 +243,7 @@
             <div id="chart-barras" class="flex-1" style="min-height:240px;"></div>
         </div>
         <!-- Funil -->
-        <div class="chart-card rounded-2xl p-5 flex flex-col" style="background:#fff;border:1px solid #E5E8F0;box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <div class="mb-3">
                 <h3 class="text-sm font-bold text-faiston-dark">Funil de Atendimento</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">Fluxo de abertura ao fechamento</p>
@@ -254,7 +255,7 @@
     <!-- GRÁFICOS ROW 3 - NOVOS -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <!-- Heatmap prioridades -->
-        <div class="chart-card rounded-2xl p-5 flex flex-col" style="background:#fff;border:1px solid #E5E8F0;box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <div class="mb-3">
                 <h3 class="text-sm font-bold text-faiston-dark">Tarefas por Prioridade</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">Distribuição Alta, Média e Baixa</p>
@@ -262,7 +263,7 @@
             <div id="chart-prioridade" style="min-height:220px;"></div>
         </div>
         <!-- Radar produtividade -->
-        <div class="chart-card rounded-2xl p-5 flex flex-col" style="background:#fff;border:1px solid #E5E8F0;box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <div class="mb-3">
                 <h3 class="text-sm font-bold text-faiston-dark">Taxa de Conclusão por Cliente</h3>
                 <p class="text-[11px] text-slate-400 mt-0.5">% de tarefas concluídas</p>
@@ -783,6 +784,9 @@ function renderCharts(data) {
         tooltip: ttLight
     });
     charts['conclusao'].render();
+
+    // Força ApexCharts a recalcular dimensões após o layout final
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 150);
 }
 
 const statusCfg = {
