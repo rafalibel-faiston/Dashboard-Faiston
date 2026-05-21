@@ -478,6 +478,8 @@ async function init() {
     // Verifica notificações a cada 15 segundos
     await verificarNaoLidas();
     setInterval(verificarNaoLidas, 15000);
+    // Auto-refresh dados a cada 60 segundos
+    setInterval(() => carregarDados(clienteAtivo), 60000);
 }
 
 async function fazerLogout() {
@@ -684,7 +686,7 @@ function renderCharts(data) {
                     formatter: () => totalFila } } } } },
         dataLabels: { enabled: false },
         legend: { position: 'bottom', fontSize: '12px', markers: { radius: 6 } },
-        stroke: { colors: ['#FFFFFF'], width: 4 },
+        stroke: { colors: [document.documentElement.getAttribute('data-theme')==='dark' ? '#11111E' : '#FFFFFF'], width: 4 },
         tooltip: ttLight
     });
     charts['status'].render();
@@ -852,6 +854,8 @@ function aplicarTema(dark) {
     if (icon) {
         icon.className = dark ? 'ph ph-sun text-faiston-cyan' : 'ph ph-moon text-slate-500';
     }
+    // Re-render charts so stroke colors update
+    if (typeof carregarDados === 'function') carregarDados(clienteAtivo);
 }
 
 function toggleTema() {
