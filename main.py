@@ -1251,12 +1251,20 @@ def _enviar_email(html: str, mes_nome: str, ano: int):
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     ctx = ssl.create_default_context()
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as s:
-        s.ehlo()
-        s.starttls(context=ctx)
-        s.ehlo()
-        s.login(smtp_user, smtp_pass)
-        s.sendmail(smtp_user, email_to, msg.as_string())
+    try:
+        # Tenta SSL direto na porta 465 primeiro
+        with smtplib.SMTP_SSL(smtp_host, 465, context=ctx, timeout=15) as s:
+            s.login(smtp_user, smtp_pass)
+            s.sendmail(smtp_user, email_to, msg.as_string())
+    except Exception as e1:
+        print(f"SMTP_SSL 465 falhou: {e1} — tentando STARTTLS 587")
+        # Fallback para STARTTLS na porta 587
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as s:
+            s.ehlo()
+            s.starttls(context=ctx)
+            s.ehlo()
+            s.login(smtp_user, smtp_pass)
+            s.sendmail(smtp_user, email_to, msg.as_string())
     print(f"Relatório {mes_nome}/{ano} enviado para {email_to}")
 
 
