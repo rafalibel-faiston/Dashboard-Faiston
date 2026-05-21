@@ -148,7 +148,7 @@
 
     <!-- Filtro rápido de clientes -->
     <div class="flex items-center gap-2 mb-5 flex-wrap" id="filtro-clientes-pills">
-        <button onclick="filtrarCliente('')" data-cliente="" class="cliente-pill px-3 py-1.5 rounded-full text-xs font-semibold border transition-all bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30">
+        <button onclick="filtrarCliente('')" data-cliente="" data-pillidx="0" class="cliente-pill px-3 py-1.5 rounded-full text-xs font-semibold border transition-all" style="background:rgba(6,215,230,0.15);color:#06D7E6;border-color:rgba(6,215,230,0.5);box-shadow:0 0 0 2px rgba(6,215,230,0.25)">
             Todos
         </button>
     </div>
@@ -452,19 +452,15 @@ async function init() {
         const resCls = await fetch('/api/clientes');
         if (resCls.ok) {
             const cls = await resCls.json();
-            const PILL_COLORS = [
-                { bg:'bg-faiston-cyan/10',   text:'text-faiston-cyan',   border:'border-faiston-cyan/30'   },
-                { bg:'bg-faiston-purple/10', text:'text-faiston-purple', border:'border-faiston-purple/30' },
-                { bg:'bg-faiston-magenta/10',text:'text-faiston-magenta',border:'border-faiston-magenta/30'},
-                { bg:'bg-pink-500/10',       text:'text-pink-500',       border:'border-pink-500/30'       },
-            ];
             const pillsWrap = document.getElementById('filtro-clientes-pills');
             cls.filter(c => c.ativo).forEach((c, i) => {
-                const col = PILL_COLORS[i % PILL_COLORS.length];
                 const nome = c.nome;
+                const idx = (i + 1) % 4; // +1 porque 0 é reservado pro pill "Todos"
                 const btn = document.createElement('button');
                 btn.dataset.cliente = nome;
-                btn.className = `cliente-pill px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${col.bg} ${col.text} ${col.border} opacity-60 hover:opacity-100`;
+                btn.dataset.pillidx = idx;
+                btn.className = 'cliente-pill px-3 py-1.5 rounded-full text-xs font-semibold border transition-all';
+                btn.style.cssText = PILL_STYLE_INACTIVE;
                 btn.textContent = nome;
                 btn.onclick = () => filtrarCliente(nome);
                 pillsWrap.appendChild(btn);
@@ -513,19 +509,27 @@ async function fazerLogout() {
     window.location.href = '/';
 }
 
+const PILL_STYLE_ACTIVE = [
+    'background:rgba(6,215,230,0.15);color:#06D7E6;border-color:rgba(6,215,230,0.5);box-shadow:0 0 0 2px rgba(6,215,230,0.25)',
+    'background:rgba(91,46,224,0.15);color:#5B2EE0;border-color:rgba(91,46,224,0.5);box-shadow:0 0 0 2px rgba(91,46,224,0.25)',
+    'background:rgba(184,38,201,0.15);color:#B826C9;border-color:rgba(184,38,201,0.5);box-shadow:0 0 0 2px rgba(184,38,201,0.25)',
+    'background:rgba(236,72,153,0.15);color:#EC4899;border-color:rgba(236,72,153,0.5);box-shadow:0 0 0 2px rgba(236,72,153,0.25)',
+];
+const PILL_STYLE_INACTIVE = 'background:transparent;color:#9097AC;border-color:rgba(148,163,184,0.3);box-shadow:none';
+
 function filtrarCliente(cliente) {
     clienteAtivo = cliente;
-    // Atualiza pills de cliente
     document.querySelectorAll('.cliente-pill').forEach(el => {
-        const isActive = el.dataset.cliente === cliente;
-        el.classList.toggle('opacity-100', isActive);
-        el.classList.toggle('opacity-60', !isActive);
-        el.classList.toggle('ring-2', isActive);
-        el.classList.toggle('ring-offset-1', isActive);
+        if (el.dataset.cliente === cliente) {
+            const idx = parseInt(el.dataset.pillidx || '0');
+            el.style.cssText = PILL_STYLE_ACTIVE[idx % PILL_STYLE_ACTIVE.length];
+        } else {
+            el.style.cssText = PILL_STYLE_INACTIVE;
+        }
     });
-    // Atualiza header
     document.getElementById('header-titulo').textContent = cliente ? cliente : 'Visão Geral';
     document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
+    if (cliente) mostrarToastFiltro(`Cliente: ${cliente}`, '🏢');
     carregarDados(cliente);
     return false;
 }
