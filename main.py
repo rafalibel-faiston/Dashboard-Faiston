@@ -165,6 +165,19 @@ def listar_usuarios(faiston_token: str = Cookie(None)):
         return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/funcionarios")
+def listar_funcionarios(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM usuarios WHERE perfil='funcionario' AND ativo=TRUE ORDER BY nome")
+        rows = cur.fetchall(); cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/usuarios")
 def criar_usuario(u: NovoUsuario, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
