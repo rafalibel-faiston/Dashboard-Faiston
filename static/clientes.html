@@ -21,6 +21,7 @@
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
 
@@ -429,6 +430,13 @@ async function deletar(id, nome) {
     if (!confirm(`Desativar o cliente "${nome}"?`)) return;
     await fetch(`/api/clientes/${id}`, { method: 'DELETE' });
     carregar();
+}
+
+function toggleTema() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const novo = !isDark;
+    localStorage.setItem('faiston_tema', novo ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', novo ? 'dark' : 'light');
 }
 
 document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });

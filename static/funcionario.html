@@ -18,6 +18,8 @@
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
     <style>
         :root {
             --grad: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
@@ -63,6 +65,9 @@
             <i class="ph ph-plus-circle text-lg"></i> Nova Tarefa
         </button>
 
+        <button onclick="toggleTemaFunc()" id="btn-tema-f" class="btn-theme" title="Alternar tema">
+            <i class="ph ph-moon" id="icon-tema-f"></i>
+        </button>
         <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
             <i class="ph ph-sign-out"></i> Sair
         </button>
@@ -762,6 +767,19 @@ async function enviarComentario() {
 document.getElementById('modal-comentarios').addEventListener('click', e => {
     if (e.target === document.getElementById('modal-comentarios')) fecharComentarios();
 });
+
+function toggleTemaFunc() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const novo = !isDark;
+    localStorage.setItem('faiston_tema', novo ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', novo ? 'dark' : 'light');
+    const icon = document.getElementById('icon-tema-f');
+    if (icon) icon.className = novo ? 'ph ph-sun text-faiston-cyan' : 'ph ph-moon';
+}
+(function() {
+    const icon = document.getElementById('icon-tema-f');
+    if (icon && localStorage.getItem('faiston_tema') === 'dark') icon.className = 'ph ph-sun text-faiston-cyan';
+})();
 
 init();
 </script>

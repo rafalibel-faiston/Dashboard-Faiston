@@ -20,6 +20,8 @@
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
     <style>
         .custom-scrollbar::-webkit-scrollbar{width:5px;height:5px}
         .custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
@@ -43,6 +45,9 @@
     <div class="flex items-center gap-3">
         <button onclick="exportarCSV()" class="flex items-center gap-2 bg-faiston-cyan/10 border border-faiston-cyan/30 text-faiston-cyan px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-faiston-cyan/20 transition-colors">
             <i class="ph ph-download-simple"></i> Exportar
+        </button>
+        <button onclick="toggleTema()" id="btn-tema-h" class="btn-theme" title="Alternar tema">
+            <i class="ph ph-moon" id="icon-tema-h"></i>
         </button>
         <button onclick="logout()" class="text-faiston-faint hover:text-faiston-pink transition-colors">
             <i class="ph ph-sign-out text-lg"></i>
@@ -115,14 +120,14 @@
             </div>
         </div>
         <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-pink-50 flex items-center justify-center text-faiston-magenta"><i class="ph ph-clock text-lg"></i></div>
+            <div class="w-9 h-9 rounded-lg bg-faiston-magenta/10 flex items-center justify-center text-faiston-magenta"><i class="ph ph-clock text-lg"></i></div>
             <div>
                 <p class="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">Horas no filtro</p>
                 <p class="text-xl font-black text-faiston-dark" id="r-horas">—</p>
             </div>
         </div>
         <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
-            <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-faiston-cyan"><i class="ph ph-check-circle text-lg"></i></div>
+            <div class="w-9 h-9 rounded-lg bg-faiston-cyan/10 flex items-center justify-center text-faiston-cyan"><i class="ph ph-check-circle text-lg"></i></div>
             <div>
                 <p class="text-[11px] text-slate-400 uppercase tracking-wide font-semibold">Concluídas</p>
                 <p class="text-xl font-black text-faiston-cyan" id="r-concluidas">—</p>
@@ -356,6 +361,19 @@ function exportarCSV() {
     });
     window.location.href = '/api/exportar?' + params;
 }
+
+function toggleTema() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const novo = !isDark;
+    localStorage.setItem('faiston_tema', novo ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', novo ? 'dark' : 'light');
+    const icon = document.getElementById('icon-tema-h');
+    if (icon) icon.className = novo ? 'ph ph-sun text-faiston-cyan' : 'ph ph-moon';
+}
+(function() {
+    const icon = document.getElementById('icon-tema-h');
+    if (icon && localStorage.getItem('faiston_tema') === 'dark') icon.className = 'ph ph-sun text-faiston-cyan';
+})();
 
 init();
 </script>
