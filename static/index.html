@@ -45,11 +45,11 @@
                     </a>
                     <div id="submenu-clientes" class="flex flex-col pl-9 py-3 gap-3 relative">
                         <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
-                        <a href="#" onclick="filtrarCliente(''); return false;" data-cliente="" class="cliente-link text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
+                        <a href="#" onclick="filtrarFuncionarioSidebar(''); return false;" data-func="" class="func-link text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan shadow-[0_0_8px_#06D7E6] animate-pulse" id="dot-geral"></div>
-                            Visão Geral
+                            Todos
                         </a>
-                        <div id="lista-clientes-sidebar"></div>
+                        <div id="lista-funcionarios-sidebar"></div>
                     </div>
                 </div>
             </nav>
@@ -145,6 +145,13 @@
             </div>
         </div>
     </header>
+
+    <!-- Filtro rápido de clientes -->
+    <div class="flex items-center gap-2 mb-5 flex-wrap" id="filtro-clientes-pills">
+        <button onclick="filtrarCliente('')" data-cliente="" class="cliente-pill px-3 py-1.5 rounded-full text-xs font-semibold border transition-all bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30">
+            Todos
+        </button>
+    </div>
 
     <!-- KPIs -->
     <div class="grid grid-cols-4 gap-4 mb-6">
@@ -440,35 +447,54 @@ async function init() {
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
 
-    // Carrega clientes para a sidebar e para o filtro do modal
+    // Carrega clientes: pills no dashboard + select do modal
     try {
         const resCls = await fetch('/api/clientes');
         if (resCls.ok) {
             const cls = await resCls.json();
-            const DOT_COLORS = ['#06D7E6','#5B2EE0','#EC4899','#06D7E6','#B826C9','#EC4899'];
-            const listaSidebar = document.getElementById('lista-clientes-sidebar');
-            listaSidebar.innerHTML = cls.filter(c => c.ativo).map((c, i) => {
-                const cor = DOT_COLORS[i % DOT_COLORS.length];
+            const PILL_COLORS = [
+                { bg:'bg-faiston-cyan/10',   text:'text-faiston-cyan',   border:'border-faiston-cyan/30'   },
+                { bg:'bg-faiston-purple/10', text:'text-faiston-purple', border:'border-faiston-purple/30' },
+                { bg:'bg-faiston-magenta/10',text:'text-faiston-magenta',border:'border-faiston-magenta/30'},
+                { bg:'bg-pink-500/10',       text:'text-pink-500',       border:'border-pink-500/30'       },
+            ];
+            const pillsWrap = document.getElementById('filtro-clientes-pills');
+            cls.filter(c => c.ativo).forEach((c, i) => {
+                const col = PILL_COLORS[i % PILL_COLORS.length];
                 const nome = c.nome;
-                const url = '/relatorio/' + encodeURIComponent(nome);
-                return `<div class="flex items-center justify-between relative group">
-                    <a href="#" onclick="filtrarCliente('${nome.replace(/'/g,"\\'")}'); return false;" data-cliente="${nome}" class="cliente-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3">
-                        <div class="cliente-dot absolute -left-[13px] w-1.5 h-1.5 rounded-full transition-colors" style="background:${cor}"></div>
-                        ${nome}
-                    </a>
-                    <a href="${url}" target="_blank" class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300 hover:text-faiston-cyan ml-2" title="Ver relatório"><i class="ph ph-arrow-square-out text-xs"></i></a>
-                </div>`;
-            }).join('');
+                const btn = document.createElement('button');
+                btn.dataset.cliente = nome;
+                btn.className = `cliente-pill px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${col.bg} ${col.text} ${col.border} opacity-60 hover:opacity-100`;
+                btn.textContent = nome;
+                btn.onclick = () => filtrarCliente(nome);
+                pillsWrap.appendChild(btn);
+            });
         }
     } catch(e) {}
 
-    // Carrega lista de funcionários para o filtro
+    // Carrega funcionários: sidebar Backoffice + select do header
     try {
         const resFuncs = await fetch('/api/usuarios');
         if (resFuncs.ok) {
             const funcs = await resFuncs.json();
+            const ativos = funcs.filter(u => u.perfil === 'funcionario');
+
+            // Sidebar Backoffice
+            const FUNC_COLORS = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#a78bfa','#34d399'];
+            const listaSidebar = document.getElementById('lista-funcionarios-sidebar');
+            listaSidebar.innerHTML = ativos.map((u, i) => {
+                const cor = FUNC_COLORS[i % FUNC_COLORS.length];
+                const nome = u.nome;
+                const primeiro = nome.split(' ')[0];
+                return `<a href="#" onclick="filtrarFuncionarioSidebar('${nome.replace(/'/g,"\\'")}'); return false;" data-func="${nome}" class="func-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative">
+                    <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full" style="background:${cor}"></div>
+                    ${primeiro}
+                </a>`;
+            }).join('');
+
+            // Select do header
             const sel = document.getElementById('filtro-funcionario');
-            funcs.filter(u => u.perfil === 'funcionario').forEach(u => {
+            ativos.forEach(u => {
                 const opt = document.createElement('option');
                 opt.value = u.nome; opt.textContent = u.nome.split(' ')[0];
                 sel.appendChild(opt);
@@ -489,18 +515,45 @@ async function fazerLogout() {
 
 function filtrarCliente(cliente) {
     clienteAtivo = cliente;
-    // Atualiza sidebar — links dinâmicos e estáticos
-    document.querySelectorAll('.cliente-link').forEach(el => {
+    // Atualiza pills de cliente
+    document.querySelectorAll('.cliente-pill').forEach(el => {
         const isActive = el.dataset.cliente === cliente;
-        el.classList.toggle('font-bold', isActive);
-        el.classList.toggle('text-faiston-cyan', isActive);
-        el.classList.toggle('text-slate-500', !isActive && el.dataset.cliente !== '');
-        el.classList.toggle('font-medium', !isActive);
+        el.classList.toggle('opacity-100', isActive);
+        el.classList.toggle('opacity-60', !isActive);
+        el.classList.toggle('ring-2', isActive);
+        el.classList.toggle('ring-offset-1', isActive);
     });
     // Atualiza header
     document.getElementById('header-titulo').textContent = cliente ? cliente : 'Visão Geral';
     document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
     carregarDados(cliente);
+    return false;
+}
+
+function filtrarFuncionarioSidebar(nome) {
+    // Atualiza destaques na sidebar
+    document.querySelectorAll('.func-link').forEach(el => {
+        const isActive = el.dataset.func === nome;
+        el.classList.toggle('font-bold', isActive);
+        el.classList.toggle('text-faiston-cyan', isActive);
+        el.classList.toggle('text-slate-500', !isActive);
+        el.classList.toggle('font-medium', !isActive);
+    });
+    // Sincroniza com o select do header e filtra
+    const sel = document.getElementById('filtro-funcionario');
+    if (sel) {
+        if (funcionarioFiltro === nome && nome !== '') {
+            funcionarioFiltro = '';
+            sel.value = '';
+        } else {
+            funcionarioFiltro = nome;
+            for (let opt of sel.options) {
+                if (opt.value === nome) { sel.value = nome; break; }
+            }
+        }
+    }
+    if (nome) mostrarToastFiltro(`Funcionário: ${nome.split(' ')[0]}`, '👤');
+    carregarDados(clienteAtivo);
     return false;
 }
 
