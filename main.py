@@ -1295,8 +1295,13 @@ def preview_relatorio(mes: int = 0, ano: int = 0, faiston_token: str = Cookie(No
         raise HTTPException(status_code=403)
     hoje = date.today()
     if not mes:
+        # Tenta mês anterior; se vazio, usa mês atual
         ref = (hoje.replace(day=1) - timedelta(days=1))
-        mes, ano = ref.month, ref.year
+        d = _coletar_dados_mes(ref.month, ref.year)
+        if not d or d.get("total", 0) == 0:
+            mes, ano = hoje.month, hoje.year
+        else:
+            mes, ano = ref.month, ref.year
     if not ano:
         ano = hoje.year
     d = _coletar_dados_mes(ano, mes)
@@ -1310,8 +1315,13 @@ def enviar_relatorio_manual(mes: int = 0, ano: int = 0, faiston_token: str = Coo
         raise HTTPException(status_code=403)
     hoje = date.today()
     if not mes:
+        # Tenta mês anterior; se vazio, usa mês atual
         ref = (hoje.replace(day=1) - timedelta(days=1))
-        mes, ano = ref.month, ref.year
+        d_test = _coletar_dados_mes(ref.month, ref.year)
+        if not d_test or d_test.get("total", 0) == 0:
+            mes, ano = hoje.month, hoje.year
+        else:
+            mes, ano = ref.month, ref.year
     if not ano:
         ano = hoje.year
     d = _coletar_dados_mes(ano, mes)
