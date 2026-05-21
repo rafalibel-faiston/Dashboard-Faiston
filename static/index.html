@@ -470,33 +470,36 @@ async function init() {
 
     // Carrega funcionários: sidebar Backoffice + select do header
     try {
-        const resFuncs = await fetch('/api/usuarios');
-        if (resFuncs.ok) {
+        const resFuncs = await fetch('/api/funcionarios');
+        if (!resFuncs.ok) { console.error('Erro ao carregar funcionários:', resFuncs.status); }
+        else {
             const funcs = await resFuncs.json();
-            const ativos = funcs.filter(u => u.perfil === 'funcionario');
-
-            // Sidebar Backoffice
             const FUNC_COLORS = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#a78bfa','#34d399'];
             const listaSidebar = document.getElementById('lista-funcionarios-sidebar');
-            listaSidebar.innerHTML = ativos.map((u, i) => {
-                const cor = FUNC_COLORS[i % FUNC_COLORS.length];
-                const nome = u.nome;
-                const primeiro = nome.split(' ')[0];
-                return `<a href="#" onclick="filtrarFuncionarioSidebar('${nome.replace(/'/g,"\\'")}'); return false;" data-func="${nome}" class="func-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative">
-                    <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full" style="background:${cor}"></div>
-                    ${primeiro}
-                </a>`;
-            }).join('');
+            if (!listaSidebar) { console.error('Elemento lista-funcionarios-sidebar não encontrado'); }
+            else if (!funcs.length) {
+                listaSidebar.innerHTML = '<span class="text-xs text-slate-400 italic">Sem funcionários</span>';
+            } else {
+                listaSidebar.innerHTML = funcs.map((u, i) => {
+                    const cor = FUNC_COLORS[i % FUNC_COLORS.length];
+                    const nome = u.nome;
+                    const primeiro = nome.split(' ')[0];
+                    return `<a href="#" onclick="filtrarFuncionarioSidebar('${nome.replace(/'/g,"\\'")}'); return false;" data-func="${nome}" class="func-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative">
+                        <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full" style="background:${cor}"></div>
+                        ${primeiro}
+                    </a>`;
+                }).join('');
 
-            // Select do header
-            const sel = document.getElementById('filtro-funcionario');
-            ativos.forEach(u => {
-                const opt = document.createElement('option');
-                opt.value = u.nome; opt.textContent = u.nome.split(' ')[0];
-                sel.appendChild(opt);
-            });
+                // Select do header
+                const sel = document.getElementById('filtro-funcionario');
+                funcs.forEach(u => {
+                    const opt = document.createElement('option');
+                    opt.value = u.nome; opt.textContent = u.nome.split(' ')[0];
+                    sel.appendChild(opt);
+                });
+            }
         }
-    } catch(e) {}
+    } catch(e) { console.error('Erro ao carregar funcionários:', e); }
     // Verifica notificações a cada 15 segundos
     await verificarNaoLidas();
     setInterval(verificarNaoLidas, 15000);
