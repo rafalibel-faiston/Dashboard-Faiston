@@ -1288,7 +1288,7 @@ except ImportError:
 
 # ─── Endpoints de relatório ───
 
-@app.get("/api/relatorio/preview", response_class=HTMLResponse)
+@app.get("/api/relatorio-mensal/preview", response_class=HTMLResponse)
 def preview_relatorio(mes: int = 0, ano: int = 0, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor"):
@@ -1303,7 +1303,7 @@ def preview_relatorio(mes: int = 0, ano: int = 0, faiston_token: str = Cookie(No
     return HTMLResponse(_gerar_html_relatorio(d))
 
 
-@app.post("/api/relatorio/enviar")
+@app.post("/api/relatorio-mensal/enviar")
 def enviar_relatorio_manual(mes: int = 0, ano: int = 0, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor"):

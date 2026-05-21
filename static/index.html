@@ -68,7 +68,7 @@
                     <i class="ph ph-presentation-chart text-lg"></i> Apresentação
                 </a>
                 <div class="flex items-center gap-1">
-                    <a href="/api/relatorio/preview" target="_blank" class="flex-1 flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <a href="/api/relatorio-mensal/preview" target="_blank" class="flex-1 flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                         <i class="ph ph-file-pdf text-lg"></i> Relatório Mensal
                     </a>
                     <button onclick="enviarRelatorio()" title="Enviar por email agora" id="btn-enviar-relatorio"
@@ -492,7 +492,7 @@ async function enviarRelatorio() {
     btn.disabled = true;
     icon.className = 'ph ph-circle-notch text-base animate-spin';
     try {
-        const res = await fetch('/api/relatorio/enviar', { method: 'POST' });
+        const res = await fetch('/api/relatorio-mensal/enviar', { method: 'POST' });
         const data = await res.json();
         if (res.ok) {
             mostrarToastFiltro(data.mensagem || 'Relatório enviado!', '📧');
