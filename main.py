@@ -1251,9 +1251,10 @@ def _enviar_email(html: str, mes_nome: str, ano: int):
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     ctx = ssl.create_default_context()
-    with smtplib.SMTP(smtp_host, smtp_port) as s:
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as s:
         s.ehlo()
         s.starttls(context=ctx)
+        s.ehlo()
         s.login(smtp_user, smtp_pass)
         s.sendmail(smtp_user, email_to, msg.as_string())
     print(f"Relatório {mes_nome}/{ano} enviado para {email_to}")

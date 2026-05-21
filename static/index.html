@@ -492,7 +492,10 @@ async function enviarRelatorio() {
     btn.disabled = true;
     icon.className = 'ph ph-circle-notch text-base animate-spin';
     try {
-        const res = await fetch('/api/relatorio-mensal/enviar', { method: 'POST' });
+        const ctrl = new AbortController();
+        const tmo = setTimeout(() => ctrl.abort(), 20000);
+        const res = await fetch('/api/relatorio-mensal/enviar', { method: 'POST', signal: ctrl.signal });
+        clearTimeout(tmo);
         const data = await res.json();
         if (res.ok) {
             mostrarToastFiltro(data.mensagem || 'Relatório enviado!', '📧');
@@ -504,7 +507,8 @@ async function enviarRelatorio() {
             btn.disabled = false;
         }
     } catch(e) {
-        mostrarToastFiltro('Erro de conexão', '❌');
+        const msg = e.name === 'AbortError' ? 'Timeout — verifique SMTP_USER e SMTP_PASS' : 'Erro de conexão';
+        mostrarToastFiltro(msg, '❌');
         icon.className = 'ph ph-paper-plane-tilt text-base';
         btn.disabled = false;
     }
