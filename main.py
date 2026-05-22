@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Response, Cookie
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
+from typing import Optional
 import psycopg2
 import smtplib, ssl
 from email.mime.multipart import MIMEMultipart
@@ -117,6 +118,7 @@ class TarefaModel(BaseModel):
     prioridade: str = "Media"
     status: str = "aberto"
     segundos: int = 0
+    funcionario_id: Optional[int] = None
 
 class AtualizarSegundos(BaseModel):
     segundos: int
@@ -260,8 +262,14 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        # Gestor/admin pode atribuir a outro funcionário via funcionario_id
+        uid = sess["id"]
+        if t.funcionario_id and sess["perfil"] in ("admin", "gestor"):
+            cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (t.funcionario_id,))
+            if cur.fetchone():
+                uid = t.funcionario_id
         cur.execute("INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
-                    (sess["id"], t.descricao, t.cliente, t.prioridade, t.status, t.segundos))
+                    (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos))
         new_id = cur.fetchone()[0]
         criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]")
         conn.commit(); cur.close(); conn.close()
