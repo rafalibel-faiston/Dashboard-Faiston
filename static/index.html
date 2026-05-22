@@ -222,6 +222,21 @@
         </div>
     </div>
 
+    <!-- VIEW TOGGLE -->
+    <div class="view-tab-wrap flex items-center gap-1 mb-5 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+        <button onclick="switchView('metricas')" id="btn-view-metricas"
+            class="view-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+            <i class="ph ph-chart-bar text-base"></i> Métricas
+        </button>
+        <button onclick="switchView('kanban')" id="btn-view-kanban"
+            class="view-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-kanban text-base"></i> Kanban
+        </button>
+    </div>
+
+    <div id="view-metricas">
     <!-- GRÁFICOS ROW 1 -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <!-- Tarefas por Funcionário -->
@@ -310,6 +325,50 @@
             </table>
         </div>
     </div>
+    </div><!-- /view-metricas -->
+
+    <!-- KANBAN GESTOR -->
+    <div id="view-kanban" class="hidden">
+        <div class="grid grid-cols-3 gap-5">
+
+            <!-- ABERTO -->
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
+                    <span class="text-xs font-bold text-faiston-muted uppercase tracking-wider">Aberto</span>
+                    <span class="ml-auto text-xs font-bold bg-slate-100 text-faiston-muted px-2 py-0.5 rounded-full" id="gk-badge-aberto">0</span>
+                </div>
+                <div id="gk-aberto" class="rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="background:rgba(241,245,249,0.7);max-height:calc(100vh - 320px)">
+                    <div class="text-center py-16 text-slate-300"><i class="ph ph-tray text-3xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
+                </div>
+            </div>
+
+            <!-- EM ANDAMENTO -->
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-faiston-purple pulse-dot"></div>
+                    <span class="text-xs font-bold text-faiston-purple uppercase tracking-wider">Em Andamento</span>
+                    <span class="ml-auto text-xs font-bold bg-faiston-purple/10 text-faiston-purple px-2 py-0.5 rounded-full" id="gk-badge-em_andamento">0</span>
+                </div>
+                <div id="gk-em_andamento" class="bg-faiston-purple/5 rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="max-height:calc(100vh - 320px)">
+                    <div class="text-center py-16 text-slate-300"><i class="ph ph-tray text-3xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
+                </div>
+            </div>
+
+            <!-- CONCLUÍDO -->
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-faiston-cyan"></div>
+                    <span class="text-xs font-bold text-faiston-cyan uppercase tracking-wider">Concluído</span>
+                    <span class="ml-auto text-xs font-bold bg-faiston-cyan/10 text-faiston-cyan px-2 py-0.5 rounded-full" id="gk-badge-concluido">0</span>
+                </div>
+                <div id="gk-concluido" class="bg-faiston-cyan/5 rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="max-height:calc(100vh - 320px)">
+                    <div class="text-center py-16 text-slate-300"><i class="ph ph-tray text-3xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
+                </div>
+            </div>
+
+        </div>
+    </div><!-- /view-kanban -->
 </main>
 
 
@@ -703,6 +762,7 @@ async function carregarDados(cliente) {
         renderCharts(data);
         renderTabela(data.recentes);
         popularSidebarFuncionarios(data.horas_por_func || []);
+        if (vistaAtiva === 'kanban') await carregarTarefasKanban();
     } catch(e) { console.error(e); }
 }
 
@@ -962,6 +1022,8 @@ function aplicarTema(dark) {
     }
     // Re-render charts so stroke colors update
     if (typeof carregarDados === 'function') carregarDados(clienteAtivo);
+    // Re-apply active tab button style with correct theme colors
+    if (typeof switchView === 'function') switchView(vistaAtiva);
 }
 
 function toggleTema() {
@@ -1138,6 +1200,118 @@ async function criarTicket() {
 document.getElementById('modal-ticket').addEventListener('click', e => {
     if (e.target === document.getElementById('modal-ticket')) fecharModalTicket();
 });
+
+// ── KANBAN GESTOR ─────────────────────────────────────────────────────
+let vistaAtiva = 'metricas';
+let todasTarefasKanban = [];
+
+const GK_CLIENT_PALETTE = ['#5B2EE0','#06D7E6','#B826C9','#EC4899','#a78bfa','#34d399','#f59e0b','#3b82f6'];
+const GK_FUNC_PALETTE   = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#f59e0b','#34d399'];
+const gkClientColors = {}, gkFuncColors = {};
+let gkCI = 0, gkFI = 0;
+function gkClientColor(n){ if(!gkClientColors[n]) gkClientColors[n]=GK_CLIENT_PALETTE[gkCI++%GK_CLIENT_PALETTE.length]; return gkClientColors[n]; }
+function gkFuncColor(n){   if(!gkFuncColors[n])   gkFuncColors[n]=GK_FUNC_PALETTE[gkFI++%GK_FUNC_PALETTE.length];   return gkFuncColors[n]; }
+
+function switchView(view) {
+    vistaAtiva = view;
+    document.getElementById('view-metricas').classList.toggle('hidden', view !== 'metricas');
+    document.getElementById('view-kanban').classList.toggle('hidden', view !== 'kanban');
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const ACTIVE  = isDark
+        ? 'background:#11111E;color:#F1F2F8;box-shadow:0 1px 4px rgba(0,0,0,0.5)'
+        : 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+    const INACTIVE = 'background:transparent;color:#9097AC;box-shadow:none';
+
+    document.getElementById('btn-view-metricas').style.cssText = view==='metricas' ? ACTIVE : INACTIVE;
+    document.getElementById('btn-view-kanban').style.cssText   = view==='kanban'   ? ACTIVE : INACTIVE;
+
+    if (view === 'kanban') carregarTarefasKanban();
+}
+
+async function carregarTarefasKanban() {
+    try {
+        const res = await fetch('/api/tarefas');
+        if (!res.ok) return;
+        todasTarefasKanban = await res.json();
+        renderKanbanGestor();
+    } catch(e) { console.error(e); }
+}
+
+function renderKanbanGestor() {
+    const fc = clienteAtivo;
+    const ff = (document.getElementById('filtro-funcionario')?.value || '').toLowerCase();
+
+    ['aberto','em_andamento','concluido'].forEach(status => {
+        const col   = document.getElementById(`gk-${status}`);
+        const badge = document.getElementById(`gk-badge-${status}`);
+        if (!col || !badge) return;
+
+        const filtered = todasTarefasKanban.filter(t => {
+            if (t.status !== status) return false;
+            if (fc && t.cliente !== fc) return false;
+            if (ff && !t.funcionario.toLowerCase().includes(ff)) return false;
+            return true;
+        });
+
+        badge.textContent = filtered.length;
+
+        if (!filtered.length) {
+            col.innerHTML = `<div class="text-center py-16 text-slate-300">
+                <i class="ph ph-tray text-3xl mb-2 block"></i>
+                <p class="text-xs">Nenhuma tarefa</p></div>`;
+            return;
+        }
+
+        // Agrupa por funcionário
+        const byFunc = {};
+        filtered.forEach(t => { if (!byFunc[t.funcionario]) byFunc[t.funcionario]=[]; byFunc[t.funcionario].push(t); });
+
+        col.innerHTML = Object.entries(byFunc).map(([func, funcTasks]) => {
+            const fColor  = gkFuncColor(func);
+            const initial = func.charAt(0).toUpperCase();
+            const isDone  = status === 'concluido';
+
+            const cards = funcTasks.map(t => {
+                const cColor = gkClientColor(t.cliente);
+                const h = Math.floor(t.segundos/3600);
+                const m = Math.floor((t.segundos%3600)/60);
+                const timeLabel = t.segundos > 0 ? `${h}h${String(m).padStart(2,'0')}m` : '—';
+                const prioMap = {
+                    'Alta':  'background:rgba(236,72,153,0.12);color:#EC4899',
+                    'Media': 'background:rgba(91,46,224,0.12);color:#5B2EE0',
+                    'Baixa': 'background:rgba(6,215,230,0.12);color:#06D7E6'
+                };
+                const prioStyle = prioMap[t.prioridade] || prioMap['Media'];
+                const accentBar = status==='em_andamento' ? '<div class="absolute top-0 left-0 right-0 h-[3px] grad-bg rounded-t-xl"></div>' : '';
+
+                return `<div class="gestor-card relative bg-white rounded-xl border border-faiston-border p-3 ${isDone ? 'opacity-55' : ''}" style="transition:transform .15s ease,box-shadow .2s ease">
+                    ${accentBar}
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded border" style="${prioStyle};border-color:currentColor;border-opacity:0.2">${t.prioridade}</span>
+                        <span class="font-mono text-[10px] font-bold ${t.segundos>0?'text-faiston-purple':'text-slate-300'}">${timeLabel}</span>
+                    </div>
+                    <p class="text-sm font-semibold text-faiston-dark leading-snug mb-2.5 ${isDone?'line-through text-faiston-faint':''}">${t.descricao}</p>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${cColor}"></div>
+                        <span class="text-[10px] font-bold truncate" style="color:${cColor}">${t.cliente}</span>
+                    </div>
+                </div>`;
+            }).join('');
+
+            return `<div class="mb-5">
+                <div class="flex items-center gap-2 mb-2 px-0.5">
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm" style="background:${fColor}">${initial}</div>
+                    <span class="text-xs font-bold text-faiston-dark">${func.split(' ').slice(0,2).join(' ')}</span>
+                    <span class="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full" style="background:${fColor}18;color:${fColor}">${funcTasks.length}</span>
+                </div>
+                <div class="flex flex-col gap-2">${cards}</div>
+            </div>`;
+        }).join('');
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────
 
 init();
 </script>
