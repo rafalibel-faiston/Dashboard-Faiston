@@ -375,6 +375,12 @@
 <script>
 let clienteAtivo = '';
 let charts = {};
+let vistaAtiva = 'metricas';
+let todasTarefasKanban = [];
+const GK_CLIENT_PALETTE = ['#5B2EE0','#06D7E6','#B826C9','#EC4899','#a78bfa','#34d399','#f59e0b','#3b82f6'];
+const GK_FUNC_PALETTE   = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#f59e0b','#34d399'];
+const gkClientColors = {}, gkFuncColors = {};
+let gkCI = 0, gkFI = 0;
 const cor_cyan='#06D7E6', cor_purple='#5B2EE0', cor_magenta='#EC4899', cor_dark='#0B0D1F';
 
 let menuAberto = true;
@@ -1202,13 +1208,6 @@ document.getElementById('modal-ticket').addEventListener('click', e => {
 });
 
 // ── KANBAN GESTOR ─────────────────────────────────────────────────────
-let vistaAtiva = 'metricas';
-let todasTarefasKanban = [];
-
-const GK_CLIENT_PALETTE = ['#5B2EE0','#06D7E6','#B826C9','#EC4899','#a78bfa','#34d399','#f59e0b','#3b82f6'];
-const GK_FUNC_PALETTE   = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#f59e0b','#34d399'];
-const gkClientColors = {}, gkFuncColors = {};
-let gkCI = 0, gkFI = 0;
 function gkClientColor(n){ if(!gkClientColors[n]) gkClientColors[n]=GK_CLIENT_PALETTE[gkCI++%GK_CLIENT_PALETTE.length]; return gkClientColors[n]; }
 function gkFuncColor(n){   if(!gkFuncColors[n])   gkFuncColors[n]=GK_FUNC_PALETTE[gkFI++%GK_FUNC_PALETTE.length];   return gkFuncColors[n]; }
 
