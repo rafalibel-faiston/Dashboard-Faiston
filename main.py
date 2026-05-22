@@ -1235,37 +1235,56 @@ def _gerar_html_relatorio(d: dict) -> str:
 
 
 def _enviar_email(html: str, mes_nome: str, ano: int):
+    email_to = os.environ.get("EMAIL_RELATORIO", "rafael.libel@faiston.com")
+    subject  = f"Relatório Faiston OPS · {mes_nome} {ano}"
+
+    # ── Resend (recomendado no Railway) ──────────────────────────────
+    resend_key = os.environ.get("RESEND_API_KEY", "")
+    if resend_key:
+        import urllib.request, json as _json
+        payload = _json.dumps({
+            "from": "Faiston OPS <onboarding@resend.dev>",
+            "to": [email_to],
+            "subject": subject,
+            "html": html,
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = _json.loads(resp.read())
+        print(f"Resend OK — id {result.get('id')} — {mes_nome}/{ano} → {email_to}")
+        return
+
+    # ── Fallback SMTP (Gmail) ─────────────────────────────────────────
     smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     smtp_port = int(os.environ.get("SMTP_PORT", "587"))
     smtp_user = os.environ.get("SMTP_USER", "")
     smtp_pass = os.environ.get("SMTP_PASS", "")
-    email_to  = os.environ.get("EMAIL_RELATORIO", "rafael.libel@faiston.com")
-
     if not smtp_user or not smtp_pass:
-        raise ValueError("SMTP_USER e SMTP_PASS não configurados")
+        raise ValueError("Configure RESEND_API_KEY (recomendado) ou SMTP_USER + SMTP_PASS")
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"📊 Relatório Faiston OPS · {mes_nome} {ano}"
+    msg["Subject"] = subject
     msg["From"]    = f"Faiston OPS <{smtp_user}>"
     msg["To"]      = email_to
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     ctx = ssl.create_default_context()
     try:
-        # Tenta SSL direto na porta 465 primeiro
         with smtplib.SMTP_SSL(smtp_host, 465, context=ctx, timeout=15) as s:
             s.login(smtp_user, smtp_pass)
             s.sendmail(smtp_user, email_to, msg.as_string())
     except Exception as e1:
         print(f"SMTP_SSL 465 falhou: {e1} — tentando STARTTLS 587")
-        # Fallback para STARTTLS na porta 587
         with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as s:
-            s.ehlo()
-            s.starttls(context=ctx)
-            s.ehlo()
+            s.ehlo(); s.starttls(context=ctx); s.ehlo()
             s.login(smtp_user, smtp_pass)
             s.sendmail(smtp_user, email_to, msg.as_string())
-    print(f"Relatório {mes_nome}/{ano} enviado para {email_to}")
+    print(f"SMTP OK — Relatório {mes_nome}/{ano} enviado para {email_to}")
 
 
 def _job_relatorio_mensal():
@@ -1306,7 +1325,7 @@ def preview_relatorio(mes: int = 0, ano: int = 0, faiston_token: str = Cookie(No
     if not mes:
         # Tenta mês anterior; se vazio, usa mês atual
         ref = (hoje.replace(day=1) - timedelta(days=1))
-        d = _coletar_dados_mes(ref.month, ref.year)
+        d = _coletar_dados_mes(ref.year, ref.month)
         if not d or d.get("total", 0) == 0:
             mes, ano = hoje.month, hoje.year
         else:
@@ -1326,7 +1345,7 @@ def enviar_relatorio_manual(mes: int = 0, ano: int = 0, faiston_token: str = Coo
     if not mes:
         # Tenta mês anterior; se vazio, usa mês atual
         ref = (hoje.replace(day=1) - timedelta(days=1))
-        d_test = _coletar_dados_mes(ref.month, ref.year)
+        d_test = _coletar_dados_mes(ref.year, ref.month)
         if not d_test or d_test.get("total", 0) == 0:
             mes, ano = hoje.month, hoje.year
         else:
