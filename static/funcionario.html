@@ -40,6 +40,45 @@
         .kanban-col { min-height: calc(100vh - 220px); }
         .task-card { transition: transform .15s ease, box-shadow .2s ease; }
         .task-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -8px rgba(13,15,35,.15); }
+
+        /* ── DARK MODE — Kanban ─────────────────────────── */
+        [data-theme="dark"] body { background-color: #07070F; color: #F1F2F8; }
+        [data-theme="dark"] header { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
+        /* Colunas */
+        [data-theme="dark"] #kanban-aberto     { background: #0C0C18 !important; }
+        [data-theme="dark"] #kanban-em_andamento { background: rgba(91,46,224,0.1) !important; }
+        [data-theme="dark"] #kanban-concluido  { background: rgba(6,215,230,0.07) !important; }
+        /* Cards */
+        [data-theme="dark"] .task-card         { background: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
+        [data-theme="dark"] .task-card:hover   { background: #161628 !important; box-shadow: 0 8px 24px -8px rgba(0,0,0,0.5); }
+        /* KPI cards */
+        [data-theme="dark"] main .bg-white     { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
+        /* Textos dentro dos cards */
+        [data-theme="dark"] .task-card .text-faiston-dark  { color: #F1F2F8 !important; }
+        [data-theme="dark"] .task-card .text-faiston-muted { color: #9097AC !important; }
+        [data-theme="dark"] .task-card .text-faiston-faint { color: #6A718A !important; }
+        /* Badges de cliente dentro das colunas */
+        [data-theme="dark"] .kanban-col .text-slate-400    { color: #6A718A !important; }
+        /* Badges de contagem de coluna */
+        [data-theme="dark"] #badge-aberto { background: rgba(255,255,255,0.06) !important; color: #9097AC !important; }
+        /* Ícones KPI */
+        [data-theme="dark"] .bg-slate-100 { background-color: rgba(255,255,255,0.06) !important; }
+        /* Scrollbar dark */
+        [data-theme="dark"] .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+        /* Modais */
+        [data-theme="dark"] #modal > div,
+        [data-theme="dark"] #modal-comentarios > div { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #lista-comentarios .bg-slate-50 { background-color: rgba(255,255,255,0.04) !important; }
+        /* Notas widget */
+        [data-theme="dark"] #notas-collapsed,
+        [data-theme="dark"] #notas-expanded  { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #notas-sidebar-lista .border-b { border-color: rgba(255,255,255,0.06) !important; }
+        [data-theme="dark"] #notas-sidebar-lista [onclick]:hover { background-color: rgba(255,255,255,0.04) !important; }
+        [data-theme="dark"] #notas-sidebar-editor { border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #nota-texto-s,
+        [data-theme="dark"] .bg-slate-50     { background-color: rgba(255,255,255,0.03) !important; }
+        /* Global timer */
+        [data-theme="dark"] #global-timer    { background-color: #11111E !important; border-color: rgba(91,46,224,0.35) !important; }
     </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
