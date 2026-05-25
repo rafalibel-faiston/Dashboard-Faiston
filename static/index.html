@@ -1206,8 +1206,9 @@ async function criarTicket() {
     }
 }
 
-document.getElementById('modal-ticket').addEventListener('click', e => {
-    if (e.target === document.getElementById('modal-ticket')) fecharModalTicket();
+document.addEventListener('click', e => {
+    const mt = document.getElementById('modal-ticket');
+    if (mt && !mt.classList.contains('hidden') && e.target === mt) fecharModalTicket();
 });
 
 // ── KANBAN GESTOR ─────────────────────────────────────────────────────
