@@ -1074,6 +1074,162 @@ def deletar_cliente(cid: int, faiston_token: str = Cookie(None)):
 @app.get("/clientes")
 def clientes_page(): return FileResponse("static/clientes.html")
 
+@app.get("/financeiro/{cid}")
+def financeiro_page(cid: int): return FileResponse("static/financeiro.html")
+
+
+# ─────────────────────────────────────────────
+#  FINANCEIRO — Projetos e Lançamentos
+# ─────────────────────────────────────────────
+
+def _ensure_financeiro_tables(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS projetos (
+            id SERIAL PRIMARY KEY,
+            cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+            nome VARCHAR(100) NOT NULL,
+            descricao TEXT DEFAULT '',
+            orcamento NUMERIC(14,2) DEFAULT 0,
+            ativo BOOLEAN DEFAULT TRUE,
+            criado_em TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS lancamentos (
+            id SERIAL PRIMARY KEY,
+            projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+            descricao VARCHAR(200) NOT NULL,
+            categoria VARCHAR(50) DEFAULT 'Outros',
+            valor NUMERIC(14,2) NOT NULL,
+            data_lancamento DATE DEFAULT CURRENT_DATE,
+            criado_em TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+class ProjetoModel(BaseModel):
+    nome: str
+    descricao: str = ""
+    orcamento: float = 0.0
+
+class LancamentoModel(BaseModel):
+    descricao: str
+    categoria: str = "Outros"
+    valor: float
+    data_lancamento: str = ""
+
+@app.get("/api/clientes/{cid}/projetos")
+def listar_projetos(cid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT p.id, p.nome, p.descricao, p.orcamento, p.criado_em,
+                   COALESCE(SUM(l.valor), 0) AS gasto
+            FROM projetos p
+            LEFT JOIN lancamentos l ON l.projeto_id = p.id
+            WHERE p.cliente_id = %s AND p.ativo = TRUE
+            GROUP BY p.id ORDER BY p.criado_em DESC
+        """, (cid,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1], "descricao": r[2],
+                 "orcamento": float(r[3]), "criado_em": str(r[4])[:10],
+                 "gasto": float(r[5])} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/clientes/{cid}/projetos")
+def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur)
+        cur.execute("INSERT INTO projetos (cliente_id, nome, descricao, orcamento) VALUES (%s,%s,%s,%s) RETURNING id",
+                    (cid, p.nome, p.descricao, p.orcamento))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/projetos/{pid}")
+def atualizar_projeto(pid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE projetos SET nome=%s, descricao=%s, orcamento=%s WHERE id=%s",
+                    (p.nome, p.descricao, p.orcamento, pid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/projetos/{pid}")
+def deletar_projeto(pid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE projetos SET ativo=FALSE WHERE id=%s", (pid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/projetos/{pid}/lancamentos")
+def listar_lancamentos(pid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT id, descricao, categoria, valor, data_lancamento, criado_em
+                       FROM lancamentos WHERE projeto_id=%s ORDER BY data_lancamento DESC, criado_em DESC""", (pid,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "descricao": r[1], "categoria": r[2],
+                 "valor": float(r[3]), "data": str(r[4]), "criado_em": str(r[5])[:10]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/projetos/{pid}/lancamentos")
+def criar_lancamento(pid: int, l: LancamentoModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        data = l.data_lancamento or date.today().isoformat()
+        cur.execute("INSERT INTO lancamentos (projeto_id, descricao, categoria, valor, data_lancamento) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+                    (pid, l.descricao, l.categoria, l.valor, data))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/lancamentos/{lid}")
+def deletar_lancamento(lid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM lancamentos WHERE id=%s", (lid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 
 # ─────────────────────────────────────────────
 #  RELATÓRIO MENSAL

@@ -369,9 +369,14 @@ function render(lista) {
                             <span class="text-xs font-bold" style="color:${slaColor}">${sla}%</span>
                         </div>
                     </div>
-                    <a href="/relatorio/${encodeURIComponent(c.nome)}" target="_blank" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta transition-colors flex items-center gap-1">
-                        Detalhes <i class="ph ph-arrow-square-out text-xs"></i>
-                    </a>
+                    <div class="flex items-center gap-3">
+                        <a href="/financeiro/${c.id}" class="text-xs font-semibold text-faiston-cyan hover:text-faiston-purple transition-colors flex items-center gap-1">
+                            <i class="ph ph-currency-circle-dollar text-xs"></i> Financeiro
+                        </a>
+                        <a href="/relatorio/${encodeURIComponent(c.nome)}" target="_blank" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta transition-colors flex items-center gap-1">
+                            Detalhes <i class="ph ph-arrow-square-out text-xs"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>`;

@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financeiro · Faiston OPS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } }
+            }}
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+        /* Dark mode overrides */
+        [data-theme="dark"] body { background-color: #07070F !important; color: #F1F2F8 !important; }
+        [data-theme="dark"] .bg-white { background-color: #11111E !important; }
+        [data-theme="dark"] aside { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] .border-faiston-border { border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] .border-slate-100, [data-theme="dark"] .border-slate-200 { border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] .text-faiston-dark, [data-theme="dark"] .text-slate-800, [data-theme="dark"] .text-slate-900 { color: #F1F2F8 !important; }
+        [data-theme="dark"] .text-slate-600, [data-theme="dark"] .text-slate-700 { color: #9097AC !important; }
+        [data-theme="dark"] .text-slate-400, [data-theme="dark"] .text-slate-500 { color: #6A718A !important; }
+        [data-theme="dark"] .bg-faiston-bg { background-color: #07070F !important; }
+        [data-theme="dark"] .bg-slate-50 { background-color: rgba(255,255,255,0.03) !important; }
+        [data-theme="dark"] .bg-slate-100 { background-color: rgba(255,255,255,0.06) !important; }
+        [data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea { background-color: #11111E !important; color: #F1F2F8 !important; border-color: rgba(255,255,255,0.1) !important; }
+        [data-theme="dark"] .proj-card { background: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
+        [data-theme="dark"] .lancamento-row:hover { background: rgba(255,255,255,0.03) !important; }
+        [data-theme="dark"] .modal-bg { background: #11111E !important; }
+
+        .proj-card { transition: box-shadow 0.2s ease; }
+        .proj-card:hover { box-shadow: 0 8px 32px -8px rgba(91,46,224,0.15); }
+        .lancamento-row { transition: background 0.15s; }
+        .lancamento-row:hover { background: #F8F9FC; }
+        .progress-bar { transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        .cat-badge { display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700; }
+        .cat-Técnico   { background:#5B2EE015;color:#5B2EE0; }
+        .cat-Frete     { background:#06D7E615;color:#0ea5c5; }
+        .cat-Material  { background:#f59e0b15;color:#d97706; }
+        .cat-Licença   { background:#B826C915;color:#B826C9; }
+        .cat-Serviço   { background:#EC489915;color:#EC4899; }
+        .cat-Outros    { background:#64748b15;color:#64748b; }
+
+        @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+        .fade-in { animation: fadeIn 250ms ease both; }
+    </style>
+</head>
+<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
+
+<!-- SIDEBAR -->
+<aside class="w-52 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar flex-shrink-0">
+    <div>
+        <div class="flex items-center gap-2.5 p-5 border-b border-faiston-border mb-4">
+            <div class="w-8 h-8 rounded-[10px] grad-bg flex items-center justify-center glow-soft">
+                <i class="ph-fill ph-play text-white text-sm"></i>
+            </div>
+            <h1 class="text-[14px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
+        </div>
+        <div class="px-3">
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
+            <nav class="flex flex-col gap-1 mb-6">
+                <a href="/dashboard" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-network text-base"></i> Backoffice
+                </a>
+            </nav>
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-chart-line-up text-base"></i> Dashboard
+                </a>
+                <a href="/historico" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-clock-clockwise text-base"></i> Histórico
+                </a>
+                <a href="/clientes" class="flex items-center gap-2 bg-faiston-purple/10 text-faiston-purple font-semibold text-sm rounded-md p-2.5 border border-faiston-purple/20">
+                    <i class="ph ph-buildings text-base"></i> Clientes
+                </a>
+                <a href="/apresentacao" target="_blank" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-presentation-chart text-base"></i> Apresentação
+                </a>
+                <a href="/admin" id="link-admin" class="hidden flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-gear text-base"></i> Admin
+                </a>
+            </nav>
+        </div>
+    </div>
+    <div class="p-4 border-t border-faiston-border">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg grad-bg text-white flex items-center justify-center font-bold text-sm glow-soft" id="sidebar-avatar">?</div>
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-faiston-dark leading-tight truncate" id="sidebar-nome">...</p>
+                <p class="text-[11px] text-faiston-muted" id="sidebar-perfil">...</p>
+            </div>
+            <button onclick="logout()" title="Sair" class="text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-sign-out text-base"></i></button>
+        </div>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<main class="flex-1 overflow-y-auto custom-scrollbar">
+    <!-- Header -->
+    <div class="sticky top-0 z-20 bg-faiston-bg border-b border-faiston-border flex items-center justify-between px-8 py-4">
+        <div class="flex items-center gap-3">
+            <a href="/clientes" class="w-8 h-8 rounded-lg border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors text-slate-500">
+                <i class="ph ph-arrow-left text-sm"></i>
+            </a>
+            <div>
+                <div class="flex items-center gap-2 text-[11px] text-slate-400 mb-0.5">
+                    <a href="/clientes" class="hover:text-faiston-purple transition-colors">Clientes</a>
+                    <i class="ph ph-caret-right text-[10px]"></i>
+                    <span id="breadcrumb-nome" class="text-slate-600">...</span>
+                    <i class="ph ph-caret-right text-[10px]"></i>
+                    <span class="text-faiston-purple font-semibold">Financeiro</span>
+                </div>
+                <h1 class="text-lg font-extrabold text-faiston-dark flex items-center gap-2">
+                    <i class="ph-fill ph-currency-circle-dollar text-faiston-purple text-xl"></i>
+                    Controle Financeiro — <span id="header-nome" class="grad-text">...</span>
+                </h1>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="toggleTheme()" class="btn-theme" title="Alternar tema">
+                <i class="ph ph-sun" id="icon-theme"></i>
+            </button>
+            <button onclick="abrirModalProjeto()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                <i class="ph ph-plus text-base"></i> Novo Projeto
+            </button>
+        </div>
+    </div>
+
+    <div class="px-8 py-6">
+        <!-- KPIs -->
+        <div class="grid grid-cols-4 gap-4 mb-6" id="kpis">
+            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Projetos Ativos</p>
+                <p class="text-3xl font-black text-faiston-dark" id="kpi-projetos">—</p>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Orçamento Total</p>
+                <p class="text-3xl font-black text-faiston-purple" id="kpi-orcamento">—</p>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Gasto</p>
+                <p class="text-3xl font-black text-faiston-pink" id="kpi-gasto">—</p>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
+                <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Saldo Disponível</p>
+                <p class="text-3xl font-black" id="kpi-saldo">—</p>
+            </div>
+        </div>
+
+        <!-- Projetos list -->
+        <div id="projetos-lista" class="flex flex-col gap-4"></div>
+
+        <!-- Empty state -->
+        <div id="empty-state" class="hidden text-center py-20">
+            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4 mx-auto">
+                <i class="ph ph-folder-open text-3xl text-slate-400"></i>
+            </div>
+            <p class="font-semibold text-slate-600 mb-1">Nenhum projeto cadastrado</p>
+            <p class="text-sm text-slate-400 mb-4">Crie o primeiro projeto para começar a controlar os gastos</p>
+            <button onclick="abrirModalProjeto()" class="px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                <i class="ph ph-plus mr-1"></i> Criar Projeto
+            </button>
+        </div>
+    </div>
+</main>
+
+<!-- MODAL PROJETO -->
+<div id="modal-projeto" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(7,7,15,0.6);backdrop-filter:blur(8px)">
+    <div class="modal-bg bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-faiston-border fade-in">
+        <div class="grad-bg px-6 py-4 flex items-center gap-3 rounded-t-2xl">
+            <i class="ph ph-folder-plus text-white text-xl"></i>
+            <span class="text-white font-bold" id="modal-proj-title">Novo Projeto</span>
+            <button onclick="fecharModalProjeto()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="proj-edit-id">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do Projeto *</label>
+                <input id="proj-nome" type="text" placeholder="Ex: NTT_EVOTECH" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Descrição</label>
+                <textarea id="proj-descricao" rows="2" placeholder="Descreva o escopo do projeto..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Orçamento (R$)</label>
+                <input id="proj-orcamento" type="number" min="0" step="0.01" placeholder="0,00" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="fecharModalProjeto()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                <button onclick="salvarProjeto()" class="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white btn-grad">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL LANÇAMENTO -->
+<div id="modal-lancamento" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(7,7,15,0.6);backdrop-filter:blur(8px)">
+    <div class="modal-bg bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-faiston-border fade-in">
+        <div class="grad-bg px-6 py-4 flex items-center gap-3 rounded-t-2xl">
+            <i class="ph ph-receipt text-white text-xl"></i>
+            <span class="text-white font-bold">Novo Lançamento</span>
+            <button onclick="fecharModalLancamento()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="lanc-projeto-id">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Descrição *</label>
+                <input id="lanc-descricao" type="text" placeholder="Ex: Técnico João - visita NTT" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Categoria</label>
+                    <select id="lanc-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                        <option>Técnico</option>
+                        <option>Frete</option>
+                        <option>Material</option>
+                        <option>Licença</option>
+                        <option>Serviço</option>
+                        <option>Outros</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Valor (R$) *</label>
+                    <input id="lanc-valor" type="number" min="0" step="0.01" placeholder="0,00" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data</label>
+                <input id="lanc-data" type="date" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button onclick="fecharModalLancamento()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                <button onclick="salvarLancamento()" class="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white btn-grad">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const clienteId = parseInt(location.pathname.split('/').pop());
+let projetos = [];
+let nomeCliente = '';
+
+async function init() {
+    try {
+        const me = await fetch('/api/me').then(r => r.json());
+        document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
+        document.getElementById('sidebar-nome').textContent = me.nome;
+        document.getElementById('sidebar-perfil').textContent = me.perfil;
+        if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
+        updateThemeIcon();
+    } catch { window.location.href = '/login'; return; }
+
+    // Pega nome do cliente
+    try {
+        const clientes = await fetch('/api/clientes').then(r => r.json());
+        const c = clientes.find(x => x.id === clienteId);
+        if (c) {
+            nomeCliente = c.nome;
+            document.getElementById('breadcrumb-nome').textContent = c.nome;
+            document.getElementById('header-nome').textContent = c.nome;
+            document.title = `Financeiro · ${c.nome} · Faiston OPS`;
+        }
+    } catch {}
+
+    await carregarProjetos();
+}
+
+async function carregarProjetos() {
+    try {
+        projetos = await fetch(`/api/clientes/${clienteId}/projetos`).then(r => r.json());
+    } catch { projetos = []; }
+    renderProjetos();
+}
+
+function fmtMoeda(v) {
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function renderProjetos() {
+    const lista = document.getElementById('projetos-lista');
+    const empty = document.getElementById('empty-state');
+
+    const totalOrc  = projetos.reduce((s, p) => s + p.orcamento, 0);
+    const totalGasto = projetos.reduce((s, p) => s + p.gasto, 0);
+    const saldo = totalOrc - totalGasto;
+
+    document.getElementById('kpi-projetos').textContent  = projetos.length;
+    document.getElementById('kpi-orcamento').textContent = fmtMoeda(totalOrc);
+    document.getElementById('kpi-gasto').textContent     = fmtMoeda(totalGasto);
+    const saldoEl = document.getElementById('kpi-saldo');
+    saldoEl.textContent = fmtMoeda(saldo);
+    saldoEl.style.color = saldo >= 0 ? '#06D7E6' : '#EC4899';
+
+    if (!projetos.length) {
+        lista.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+
+    lista.innerHTML = projetos.map(p => {
+        const pct = p.orcamento > 0 ? Math.min(100, (p.gasto / p.orcamento) * 100) : 0;
+        const over = pct >= 100;
+        const barColor = over ? '#EC4899' : pct > 75 ? '#f59e0b' : '#5B2EE0';
+        const saldo = p.orcamento - p.gasto;
+
+        return `<div class="proj-card bg-white rounded-2xl border border-faiston-border overflow-hidden fade-in" id="proj-${p.id}">
+            <!-- Header do projeto -->
+            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border cursor-pointer select-none"
+                onclick="toggleProjeto(${p.id})">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                        style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">${p.nome.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <p class="font-bold text-faiston-dark text-sm">${p.nome}</p>
+                        ${p.descricao ? `<p class="text-xs text-slate-400 mt-0.5">${p.descricao}</p>` : ''}
+                    </div>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide">Orçamento</p>
+                        <p class="text-sm font-bold text-faiston-dark">${fmtMoeda(p.orcamento)}</p>
+                    </div>
+                    <div class="text-right hidden sm:block">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide">Gasto</p>
+                        <p class="text-sm font-bold" style="color:${over?'#EC4899':'#0B0D1F'}">${fmtMoeda(p.gasto)}</p>
+                    </div>
+                    <div class="text-right hidden sm:block">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide">Saldo</p>
+                        <p class="text-sm font-bold" style="color:${saldo>=0?'#06D7E6':'#EC4899'}">${fmtMoeda(saldo)}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="event.stopPropagation();editarProjeto(${p.id})" class="w-7 h-7 rounded-lg border border-faiston-border flex items-center justify-center text-slate-400 hover:text-faiston-purple hover:border-faiston-purple transition-colors">
+                            <i class="ph ph-pencil text-xs"></i>
+                        </button>
+                        <button onclick="event.stopPropagation();deletarProjeto(${p.id})" class="w-7 h-7 rounded-lg border border-faiston-border flex items-center justify-center text-slate-400 hover:text-faiston-pink hover:border-faiston-pink transition-colors">
+                            <i class="ph ph-trash text-xs"></i>
+                        </button>
+                        <i class="ph ph-caret-down text-slate-400 text-sm transition-transform duration-200" id="chevron-${p.id}"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de progresso -->
+            <div class="px-5 py-2 border-b border-faiston-border" style="background:rgba(0,0,0,0.015)">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-[10px] text-slate-400 font-medium">${over ? '⚠ Orçamento excedido' : `${pct.toFixed(0)}% utilizado`}</span>
+                    <span class="text-[10px] font-bold" style="color:${barColor}">${pct.toFixed(1)}%</span>
+                </div>
+                <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full progress-bar" style="width:${pct}%;background:${barColor}"></div>
+                </div>
+            </div>
+
+            <!-- Lançamentos (colapsado por padrão) -->
+            <div id="body-proj-${p.id}" style="display:none">
+                <div class="px-5 py-3 flex items-center justify-between border-b border-faiston-border" style="background:rgba(91,46,224,0.02)">
+                    <p class="text-xs font-semibold text-slate-500">Lançamentos</p>
+                    <button onclick="abrirModalLancamento(${p.id})" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white btn-grad">
+                        <i class="ph ph-plus text-xs"></i> Lançar gasto
+                    </button>
+                </div>
+                <div id="lancs-${p.id}" class="px-5 py-2">
+                    <div class="flex items-center justify-center py-6 text-slate-400 text-xs">
+                        <i class="ph ph-spinner spin mr-2"></i> Carregando...
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+const openProjects = new Set();
+
+async function toggleProjeto(pid) {
+    const body = document.getElementById(`body-proj-${pid}`);
+    const chevron = document.getElementById(`chevron-${pid}`);
+    const isOpen = body.style.display !== 'none';
+
+    if (isOpen) {
+        body.style.display = 'none';
+        chevron.style.transform = 'rotate(0deg)';
+        openProjects.delete(pid);
+    } else {
+        body.style.display = 'block';
+        chevron.style.transform = 'rotate(180deg)';
+        openProjects.add(pid);
+        await carregarLancamentos(pid);
+    }
+}
+
+async function carregarLancamentos(pid) {
+    const el = document.getElementById(`lancs-${pid}`);
+    try {
+        const lancs = await fetch(`/api/projetos/${pid}/lancamentos`).then(r => r.json());
+        if (!lancs.length) {
+            el.innerHTML = `<div class="text-center py-6 text-slate-400 text-xs">
+                <i class="ph ph-receipt block text-2xl mb-1"></i>Nenhum lançamento ainda</div>`;
+            return;
+        }
+        el.innerHTML = `<table class="w-full text-sm">
+            <thead><tr class="text-[10px] text-slate-400 uppercase tracking-wider border-b border-faiston-border">
+                <th class="text-left pb-2 pt-1 font-semibold">Descrição</th>
+                <th class="text-left pb-2 pt-1 font-semibold">Categoria</th>
+                <th class="text-left pb-2 pt-1 font-semibold">Data</th>
+                <th class="text-right pb-2 pt-1 font-semibold">Valor</th>
+                <th class="pb-2 pt-1"></th>
+            </tr></thead>
+            <tbody>${lancs.map(l => `
+                <tr class="lancamento-row border-b border-faiston-border last:border-0">
+                    <td class="py-2.5 pr-4 text-faiston-dark font-medium text-xs">${l.descricao}</td>
+                    <td class="py-2.5 pr-4"><span class="cat-badge cat-${l.categoria}">${l.categoria}</span></td>
+                    <td class="py-2.5 pr-4 text-slate-400 text-xs font-mono">${l.data}</td>
+                    <td class="py-2.5 text-right font-bold text-xs text-faiston-dark font-mono">${fmtMoeda(l.valor)}</td>
+                    <td class="py-2.5 pl-3 text-right">
+                        <button onclick="deletarLancamento(${l.id}, ${pid})" class="text-slate-300 hover:text-faiston-pink transition-colors">
+                            <i class="ph ph-trash text-xs"></i>
+                        </button>
+                    </td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+    } catch {
+        el.innerHTML = `<div class="text-center py-4 text-faiston-pink text-xs">Erro ao carregar lançamentos</div>`;
+    }
+}
+
+// ── Projeto modal ──
+function abrirModalProjeto(id) {
+    document.getElementById('proj-edit-id').value = '';
+    document.getElementById('proj-nome').value = '';
+    document.getElementById('proj-descricao').value = '';
+    document.getElementById('proj-orcamento').value = '';
+    document.getElementById('modal-proj-title').textContent = 'Novo Projeto';
+    document.getElementById('modal-projeto').classList.remove('hidden');
+    setTimeout(() => document.getElementById('proj-nome').focus(), 100);
+}
+
+function editarProjeto(pid) {
+    const p = projetos.find(x => x.id === pid);
+    if (!p) return;
+    document.getElementById('proj-edit-id').value = pid;
+    document.getElementById('proj-nome').value = p.nome;
+    document.getElementById('proj-descricao').value = p.descricao || '';
+    document.getElementById('proj-orcamento').value = p.orcamento;
+    document.getElementById('modal-proj-title').textContent = 'Editar Projeto';
+    document.getElementById('modal-projeto').classList.remove('hidden');
+}
+
+function fecharModalProjeto() { document.getElementById('modal-projeto').classList.add('hidden'); }
+
+async function salvarProjeto() {
+    const nome = document.getElementById('proj-nome').value.trim();
+    if (!nome) { alert('Informe o nome do projeto'); return; }
+    const editId = document.getElementById('proj-edit-id').value;
+    const body = { nome, descricao: document.getElementById('proj-descricao').value.trim(),
+                   orcamento: parseFloat(document.getElementById('proj-orcamento').value) || 0 };
+    try {
+        if (editId) {
+            await fetch(`/api/projetos/${editId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        } else {
+            await fetch(`/api/clientes/${clienteId}/projetos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        }
+        fecharModalProjeto();
+        await carregarProjetos();
+        // Reabrir projetos que estavam abertos
+        for (const pid of openProjects) { toggleProjeto(pid); }
+    } catch { alert('Erro ao salvar projeto'); }
+}
+
+async function deletarProjeto(pid) {
+    if (!confirm('Deseja remover este projeto e todos os seus lançamentos?')) return;
+    await fetch(`/api/projetos/${pid}`, {method:'DELETE'});
+    openProjects.delete(pid);
+    await carregarProjetos();
+}
+
+// ── Lançamento modal ──
+function abrirModalLancamento(pid) {
+    document.getElementById('lanc-projeto-id').value = pid;
+    document.getElementById('lanc-descricao').value = '';
+    document.getElementById('lanc-categoria').value = 'Técnico';
+    document.getElementById('lanc-valor').value = '';
+    document.getElementById('lanc-data').value = new Date().toISOString().slice(0,10);
+    document.getElementById('modal-lancamento').classList.remove('hidden');
+    setTimeout(() => document.getElementById('lanc-descricao').focus(), 100);
+}
+
+function fecharModalLancamento() { document.getElementById('modal-lancamento').classList.add('hidden'); }
+
+async function salvarLancamento() {
+    const pid = document.getElementById('lanc-projeto-id').value;
+    const desc = document.getElementById('lanc-descricao').value.trim();
+    const valor = parseFloat(document.getElementById('lanc-valor').value);
+    if (!desc) { alert('Informe a descrição'); return; }
+    if (!valor || valor <= 0) { alert('Informe um valor válido'); return; }
+    const body = { descricao: desc, categoria: document.getElementById('lanc-categoria').value,
+                   valor, data_lancamento: document.getElementById('lanc-data').value };
+    try {
+        await fetch(`/api/projetos/${pid}/lancamentos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        fecharModalLancamento();
+        await carregarProjetos();
+        // Manter o projeto aberto e recarregar lançamentos
+        const body2 = document.getElementById(`body-proj-${pid}`);
+        if (body2) { body2.style.display = 'block'; document.getElementById(`chevron-${pid}`).style.transform='rotate(180deg)'; await carregarLancamentos(pid); }
+    } catch { alert('Erro ao salvar lançamento'); }
+}
+
+async function deletarLancamento(lid, pid) {
+    if (!confirm('Remover este lançamento?')) return;
+    await fetch(`/api/lancamentos/${lid}`, {method:'DELETE'});
+    await carregarProjetos();
+    const body = document.getElementById(`body-proj-${pid}`);
+    if (body) { body.style.display = 'block'; await carregarLancamentos(pid); }
+}
+
+// ── Auth / tema ──
+function logout() { document.cookie = 'faiston_token=; Max-Age=0; path=/'; window.location.href = '/login'; }
+
+function toggleTheme() {
+    const html = document.documentElement;
+    const dark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', dark ? 'light' : 'dark');
+    localStorage.setItem('faiston_tema', dark ? 'light' : 'dark');
+    updateThemeIcon();
+}
+function updateThemeIcon() {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.getElementById('icon-theme').className = dark ? 'ph ph-moon' : 'ph ph-sun';
+}
+
+// Close modals on backdrop click
+document.addEventListener('click', e => {
+    const mp = document.getElementById('modal-projeto');
+    if (mp && !mp.classList.contains('hidden') && e.target === mp) fecharModalProjeto();
+    const ml = document.getElementById('modal-lancamento');
+    if (ml && !ml.classList.contains('hidden') && e.target === ml) fecharModalLancamento();
+});
+
+init();
+</script>
+</body>
+</html>
