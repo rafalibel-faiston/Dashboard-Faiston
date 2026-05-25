@@ -1080,8 +1080,39 @@ def deletar_cliente(cid: int, faiston_token: str = Cookie(None)):
 @app.get("/clientes")
 def clientes_page(): return FileResponse("static/clientes.html")
 
+@app.get("/financeiro")
+def financeiro_geral_page(): return FileResponse("static/financeiro-geral.html")
+
 @app.get("/financeiro/{cid}")
 def financeiro_page(cid: int): return FileResponse("static/financeiro.html")
+
+@app.get("/api/financeiro/resumo")
+def financeiro_resumo(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur)
+        conn.commit()
+        cur.execute("""
+            SELECT c.id, c.nome,
+                   COUNT(DISTINCT p.id) AS num_projetos,
+                   COALESCE(SUM(p.orcamento), 0) AS total_orcamento,
+                   COALESCE(SUM(l.valor), 0) AS total_gasto
+            FROM clientes c
+            LEFT JOIN projetos p ON p.cliente_id = c.id AND p.ativo = TRUE
+            LEFT JOIN lancamentos l ON l.projeto_id = p.id
+            WHERE c.ativo = TRUE
+            GROUP BY c.id, c.nome
+            ORDER BY total_gasto DESC, c.nome
+        """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1], "num_projetos": r[2],
+                 "orcamento": float(r[3]), "gasto": float(r[4])} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─────────────────────────────────────────────
