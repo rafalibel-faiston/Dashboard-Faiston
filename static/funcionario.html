@@ -487,7 +487,8 @@ function renderKanbanCard(task, status) {
                 </button>
             </div>
         </div>
-        <p class="text-sm font-semibold text-faiston-dark leading-snug mb-3 ${isDone ? 'line-through text-faiston-faint' : ''}">${task.descricao}</p>
+        <p class="text-sm font-semibold text-faiston-dark leading-snug mb-2 ${isDone ? 'line-through text-faiston-faint' : ''}">${task.descricao}</p>
+        ${task.projeto_nome ? `<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded mb-2" style="background:#5B2EE015;color:#5B2EE0">${task.projeto_nome}</span>` : ''}
         <div class="flex items-center justify-between">
             <span id="timer-${task.id}" class="font-mono text-xs font-bold ${isRunning ? 'text-faiston-purple' : isDone ? 'text-faiston-faint' : 'text-faiston-muted'}">${fmt(secs)}</span>
             ${isDone

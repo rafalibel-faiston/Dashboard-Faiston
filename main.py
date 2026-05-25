@@ -119,6 +119,7 @@ class TarefaModel(BaseModel):
     status: str = "aberto"
     segundos: int = 0
     funcionario_id: Optional[int] = None
+    projeto_id: Optional[int] = None
 
 class AtualizarSegundos(BaseModel):
     segundos: int
@@ -242,16 +243,21 @@ def listar_tarefas(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        # Migração silenciosa: adiciona projeto_id se ainda não existe
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS projeto_id INTEGER REFERENCES projetos(id)")
+        conn.commit()
+        base_sel = """SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
+                             t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome
+                      FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+                      LEFT JOIN projetos p ON p.id = t.projeto_id"""
         if sess["perfil"] in ("admin", "gestor"):
-            cur.execute("""SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.criado_em, u.nome
-                FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id ORDER BY t.criado_em DESC""")
+            cur.execute(base_sel + " ORDER BY t.criado_em DESC")
         else:
-            cur.execute("""SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.criado_em, u.nome
-                FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
-                WHERE t.usuario_id = %s ORDER BY t.criado_em DESC""", (sess["id"],))
+            cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
         rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "descricao": r[1], "cliente": r[2], "prioridade": r[3],
-                 "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7]} for r in rows]
+                 "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7],
+                 "projeto_id": r[8], "projeto_nome": r[9]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/tarefas")
@@ -268,8 +274,8 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
             cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (t.funcionario_id,))
             if cur.fetchone():
                 uid = t.funcionario_id
-        cur.execute("INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
-                    (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos))
+        cur.execute("INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                    (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None))
         new_id = cur.fetchone()[0]
         criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]")
         conn.commit(); cur.close(); conn.close()
@@ -284,8 +290,8 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
-                    (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, tid, sess["id"]))
+        cur.execute("UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
+                    (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None, tid, sess["id"]))
         if t.status == "concluido":
             criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]")
         elif t.status == "em_andamento":
@@ -1116,6 +1122,26 @@ class LancamentoModel(BaseModel):
     categoria: str = "Outros"
     valor: float
     data_lancamento: str = ""
+
+@app.get("/api/projetos-by-cliente")
+def projetos_by_cliente_nome(nome: str, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur)
+        conn.commit()
+        cur.execute("SELECT id FROM clientes WHERE nome=%s AND ativo=TRUE", (nome,))
+        row = cur.fetchone()
+        if not row: return []
+        cid = row[0]
+        cur.execute("""SELECT id, nome FROM projetos WHERE cliente_id=%s AND ativo=TRUE ORDER BY nome""", (cid,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/clientes/{cid}/projetos")
 def listar_projetos(cid: int, faiston_token: str = Cookie(None)):

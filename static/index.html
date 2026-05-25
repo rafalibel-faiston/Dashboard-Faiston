@@ -1103,12 +1103,25 @@ async function carregarDadosModal() {
     } catch(e) {}
 }
 
-function selecionarCliente(nome, btn) {
+async function selecionarCliente(nome, btn) {
     clienteSelecionado = nome;
     document.querySelectorAll('.cliente-pill').forEach(b => {
         b.className = 'cliente-pill text-xs font-semibold px-3 py-1.5 rounded-full border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all';
     });
     btn.className = 'cliente-pill text-xs font-semibold px-3 py-1.5 rounded-full border border-faiston-purple bg-faiston-purple/10 text-faiston-purple transition-all';
+    // Carrega projetos deste cliente
+    const sel = document.getElementById('nt-projeto');
+    sel.innerHTML = '<option value="">Nenhum projeto</option>';
+    try {
+        const projs = await fetch(`/api/projetos-by-cliente?nome=${encodeURIComponent(nome)}`).then(r => r.json());
+        if (projs.length) {
+            sel.innerHTML = '<option value="">Nenhum projeto</option>' +
+                projs.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+            sel.classList.remove('text-slate-400');
+        } else {
+            sel.innerHTML = '<option value="">Sem projetos cadastrados</option>';
+        }
+    } catch {}
 }
 
 function setPrioridade(prio) {
@@ -1191,7 +1204,8 @@ async function criarTicket() {
                 prioridade: prioAtiva,
                 status: statusAtivo,
                 funcionario_id: parseInt(responsavelId),
-                segundos
+                segundos,
+                projeto_id: parseInt(document.getElementById('nt-projeto').value) || null
             })
         });
         if (res.ok) {
@@ -1293,10 +1307,13 @@ function renderKanbanGestor() {
                 const timeLabel = t.segundos > 0 ? `${h}h${String(m).padStart(2,'0')}m` : '—';
                 const striked = isDone ? 'text-decoration:line-through;opacity:0.5' : '';
 
+                const projBadge = t.projeto_nome ? `<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#5B2EE015;color:#5B2EE0;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.projeto_nome}</span>` : '';
+
                 return `<div class="gestor-card bg-white rounded-xl border border-faiston-border overflow-hidden ${isDone?'opacity-60':''}"
                     style="border-left:3px solid ${pColor};transition:transform .15s ease,box-shadow .15s ease">
                     <div style="padding:10px 12px">
-                        <p style="font-size:13px;font-weight:600;line-height:1.35;margin-bottom:10px;color:#0B0D1F;${striked};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${t.descricao}</p>
+                        <p style="font-size:13px;font-weight:600;line-height:1.35;margin-bottom:6px;color:#0B0D1F;${striked};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${t.descricao}</p>
+                        ${projBadge ? `<div style="margin-bottom:8px">${projBadge}</div>` : ''}
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
                             <div style="display:flex;align-items:center;gap:5px;min-width:0">
                                 <div style="width:7px;height:7px;border-radius:50%;background:${cColor};flex-shrink:0"></div>
@@ -1403,6 +1420,12 @@ init();
                     <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Responsável</label>
                     <select id="nt-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                         <option value="">Selecionar...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Projeto <span class="text-slate-300 font-normal normal-case tracking-normal text-[10px]">opcional</span></label>
+                    <select id="nt-projeto" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white text-slate-400">
+                        <option value="">Selecione um cliente primeiro...</option>
                     </select>
                 </div>
                 <div>
