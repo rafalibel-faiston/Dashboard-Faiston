@@ -12,7 +12,12 @@ from calendar import monthrange
 import os, hashlib, secrets, csv, io
 from dotenv import load_dotenv
 from pathlib import Path
-import openpyxl
+
+try:
+    import openpyxl
+    _OPENPYXL_OK = True
+except ImportError:
+    _OPENPYXL_OK = False
 
 load_dotenv()
 
@@ -1331,6 +1336,13 @@ async def parse_planilha(pid: int, file: UploadFile = File(...),
                           sheet_name: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    global _OPENPYXL_OK, openpyxl
+    if not _OPENPYXL_OK:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
+        import openpyxl as _ox
+        openpyxl = _ox
+        _OPENPYXL_OK = True
     try:
         content = await file.read()
         filename = (file.filename or "").lower()
