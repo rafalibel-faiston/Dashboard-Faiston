@@ -1304,35 +1304,87 @@ def deletar_lancamento(lid: int, faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+def _detect_header_row(all_rows, max_search=10):
+    """Return index of the row that best looks like a header (most non-empty text cells)."""
+    best_idx, best_score = 0, 0
+    for i, row in enumerate(all_rows[:max_search]):
+        score = sum(1 for c in row if c is not None and isinstance(c, str) and c.strip())
+        if score > best_score:
+            best_score, best_idx = score, i
+    return best_idx
+
+def _parse_sheet(ws):
+    all_rows = list(ws.iter_rows(values_only=True))
+    if not all_rows:
+        return [], []
+    hi = _detect_header_row(all_rows)
+    headers = [str(h).strip() if h is not None else "" for h in all_rows[hi]]
+    rows = []
+    for row in all_rows[hi+1:]:
+        if not any(c is not None and str(c).strip() for c in row):
+            continue
+        rows.append([str(c).strip() if c is not None else "" for c in row])
+    return headers, rows
+
 @app.post("/api/projetos/{pid}/parse-planilha")
-async def parse_planilha(pid: int, file: UploadFile = File(...), faiston_token: str = Cookie(None)):
+async def parse_planilha(pid: int, file: UploadFile = File(...),
+                          sheet_name: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
     try:
         content = await file.read()
         filename = (file.filename or "").lower()
-        headers = []
-        rows = []
+
         if filename.endswith(".csv"):
             text = content.decode("utf-8-sig", errors="replace")
-            reader = csv.reader(io.StringIO(text), delimiter=None)
-            # Try to auto-detect delimiter
             sample = text[:4096]
-            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+            except Exception:
+                dialect = csv.excel
             reader = csv.reader(io.StringIO(text), dialect)
             all_rows = list(reader)
-            if all_rows:
-                headers = [str(h).strip() for h in all_rows[0]]
-                rows = [[str(c).strip() for c in r] for r in all_rows[1:] if any(c.strip() for c in r)]
-        else:
-            wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
-            ws = wb.active
-            all_rows = list(ws.iter_rows(values_only=True))
-            if all_rows:
-                headers = [str(h).strip() if h is not None else "" for h in all_rows[0]]
-                rows = [[str(c).strip() if c is not None else "" for c in r]
-                        for r in all_rows[1:] if any(c is not None and str(c).strip() for c in r)]
-        return {"headers": headers, "rows": rows[:2000]}
+            if not all_rows:
+                return {"sheets": [], "selected_sheet": "", "headers": [], "rows": []}
+            hi = _detect_header_row([[c for c in r] for r in all_rows])
+            headers = [str(h).strip() for h in all_rows[hi]]
+            rows = [[str(c).strip() for c in r]
+                    for r in all_rows[hi+1:] if any(c.strip() for c in r)]
+            return {"sheets": [], "selected_sheet": filename, "headers": headers, "rows": rows[:3000]}
+
+        # Excel
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+
+        # Discover sheets that have useful data (≥4 non-empty header cells)
+        usable = []
+        for sname in wb.sheetnames:
+            ws = wb[sname]
+            rows_peek = list(ws.iter_rows(min_row=1, max_row=10, values_only=True))
+            hi = _detect_header_row(rows_peek)
+            hrow = rows_peek[hi] if rows_peek else []
+            n_text = sum(1 for c in hrow if c and isinstance(c, str) and c.strip())
+            if n_text >= 4:
+                usable.append(sname)
+
+        if not usable:
+            raise ValueError("Nenhuma aba com dados tabulares encontrada")
+
+        # Pick sheet
+        chosen = sheet_name if sheet_name in usable else usable[0]
+        # Prefer sheets with "VALOR FINAL"
+        if not sheet_name:
+            for s in usable:
+                ws_tmp = wb[s]
+                rows_tmp = list(ws_tmp.iter_rows(min_row=1, max_row=5, values_only=True))
+                hi_tmp = _detect_header_row(rows_tmp)
+                hrow_tmp = rows_tmp[hi_tmp] if rows_tmp else []
+                if any('VALOR FINAL' in str(c) for c in hrow_tmp if c):
+                    chosen = s
+                    break
+
+        ws = wb[chosen]
+        headers, rows = _parse_sheet(ws)
+        return {"sheets": usable, "selected_sheet": chosen, "headers": headers, "rows": rows[:3000]}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo: {str(e)}")
 

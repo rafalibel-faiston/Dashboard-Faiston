@@ -227,7 +227,7 @@
 
 <!-- MODAL IMPORTAR PLANILHA -->
 <div id="modal-importar" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(7,7,15,0.6);backdrop-filter:blur(8px)">
-    <div class="modal-bg bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-faiston-border fade-in flex flex-col" style="max-height:90vh">
+    <div class="modal-bg bg-white rounded-2xl shadow-2xl w-full max-w-5xl border border-faiston-border fade-in flex flex-col" style="max-height:92vh">
         <!-- Header -->
         <div class="grad-bg px-6 py-4 flex items-center gap-3 rounded-t-2xl flex-shrink-0">
             <i class="ph ph-table text-white text-xl"></i>
@@ -238,7 +238,9 @@
                     <i class="ph ph-caret-right text-[10px]"></i>
                     <span id="imp-step-pill-2" class="px-2 py-0.5 rounded-full font-semibold">2. Colunas</span>
                     <i class="ph ph-caret-right text-[10px]"></i>
-                    <span id="imp-step-pill-3" class="px-2 py-0.5 rounded-full font-semibold">3. Importar</span>
+                    <span id="imp-step-pill-3" class="px-2 py-0.5 rounded-full font-semibold">3. Filtros</span>
+                    <i class="ph ph-caret-right text-[10px]"></i>
+                    <span id="imp-step-pill-4" class="px-2 py-0.5 rounded-full font-semibold">4. Confirmar</span>
                 </div>
                 <button onclick="fecharModalImportar()" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors">
                     <i class="ph ph-x"></i>
@@ -248,71 +250,107 @@
 
         <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
             <input type="hidden" id="imp-projeto-id">
+            <!-- cached file for sheet switching -->
+            <input type="file" id="imp-file-input" accept=".xlsx,.xls,.csv" class="hidden" onchange="onArquivoSelecionado(this)">
 
-            <!-- STEP 1: Upload -->
+            <!-- STEP 1: Upload + sheet -->
             <div id="imp-step-1" class="import-step active">
-                <p class="text-sm text-slate-500 mb-4">Selecione um arquivo <strong>.xlsx</strong> ou <strong>.csv</strong> com os atendimentos. A primeira linha deve conter os cabeçalhos das colunas.</p>
-                <div id="imp-drop-zone" class="drop-zone p-12 text-center cursor-pointer" onclick="document.getElementById('imp-file-input').click()">
+                <p class="text-sm text-slate-500 mb-4">Selecione o arquivo <strong>.xlsx</strong> ou <strong>.csv</strong> com os atendimentos. O sistema detecta automaticamente a linha de cabeçalho.</p>
+                <div id="imp-drop-zone" class="drop-zone p-10 text-center cursor-pointer" onclick="document.getElementById('imp-file-input').click()">
                     <i class="ph ph-file-xls text-4xl text-slate-300 mb-3 block"></i>
                     <p class="font-semibold text-slate-500 text-sm">Clique para selecionar ou arraste o arquivo aqui</p>
-                    <p class="text-xs text-slate-400 mt-1">.xlsx, .xls, .csv — máximo 10MB</p>
+                    <p class="text-xs text-slate-400 mt-1">.xlsx, .xls, .csv</p>
                 </div>
-                <input id="imp-file-input" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="onArquivoSelecionado(this)">
                 <div id="imp-upload-status" class="mt-3 text-xs text-slate-400 text-center"></div>
+                <!-- Sheet picker (shown after upload) -->
+                <div id="imp-sheet-picker" class="hidden mt-4">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Selecionar aba da planilha</label>
+                    <div id="imp-sheet-tabs" class="flex flex-wrap gap-2"></div>
+                </div>
             </div>
 
             <!-- STEP 2: Mapeamento de colunas -->
             <div id="imp-step-2" class="import-step">
-                <p class="text-sm text-slate-500 mb-4">Indique qual coluna da planilha corresponde a cada campo. Apenas <strong>Valor</strong> é obrigatório.</p>
-                <div id="imp-col-map" class="grid grid-cols-2 gap-4"></div>
-                <div class="mt-4 p-3 bg-slate-50 rounded-xl border border-faiston-border text-xs text-slate-500" id="imp-preview-mini"></div>
-            </div>
-
-            <!-- STEP 3: Filtro e preview -->
-            <div id="imp-step-3" class="import-step">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="flex-1">
-                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Filtrar por Técnico</label>
-                        <select id="imp-filter-tecnico" onchange="renderPreviewTabela()" class="col-select">
-                            <option value="">Todos os técnicos</option>
-                        </select>
-                    </div>
-                    <div class="flex-1">
-                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Filtrar por Localidade</label>
-                        <select id="imp-filter-localidade" onchange="renderPreviewTabela()" class="col-select">
-                            <option value="">Todas as localidades</option>
-                        </select>
-                    </div>
-                    <div class="flex-1">
-                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Filtrar por Categoria</label>
-                        <select id="imp-filter-categoria" onchange="renderPreviewTabela()" class="col-select">
-                            <option value="">Todas</option>
-                            <option>Técnico</option><option>Frete</option><option>Material</option>
-                            <option>Licença</option><option>Serviço</option><option>Outros</option>
-                        </select>
+                <p class="text-sm text-slate-500 mb-4">Confirme o mapeamento de colunas. O sistema já tentou identificar automaticamente — ajuste se necessário. Apenas <strong>Valor</strong> é obrigatório.</p>
+                <div id="imp-col-map" class="grid grid-cols-3 gap-3 mb-4"></div>
+                <!-- Mini preview -->
+                <div class="rounded-xl border border-faiston-border overflow-hidden">
+                    <div class="px-3 py-2 bg-slate-50 border-b border-faiston-border text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Prévia das primeiras linhas</div>
+                    <div class="overflow-x-auto" style="max-height:180px">
+                        <table class="w-full preview-table">
+                            <thead><tr id="imp-preview-mini-head" class="text-[10px] text-slate-400 uppercase tracking-wider border-b border-faiston-border"></tr></thead>
+                            <tbody id="imp-preview-mini-body"></tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="overflow-auto rounded-xl border border-faiston-border" style="max-height:340px">
+            </div>
+
+            <!-- STEP 3: Filtros -->
+            <div id="imp-step-3" class="import-step">
+                <p class="text-sm text-slate-500 mb-4">Aplique filtros para importar apenas os atendimentos desejados. Deixe em branco para importar todos.</p>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Projeto / Subprojeto</label>
+                        <select id="imp-filter-projeto" onchange="renderFilterCount()" class="col-select">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Status Atividade</label>
+                        <select id="imp-filter-status" onchange="renderFilterCount()" class="col-select">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Técnico</label>
+                        <select id="imp-filter-tecnico" onchange="renderFilterCount()" class="col-select">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Cidade / Localidade</label>
+                        <select id="imp-filter-localidade" onchange="renderFilterCount()" class="col-select">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Data início</label>
+                        <input id="imp-filter-dt-ini" type="date" onchange="renderFilterCount()" class="col-select">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Data fim</label>
+                        <input id="imp-filter-dt-fim" type="date" onchange="renderFilterCount()" class="col-select">
+                    </div>
+                </div>
+                <div class="mt-1 p-2 bg-slate-50 rounded-lg border border-faiston-border flex items-center justify-between text-xs text-slate-500">
+                    <span id="imp-filter-count">0 atendimentos correspondem aos filtros</span>
+                    <span class="font-bold text-faiston-purple" id="imp-filter-total">Total: R$ 0,00</span>
+                </div>
+            </div>
+
+            <!-- STEP 4: Preview final e confirmar -->
+            <div id="imp-step-4" class="import-step">
+                <div class="overflow-auto rounded-xl border border-faiston-border" style="max-height:400px">
                     <table class="w-full preview-table">
                         <thead><tr class="text-[10px] text-slate-400 uppercase tracking-wider border-b border-faiston-border">
-                            <th class="text-left px-3 py-2 font-semibold">Descrição</th>
+                            <th class="text-left px-3 py-2 font-semibold">Localidade/Desc.</th>
                             <th class="text-left px-3 py-2 font-semibold">Técnico</th>
-                            <th class="text-left px-3 py-2 font-semibold">Localidade</th>
-                            <th class="text-left px-3 py-2 font-semibold">Categoria</th>
+                            <th class="text-left px-3 py-2 font-semibold">Cidade</th>
+                            <th class="text-left px-3 py-2 font-semibold">Tipo</th>
                             <th class="text-left px-3 py-2 font-semibold">Data</th>
-                            <th class="text-right px-3 py-2 font-semibold">Valor</th>
+                            <th class="text-right px-3 py-2 font-semibold">Valor Final</th>
                         </tr></thead>
                         <tbody id="imp-preview-tbody"></tbody>
                     </table>
                 </div>
                 <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
-                    <span id="imp-preview-count">0 lançamentos selecionados</span>
-                    <span class="font-bold text-faiston-purple" id="imp-preview-total">Total: R$ 0,00</span>
+                    <span id="imp-preview-count">0 lançamentos</span>
+                    <span class="font-bold text-faiston-purple text-sm" id="imp-preview-total">Total: R$ 0,00</span>
                 </div>
             </div>
         </div>
 
-        <!-- Footer / botões -->
+        <!-- Footer -->
         <div class="flex-shrink-0 px-6 py-4 border-t border-faiston-border flex items-center justify-between">
             <button id="imp-btn-back" onclick="impVoltar()" class="border border-faiston-border rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors hidden">
                 <i class="ph ph-arrow-left mr-1"></i> Voltar
@@ -684,28 +722,40 @@ let impStep = 1;
 let impProjetoId = null;
 let impHeaders = [];
 let impRows = [];
-let impMappedRows = []; // [{descricao,valor,tecnico,localidade,categoria,data}]
+let impMappedRows = [];
+let impSheets = [];
+let impSelectedSheet = '';
+let impCachedFile = null;
 
+// Coluna → campo: [label, required, heurísticas de auto-detect]
 const IMP_FIELDS = [
-    { key: 'col_descricao',  label: 'Descrição / Atendimento', required: false },
-    { key: 'col_valor',      label: 'Valor / Custo (R$)',       required: true  },
-    { key: 'col_tecnico',    label: 'Técnico',                  required: false },
-    { key: 'col_localidade', label: 'Localidade / Cidade',      required: false },
-    { key: 'col_data',       label: 'Data',                     required: false },
-    { key: 'col_categoria',  label: 'Categoria',                required: false },
+    { key:'col_descricao',  label:'Descrição / Localidade', req:false,
+      hints:['localidade','itask','descri','chamado','os ','local','agencia'] },
+    { key:'col_valor',      label:'Valor Final (R$) *',     req:true,
+      hints:['valor final','valor_final','custo','preço','preco'] },
+    { key:'col_tecnico',    label:'Técnico',                req:false,
+      hints:['técnico','tecnico'] },
+    { key:'col_localidade', label:'Cidade / Localidade',   req:false,
+      hints:['cidade','localid','municipio','local','uf','unidade'] },
+    { key:'col_data',       label:'Data / Agendamento',    req:false,
+      hints:['agendamento','data','date','dt_'] },
+    { key:'col_tipo',       label:'Tipo Atendimento',      req:false,
+      hints:['tipo de atendimento','tipo atend','tipo_atend','modalidade'] },
+    { key:'col_projeto',    label:'Projeto / Subprojeto',  req:false,
+      hints:['subprojeto','projeto','project'] },
+    { key:'col_status',     label:'Status',                req:false,
+      hints:['status atividade','status_atividade','status','situacao'] },
 ];
 
 function abrirModalImportar(pid) {
-    impProjetoId = pid;
-    impStep = 1;
+    impProjetoId = pid; impStep = 1;
     impHeaders = []; impRows = []; impMappedRows = [];
+    impSheets = []; impSelectedSheet = ''; impCachedFile = null;
     document.getElementById('imp-projeto-id').value = pid;
     document.getElementById('imp-file-input').value = '';
     document.getElementById('imp-upload-status').textContent = '';
+    document.getElementById('imp-sheet-picker').classList.add('hidden');
     document.getElementById('imp-btn-next').disabled = true;
-    document.getElementById('imp-btn-back').classList.add('hidden');
-    document.getElementById('imp-btn-next').classList.remove('hidden');
-    document.getElementById('imp-btn-confirm').classList.add('hidden');
     setImpStep(1);
     document.getElementById('modal-importar').classList.remove('hidden');
 }
@@ -714,216 +764,277 @@ function fecharModalImportar() { document.getElementById('modal-importar').class
 
 function setImpStep(s) {
     impStep = s;
-    [1,2,3].forEach(i => {
+    [1,2,3,4].forEach(i => {
         document.getElementById(`imp-step-${i}`).classList.toggle('active', i === s);
         const pill = document.getElementById(`imp-step-pill-${i}`);
+        if (!pill) return;
         pill.classList.toggle('bg-white/20', i === s);
         pill.classList.toggle('text-white/90', i === s);
     });
     document.getElementById('imp-btn-back').classList.toggle('hidden', s === 1);
-    document.getElementById('imp-btn-next').classList.toggle('hidden', s === 3);
-    document.getElementById('imp-btn-confirm').classList.toggle('hidden', s !== 3);
+    document.getElementById('imp-btn-next').classList.toggle('hidden', s === 4);
+    document.getElementById('imp-btn-confirm').classList.toggle('hidden', s !== 4);
 }
 
-function impVoltar() {
-    if (impStep > 1) setImpStep(impStep - 1);
-    if (impStep === 2) document.getElementById('imp-btn-next').disabled = false;
-}
+function impVoltar() { if (impStep > 1) setImpStep(impStep - 1); }
 
 async function impAvancar() {
     if (impStep === 1) {
-        // handled by onArquivoSelecionado
+        // Upload already happened, just advance if data ready
+        if (impHeaders.length) setImpStep(2);
     } else if (impStep === 2) {
         buildMappedRows();
-        if (!impMappedRows.length) { alert('Nenhuma linha válida encontrada com o mapeamento escolhido.'); return; }
+        if (!impMappedRows.length) { alert('Nenhuma linha com valor válido encontrada. Verifique a coluna de Valor.'); return; }
         populateFilters();
-        renderPreviewTabela();
+        renderFilterCount();
         setImpStep(3);
+    } else if (impStep === 3) {
+        renderPreviewTabela();
+        setImpStep(4);
     }
 }
 
-// Drag & drop
-const dz = document.getElementById('imp-drop-zone');
-if (dz) {
+// ── Drag & drop ──
+document.addEventListener('DOMContentLoaded', () => {
+    const dz = document.getElementById('imp-drop-zone');
+    if (!dz) return;
     dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
     dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
     dz.addEventListener('drop', e => {
         e.preventDefault(); dz.classList.remove('drag-over');
         const f = e.dataTransfer.files[0];
-        if (f) processFile(f);
+        if (f) { impCachedFile = f; processFile(f); }
     });
-}
+});
 
 async function onArquivoSelecionado(input) {
     const f = input.files[0];
-    if (f) await processFile(f);
+    if (!f) return;
+    impCachedFile = f;
+    await processFile(f);
 }
 
-async function processFile(file) {
+async function processFile(file, sheetName) {
     const status = document.getElementById('imp-upload-status');
-    status.textContent = 'Carregando...';
+    status.innerHTML = '<i class="ph ph-spinner spin mr-1"></i> Carregando...';
     document.getElementById('imp-btn-next').disabled = true;
     try {
         const fd = new FormData();
         fd.append('file', file);
-        const res = await fetch(`/api/projetos/${impProjetoId}/parse-planilha`, { method: 'POST', body: fd });
+        if (sheetName) fd.append('sheet_name', sheetName);
+        const res = await fetch(`/api/projetos/${impProjetoId}/parse-planilha`, { method:'POST', body:fd });
         if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Erro'); }
         const data = await res.json();
         impHeaders = data.headers;
         impRows = data.rows;
-        status.textContent = `✓ ${file.name} — ${impRows.length} linhas encontradas`;
+        impSheets = data.sheets || [];
+        impSelectedSheet = data.selected_sheet || '';
+
+        status.innerHTML = `✓ <strong>${file.name}</strong> — ${impRows.length.toLocaleString()} linhas${impSelectedSheet ? ` | aba: <em>${impSelectedSheet}</em>` : ''}`;
+
+        // Show sheet picker if multiple sheets
+        const picker = document.getElementById('imp-sheet-picker');
+        if (impSheets.length > 1) {
+            picker.classList.remove('hidden');
+            document.getElementById('imp-sheet-tabs').innerHTML = impSheets.map(s => `
+                <button onclick="trocarAba('${s.replace(/'/g,"\\'")}', this)"
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${s === impSelectedSheet ? 'border-faiston-purple text-faiston-purple bg-faiston-purple/5' : 'border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple'}">
+                    ${s}
+                </button>`).join('');
+        } else {
+            picker.classList.add('hidden');
+        }
+
         buildColMapUI();
-        setImpStep(2);
         document.getElementById('imp-btn-next').disabled = false;
+        setImpStep(2);
     } catch(e) {
         status.textContent = `Erro: ${e.message}`;
     }
 }
 
+async function trocarAba(sheetName, btn) {
+    document.querySelectorAll('#imp-sheet-tabs button').forEach(b => {
+        b.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple';
+    });
+    btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors border-faiston-purple text-faiston-purple bg-faiston-purple/5';
+    await processFile(impCachedFile, sheetName);
+}
+
+// ── Column mapping UI ──
+function guessCol(hints) {
+    const hmap = impHeaders.map(h => h.toLowerCase().trim());
+    for (const hint of hints) {
+        const idx = hmap.findIndex(h => h === hint); // exact first
+        if (idx >= 0) return idx;
+    }
+    for (const hint of hints) {
+        const idx = hmap.findIndex(h => h.includes(hint));
+        if (idx >= 0) return idx;
+    }
+    return '';
+}
+
 function buildColMapUI() {
-    const opts = `<option value="">— ignorar —</option>` + impHeaders.map((h, i) => `<option value="${i}">${h}</option>`).join('');
-    const container = document.getElementById('imp-col-map');
-    container.innerHTML = IMP_FIELDS.map(f => `
+    const opts = `<option value="">— ignorar —</option>` +
+        impHeaders.map((h, i) => `<option value="${i}">${h || `(col ${i+1})`}</option>`).join('');
+    document.getElementById('imp-col-map').innerHTML = IMP_FIELDS.map(f => `
         <div>
-            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">
-                ${f.label}${f.required ? ' <span class="text-faiston-pink">*</span>' : ''}
+            <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">
+                ${f.label}
             </label>
-            <select id="imp-${f.key}" class="col-select" onchange="onColChange()">
+            <select id="imp-${f.key}" class="col-select" onchange="updatePreviewMini()">
                 ${opts}
             </select>
-        </div>
-    `).join('');
+        </div>`).join('');
 
-    // Auto-map by header name heuristics
-    const hmap = impHeaders.map(h => h.toLowerCase());
-    const guess = (terms) => {
-        for (const t of terms) {
-            const idx = hmap.findIndex(h => h.includes(t));
-            if (idx >= 0) return idx;
-        }
-        return '';
-    };
-    document.getElementById('imp-imp_col_descricao')?.remove();
-    const setVal = (id, val) => { const el = document.getElementById(id); if(el && val !== '') el.value = val; };
-    setVal('imp-col_descricao',  guess(['descri', 'atendin', 'servi', 'chamado', 'os ', 'ordem']));
-    setVal('imp-col_valor',      guess(['valor', 'custo', 'total', 'preço', 'preco', 'r$']));
-    setVal('imp-col_tecnico',    guess(['técnico', 'tecnico', 'resp', 'operador', 'nome']));
-    setVal('imp-col_localidade', guess(['localid', 'cidade', 'local', 'região', 'regiao', 'unidade']));
-    setVal('imp-col_data',       guess(['data', 'date', 'dt_']));
-    setVal('imp-col_categoria',  guess(['categ', 'tipo', 'class']));
+    // Auto-map
+    IMP_FIELDS.forEach(f => {
+        const idx = guessCol(f.hints);
+        const el = document.getElementById(`imp-${f.key}`);
+        if (el && idx !== '') el.value = idx;
+    });
 
-    // Preview mini
     updatePreviewMini();
 }
 
-function onColChange() { updatePreviewMini(); }
-
 function updatePreviewMini() {
-    const mini = document.getElementById('imp-preview-mini');
-    if (!impRows.length) { mini.innerHTML = ''; return; }
-    const getIdx = key => { const el = document.getElementById(`imp-${key}`); return el && el.value !== '' ? parseInt(el.value) : null; };
-    const iDesc = getIdx('col_descricao'), iVal = getIdx('col_valor'), iTec = getIdx('col_tecnico'), iLoc = getIdx('col_localidade');
-    const sample = impRows.slice(0, 3);
-    mini.innerHTML = `<p class="font-semibold mb-2 text-slate-600">Prévia das primeiras linhas:</p>
-        <table class="w-full text-[11px] border-collapse">
-            <thead><tr class="text-slate-400">${['Descrição','Técnico','Localidade','Valor'].map(h=>`<th class="text-left pr-3 pb-1">${h}</th>`).join('')}</tr></thead>
-            <tbody>${sample.map(r => `<tr>${[
-                iDesc !== null ? r[iDesc] : '—',
-                iTec  !== null ? r[iTec]  : '—',
-                iLoc  !== null ? r[iLoc]  : '—',
-                iVal  !== null ? r[iVal]  : '—',
-            ].map(v=>`<td class="pr-3 pb-0.5 text-slate-600">${v||'—'}</td>`).join('')}</tr>`).join('')}</tbody>
-        </table>`;
+    const get = key => { const el = document.getElementById(`imp-${key}`); return el && el.value !== '' ? parseInt(el.value) : null; };
+    const iDesc = get('col_descricao'), iVal = get('col_valor'), iTec = get('col_tecnico');
+    const iLoc = get('col_localidade'), iDat = get('col_data'), iTipo = get('col_tipo');
+
+    const cols = [
+        {label:'Descrição',idx:iDesc},{label:'Técnico',idx:iTec},
+        {label:'Cidade',idx:iLoc},{label:'Tipo',idx:iTipo},
+        {label:'Data',idx:iDat},{label:'Valor',idx:iVal}
+    ].filter(c => c.idx !== null);
+
+    const head = document.getElementById('imp-preview-mini-head');
+    const body = document.getElementById('imp-preview-mini-body');
+    head.innerHTML = cols.map(c => `<th class="text-left px-3 py-1.5 font-semibold">${c.label}</th>`).join('');
+    body.innerHTML = impRows.slice(0,5).map(r => `<tr class="border-b border-faiston-border last:border-0">
+        ${cols.map(c => `<td class="px-3 py-1.5 text-slate-600 max-w-[180px] truncate">${r[c.idx]||'—'}</td>`).join('')}
+    </tr>`).join('');
 }
 
+// ── Value parsing ──
 function parseValor(s) {
-    if (!s) return null;
-    // Handle "R$ 1.234,56" or "1234.56" or "1.234,56"
+    if (s === null || s === undefined || s === '') return null;
+    if (typeof s === 'number') return s > 0 ? s : null;
     let clean = String(s).replace(/[^\d.,\-]/g, '');
-    // If both . and , present, assume . = thousands, , = decimal (BR format)
-    if (clean.includes(',') && clean.includes('.')) clean = clean.replace(/\./g, '').replace(',', '.');
-    else if (clean.includes(',')) clean = clean.replace(',', '.');
+    if (clean.includes(',') && clean.includes('.')) clean = clean.replace(/\./g,'').replace(',','.');
+    else if (clean.includes(',')) clean = clean.replace(',','.');
     const n = parseFloat(clean);
-    return isNaN(n) ? null : n;
+    return isNaN(n) || n <= 0 ? null : n;
 }
 
 function parseData(s) {
     if (!s) return '';
-    // Try DD/MM/YYYY
-    const m1 = String(s).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-    if (m1) { const y = m1[3].length === 2 ? '20' + m1[3] : m1[3]; return `${y}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`; }
-    // Try YYYY-MM-DD
-    const m2 = String(s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (m2) return `${m2[1]}-${m2[2].padStart(2,'0')}-${m2[3].padStart(2,'0')}`;
+    const str = String(s);
+    // ISO datetime 2024-06-21 00:00:00
+    const m0 = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m0) return `${m0[1]}-${m0[2]}-${m0[3]}`;
+    // DD/MM/YYYY
+    const m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m1) { const y = m1[3].length===2?'20'+m1[3]:m1[3]; return `${y}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`; }
     return '';
 }
 
+function normTipoCategoria(s) {
+    const cats = ['Técnico','Frete','Material','Licença','Serviço'];
+    const low = (s||'').toLowerCase();
+    if (low.includes('incorp') || low.includes('instal') || low.includes('manut') || low.includes('recolh') || low.includes('visita')) return 'Serviço';
+    if (low.includes('frete') || low.includes('km') || low.includes('logist') || low.includes('transport')) return 'Frete';
+    if (low.includes('mater') || low.includes('peça') || low.includes('equip')) return 'Material';
+    return cats.find(c => low.includes(c.toLowerCase().replace('ç','c').replace('ê','e').replace('ã','a'))) || 'Serviço';
+}
+
 function buildMappedRows() {
-    const getIdx = key => { const el = document.getElementById(`imp-${key}`); return el && el.value !== '' ? parseInt(el.value) : null; };
-    const iDesc = getIdx('col_descricao'), iVal = getIdx('col_valor'), iTec = getIdx('col_tecnico');
-    const iLoc  = getIdx('col_localidade'), iDat = getIdx('col_data'), iCat = getIdx('col_categoria');
-    if (iVal === null) { alert('Selecione a coluna de Valor'); return; }
+    const get = key => { const el = document.getElementById(`imp-${key}`); return el && el.value !== '' ? parseInt(el.value) : null; };
+    const iDesc=get('col_descricao'), iVal=get('col_valor'), iTec=get('col_tecnico');
+    const iLoc=get('col_localidade'), iDat=get('col_data'), iTipo=get('col_tipo');
+    const iPrj=get('col_projeto'), iStat=get('col_status');
+    if (iVal===null) { alert('Selecione a coluna de Valor'); return; }
     impMappedRows = [];
     for (const r of impRows) {
-        const valor = parseValor(iVal !== null ? r[iVal] : '');
-        if (valor === null || valor <= 0) continue;
+        const valor = parseValor(iVal!==null ? r[iVal] : '');
+        if (valor===null) continue;
         impMappedRows.push({
-            descricao:      (iDesc !== null ? r[iDesc] : '') || 'Importado',
+            descricao:       (iDesc!==null ? r[iDesc] : '') || 'Importado',
             valor,
-            tecnico:        iTec  !== null ? r[iTec]  : '',
-            localidade:     iLoc  !== null ? r[iLoc]  : '',
-            categoria:      iCat  !== null ? normCategoria(r[iCat]) : 'Outros',
-            data_lancamento: iDat !== null ? parseData(r[iDat]) : '',
+            tecnico:          iTec!==null  ? r[iTec]  : '',
+            localidade:       iLoc!==null  ? r[iLoc]  : '',
+            data_lancamento:  iDat!==null  ? parseData(r[iDat]) : '',
+            categoria:        iTipo!==null ? normTipoCategoria(r[iTipo]) : 'Serviço',
+            _projeto:         iPrj!==null  ? r[iPrj]  : '',
+            _status:          iStat!==null ? r[iStat] : '',
         });
     }
 }
 
-function normCategoria(s) {
-    const cats = ['Técnico','Frete','Material','Licença','Serviço','Outros'];
-    const low = (s||'').toLowerCase();
-    return cats.find(c => low.includes(c.toLowerCase().replace('ç','c').replace('ê','e'))) || 'Outros';
-}
+// ── Filters (Step 3) ──
+function uniqueSorted(arr, key) { return [...new Set(arr.map(r=>r[key]).filter(Boolean))].sort(); }
 
 function populateFilters() {
-    const tecnicos   = [...new Set(impMappedRows.map(r => r.tecnico).filter(Boolean))].sort();
-    const localidades = [...new Set(impMappedRows.map(r => r.localidade).filter(Boolean))].sort();
+    const fillSel = (id, label, vals) => {
+        document.getElementById(id).innerHTML =
+            `<option value="">${label}</option>` + vals.map(v=>`<option>${v}</option>`).join('');
+    };
+    fillSel('imp-filter-projeto',   'Todos',             uniqueSorted(impMappedRows,'_projeto'));
+    fillSel('imp-filter-status',    'Todos',             uniqueSorted(impMappedRows,'_status'));
+    fillSel('imp-filter-tecnico',   'Todos',             uniqueSorted(impMappedRows,'tecnico'));
+    fillSel('imp-filter-localidade','Todas',             uniqueSorted(impMappedRows,'localidade'));
+    document.getElementById('imp-filter-dt-ini').value = '';
+    document.getElementById('imp-filter-dt-fim').value = '';
+}
 
-    const selT = document.getElementById('imp-filter-tecnico');
-    selT.innerHTML = '<option value="">Todos os técnicos</option>' + tecnicos.map(t => `<option>${t}</option>`).join('');
-    const selL = document.getElementById('imp-filter-localidade');
-    selL.innerHTML = '<option value="">Todas as localidades</option>' + localidades.map(l => `<option>${l}</option>`).join('');
-    document.getElementById('imp-filter-categoria').value = '';
+function getFiltered() {
+    const fPrj  = document.getElementById('imp-filter-projeto').value;
+    const fStat = document.getElementById('imp-filter-status').value;
+    const fTec  = document.getElementById('imp-filter-tecnico').value;
+    const fLoc  = document.getElementById('imp-filter-localidade').value;
+    const fIni  = document.getElementById('imp-filter-dt-ini').value;
+    const fFim  = document.getElementById('imp-filter-dt-fim').value;
+    return impMappedRows.filter(r =>
+        (!fPrj  || r._projeto   === fPrj)  &&
+        (!fStat || r._status    === fStat) &&
+        (!fTec  || r.tecnico    === fTec)  &&
+        (!fLoc  || r.localidade === fLoc)  &&
+        (!fIni  || r.data_lancamento >= fIni) &&
+        (!fFim  || r.data_lancamento <= fFim || !r.data_lancamento)
+    );
+}
+
+function renderFilterCount() {
+    const f = getFiltered();
+    const total = f.reduce((s,r)=>s+r.valor,0);
+    document.getElementById('imp-filter-count').textContent = `${f.length} atendimento${f.length!==1?'s':''} corresponde${f.length!==1?'m':''} aos filtros`;
+    document.getElementById('imp-filter-total').textContent = `Total: ${fmtMoeda(total)}`;
 }
 
 function renderPreviewTabela() {
-    const fTec  = document.getElementById('imp-filter-tecnico').value;
-    const fLoc  = document.getElementById('imp-filter-localidade').value;
-    const fCat  = document.getElementById('imp-filter-categoria').value;
-
-    const filtered = impMappedRows.filter(r =>
-        (!fTec  || r.tecnico    === fTec) &&
-        (!fLoc  || r.localidade === fLoc) &&
-        (!fCat  || r.categoria  === fCat)
-    );
-
+    const filtered = getFiltered();
     const tbody = document.getElementById('imp-preview-tbody');
-    tbody.innerHTML = filtered.map(r => `
+    tbody.innerHTML = filtered.length ? filtered.map(r=>`
         <tr class="lancamento-row border-b border-faiston-border last:border-0">
-            <td class="px-3 py-2 text-xs text-faiston-dark">${r.descricao}</td>
-            <td class="px-3 py-2 text-xs text-slate-500">${r.tecnico || '—'}</td>
-            <td class="px-3 py-2 text-xs text-slate-500">${r.localidade || '—'}</td>
+            <td class="px-3 py-2 text-xs text-faiston-dark max-w-[200px] truncate">${r.descricao}</td>
+            <td class="px-3 py-2 text-xs text-slate-500">${r.tecnico||'—'}</td>
+            <td class="px-3 py-2 text-xs text-slate-500">${r.localidade||'—'}</td>
             <td class="px-3 py-2"><span class="cat-badge cat-${r.categoria}">${r.categoria}</span></td>
-            <td class="px-3 py-2 text-xs text-slate-400 font-mono">${r.data_lancamento || '—'}</td>
+            <td class="px-3 py-2 text-xs text-slate-400 font-mono">${r.data_lancamento||'—'}</td>
             <td class="px-3 py-2 text-right text-xs font-bold font-mono">${fmtMoeda(r.valor)}</td>
-        </tr>`).join('') || '<tr><td colspan="6" class="px-3 py-6 text-center text-xs text-slate-400">Nenhum resultado com este filtro</td></tr>';
+        </tr>`).join('')
+        : '<tr><td colspan="6" class="px-3 py-8 text-center text-xs text-slate-400">Nenhum resultado</td></tr>';
 
-    const total = filtered.reduce((s, r) => s + r.valor, 0);
-    document.getElementById('imp-preview-count').textContent = `${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''} selecionado${filtered.length !== 1 ? 's' : ''}`;
+    const total = filtered.reduce((s,r)=>s+r.valor,0);
+    document.getElementById('imp-preview-count').textContent =
+        `${filtered.length} lançamento${filtered.length!==1?'s':''}`;
     document.getElementById('imp-preview-total').textContent = `Total: ${fmtMoeda(total)}`;
-    document.getElementById('imp-btn-confirm-label').textContent = `Importar ${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''}`;
-
-    // Store filtered for import
-    document.getElementById('imp-btn-confirm').dataset.filtered = JSON.stringify(filtered);
+    document.getElementById('imp-btn-confirm-label').textContent =
+        `Importar ${filtered.length} lançamento${filtered.length!==1?'s':''}`;
+    document.getElementById('imp-btn-confirm').dataset.filtered = JSON.stringify(
+        filtered.map(({_projeto,_status,...rest})=>rest) // strip internal fields
+    );
 }
 
 async function confirmarImportacao() {
@@ -933,17 +1044,15 @@ async function confirmarImportacao() {
     btn.disabled = true;
     btn.innerHTML = '<i class="ph ph-spinner spin mr-1"></i> Importando...';
     try {
-        const res = await fetch(`/api/projetos/${impProjetoId}/importar-lancamentos`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ lancamentos: filtered })
+        await fetch(`/api/projetos/${impProjetoId}/importar-lancamentos`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({lancamentos: filtered})
         });
-        const data = await res.json();
         fecharModalImportar();
         await carregarProjetos();
-        const body2 = document.getElementById(`body-proj-${impProjetoId}`);
-        if (body2) {
-            body2.style.display = 'block';
+        const bodyEl = document.getElementById(`body-proj-${impProjetoId}`);
+        if (bodyEl) {
+            bodyEl.style.display = 'block';
             const chev = document.getElementById(`chevron-${impProjetoId}`);
             if (chev) chev.style.transform = 'rotate(180deg)';
             await carregarLancamentos(impProjetoId);
@@ -951,7 +1060,7 @@ async function confirmarImportacao() {
     } catch(e) {
         alert('Erro ao importar: ' + e.message);
         btn.disabled = false;
-        btn.innerHTML = `<i class="ph ph-check mr-1"></i> <span id="imp-btn-confirm-label">Importar</span>`;
+        btn.innerHTML = '<i class="ph ph-check mr-1"></i> <span id="imp-btn-confirm-label">Importar</span>';
     }
 }
 
