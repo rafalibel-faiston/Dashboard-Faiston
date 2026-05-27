@@ -137,19 +137,19 @@
                 <p class="text-xs text-slate-400 mt-1">Ativos no período</p>
             </div>
             <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Horas no Mês</p>
-                <p class="text-3xl font-black text-faiston-cyan" id="stat-horas">—</p>
-                <p class="text-xs text-faiston-cyan mt-1" id="stat-horas-mom">+12% MoM</p>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Orçamento Total</p>
+                <p class="text-2xl font-black text-faiston-purple" id="stat-orcamento">—</p>
+                <p class="text-xs text-slate-400 mt-1">Soma de todos os projetos</p>
             </div>
             <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">SLA Médio</p>
-                <p class="text-3xl font-black text-faiston-purple" id="stat-sla">—</p>
-                <p class="text-xs text-slate-400 mt-1">Acima da meta</p>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Gasto</p>
+                <p class="text-2xl font-black text-faiston-pink" id="stat-gasto">—</p>
+                <p class="text-xs text-slate-400 mt-1">Lançamentos registrados</p>
             </div>
             <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Tickets Críticos</p>
-                <p class="text-3xl font-black text-faiston-pink" id="stat-criticos">—</p>
-                <p class="text-xs text-slate-400 mt-1">Necessitam atenção</p>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Saldo Global</p>
+                <p class="text-2xl font-black" id="stat-saldo">—</p>
+                <p class="text-xs text-slate-400 mt-1">Disponível em carteira</p>
             </div>
         </div>
 
@@ -231,6 +231,7 @@
 <script>
 let clientes = [];
 let metricas = null;
+let financeiro = []; // [{id, nome, num_projetos, total_orcamento, total_gasto}]
 
 const GRADIENTS = [
     'linear-gradient(135deg, #06D7E6 0%, #5B2EE0 100%)',
@@ -256,10 +257,14 @@ async function init() {
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
 
-    // Load metricas for stats
+    // Load metricas and financial summary in parallel
     try {
-        const mRes = await fetch('/api/metricas');
+        const [mRes, fRes] = await Promise.all([
+            fetch('/api/metricas'),
+            fetch('/api/financeiro/resumo')
+        ]);
         if (mRes.ok) metricas = await mRes.json();
+        if (fRes.ok) financeiro = await fRes.json();
     } catch(e) {}
 
     await carregar();
@@ -278,26 +283,27 @@ async function carregar() {
     filtrar();
 }
 
+function fmtMoeda(v) {
+    if (!v) return 'R$ 0';
+    if (v >= 1000000) return 'R$ ' + (v/1000000).toFixed(1) + 'M';
+    if (v >= 1000) return 'R$ ' + (v/1000).toFixed(0) + 'k';
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+
 function renderStats() {
     const ativos = clientes.filter(c => c.ativo).length;
     document.getElementById('stat-total').textContent = ativos;
     document.getElementById('header-sub').textContent = `${ativos} clientes ativos · gestão de carteira`;
 
-    if (metricas) {
-        const horas = parseFloat((metricas.kpis.total_horas||0).toFixed(1));
-        document.getElementById('stat-horas').textContent = horas + 'h';
+    const totalOrc   = financeiro.reduce((s, f) => s + (f.total_orcamento || 0), 0);
+    const totalGasto = financeiro.reduce((s, f) => s + (f.total_gasto || 0), 0);
+    const saldo      = totalOrc - totalGasto;
 
-        const taxas = (metricas.taxa_conclusao||[]).map(t=>t.taxa);
-        const sla = taxas.length ? Math.round(taxas.reduce((a,b)=>a+b,0)/taxas.length) : 0;
-        document.getElementById('stat-sla').textContent = sla + '%';
-
-        const criticos = (metricas.recentes||[]).filter(t => t.prioridade === 'Alta' && t.status !== 'concluido').length;
-        document.getElementById('stat-criticos').textContent = criticos;
-    } else {
-        document.getElementById('stat-horas').textContent = '—';
-        document.getElementById('stat-sla').textContent = '—';
-        document.getElementById('stat-criticos').textContent = '—';
-    }
+    document.getElementById('stat-orcamento').textContent = fmtMoeda(totalOrc);
+    document.getElementById('stat-gasto').textContent     = fmtMoeda(totalGasto);
+    const saldoEl = document.getElementById('stat-saldo');
+    saldoEl.textContent = fmtMoeda(Math.abs(saldo));
+    saldoEl.style.color = saldo >= 0 ? '#06D7E6' : '#EC4899';
 }
 
 function filtrar() {
@@ -325,61 +331,72 @@ function render(lista) {
         const setor = SETORES[i % SETORES.length];
         const status = getStatusInfo(c, i);
         const hpc = (metricas?.horas_por_cliente||[]).find(h => h.cliente === c.nome);
-        const horas = hpc ? parseFloat((hpc.horas||0).toFixed(1)) : 0;
-        const tickets = (metricas?.recentes||[]).filter(t => t.cliente === c.nome).length;
-        const taxaObj = (metricas?.taxa_conclusao||[]).find(t => t.cliente === c.nome);
-        const sla = taxaObj ? taxaObj.taxa : Math.floor(92 + Math.random()*8);
-        const slaColor = sla >= 95 ? '#06D7E6' : sla >= 90 ? '#5B2EE0' : '#EC4899';
         const initials = c.nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+        const fin = financeiro.find(f => f.id === c.id) || {};
+        const orcamento    = fin.total_orcamento || 0;
+        const gasto        = fin.total_gasto || 0;
+        const saldo        = orcamento - gasto;
+        const numProjetos  = fin.num_projetos || 0;
+        const pct          = orcamento > 0 ? Math.min(100, (gasto / orcamento) * 100) : 0;
+        const over         = pct >= 100;
+        const barColor     = over ? '#EC4899' : pct > 75 ? '#f59e0b' : '#5B2EE0';
+        const saldoColor   = saldo >= 0 ? '#06D7E6' : '#EC4899';
+        const semFinanceiro = !orcamento && !gasto;
 
         return `<div class="bg-white rounded-2xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_8px_32px_-8px_rgba(91,46,224,0.18)] transition-all duration-300">
             <!-- Gradient header -->
-            <div class="relative h-28 flex items-end px-5 pb-0" style="background:${grad}">
-                <span class="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/20 text-white/90 backdrop-blur-sm">${setor}</span>
-                <div class="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white text-xl font-black mb-0 translate-y-7 shadow-lg">
+            <div class="relative h-24 flex items-end px-5 pb-0" style="background:${grad}">
+                <span class="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/20 text-white/90 backdrop-blur-sm">${c.setor || setor}</span>
+                <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white text-lg font-black translate-y-6 shadow-lg">
                     ${initials}
                 </div>
             </div>
             <!-- Content -->
-            <div class="pt-10 px-5 pb-5">
+            <div class="pt-9 px-5 pb-4">
                 <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-bold text-faiston-dark text-base">${c.nome}</h3>
+                    <h3 class="font-bold text-faiston-dark text-sm">${c.nome}</h3>
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.cls}">${status.label}</span>
                 </div>
-                <div class="grid grid-cols-3 gap-2 mb-4">
+
+                ${semFinanceiro ? `
+                <div class="text-center py-3 text-slate-300 text-xs">
+                    <i class="ph ph-currency-circle-dollar block text-2xl mb-1"></i>
+                    Sem dados financeiros
+                </div>` : `
+                <!-- Financeiro -->
+                <div class="grid grid-cols-3 gap-2 mb-3">
                     <div>
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Tickets</p>
-                        <p class="text-lg font-black text-faiston-dark">${tickets || Math.floor(Math.random()*20+4)}</p>
+                        <p class="text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">Projetos</p>
+                        <p class="text-base font-black text-faiston-dark">${numProjetos}</p>
                     </div>
                     <div>
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Ativos</p>
-                        <p class="text-lg font-black text-faiston-dark">${Math.floor(Math.random()*6+1)}</p>
+                        <p class="text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">Gasto</p>
+                        <p class="text-base font-black text-faiston-pink">${fmtMoeda(gasto)}</p>
                     </div>
                     <div>
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Horas</p>
-                        <p class="text-lg font-black text-faiston-dark">${horas || (Math.floor(Math.random()*30+5)*0.1*10).toFixed(1)}h</p>
+                        <p class="text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">Saldo</p>
+                        <p class="text-base font-black" style="color:${saldoColor}">${fmtMoeda(Math.abs(saldo))}</p>
                     </div>
                 </div>
-                <div class="flex items-center justify-between">
-                    <div class="flex-1 mr-3">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-[10px] text-slate-400 uppercase tracking-wide">SLA</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div class="h-full rounded-full" style="width:${sla}%;background:${slaColor}"></div>
-                            </div>
-                            <span class="text-xs font-bold" style="color:${slaColor}">${sla}%</span>
-                        </div>
+                <!-- Barra de utilização -->
+                <div class="mb-3">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[9px] text-slate-400 uppercase tracking-wide">${over ? '⚠ Orç. excedido' : 'Utilização do orçamento'}</span>
+                        <span class="text-[9px] font-bold" style="color:${barColor}">${pct.toFixed(0)}%</span>
                     </div>
-                    <div class="flex items-center gap-3">
-                        <a href="/financeiro/${c.id}" class="text-xs font-semibold text-faiston-cyan hover:text-faiston-purple transition-colors flex items-center gap-1">
-                            <i class="ph ph-currency-circle-dollar text-xs"></i> Financeiro
-                        </a>
-                        <a href="/relatorio/${encodeURIComponent(c.nome)}" target="_blank" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta transition-colors flex items-center gap-1">
-                            Detalhes <i class="ph ph-arrow-square-out text-xs"></i>
-                        </a>
+                    <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all" style="width:${pct}%;background:${barColor}"></div>
                     </div>
+                </div>`}
+
+                <!-- Links -->
+                <div class="flex items-center justify-between pt-1 border-t border-faiston-border">
+                    <a href="/financeiro/${c.id}" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta transition-colors flex items-center gap-1">
+                        <i class="ph ph-currency-circle-dollar text-xs"></i> Financeiro
+                    </a>
+                    <a href="/relatorio/${encodeURIComponent(c.nome)}" target="_blank" class="text-xs font-semibold text-slate-400 hover:text-faiston-purple transition-colors flex items-center gap-1">
+                        Relatório <i class="ph ph-arrow-square-out text-xs"></i>
+                    </a>
                 </div>
             </div>
         </div>`;
