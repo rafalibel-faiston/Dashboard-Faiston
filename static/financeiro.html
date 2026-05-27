@@ -54,6 +54,18 @@
         .cat-Serviço   { background:#EC489915;color:#EC4899; }
         .cat-Outros    { background:#64748b15;color:#64748b; }
 
+        /* Import modal */
+        .import-step { display:none; }
+        .import-step.active { display:block; }
+        .drop-zone { border:2px dashed #E5E8F0; border-radius:12px; transition:all 0.2s; }
+        .drop-zone.drag-over { border-color:#5B2EE0; background:#5B2EE008; }
+        .col-select { width:100%; border:1px solid #E5E8F0; border-radius:8px; padding:6px 10px; font-size:12px; }
+        [data-theme="dark"] .drop-zone { border-color:rgba(255,255,255,0.12); }
+        [data-theme="dark"] .col-select { background:#11111E; color:#F1F2F8; border-color:rgba(255,255,255,0.1); }
+        .preview-table { font-size:11px; }
+        .preview-table th { position:sticky;top:0;background:#F4F5FA;z-index:1; }
+        [data-theme="dark"] .preview-table th { background:#1a1a2e; }
+
         @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
         .fade-in { animation: fadeIn 250ms ease both; }
     </style>
@@ -208,6 +220,112 @@
             <div class="flex gap-3 pt-2">
                 <button onclick="fecharModalProjeto()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
                 <button onclick="salvarProjeto()" class="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white btn-grad">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL IMPORTAR PLANILHA -->
+<div id="modal-importar" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(7,7,15,0.6);backdrop-filter:blur(8px)">
+    <div class="modal-bg bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-faiston-border fade-in flex flex-col" style="max-height:90vh">
+        <!-- Header -->
+        <div class="grad-bg px-6 py-4 flex items-center gap-3 rounded-t-2xl flex-shrink-0">
+            <i class="ph ph-table text-white text-xl"></i>
+            <span class="text-white font-bold">Importar Planilha de Custos</span>
+            <div class="ml-auto flex items-center gap-3">
+                <div class="flex items-center gap-1 text-white/60 text-xs">
+                    <span id="imp-step-pill-1" class="px-2 py-0.5 rounded-full text-white/90 bg-white/20 font-semibold">1. Arquivo</span>
+                    <i class="ph ph-caret-right text-[10px]"></i>
+                    <span id="imp-step-pill-2" class="px-2 py-0.5 rounded-full font-semibold">2. Colunas</span>
+                    <i class="ph ph-caret-right text-[10px]"></i>
+                    <span id="imp-step-pill-3" class="px-2 py-0.5 rounded-full font-semibold">3. Importar</span>
+                </div>
+                <button onclick="fecharModalImportar()" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <input type="hidden" id="imp-projeto-id">
+
+            <!-- STEP 1: Upload -->
+            <div id="imp-step-1" class="import-step active">
+                <p class="text-sm text-slate-500 mb-4">Selecione um arquivo <strong>.xlsx</strong> ou <strong>.csv</strong> com os atendimentos. A primeira linha deve conter os cabeçalhos das colunas.</p>
+                <div id="imp-drop-zone" class="drop-zone p-12 text-center cursor-pointer" onclick="document.getElementById('imp-file-input').click()">
+                    <i class="ph ph-file-xls text-4xl text-slate-300 mb-3 block"></i>
+                    <p class="font-semibold text-slate-500 text-sm">Clique para selecionar ou arraste o arquivo aqui</p>
+                    <p class="text-xs text-slate-400 mt-1">.xlsx, .xls, .csv — máximo 10MB</p>
+                </div>
+                <input id="imp-file-input" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="onArquivoSelecionado(this)">
+                <div id="imp-upload-status" class="mt-3 text-xs text-slate-400 text-center"></div>
+            </div>
+
+            <!-- STEP 2: Mapeamento de colunas -->
+            <div id="imp-step-2" class="import-step">
+                <p class="text-sm text-slate-500 mb-4">Indique qual coluna da planilha corresponde a cada campo. Apenas <strong>Valor</strong> é obrigatório.</p>
+                <div id="imp-col-map" class="grid grid-cols-2 gap-4"></div>
+                <div class="mt-4 p-3 bg-slate-50 rounded-xl border border-faiston-border text-xs text-slate-500" id="imp-preview-mini"></div>
+            </div>
+
+            <!-- STEP 3: Filtro e preview -->
+            <div id="imp-step-3" class="import-step">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="flex-1">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Filtrar por Técnico</label>
+                        <select id="imp-filter-tecnico" onchange="renderPreviewTabela()" class="col-select">
+                            <option value="">Todos os técnicos</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Filtrar por Localidade</label>
+                        <select id="imp-filter-localidade" onchange="renderPreviewTabela()" class="col-select">
+                            <option value="">Todas as localidades</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Filtrar por Categoria</label>
+                        <select id="imp-filter-categoria" onchange="renderPreviewTabela()" class="col-select">
+                            <option value="">Todas</option>
+                            <option>Técnico</option><option>Frete</option><option>Material</option>
+                            <option>Licença</option><option>Serviço</option><option>Outros</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-auto rounded-xl border border-faiston-border" style="max-height:340px">
+                    <table class="w-full preview-table">
+                        <thead><tr class="text-[10px] text-slate-400 uppercase tracking-wider border-b border-faiston-border">
+                            <th class="text-left px-3 py-2 font-semibold">Descrição</th>
+                            <th class="text-left px-3 py-2 font-semibold">Técnico</th>
+                            <th class="text-left px-3 py-2 font-semibold">Localidade</th>
+                            <th class="text-left px-3 py-2 font-semibold">Categoria</th>
+                            <th class="text-left px-3 py-2 font-semibold">Data</th>
+                            <th class="text-right px-3 py-2 font-semibold">Valor</th>
+                        </tr></thead>
+                        <tbody id="imp-preview-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="mt-3 flex items-center justify-between text-xs text-slate-500">
+                    <span id="imp-preview-count">0 lançamentos selecionados</span>
+                    <span class="font-bold text-faiston-purple" id="imp-preview-total">Total: R$ 0,00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer / botões -->
+        <div class="flex-shrink-0 px-6 py-4 border-t border-faiston-border flex items-center justify-between">
+            <button id="imp-btn-back" onclick="impVoltar()" class="border border-faiston-border rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors hidden">
+                <i class="ph ph-arrow-left mr-1"></i> Voltar
+            </button>
+            <div></div>
+            <div class="flex gap-3">
+                <button onclick="fecharModalImportar()" class="border border-faiston-border rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                <button id="imp-btn-next" onclick="impAvancar()" class="rounded-lg px-5 py-2 text-sm font-semibold text-white btn-grad" disabled>
+                    Continuar <i class="ph ph-arrow-right ml-1"></i>
+                </button>
+                <button id="imp-btn-confirm" onclick="confirmarImportacao()" class="hidden rounded-lg px-5 py-2 text-sm font-semibold text-white btn-grad">
+                    <i class="ph ph-check mr-1"></i> <span id="imp-btn-confirm-label">Importar</span>
+                </button>
             </div>
         </div>
     </div>
@@ -379,9 +497,14 @@ function renderProjetos() {
             <div id="body-proj-${p.id}" style="display:none">
                 <div class="px-5 py-3 flex items-center justify-between border-b border-faiston-border" style="background:rgba(91,46,224,0.02)">
                     <p class="text-xs font-semibold text-slate-500">Lançamentos</p>
-                    <button onclick="abrirModalLancamento(${p.id})" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white btn-grad">
-                        <i class="ph ph-plus text-xs"></i> Lançar gasto
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button onclick="abrirModalImportar(${p.id})" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border text-slate-600 hover:border-faiston-purple hover:text-faiston-purple transition-colors">
+                            <i class="ph ph-table text-xs"></i> Importar Planilha
+                        </button>
+                        <button onclick="abrirModalLancamento(${p.id})" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white btn-grad">
+                            <i class="ph ph-plus text-xs"></i> Lançar gasto
+                        </button>
+                    </div>
                 </div>
                 <div id="lancs-${p.id}" class="px-5 py-2">
                     <div class="flex items-center justify-center py-6 text-slate-400 text-xs">
@@ -425,6 +548,8 @@ async function carregarLancamentos(pid) {
             <thead><tr class="text-[10px] text-slate-400 uppercase tracking-wider border-b border-faiston-border">
                 <th class="text-left pb-2 pt-1 font-semibold">Descrição</th>
                 <th class="text-left pb-2 pt-1 font-semibold">Categoria</th>
+                <th class="text-left pb-2 pt-1 font-semibold">Técnico</th>
+                <th class="text-left pb-2 pt-1 font-semibold">Localidade</th>
                 <th class="text-left pb-2 pt-1 font-semibold">Data</th>
                 <th class="text-right pb-2 pt-1 font-semibold">Valor</th>
                 <th class="pb-2 pt-1"></th>
@@ -433,6 +558,8 @@ async function carregarLancamentos(pid) {
                 <tr class="lancamento-row border-b border-faiston-border last:border-0">
                     <td class="py-2.5 pr-4 text-faiston-dark font-medium text-xs">${l.descricao}</td>
                     <td class="py-2.5 pr-4"><span class="cat-badge cat-${l.categoria}">${l.categoria}</span></td>
+                    <td class="py-2.5 pr-4 text-slate-500 text-xs">${l.tecnico || '<span class="text-slate-300">—</span>'}</td>
+                    <td class="py-2.5 pr-4 text-slate-500 text-xs">${l.localidade || '<span class="text-slate-300">—</span>'}</td>
                     <td class="py-2.5 pr-4 text-slate-400 text-xs font-mono">${l.data}</td>
                     <td class="py-2.5 text-right font-bold text-xs text-faiston-dark font-mono">${fmtMoeda(l.valor)}</td>
                     <td class="py-2.5 pl-3 text-right">
@@ -552,12 +679,290 @@ function updateThemeIcon() {
     document.getElementById('icon-theme').className = dark ? 'ph ph-moon' : 'ph ph-sun';
 }
 
+// ── Importar Planilha ──
+let impStep = 1;
+let impProjetoId = null;
+let impHeaders = [];
+let impRows = [];
+let impMappedRows = []; // [{descricao,valor,tecnico,localidade,categoria,data}]
+
+const IMP_FIELDS = [
+    { key: 'col_descricao',  label: 'Descrição / Atendimento', required: false },
+    { key: 'col_valor',      label: 'Valor / Custo (R$)',       required: true  },
+    { key: 'col_tecnico',    label: 'Técnico',                  required: false },
+    { key: 'col_localidade', label: 'Localidade / Cidade',      required: false },
+    { key: 'col_data',       label: 'Data',                     required: false },
+    { key: 'col_categoria',  label: 'Categoria',                required: false },
+];
+
+function abrirModalImportar(pid) {
+    impProjetoId = pid;
+    impStep = 1;
+    impHeaders = []; impRows = []; impMappedRows = [];
+    document.getElementById('imp-projeto-id').value = pid;
+    document.getElementById('imp-file-input').value = '';
+    document.getElementById('imp-upload-status').textContent = '';
+    document.getElementById('imp-btn-next').disabled = true;
+    document.getElementById('imp-btn-back').classList.add('hidden');
+    document.getElementById('imp-btn-next').classList.remove('hidden');
+    document.getElementById('imp-btn-confirm').classList.add('hidden');
+    setImpStep(1);
+    document.getElementById('modal-importar').classList.remove('hidden');
+}
+
+function fecharModalImportar() { document.getElementById('modal-importar').classList.add('hidden'); }
+
+function setImpStep(s) {
+    impStep = s;
+    [1,2,3].forEach(i => {
+        document.getElementById(`imp-step-${i}`).classList.toggle('active', i === s);
+        const pill = document.getElementById(`imp-step-pill-${i}`);
+        pill.classList.toggle('bg-white/20', i === s);
+        pill.classList.toggle('text-white/90', i === s);
+    });
+    document.getElementById('imp-btn-back').classList.toggle('hidden', s === 1);
+    document.getElementById('imp-btn-next').classList.toggle('hidden', s === 3);
+    document.getElementById('imp-btn-confirm').classList.toggle('hidden', s !== 3);
+}
+
+function impVoltar() {
+    if (impStep > 1) setImpStep(impStep - 1);
+    if (impStep === 2) document.getElementById('imp-btn-next').disabled = false;
+}
+
+async function impAvancar() {
+    if (impStep === 1) {
+        // handled by onArquivoSelecionado
+    } else if (impStep === 2) {
+        buildMappedRows();
+        if (!impMappedRows.length) { alert('Nenhuma linha válida encontrada com o mapeamento escolhido.'); return; }
+        populateFilters();
+        renderPreviewTabela();
+        setImpStep(3);
+    }
+}
+
+// Drag & drop
+const dz = document.getElementById('imp-drop-zone');
+if (dz) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
+        e.preventDefault(); dz.classList.remove('drag-over');
+        const f = e.dataTransfer.files[0];
+        if (f) processFile(f);
+    });
+}
+
+async function onArquivoSelecionado(input) {
+    const f = input.files[0];
+    if (f) await processFile(f);
+}
+
+async function processFile(file) {
+    const status = document.getElementById('imp-upload-status');
+    status.textContent = 'Carregando...';
+    document.getElementById('imp-btn-next').disabled = true;
+    try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch(`/api/projetos/${impProjetoId}/parse-planilha`, { method: 'POST', body: fd });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Erro'); }
+        const data = await res.json();
+        impHeaders = data.headers;
+        impRows = data.rows;
+        status.textContent = `✓ ${file.name} — ${impRows.length} linhas encontradas`;
+        buildColMapUI();
+        setImpStep(2);
+        document.getElementById('imp-btn-next').disabled = false;
+    } catch(e) {
+        status.textContent = `Erro: ${e.message}`;
+    }
+}
+
+function buildColMapUI() {
+    const opts = `<option value="">— ignorar —</option>` + impHeaders.map((h, i) => `<option value="${i}">${h}</option>`).join('');
+    const container = document.getElementById('imp-col-map');
+    container.innerHTML = IMP_FIELDS.map(f => `
+        <div>
+            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">
+                ${f.label}${f.required ? ' <span class="text-faiston-pink">*</span>' : ''}
+            </label>
+            <select id="imp-${f.key}" class="col-select" onchange="onColChange()">
+                ${opts}
+            </select>
+        </div>
+    `).join('');
+
+    // Auto-map by header name heuristics
+    const hmap = impHeaders.map(h => h.toLowerCase());
+    const guess = (terms) => {
+        for (const t of terms) {
+            const idx = hmap.findIndex(h => h.includes(t));
+            if (idx >= 0) return idx;
+        }
+        return '';
+    };
+    document.getElementById('imp-imp_col_descricao')?.remove();
+    const setVal = (id, val) => { const el = document.getElementById(id); if(el && val !== '') el.value = val; };
+    setVal('imp-col_descricao',  guess(['descri', 'atendin', 'servi', 'chamado', 'os ', 'ordem']));
+    setVal('imp-col_valor',      guess(['valor', 'custo', 'total', 'preço', 'preco', 'r$']));
+    setVal('imp-col_tecnico',    guess(['técnico', 'tecnico', 'resp', 'operador', 'nome']));
+    setVal('imp-col_localidade', guess(['localid', 'cidade', 'local', 'região', 'regiao', 'unidade']));
+    setVal('imp-col_data',       guess(['data', 'date', 'dt_']));
+    setVal('imp-col_categoria',  guess(['categ', 'tipo', 'class']));
+
+    // Preview mini
+    updatePreviewMini();
+}
+
+function onColChange() { updatePreviewMini(); }
+
+function updatePreviewMini() {
+    const mini = document.getElementById('imp-preview-mini');
+    if (!impRows.length) { mini.innerHTML = ''; return; }
+    const getIdx = key => { const el = document.getElementById(`imp-${key}`); return el && el.value !== '' ? parseInt(el.value) : null; };
+    const iDesc = getIdx('col_descricao'), iVal = getIdx('col_valor'), iTec = getIdx('col_tecnico'), iLoc = getIdx('col_localidade');
+    const sample = impRows.slice(0, 3);
+    mini.innerHTML = `<p class="font-semibold mb-2 text-slate-600">Prévia das primeiras linhas:</p>
+        <table class="w-full text-[11px] border-collapse">
+            <thead><tr class="text-slate-400">${['Descrição','Técnico','Localidade','Valor'].map(h=>`<th class="text-left pr-3 pb-1">${h}</th>`).join('')}</tr></thead>
+            <tbody>${sample.map(r => `<tr>${[
+                iDesc !== null ? r[iDesc] : '—',
+                iTec  !== null ? r[iTec]  : '—',
+                iLoc  !== null ? r[iLoc]  : '—',
+                iVal  !== null ? r[iVal]  : '—',
+            ].map(v=>`<td class="pr-3 pb-0.5 text-slate-600">${v||'—'}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>`;
+}
+
+function parseValor(s) {
+    if (!s) return null;
+    // Handle "R$ 1.234,56" or "1234.56" or "1.234,56"
+    let clean = String(s).replace(/[^\d.,\-]/g, '');
+    // If both . and , present, assume . = thousands, , = decimal (BR format)
+    if (clean.includes(',') && clean.includes('.')) clean = clean.replace(/\./g, '').replace(',', '.');
+    else if (clean.includes(',')) clean = clean.replace(',', '.');
+    const n = parseFloat(clean);
+    return isNaN(n) ? null : n;
+}
+
+function parseData(s) {
+    if (!s) return '';
+    // Try DD/MM/YYYY
+    const m1 = String(s).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (m1) { const y = m1[3].length === 2 ? '20' + m1[3] : m1[3]; return `${y}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`; }
+    // Try YYYY-MM-DD
+    const m2 = String(s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m2) return `${m2[1]}-${m2[2].padStart(2,'0')}-${m2[3].padStart(2,'0')}`;
+    return '';
+}
+
+function buildMappedRows() {
+    const getIdx = key => { const el = document.getElementById(`imp-${key}`); return el && el.value !== '' ? parseInt(el.value) : null; };
+    const iDesc = getIdx('col_descricao'), iVal = getIdx('col_valor'), iTec = getIdx('col_tecnico');
+    const iLoc  = getIdx('col_localidade'), iDat = getIdx('col_data'), iCat = getIdx('col_categoria');
+    if (iVal === null) { alert('Selecione a coluna de Valor'); return; }
+    impMappedRows = [];
+    for (const r of impRows) {
+        const valor = parseValor(iVal !== null ? r[iVal] : '');
+        if (valor === null || valor <= 0) continue;
+        impMappedRows.push({
+            descricao:      (iDesc !== null ? r[iDesc] : '') || 'Importado',
+            valor,
+            tecnico:        iTec  !== null ? r[iTec]  : '',
+            localidade:     iLoc  !== null ? r[iLoc]  : '',
+            categoria:      iCat  !== null ? normCategoria(r[iCat]) : 'Outros',
+            data_lancamento: iDat !== null ? parseData(r[iDat]) : '',
+        });
+    }
+}
+
+function normCategoria(s) {
+    const cats = ['Técnico','Frete','Material','Licença','Serviço','Outros'];
+    const low = (s||'').toLowerCase();
+    return cats.find(c => low.includes(c.toLowerCase().replace('ç','c').replace('ê','e'))) || 'Outros';
+}
+
+function populateFilters() {
+    const tecnicos   = [...new Set(impMappedRows.map(r => r.tecnico).filter(Boolean))].sort();
+    const localidades = [...new Set(impMappedRows.map(r => r.localidade).filter(Boolean))].sort();
+
+    const selT = document.getElementById('imp-filter-tecnico');
+    selT.innerHTML = '<option value="">Todos os técnicos</option>' + tecnicos.map(t => `<option>${t}</option>`).join('');
+    const selL = document.getElementById('imp-filter-localidade');
+    selL.innerHTML = '<option value="">Todas as localidades</option>' + localidades.map(l => `<option>${l}</option>`).join('');
+    document.getElementById('imp-filter-categoria').value = '';
+}
+
+function renderPreviewTabela() {
+    const fTec  = document.getElementById('imp-filter-tecnico').value;
+    const fLoc  = document.getElementById('imp-filter-localidade').value;
+    const fCat  = document.getElementById('imp-filter-categoria').value;
+
+    const filtered = impMappedRows.filter(r =>
+        (!fTec  || r.tecnico    === fTec) &&
+        (!fLoc  || r.localidade === fLoc) &&
+        (!fCat  || r.categoria  === fCat)
+    );
+
+    const tbody = document.getElementById('imp-preview-tbody');
+    tbody.innerHTML = filtered.map(r => `
+        <tr class="lancamento-row border-b border-faiston-border last:border-0">
+            <td class="px-3 py-2 text-xs text-faiston-dark">${r.descricao}</td>
+            <td class="px-3 py-2 text-xs text-slate-500">${r.tecnico || '—'}</td>
+            <td class="px-3 py-2 text-xs text-slate-500">${r.localidade || '—'}</td>
+            <td class="px-3 py-2"><span class="cat-badge cat-${r.categoria}">${r.categoria}</span></td>
+            <td class="px-3 py-2 text-xs text-slate-400 font-mono">${r.data_lancamento || '—'}</td>
+            <td class="px-3 py-2 text-right text-xs font-bold font-mono">${fmtMoeda(r.valor)}</td>
+        </tr>`).join('') || '<tr><td colspan="6" class="px-3 py-6 text-center text-xs text-slate-400">Nenhum resultado com este filtro</td></tr>';
+
+    const total = filtered.reduce((s, r) => s + r.valor, 0);
+    document.getElementById('imp-preview-count').textContent = `${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''} selecionado${filtered.length !== 1 ? 's' : ''}`;
+    document.getElementById('imp-preview-total').textContent = `Total: ${fmtMoeda(total)}`;
+    document.getElementById('imp-btn-confirm-label').textContent = `Importar ${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''}`;
+
+    // Store filtered for import
+    document.getElementById('imp-btn-confirm').dataset.filtered = JSON.stringify(filtered);
+}
+
+async function confirmarImportacao() {
+    const btn = document.getElementById('imp-btn-confirm');
+    const filtered = JSON.parse(btn.dataset.filtered || '[]');
+    if (!filtered.length) { alert('Nenhum lançamento selecionado'); return; }
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner spin mr-1"></i> Importando...';
+    try {
+        const res = await fetch(`/api/projetos/${impProjetoId}/importar-lancamentos`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ lancamentos: filtered })
+        });
+        const data = await res.json();
+        fecharModalImportar();
+        await carregarProjetos();
+        const body2 = document.getElementById(`body-proj-${impProjetoId}`);
+        if (body2) {
+            body2.style.display = 'block';
+            const chev = document.getElementById(`chevron-${impProjetoId}`);
+            if (chev) chev.style.transform = 'rotate(180deg)';
+            await carregarLancamentos(impProjetoId);
+        }
+    } catch(e) {
+        alert('Erro ao importar: ' + e.message);
+        btn.disabled = false;
+        btn.innerHTML = `<i class="ph ph-check mr-1"></i> <span id="imp-btn-confirm-label">Importar</span>`;
+    }
+}
+
 // Close modals on backdrop click
 document.addEventListener('click', e => {
     const mp = document.getElementById('modal-projeto');
     if (mp && !mp.classList.contains('hidden') && e.target === mp) fecharModalProjeto();
     const ml = document.getElementById('modal-lancamento');
     if (ml && !ml.classList.contains('hidden') && e.target === ml) fecharModalLancamento();
+    const mi = document.getElementById('modal-importar');
+    if (mi && !mi.classList.contains('hidden') && e.target === mi) fecharModalImportar();
 });
 
 init();

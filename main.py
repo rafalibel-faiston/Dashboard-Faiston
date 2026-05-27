@@ -1,17 +1,18 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie
+from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import psycopg2
 import smtplib, ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date, timedelta
 from calendar import monthrange
-import os, hashlib, secrets
+import os, hashlib, secrets, csv, io
 from dotenv import load_dotenv
 from pathlib import Path
+import openpyxl
 
 load_dotenv()
 
@@ -1142,6 +1143,8 @@ def _ensure_financeiro_tables(cur):
             criado_em TIMESTAMP DEFAULT NOW()
         )
     """)
+    cur.execute("ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS localidade VARCHAR(150) DEFAULT ''")
+    cur.execute("ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS tecnico VARCHAR(150) DEFAULT ''")
 
 class ProjetoModel(BaseModel):
     nome: str
@@ -1153,6 +1156,19 @@ class LancamentoModel(BaseModel):
     categoria: str = "Outros"
     valor: float
     data_lancamento: str = ""
+    localidade: str = ""
+    tecnico: str = ""
+
+class LancamentoImportItem(BaseModel):
+    descricao: str
+    categoria: str = "Outros"
+    valor: float
+    data_lancamento: str = ""
+    localidade: str = ""
+    tecnico: str = ""
+
+class ImportarLancamentosBody(BaseModel):
+    lancamentos: List[LancamentoImportItem]
 
 @app.get("/api/projetos-by-cliente")
 def projetos_by_cliente_nome(nome: str, faiston_token: str = Cookie(None)):
@@ -1250,12 +1266,13 @@ def listar_lancamentos(pid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("""SELECT id, descricao, categoria, valor, data_lancamento, criado_em
+        cur.execute("""SELECT id, descricao, categoria, valor, data_lancamento, criado_em, localidade, tecnico
                        FROM lancamentos WHERE projeto_id=%s ORDER BY data_lancamento DESC, criado_em DESC""", (pid,))
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "descricao": r[1], "categoria": r[2],
-                 "valor": float(r[3]), "data": str(r[4]), "criado_em": str(r[5])[:10]} for r in rows]
+                 "valor": float(r[3]), "data": str(r[4]), "criado_em": str(r[5])[:10],
+                 "localidade": r[6] or "", "tecnico": r[7] or ""} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/projetos/{pid}/lancamentos")
@@ -1267,8 +1284,8 @@ def criar_lancamento(pid: int, l: LancamentoModel, faiston_token: str = Cookie(N
     try:
         cur = conn.cursor()
         data = l.data_lancamento or date.today().isoformat()
-        cur.execute("INSERT INTO lancamentos (projeto_id, descricao, categoria, valor, data_lancamento) VALUES (%s,%s,%s,%s,%s) RETURNING id",
-                    (pid, l.descricao, l.categoria, l.valor, data))
+        cur.execute("INSERT INTO lancamentos (projeto_id, descricao, categoria, valor, data_lancamento, localidade, tecnico) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                    (pid, l.descricao, l.categoria, l.valor, data, l.localidade, l.tecnico))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -1285,6 +1302,60 @@ def deletar_lancamento(lid: int, faiston_token: str = Cookie(None)):
         cur.execute("DELETE FROM lancamentos WHERE id=%s", (lid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/projetos/{pid}/parse-planilha")
+async def parse_planilha(pid: int, file: UploadFile = File(...), faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    try:
+        content = await file.read()
+        filename = (file.filename or "").lower()
+        headers = []
+        rows = []
+        if filename.endswith(".csv"):
+            text = content.decode("utf-8-sig", errors="replace")
+            reader = csv.reader(io.StringIO(text), delimiter=None)
+            # Try to auto-detect delimiter
+            sample = text[:4096]
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+            reader = csv.reader(io.StringIO(text), dialect)
+            all_rows = list(reader)
+            if all_rows:
+                headers = [str(h).strip() for h in all_rows[0]]
+                rows = [[str(c).strip() for c in r] for r in all_rows[1:] if any(c.strip() for c in r)]
+        else:
+            wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+            ws = wb.active
+            all_rows = list(ws.iter_rows(values_only=True))
+            if all_rows:
+                headers = [str(h).strip() if h is not None else "" for h in all_rows[0]]
+                rows = [[str(c).strip() if c is not None else "" for c in r]
+                        for r in all_rows[1:] if any(c is not None and str(c).strip() for c in r)]
+        return {"headers": headers, "rows": rows[:2000]}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo: {str(e)}")
+
+@app.post("/api/projetos/{pid}/importar-lancamentos")
+def importar_lancamentos(pid: int, body: ImportarLancamentosBody, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur)
+        today = date.today().isoformat()
+        count = 0
+        for l in body.lancamentos:
+            data = l.data_lancamento or today
+            cur.execute(
+                "INSERT INTO lancamentos (projeto_id, descricao, categoria, valor, data_lancamento, localidade, tecnico) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (pid, l.descricao[:200], l.categoria, l.valor, data, l.localidade[:150], l.tecnico[:150])
+            )
+            count += 1
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "importados": count}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
