@@ -124,13 +124,27 @@
         }
         .error.show { display: flex; }
         .foot { text-align: center; margin-top: 22px; font-size: 11px; color: #9097AC; letter-spacing: 0.04em; }
+
+        /* First-access badge */
+        .first-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: linear-gradient(135deg, rgba(91,46,224,0.08), rgba(184,38,201,0.08));
+            border: 1px solid rgba(91,46,224,0.2);
+            border-radius: 8px; padding: 8px 12px;
+            font-size: 12px; font-weight: 600; color: #5B2EE0;
+            margin-bottom: 20px; width: 100%;
+        }
+        .strength-bar { height: 4px; border-radius: 2px; background: #E5E8F0; margin-top: 6px; overflow: hidden; }
+        .strength-fill { height: 100%; border-radius: 2px; transition: width 0.3s, background 0.3s; width: 0; }
+        .strength-label { font-size: 11px; color: #9097AC; margin-top: 4px; min-height: 16px; }
     </style>
 </head>
 <body>
     <div class="bg-grid"></div>
     <div class="blob blob-1"></div>
     <div class="blob blob-2"></div>
-    <div class="card">
+    <!-- LOGIN SCREEN -->
+    <div class="card" id="card-login">
         <div class="logo">
             <div class="logo-icon"><i class="ph-fill ph-play" style="color:white;font-size:22px"></i></div>
             <div class="logo-text">FAISTON</div>
@@ -184,8 +198,57 @@
         <div class="foot">v 2.4.1 · Faiston OPS · Torre de Controle</div>
     </div>
 
+    <!-- CHANGE PASSWORD SCREEN -->
+    <div class="card" id="card-trocar" style="display:none">
+        <div class="logo">
+            <div class="logo-icon"><i class="ph-fill ph-lock-key" style="color:white;font-size:22px"></i></div>
+            <div class="logo-text">FAISTON</div>
+        </div>
+        <h2>Criar nova senha</h2>
+        <p class="sub">Este é seu primeiro acesso. Defina uma senha pessoal antes de continuar.</p>
+
+        <div class="first-badge">
+            <i class="ph ph-shield-check" style="font-size:15px"></i>
+            <span id="badge-nome">Olá! Crie sua senha de acesso.</span>
+        </div>
+
+        <div class="error" id="error-trocar">
+            <i class="ph ph-warning-circle" style="font-size:16px"></i>
+            <span id="error-trocar-text">Erro ao trocar senha</span>
+        </div>
+
+        <div>
+            <label>Nova Senha</label>
+            <div class="input-wrap">
+                <i class="ph ph-lock ico-left"></i>
+                <input type="password" id="nova-senha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"
+                       oninput="avaliarSenha(this.value)">
+                <button class="ico-right" onclick="toggleNovaSenha()" tabindex="-1">
+                    <i class="ph ph-eye" id="icon-eye-nova"></i>
+                </button>
+            </div>
+            <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+            <div class="strength-label" id="strength-label"></div>
+        </div>
+
+        <div style="margin-top:14px">
+            <label>Confirmar Nova Senha</label>
+            <div class="input-wrap">
+                <i class="ph ph-lock-simple ico-left"></i>
+                <input type="password" id="confirmar-senha" placeholder="Repita a senha" autocomplete="new-password">
+            </div>
+        </div>
+
+        <button class="btn" id="btn-trocar" onclick="trocarSenha()" style="margin-top:20px">
+            <i class="ph ph-check"></i> Confirmar e Entrar
+        </button>
+
+        <div class="foot" style="margin-top:16px">Você será redirecionado automaticamente após confirmar.</div>
+    </div>
+
 <script>
 let roleAtivo = 'admin';
+let _perfilPendente = null;
 
 function setRole(role) {
     roleAtivo = role;
@@ -235,14 +298,101 @@ async function fazerLogin() {
             btn.innerHTML = '<i class="ph ph-arrow-right"></i> Entrar';
             return;
         }
-        if (data.perfil === 'admin') window.location.href = '/dashboard';
-        else if (data.perfil === 'gestor') window.location.href = '/dashboard';
-        else window.location.href = '/funcionario';
+        if (data.primeiro_acesso) {
+            _perfilPendente = data.perfil;
+            document.getElementById('badge-nome').textContent = `Olá, ${data.nome}! Crie sua senha pessoal.`;
+            document.getElementById('card-login').style.display = 'none';
+            document.getElementById('card-trocar').style.display = '';
+            document.getElementById('nova-senha').focus();
+            return;
+        }
+        redirecionarPorPerfil(data.perfil);
     } catch(e) {
         errText.textContent = 'Erro de conexão. Tente novamente.';
         errDiv.classList.add('show');
         btn.disabled = false;
         btn.innerHTML = '<i class="ph ph-arrow-right"></i> Entrar';
+    }
+}
+
+function redirecionarPorPerfil(perfil) {
+    if (perfil === 'admin' || perfil === 'gestor') window.location.href = '/dashboard';
+    else window.location.href = '/funcionario';
+}
+
+function toggleNovaSenha() {
+    const input = document.getElementById('nova-senha');
+    const icon = document.getElementById('icon-eye-nova');
+    const hidden = input.type === 'password';
+    input.type = hidden ? 'text' : 'password';
+    icon.className = hidden ? 'ph ph-eye-slash' : 'ph ph-eye';
+}
+
+function avaliarSenha(v) {
+    const fill = document.getElementById('strength-fill');
+    const label = document.getElementById('strength-label');
+    if (!v) { fill.style.width = '0'; label.textContent = ''; return; }
+    let score = 0;
+    if (v.length >= 6) score++;
+    if (v.length >= 10) score++;
+    if (/[A-Z]/.test(v)) score++;
+    if (/[0-9]/.test(v)) score++;
+    if (/[^A-Za-z0-9]/.test(v)) score++;
+    const levels = [
+        { w: '20%', bg: '#EC4899', txt: 'Muito fraca' },
+        { w: '40%', bg: '#f59e0b', txt: 'Fraca' },
+        { w: '60%', bg: '#eab308', txt: 'Média' },
+        { w: '80%', bg: '#22c55e', txt: 'Forte' },
+        { w: '100%', bg: '#10b981', txt: 'Muito forte' },
+    ];
+    const l = levels[Math.min(score - 1, 4)] || levels[0];
+    fill.style.width = l.w; fill.style.background = l.bg; label.textContent = l.txt;
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('card-trocar').style.display !== 'none') trocarSenha();
+});
+
+async function trocarSenha() {
+    const nova = document.getElementById('nova-senha').value;
+    const conf = document.getElementById('confirmar-senha').value;
+    const errDiv = document.getElementById('error-trocar');
+    const errText = document.getElementById('error-trocar-text');
+    errDiv.classList.remove('show');
+
+    if (!nova || nova.length < 6) {
+        errText.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+        errDiv.classList.add('show'); return;
+    }
+    if (nova !== conf) {
+        errText.textContent = 'As senhas não coincidem.';
+        errDiv.classList.add('show'); return;
+    }
+
+    const btn = document.getElementById('btn-trocar');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner" style="animation:spin 1s linear infinite"></i> Salvando...';
+
+    try {
+        const res = await fetch('/api/trocar-senha', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nova_senha: nova })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errText.textContent = data.detail || 'Erro ao salvar senha.';
+            errDiv.classList.add('show');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-check"></i> Confirmar e Entrar';
+            return;
+        }
+        redirecionarPorPerfil(_perfilPendente || 'funcionario');
+    } catch(e) {
+        errText.textContent = 'Erro de conexão. Tente novamente.';
+        errDiv.classList.add('show');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-check"></i> Confirmar e Entrar';
     }
 }
 </script>

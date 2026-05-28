@@ -57,6 +57,7 @@ def setup_banco():
                 criado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS primeiro_acesso BOOLEAN DEFAULT FALSE")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tarefas (
                 id SERIAL PRIMARY KEY,
@@ -132,6 +133,9 @@ class TarefaModel(BaseModel):
 class AtualizarSegundos(BaseModel):
     segundos: int
 
+class TrocarSenhaModel(BaseModel):
+    nova_senha: str
+
 class AcaoBackoffice(BaseModel):
     comando: str
     cliente: str = "Geral"
@@ -143,7 +147,7 @@ def login(req: LoginRequest, response: Response):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, perfil FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
+        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE) FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
                     (req.usuario, hash_senha(req.senha)))
         row = cur.fetchone()
         cur.close(); conn.close()
@@ -151,7 +155,7 @@ def login(req: LoginRequest, response: Response):
         token = secrets.token_hex(32)
         sessions[token] = {"id": row[0], "nome": row[1], "perfil": row[2]}
         response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
-        return {"sucesso": True, "perfil": row[2], "nome": row[1]}
+        return {"sucesso": True, "perfil": row[2], "nome": row[1], "primeiro_acesso": bool(row[3])}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -160,6 +164,22 @@ def logout(response: Response, faiston_token: str = Cookie(None)):
     if faiston_token and faiston_token in sessions: del sessions[faiston_token]
     response.delete_cookie("faiston_token")
     return {"sucesso": True}
+
+@app.post("/api/trocar-senha")
+def trocar_senha(body: TrocarSenhaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not body.nova_senha or len(body.nova_senha) < 6:
+        raise HTTPException(status_code=400, detail="A nova senha deve ter pelo menos 6 caracteres.")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE usuarios SET senha_hash=%s, primeiro_acesso=FALSE WHERE id=%s",
+                    (hash_senha(body.nova_senha), sess["id"]))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/me")
 def me(faiston_token: str = Cookie(None)):
@@ -203,7 +223,7 @@ def criar_usuario(u: NovoUsuario, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil) VALUES (%s, %s, %s, %s) RETURNING id",
+        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, primeiro_acesso) VALUES (%s, %s, %s, %s, TRUE) RETURNING id",
                     (u.usuario, hash_senha(u.senha), u.nome, u.perfil))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
@@ -220,7 +240,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
     try:
         cur = conn.cursor()
         if u.senha:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, senha_hash=%s WHERE id=%s",
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, senha_hash=%s, primeiro_acesso=TRUE WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, hash_senha(u.senha), uid))
         else:
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s WHERE id=%s",
