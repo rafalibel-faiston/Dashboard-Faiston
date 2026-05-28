@@ -196,7 +196,7 @@ def listar_usuarios(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em FROM usuarios ORDER BY criado_em DESC")
+        cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
         rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
