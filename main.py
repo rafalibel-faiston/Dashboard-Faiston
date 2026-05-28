@@ -1608,8 +1608,8 @@ def sincronizar_planilha(pid: int, faiston_token: str = Cookie(None)):
             raise HTTPException(status_code=400, detail="Nenhum lançamento encontrado com o mapeamento configurado")
 
         today = date.today().isoformat()
-        if replace:
-            cur.execute("DELETE FROM lancamentos WHERE projeto_id=%s", (pid,))
+        # Sync sempre substitui — planilha é a fonte da verdade
+        cur.execute("DELETE FROM lancamentos WHERE projeto_id=%s", (pid,))
         for l in lancamentos:
             cur.execute(
                 "INSERT INTO lancamentos (projeto_id, descricao, categoria, valor, data_lancamento, localidade, tecnico) VALUES (%s,%s,%s,%s,%s,%s,%s)",
