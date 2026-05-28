@@ -636,6 +636,7 @@ function filtrarCliente(cliente) {
 
 function filtrarClienteDrop(cliente) {
     clienteAtivo = cliente;
+    projetoFiltro = '';
     document.getElementById('header-titulo').textContent = cliente ? cliente : 'Visão Geral';
     document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
     if (cliente) mostrarToastFiltro(`Cliente: ${cliente}`, '🏢');
@@ -650,13 +651,16 @@ function filtrarProjetoDrop(projeto) {
 }
 
 function popularDropdownProjetos() {
-    const projetos = [...new Set(todasTarefasKanban.map(t => t.projeto_nome).filter(Boolean))].sort();
+    const base = clienteAtivo
+        ? todasTarefasKanban.filter(t => t.cliente === clienteAtivo)
+        : todasTarefasKanban;
+    const projetos = [...new Set(base.map(t => t.projeto_nome).filter(Boolean))].sort();
     const sel = document.getElementById('filtro-projeto-drop');
     if (!sel) return;
-    const current = sel.value;
     sel.innerHTML = '<option value="">Todos os projetos</option>' +
         projetos.map(p => `<option value="${p}">${p}</option>`).join('');
-    if (current && projetos.includes(current)) sel.value = current;
+    if (projetoFiltro && !projetos.includes(projetoFiltro)) projetoFiltro = '';
+    if (projetoFiltro) sel.value = projetoFiltro;
 }
 
 function filtrarFuncionarioSidebar(nome) {
