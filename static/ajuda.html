@@ -4,28 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guia de Uso · Faiston OPS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>tailwind.config={theme:{extend:{colors:{faiston:{bg:'#F4F5FA',dark:'#0B0D1F',border:'#E5E8F0',muted:'#5E647A',faint:'#9097AC',cyan:'#06D7E6',purple:'#5B2EE0',magenta:'#B826C9',pink:'#EC4899'}}},fontFamily:{sans:['Inter','sans-serif']}}}}</script>
+    <script>tailwind.config={theme:{extend:{colors:{faiston:{bg:'#F4F5FA',dark:'#0B0D1F',border:'#E5E8F0',muted:'#5E647A',faint:'#9097AC',cyan:'#06D7E6',purple:'#5B2EE0',magenta:'#B826C9',pink:'#EC4899'}}},fontFamily:{sans:['Inter','sans-serif'],display:['Space Grotesk','sans-serif']}}}}</script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
         * { box-sizing: border-box; }
-        body { background: #F4F5FA; }
+        body { background: #F0F1F8; }
         .grad { background: linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%); }
-        .grad-cool { background: linear-gradient(135deg,#06D7E6 0%,#5B2EE0 100%); }
-        .grad-text { background: linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
-        .card { background:white; border-radius:16px; border:1px solid #E5E8F0; }
-        .step-dot { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0; }
-        .tab-btn { padding:8px 20px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; transition:all .18s; }
-        .tab-btn.active { background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; box-shadow:0 4px 16px rgba(91,46,224,0.3); }
+        .grad-soft { background: linear-gradient(135deg,#5B2EE015 0%,#B826C910 100%); }
+        .card { background:white; border-radius:20px; border:1px solid #E5E8F0; }
+        .step-num { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0; background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; box-shadow:0 4px 12px rgba(91,46,224,0.35); }
+        .step-num-sm { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; flex-shrink:0; background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; }
+        .tab-btn { padding:10px 22px; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; transition:all .18s; white-space:nowrap; }
+        .tab-btn.active { background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; box-shadow:0 4px 20px rgba(91,46,224,0.35); }
         .tab-btn:not(.active) { background:white; color:#5E647A; border:1px solid #E5E8F0; }
+        .tab-btn:not(.active):hover { border-color:#5B2EE040; color:#5B2EE0; }
         .tab-panel { display:none; }
         .tab-panel.active { display:block; }
-        .feature-card { background:white; border-radius:12px; border:1px solid #E5E8F0; padding:20px; display:flex; flex-direction:column; gap:10px; }
-        .feature-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
-        .shortcut { display:inline-flex; align-items:center; gap:4px; background:#F4F5FA; border:1px solid #E5E8F0; border-radius:6px; padding:3px 8px; font-size:11px; font-weight:700; font-family:monospace; color:#5E647A; }
-        .badge { display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:700; }
-        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        .fcard { background:white; border-radius:16px; border:1px solid #E5E8F0; padding:24px; display:flex; flex-direction:column; gap:14px; }
+        .fcard:hover { box-shadow:0 4px 24px rgba(0,0,0,0.07); transition:box-shadow .2s; }
+        .ficon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+        .pill { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+        .section-title { font-size:18px; font-weight:800; color:#0B0D1F; display:flex; align-items:center; gap:10px; margin-bottom:16px; font-family:'Space Grotesk',sans-serif; }
+        .section-title i { font-size:22px; color:#5B2EE0; }
+        .info-row { display:flex; align-items:flex-start; gap:10px; font-size:14px; color:#5E647A; line-height:1.6; }
+        .info-row i { font-size:17px; flex-shrink:0; margin-top:2px; }
+        .info-row strong { color:#0B0D1F; font-weight:600; }
+        .kanban-col { flex:1; padding:12px 14px; border-radius:12px; text-align:center; }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
         .float { animation:float 3s ease-in-out infinite; }
     </style>
 </head>
@@ -33,184 +40,208 @@
 
 <!-- HERO -->
 <div class="grad relative overflow-hidden">
-    <div class="absolute inset-0 opacity-20" style="background-image:linear-gradient(rgba(255,255,255,0.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.1) 1px,transparent 1px);background-size:40px 40px"></div>
-    <div class="relative max-w-5xl mx-auto px-6 py-16 flex items-center justify-between">
+    <div class="absolute inset-0 opacity-15" style="background-image:radial-gradient(circle at 30% 50%, rgba(255,255,255,0.2) 0%, transparent 60%), linear-gradient(rgba(255,255,255,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.07) 1px,transparent 1px);background-size:100% 100%, 48px 48px, 48px 48px"></div>
+    <div class="relative max-w-5xl mx-auto px-6 py-14 flex items-center justify-between gap-8">
         <div>
             <div class="flex items-center gap-3 mb-5">
                 <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <i class="ph-fill ph-play text-white text-lg"></i>
+                    <i class="ph-fill ph-book-open text-white text-lg"></i>
                 </div>
-                <span class="text-white/80 font-bold tracking-wider text-sm uppercase">Faiston OPS</span>
+                <span class="text-white/75 font-bold tracking-widest text-xs uppercase">Faiston OPS</span>
             </div>
-            <h1 class="text-4xl font-black text-white leading-tight mb-3">Guia de Uso<br>do Sistema</h1>
-            <p class="text-white/70 text-base max-w-md">Tudo que você precisa saber para usar o Faiston OPS. Selecione seu perfil abaixo.</p>
-            <a href="/dashboard" class="mt-6 inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white font-semibold px-4 py-2.5 rounded-xl transition-all text-sm border border-white/20">
+            <h1 class="text-5xl font-black text-white leading-tight mb-3" style="font-family:'Space Grotesk',sans-serif">Guia de Uso<br>do Sistema</h1>
+            <p class="text-white/70 text-base max-w-sm leading-relaxed">Tudo que você precisa para usar o Faiston OPS. Selecione seu perfil abaixo.</p>
+            <a href="/dashboard" class="mt-7 inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-semibold px-5 py-2.5 rounded-xl transition-all text-sm border border-white/25">
                 <i class="ph ph-arrow-left"></i> Voltar ao Dashboard
             </a>
         </div>
-        <div class="hidden lg:flex items-center gap-4 float">
-            <div class="card p-4 shadow-2xl w-48">
-                <div class="flex items-center gap-2 mb-3">
-                    <div class="w-6 h-6 rounded grad flex items-center justify-center"><i class="ph-fill ph-play text-white text-xs"></i></div>
-                    <span class="text-xs font-bold text-faiston-dark">Nova Tarefa</span>
+        <div class="hidden lg:flex items-center float">
+            <div class="card p-5 shadow-2xl w-52">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-7 h-7 rounded-lg grad flex items-center justify-center"><i class="ph-fill ph-kanban text-white text-sm"></i></div>
+                    <span class="text-sm font-bold text-faiston-dark">Minhas Tarefas</span>
                 </div>
-                <div class="h-2 bg-faiston-purple/20 rounded-full mb-1.5"><div class="h-2 rounded-full grad" style="width:65%"></div></div>
-                <div class="h-2 bg-slate-100 rounded-full mb-1.5"><div class="h-2 rounded-full bg-faiston-cyan" style="width:80%"></div></div>
-                <div class="h-2 bg-slate-100 rounded-full"><div class="h-2 rounded-full bg-faiston-pink" style="width:40%"></div></div>
+                <div class="space-y-2.5">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 rounded-full" style="background:#EC4899"></div>
+                        <div class="h-2 rounded-full flex-1" style="background:#EC489925"><div class="h-2 rounded-full" style="background:#EC4899;width:70%"></div></div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 rounded-full" style="background:#06D7E6"></div>
+                        <div class="h-2 rounded-full flex-1" style="background:#06D7E625"><div class="h-2 rounded-full" style="background:#06D7E6;width:45%"></div></div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 rounded-full" style="background:#5B2EE0"></div>
+                        <div class="h-2 rounded-full flex-1" style="background:#5B2EE025"><div class="h-2 rounded-full" style="background:#5B2EE0;width:85%"></div></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- PERFIS TABS -->
-<div class="max-w-5xl mx-auto px-6 -mt-4 relative z-10">
-    <div class="card p-1.5 inline-flex gap-1.5 shadow-lg">
+<!-- TABS -->
+<div class="max-w-5xl mx-auto px-6 -mt-5 relative z-10">
+    <div class="card p-1.5 inline-flex gap-1.5 shadow-xl">
         <button class="tab-btn active" onclick="setTab('func')"><i class="ph ph-user mr-1.5"></i>Funcionário</button>
         <button class="tab-btn" onclick="setTab('gestor')"><i class="ph ph-chart-line-up mr-1.5"></i>Gestor</button>
         <button class="tab-btn" onclick="setTab('admin')"><i class="ph ph-shield-check mr-1.5"></i>Admin</button>
     </div>
 </div>
 
-<div class="max-w-5xl mx-auto px-6 py-8 space-y-6">
+<div class="max-w-5xl mx-auto px-6 py-10 space-y-10">
 
-<!-- ══════════════════════════════════════════════════
-     FUNCIONÁRIO
-══════════════════════════════════════════════════ -->
-<div id="tab-func" class="tab-panel active space-y-6">
+<!-- ═══════════ FUNCIONÁRIO ═══════════ -->
+<div id="tab-func" class="tab-panel active space-y-8">
 
     <!-- Primeiro acesso -->
     <div class="card p-6" style="border-left:4px solid #5B2EE0">
         <div class="flex items-start gap-4">
-            <div class="feature-icon grad" style="min-width:40px"><i class="ph ph-lock-key text-white text-lg"></i></div>
+            <div class="ficon grad" style="min-width:44px"><i class="ph ph-lock-key text-white text-xl"></i></div>
             <div>
-                <h3 class="font-bold text-faiston-dark mb-1">Primeiro Acesso</h3>
-                <p class="text-sm text-faiston-muted">Na primeira vez que você logar com a senha temporária, o sistema vai pedir para criar uma senha pessoal. Mínimo 6 caracteres. Depois disso, é só usar normalmente.</p>
+                <h3 class="font-bold text-faiston-dark text-base mb-1.5">Primeiro Acesso</h3>
+                <p class="text-sm text-faiston-muted leading-relaxed">Na primeira vez que você logar com a <strong class="text-faiston-dark">senha temporária</strong>, o sistema vai pedir para criar uma senha pessoal. Mínimo 6 caracteres. Depois disso, é só usar normalmente.</p>
             </div>
         </div>
     </div>
 
     <!-- Kanban -->
     <div>
-        <h2 class="text-lg font-black text-faiston-dark mb-3 flex items-center gap-2"><i class="ph ph-kanban text-faiston-purple text-xl"></i> Aba Kanban — Suas Tarefas</h2>
+        <div class="section-title"><i class="ph ph-kanban"></i> Aba Kanban — Suas Tarefas</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            <div class="feature-card">
+            <!-- Criar tarefa -->
+            <div class="fcard">
                 <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#5B2EE010"><i class="ph ph-plus-circle text-faiston-purple text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Criar uma tarefa</h4>
+                    <div class="ficon" style="background:#5B2EE012"><i class="ph ph-plus-circle text-faiston-purple" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Criar uma tarefa</h4>
                 </div>
-                <ol class="space-y-2 mt-1">
-                    <li class="flex items-start gap-2.5 text-sm text-faiston-muted">
-                        <span class="step-dot grad text-white mt-0.5" style="font-size:10px">1</span>
-                        Clique em <strong class="text-faiston-dark">"Nova Tarefa"</strong>
+                <ol class="space-y-3">
+                    <li class="flex items-start gap-3">
+                        <span class="step-num" style="margin-top:1px">1</span>
+                        <span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Nova Tarefa"</strong></span>
                     </li>
-                    <li class="flex items-start gap-2.5 text-sm text-faiston-muted">
-                        <span class="step-dot grad text-white mt-0.5" style="font-size:10px">2</span>
-                        Selecione o <strong class="text-faiston-dark">Projeto</strong> → cliente preenche sozinho
+                    <li class="flex items-start gap-3">
+                        <span class="step-num" style="margin-top:1px">2</span>
+                        <span class="text-sm text-faiston-muted leading-relaxed">Selecione o <strong class="text-faiston-dark">Projeto</strong> — o cliente preenche automaticamente</span>
                     </li>
-                    <li class="flex items-start gap-2.5 text-sm text-faiston-muted">
-                        <span class="step-dot grad text-white mt-0.5" style="font-size:10px">3</span>
-                        Defina <strong class="text-faiston-dark">Prazo</strong> e/ou <strong class="text-faiston-dark">Agendamento</strong>
+                    <li class="flex items-start gap-3">
+                        <span class="step-num" style="margin-top:1px">3</span>
+                        <span class="text-sm text-faiston-muted leading-relaxed">Defina o <strong class="text-faiston-dark">Prazo</strong> e/ou o <strong class="text-faiston-dark">Agendamento</strong></span>
                     </li>
-                    <li class="flex items-start gap-2.5 text-sm text-faiston-muted">
-                        <span class="step-dot grad text-white mt-0.5" style="font-size:10px">4</span>
-                        Clique em <strong class="text-faiston-dark">Salvar</strong>
+                    <li class="flex items-start gap-3">
+                        <span class="step-num" style="margin-top:1px">4</span>
+                        <span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">Salvar</strong></span>
                     </li>
                 </ol>
             </div>
 
-            <div class="feature-card">
+            <!-- Controle de tempo -->
+            <div class="fcard">
                 <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#06D7E610"><i class="ph ph-timer text-faiston-cyan text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Controle de Tempo</h4>
+                    <div class="ficon" style="background:#06D7E612"><i class="ph ph-timer text-faiston-cyan" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Controle de Tempo</h4>
                 </div>
-                <ul class="space-y-2 mt-1">
-                    <li class="flex items-start gap-2 text-sm text-faiston-muted"><i class="ph ph-play-circle text-faiston-cyan mt-0.5 text-base flex-shrink-0"></i> Clique no <strong class="text-faiston-dark">▶ play</strong> para iniciar o timer — status muda para <span class="badge" style="background:#06D7E620;color:#06D7E6">Em Andamento</span></li>
-                    <li class="flex items-start gap-2 text-sm text-faiston-muted"><i class="ph ph-stop-circle text-faiston-pink mt-0.5 text-base flex-shrink-0"></i> Clique em <strong class="text-faiston-dark">■ stop</strong> para pausar e salvar o tempo</li>
-                    <li class="flex items-start gap-2 text-sm text-faiston-muted"><i class="ph ph-pencil mt-0.5 text-base flex-shrink-0" style="color:#5B2EE0"></i> Para registrar horas manuais, abra a tarefa e preencha o campo <strong class="text-faiston-dark">Horas Manuais</strong></li>
-                </ul>
-            </div>
-
-            <div class="feature-card">
-                <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#EC489910"><i class="ph ph-calendar-x text-faiston-pink text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Badges de Prazo</h4>
-                </div>
-                <div class="space-y-2 mt-1">
-                    <div class="flex items-center gap-2.5 p-2.5 rounded-lg" style="background:#EC489908;border:1px solid #EC489930">
-                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#EC4899"></span>
-                        <span class="text-sm font-semibold" style="color:#EC4899">Atrasado</span>
-                        <span class="text-xs text-faiston-muted ml-auto">prazo já passou</span>
+                <div class="space-y-3">
+                    <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E620">
+                        <i class="ph ph-play-circle mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:18px"></i>
+                        <div class="text-sm text-faiston-muted leading-relaxed">
+                            Clique no <strong class="text-faiston-dark">▶ play</strong> para iniciar — status muda para <span class="pill" style="background:#06D7E620;color:#06D7E6">Em Andamento</span>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2.5 p-2.5 rounded-lg" style="background:#f59e0b08;border:1px solid #f59e0b30">
-                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#f59e0b"></span>
-                        <span class="text-sm font-semibold" style="color:#f59e0b">Urgente</span>
-                        <span class="text-xs text-faiston-muted ml-auto">menos de 2 dias</span>
+                    <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489920">
+                        <i class="ph ph-stop-circle mt-0.5 flex-shrink-0" style="color:#EC4899;font-size:18px"></i>
+                        <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">■ stop</strong> para pausar e salvar o tempo registrado</p>
                     </div>
-                    <div class="flex items-center gap-2.5 p-2.5 rounded-lg" style="background:#5B2EE008;border:1px solid #5B2EE030">
-                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:#5B2EE0"></span>
-                        <span class="text-sm font-semibold" style="color:#5B2EE0">No prazo</span>
-                        <span class="text-xs text-faiston-muted ml-auto">tudo certo</span>
+                    <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
+                        <i class="ph ph-pencil mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
+                        <p class="text-sm text-faiston-muted leading-relaxed">Para horas manuais, abra a tarefa e preencha o campo <strong class="text-faiston-dark">Horas Manuais</strong></p>
                     </div>
                 </div>
             </div>
 
-            <div class="feature-card">
+            <!-- Badges -->
+            <div class="fcard">
                 <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#B826C910"><i class="ph ph-arrows-left-right text-faiston-magenta text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Colunas do Kanban</h4>
+                    <div class="ficon" style="background:#EC489912"><i class="ph ph-calendar-x text-faiston-pink" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Badges de Prazo</h4>
                 </div>
-                <div class="flex gap-2 mt-1">
-                    <div class="flex-1 p-2.5 rounded-lg text-center" style="background:#F4F5FA;border:1px solid #E5E8F0">
-                        <p class="text-xs font-bold text-slate-600">Aberto</p>
-                        <p class="text-[10px] text-faiston-faint mt-0.5">aguardando</p>
+                <div class="space-y-2.5">
+                    <div class="flex items-center gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489935">
+                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:#EC4899;box-shadow:0 0 6px #EC489960"></span>
+                        <span class="font-bold text-sm" style="color:#EC4899">Atrasado</span>
+                        <span class="text-xs text-faiston-faint ml-auto">prazo já passou</span>
                     </div>
-                    <i class="ph ph-arrow-right text-faiston-faint self-center"></i>
-                    <div class="flex-1 p-2.5 rounded-lg text-center" style="background:#06D7E608;border:1px solid #06D7E630">
-                        <p class="text-xs font-bold" style="color:#06D7E6">Em Andamento</p>
-                        <p class="text-[10px] text-faiston-faint mt-0.5">timer ativo</p>
+                    <div class="flex items-center gap-3 p-3 rounded-xl" style="background:#f59e0b08;border:1px solid #f59e0b35">
+                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:#f59e0b;box-shadow:0 0 6px #f59e0b60"></span>
+                        <span class="font-bold text-sm" style="color:#f59e0b">Urgente</span>
+                        <span class="text-xs text-faiston-faint ml-auto">menos de 2 dias</span>
                     </div>
-                    <i class="ph ph-arrow-right text-faiston-faint self-center"></i>
-                    <div class="flex-1 p-2.5 rounded-lg text-center" style="background:#5B2EE008;border:1px solid #5B2EE030">
-                        <p class="text-xs font-bold" style="color:#5B2EE0">Concluído</p>
-                        <p class="text-[10px] text-faiston-faint mt-0.5">finalizado</p>
+                    <div class="flex items-center gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE035">
+                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:#5B2EE0;box-shadow:0 0 6px #5B2EE060"></span>
+                        <span class="font-bold text-sm" style="color:#5B2EE0">No prazo</span>
+                        <span class="text-xs text-faiston-faint ml-auto">tudo certo</span>
                     </div>
                 </div>
-                <p class="text-xs text-faiston-faint mt-2">Mova abrindo o card e alterando o status, ou pelo botão de conclusão (✓).</p>
+            </div>
+
+            <!-- Kanban colunas -->
+            <div class="fcard">
+                <div class="flex items-center gap-3">
+                    <div class="ficon" style="background:#B826C912"><i class="ph ph-arrows-left-right text-faiston-magenta" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Colunas do Kanban</h4>
+                </div>
+                <div class="flex items-stretch gap-2 mt-1">
+                    <div class="kanban-col" style="background:#F4F5FA;border:1px solid #E5E8F0">
+                        <p class="text-sm font-bold text-slate-600">Aberto</p>
+                        <p class="text-xs text-faiston-faint mt-1">aguardando</p>
+                    </div>
+                    <i class="ph ph-arrow-right text-faiston-faint self-center text-lg"></i>
+                    <div class="kanban-col" style="background:#06D7E608;border:1px solid #06D7E635">
+                        <p class="text-sm font-bold" style="color:#06D7E6">Em Andamento</p>
+                        <p class="text-xs text-faiston-faint mt-1">timer ativo</p>
+                    </div>
+                    <i class="ph ph-arrow-right text-faiston-faint self-center text-lg"></i>
+                    <div class="kanban-col" style="background:#5B2EE008;border:1px solid #5B2EE035">
+                        <p class="text-sm font-bold" style="color:#5B2EE0">Concluído</p>
+                        <p class="text-xs text-faiston-faint mt-1">finalizado</p>
+                    </div>
+                </div>
+                <p class="text-sm text-faiston-muted leading-relaxed">Mova abrindo o card e alterando o status, ou pelo botão de conclusão <strong class="text-faiston-dark">✓</strong>.</p>
             </div>
         </div>
     </div>
 
     <!-- Agenda -->
     <div>
-        <h2 class="text-lg font-black text-faiston-dark mb-3 flex items-center gap-2"><i class="ph ph-calendar text-faiston-purple text-xl"></i> Aba Agenda — Estilo Outlook</h2>
+        <div class="section-title"><i class="ph ph-calendar"></i> Aba Agenda — Estilo Outlook</div>
         <div class="card p-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                    <h4 class="font-bold text-faiston-dark text-sm mb-3">Como funciona</h4>
-                    <ul class="space-y-2.5">
-                        <li class="flex items-start gap-2 text-sm text-faiston-muted"><i class="ph ph-dot-outline-fill text-faiston-purple mt-1 flex-shrink-0"></i> Pontos <span class="font-semibold text-faiston-purple mx-1">roxos</span> no calendário = tarefas agendadas naquele dia</li>
-                        <li class="flex items-start gap-2 text-sm text-faiston-muted"><i class="ph ph-dot-outline-fill text-faiston-pink mt-1 flex-shrink-0"></i> Pontos <span class="font-semibold text-faiston-pink mx-1">rosas</span> = tarefas com prazo vencendo</li>
-                        <li class="flex items-start gap-2 text-sm text-faiston-muted"><i class="ph ph-caret-left text-faiston-faint mt-1 flex-shrink-0"></i> Use <strong class="text-faiston-dark">‹ ›</strong> para navegar entre meses</li>
-                        <li class="flex items-start gap-2 text-sm text-faiston-muted"><i class="ph ph-cursor-click text-faiston-cyan mt-1 flex-shrink-0"></i> Clique em qualquer dia para ver as tarefas daquele dia</li>
-                        <li class="flex items-start gap-2 text-sm text-faiston-muted"><i class="ph ph-warning-circle text-faiston-pink mt-1 flex-shrink-0"></i> Seção <strong class="text-faiston-pink">Atrasadas</strong> sempre aparece no topo</li>
-                    </ul>
-                </div>
-                <div class="bg-slate-50 rounded-xl p-4 text-sm">
-                    <p class="font-bold text-faiston-dark text-xs uppercase tracking-wider mb-3">Diferença: Prazo vs. Agendamento</p>
+                    <p class="font-bold text-faiston-dark text-sm mb-4 uppercase tracking-wide">Como funciona</p>
                     <div class="space-y-3">
-                        <div class="flex items-start gap-3 p-3 bg-white rounded-lg border border-faiston-border">
-                            <i class="ph ph-calendar-x text-faiston-pink text-lg flex-shrink-0 mt-0.5"></i>
+                        <div class="info-row"><i class="ph ph-circle-fill" style="color:#5B2EE0;font-size:10px;margin-top:5px"></i> Pontos <strong style="color:#5B2EE0">roxos</strong> no calendário = tarefas agendadas naquele dia</div>
+                        <div class="info-row"><i class="ph ph-circle-fill" style="color:#EC4899;font-size:10px;margin-top:5px"></i> Pontos <strong style="color:#EC4899">rosas</strong> = tarefas com prazo vencendo</div>
+                        <div class="info-row"><i class="ph ph-caret-left text-faiston-faint"></i> Use <strong>‹ ›</strong> para navegar entre meses</div>
+                        <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i> Clique em qualquer dia para ver as tarefas daquele dia</div>
+                        <div class="info-row"><i class="ph ph-warning-circle text-faiston-pink"></i> Seção <strong style="color:#EC4899">Atrasadas</strong> sempre aparece no topo</div>
+                    </div>
+                </div>
+                <div>
+                    <p class="font-bold text-faiston-dark text-sm mb-4 uppercase tracking-wide">Prazo vs. Agendamento</p>
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-3 p-4 bg-white rounded-xl" style="border:1.5px solid #EC489930">
+                            <i class="ph ph-calendar-x mt-0.5 flex-shrink-0 text-xl" style="color:#EC4899"></i>
                             <div>
-                                <p class="font-semibold text-faiston-dark text-xs">Prazo (até quando)</p>
-                                <p class="text-faiston-muted text-xs mt-0.5">Data limite para entregar. Aparece como badge colorido na card.</p>
+                                <p class="font-bold text-faiston-dark text-sm">Prazo <span class="font-normal text-faiston-faint text-xs ml-1">até quando</span></p>
+                                <p class="text-sm text-faiston-muted mt-1 leading-relaxed">Data limite para entregar. Aparece como badge colorido no card.</p>
                             </div>
                         </div>
-                        <div class="flex items-start gap-3 p-3 bg-white rounded-lg border border-faiston-border">
-                            <i class="ph ph-calendar-plus text-faiston-purple text-lg flex-shrink-0 mt-0.5"></i>
+                        <div class="flex items-start gap-3 p-4 bg-white rounded-xl" style="border:1.5px solid #5B2EE030">
+                            <i class="ph ph-calendar-plus mt-0.5 flex-shrink-0 text-xl" style="color:#5B2EE0"></i>
                             <div>
-                                <p class="font-semibold text-faiston-dark text-xs">Agendar para</p>
-                                <p class="text-faiston-muted text-xs mt-0.5">Dia que você vai trabalhar nisso. Aparece na Agenda naquele dia.</p>
+                                <p class="font-bold text-faiston-dark text-sm">Agendar para <span class="font-normal text-faiston-faint text-xs ml-1">quando trabalhar</span></p>
+                                <p class="text-sm text-faiston-muted mt-1 leading-relaxed">Dia que você vai trabalhar nisso. Aparece na Agenda naquele dia.</p>
                             </div>
                         </div>
                     </div>
@@ -220,214 +251,214 @@
     </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     GESTOR
-══════════════════════════════════════════════════ -->
-<div id="tab-gestor" class="tab-panel space-y-6">
+<!-- ═══════════ GESTOR ═══════════ -->
+<div id="tab-gestor" class="tab-panel space-y-8">
 
+    <!-- Dashboard KPIs -->
     <div>
-        <h2 class="text-lg font-black text-faiston-dark mb-3 flex items-center gap-2"><i class="ph ph-chart-line-up text-faiston-purple text-xl"></i> Dashboard</h2>
+        <div class="section-title"><i class="ph ph-chart-line-up"></i> Dashboard</div>
+        <div class="fcard mb-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="p-4 rounded-xl text-center" style="background:#06D7E60A;border:1px solid #06D7E625">
+                    <i class="ph ph-buildings text-faiston-cyan text-3xl"></i>
+                    <p class="text-sm font-bold text-faiston-dark mt-2">Clientes Ativos</p>
+                </div>
+                <div class="p-4 rounded-xl text-center" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                    <i class="ph ph-ticket text-faiston-purple text-3xl"></i>
+                    <p class="text-sm font-bold text-faiston-dark mt-2">Tickets Abertos</p>
+                </div>
+                <div class="p-4 rounded-xl text-center" style="background:#B826C90A;border:1px solid #B826C925">
+                    <i class="ph ph-clock text-faiston-magenta text-3xl"></i>
+                    <p class="text-sm font-bold text-faiston-dark mt-2">Horas Apontadas</p>
+                </div>
+                <div class="p-4 rounded-xl text-center" style="background:#EC48990A;border:1px solid #EC489925">
+                    <i class="ph ph-chart-bar text-faiston-pink text-3xl"></i>
+                    <p class="text-sm font-bold text-faiston-dark mt-2">Média / Funcionário</p>
+                </div>
+            </div>
+            <p class="text-sm text-faiston-muted text-center">Os KPIs refletem o período e filtros selecionados no topo da tela.</p>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="feature-card md:col-span-2">
-                <div class="grid grid-cols-4 gap-3">
-                    <div class="p-3 rounded-xl text-center" style="background:#06D7E608;border:1px solid #06D7E620">
-                        <i class="ph ph-buildings text-faiston-cyan text-2xl"></i>
-                        <p class="text-xs font-bold text-faiston-dark mt-1">Clientes Ativos</p>
-                    </div>
-                    <div class="p-3 rounded-xl text-center" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                        <i class="ph ph-ticket text-faiston-purple text-2xl"></i>
-                        <p class="text-xs font-bold text-faiston-dark mt-1">Tickets Abertos</p>
-                    </div>
-                    <div class="p-3 rounded-xl text-center" style="background:#B826C908;border:1px solid #B826C920">
-                        <i class="ph ph-clock text-faiston-magenta text-2xl"></i>
-                        <p class="text-xs font-bold text-faiston-dark mt-1">Horas Apontadas</p>
-                    </div>
-                    <div class="p-3 rounded-xl text-center" style="background:#EC489908;border:1px solid #EC489920">
-                        <i class="ph ph-chart-bar text-faiston-pink text-2xl"></i>
-                        <p class="text-xs font-bold text-faiston-dark mt-1">Média/Funcionário</p>
-                    </div>
+            <div class="fcard">
+                <div class="flex items-center gap-3">
+                    <div class="ficon" style="background:#5B2EE012"><i class="ph ph-funnel text-faiston-purple" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Filtros do Dashboard</h4>
                 </div>
-                <p class="text-xs text-faiston-muted mt-2 text-center">Os KPIs refletem o período e filtros selecionados no topo da tela.</p>
+                <div class="space-y-3">
+                    <div class="info-row"><i class="ph ph-buildings text-faiston-cyan"></i> <div><strong>Cliente</strong> — filtra todos os dados pela empresa</div></div>
+                    <div class="info-row"><i class="ph ph-folder text-faiston-purple"></i> <div><strong>Projeto</strong> — lista só os projetos do cliente selecionado</div></div>
+                    <div class="info-row"><i class="ph ph-calendar text-faiston-magenta"></i> <div><strong>Período</strong> — filtro de data no topo direito</div></div>
+                    <div class="info-row"><i class="ph ph-user text-faiston-pink"></i> <div><strong>Funcionário</strong> — no topo ou clicando na sidebar</div></div>
+                </div>
             </div>
 
-            <div class="feature-card">
+            <div class="fcard">
                 <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#5B2EE010"><i class="ph ph-funnel text-faiston-purple text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Filtros do Dashboard</h4>
+                    <div class="ficon" style="background:#06D7E612"><i class="ph ph-chart-bar text-faiston-cyan" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Gráficos Interativos</h4>
                 </div>
-                <ul class="space-y-1.5 text-sm text-faiston-muted mt-1">
-                    <li class="flex items-center gap-2"><i class="ph ph-buildings text-faiston-faint"></i> <strong class="text-faiston-dark">Cliente</strong> — filtra tudo pela empresa</li>
-                    <li class="flex items-center gap-2"><i class="ph ph-folder text-faiston-faint"></i> <strong class="text-faiston-dark">Projeto</strong> — aparece só os projetos do cliente selecionado</li>
-                    <li class="flex items-center gap-2"><i class="ph ph-calendar text-faiston-faint"></i> <strong class="text-faiston-dark">Período</strong> — filtro de data no topo direito</li>
-                    <li class="flex items-center gap-2"><i class="ph ph-user text-faiston-faint"></i> <strong class="text-faiston-dark">Funcionário</strong> — filtro no topo ou clique na sidebar</li>
-                </ul>
-            </div>
-
-            <div class="feature-card">
-                <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#06D7E610"><i class="ph ph-chart-bar text-faiston-cyan text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Gráficos Interativos</h4>
+                <div class="space-y-3">
+                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i> <div>Clique nas barras de <strong>Esforço por Cliente</strong> para filtrar</div></div>
+                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i> <div>Clique no donut de <strong>Status</strong> para filtrar por status</div></div>
+                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i> <div>Clique nas barras de <strong>Tarefas / Funcionário</strong> para filtrar</div></div>
                 </div>
-                <ul class="space-y-1.5 text-sm text-faiston-muted mt-1">
-                    <li class="flex items-start gap-2"><i class="ph ph-cursor-click text-faiston-cyan mt-0.5 flex-shrink-0"></i> Clique nas barras de <strong class="text-faiston-dark">Esforço por Cliente</strong> para filtrar</li>
-                    <li class="flex items-start gap-2"><i class="ph ph-cursor-click text-faiston-cyan mt-0.5 flex-shrink-0"></i> Clique no donut de <strong class="text-faiston-dark">Status</strong> para filtrar por status</li>
-                    <li class="flex items-start gap-2"><i class="ph ph-cursor-click text-faiston-cyan mt-0.5 flex-shrink-0"></i> Clique nas barras de <strong class="text-faiston-dark">Tarefas/Funcionário</strong> para filtrar</li>
-                </ul>
             </div>
         </div>
     </div>
 
+    <!-- Clientes & Projetos -->
     <div>
-        <h2 class="text-lg font-black text-faiston-dark mb-3 flex items-center gap-2"><i class="ph ph-buildings text-faiston-purple text-xl"></i> Clientes & Projetos</h2>
+        <div class="section-title"><i class="ph ph-buildings"></i> Clientes & Projetos</div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="feature-card">
-                <div class="feature-icon grad" style="width:36px;height:36px;border-radius:8px;font-size:16px"><i class="ph ph-plus text-white"></i></div>
-                <h4 class="font-bold text-faiston-dark text-sm">Cadastrar Cliente</h4>
-                <p class="text-xs text-faiston-muted">Clique em <strong>"Novo Cliente"</strong>, preencha nome e setor. Cliente aparece no dashboard e nos filtros.</p>
+            <div class="fcard">
+                <div class="ficon grad" style="width:44px;height:44px"><i class="ph ph-plus text-white text-xl"></i></div>
+                <h4 class="font-bold text-faiston-dark">Cadastrar Cliente</h4>
+                <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Novo Cliente"</strong>, preencha nome e setor. O cliente aparece no dashboard e nos filtros automaticamente.</p>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon" style="background:#5B2EE010;width:36px;height:36px;border-radius:8px;font-size:16px"><i class="ph ph-folder-open text-faiston-purple"></i></div>
-                <h4 class="font-bold text-faiston-dark text-sm">Projetos por Cliente</h4>
-                <p class="text-xs text-faiston-muted">Na aba Clientes, clique em <strong>"Projetos"</strong> no card do cliente para ver, adicionar e editar projetos com orçamento.</p>
+            <div class="fcard">
+                <div class="ficon" style="background:#5B2EE012;width:44px;height:44px"><i class="ph ph-folder-open text-faiston-purple text-xl"></i></div>
+                <h4 class="font-bold text-faiston-dark">Projetos por Cliente</h4>
+                <p class="text-sm text-faiston-muted leading-relaxed">Na aba <strong class="text-faiston-dark">Clientes</strong>, clique em <strong class="text-faiston-dark">"Projetos"</strong> no card do cliente para ver, adicionar e editar projetos com orçamento.</p>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon" style="background:#06D7E610;width:36px;height:36px;border-radius:8px;font-size:16px"><i class="ph ph-upload-simple text-faiston-cyan"></i></div>
-                <h4 class="font-bold text-faiston-dark text-sm">Importar de Planilha</h4>
-                <p class="text-xs text-faiston-muted">Botão <strong>"Importar Projetos"</strong> → cole link OneDrive → mapeie colunas → confirme. Só importa projetos novos, não duplica.</p>
+            <div class="fcard">
+                <div class="ficon" style="background:#06D7E612;width:44px;height:44px"><i class="ph ph-upload-simple text-faiston-cyan text-xl"></i></div>
+                <h4 class="font-bold text-faiston-dark">Importar de Planilha</h4>
+                <p class="text-sm text-faiston-muted leading-relaxed">Botão <strong class="text-faiston-dark">"Importar Projetos"</strong> → cole o link OneDrive → mapeie as colunas → confirme. Não duplica projetos já cadastrados.</p>
             </div>
         </div>
     </div>
 
+    <!-- Financeiro -->
     <div>
-        <h2 class="text-lg font-black text-faiston-dark mb-3 flex items-center gap-2"><i class="ph ph-currency-circle-dollar text-faiston-purple text-xl"></i> Financeiro</h2>
+        <div class="section-title"><i class="ph ph-currency-circle-dollar"></i> Financeiro</div>
         <div class="card p-6">
-            <ol class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <li class="flex flex-col items-center text-center gap-2 p-4 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                    <span class="step-dot grad text-white text-sm">1</span>
-                    <p class="text-xs font-bold text-faiston-dark">Abra o Financeiro</p>
-                    <p class="text-xs text-faiston-muted">Via sidebar ou link no card do cliente</p>
-                </li>
-                <li class="flex flex-col items-center text-center gap-2 p-4 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                    <span class="step-dot grad text-white text-sm">2</span>
-                    <p class="text-xs font-bold text-faiston-dark">Selecione o Projeto</p>
-                    <p class="text-xs text-faiston-muted">Cada projeto tem seu orçamento e lançamentos</p>
-                </li>
-                <li class="flex flex-col items-center text-center gap-2 p-4 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                    <span class="step-dot grad text-white text-sm">3</span>
-                    <p class="text-xs font-bold text-faiston-dark">Adicione Lançamentos</p>
-                    <p class="text-xs text-faiston-muted">Manual ou importando planilha Excel/CSV</p>
-                </li>
-                <li class="flex flex-col items-center text-center gap-2 p-4 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                    <span class="step-dot grad text-white text-sm">4</span>
-                    <p class="text-xs font-bold text-faiston-dark">Analise os Gráficos</p>
-                    <p class="text-xs text-faiston-muted">Gasto por localidade, técnico e período</p>
-                </li>
-            </ol>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div class="flex flex-col items-center text-center gap-3 p-5 rounded-2xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                    <span class="step-num">1</span>
+                    <p class="font-bold text-faiston-dark text-sm">Abra o Financeiro</p>
+                    <p class="text-xs text-faiston-muted leading-relaxed">Via sidebar ou pelo link no card do cliente</p>
+                </div>
+                <div class="flex flex-col items-center text-center gap-3 p-5 rounded-2xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                    <span class="step-num">2</span>
+                    <p class="font-bold text-faiston-dark text-sm">Selecione o Projeto</p>
+                    <p class="text-xs text-faiston-muted leading-relaxed">Cada projeto tem seu próprio orçamento e lançamentos</p>
+                </div>
+                <div class="flex flex-col items-center text-center gap-3 p-5 rounded-2xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                    <span class="step-num">3</span>
+                    <p class="font-bold text-faiston-dark text-sm">Adicione Lançamentos</p>
+                    <p class="text-xs text-faiston-muted leading-relaxed">Manualmente ou importando planilha Excel/CSV</p>
+                </div>
+                <div class="flex flex-col items-center text-center gap-3 p-5 rounded-2xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                    <span class="step-num">4</span>
+                    <p class="font-bold text-faiston-dark text-sm">Analise os Gráficos</p>
+                    <p class="text-xs text-faiston-muted leading-relaxed">Gasto por localidade, técnico e período</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     ADMIN
-══════════════════════════════════════════════════ -->
-<div id="tab-admin" class="tab-panel space-y-6">
+<!-- ═══════════ ADMIN ═══════════ -->
+<div id="tab-admin" class="tab-panel space-y-8">
 
-    <div class="card p-5" style="border-left:4px solid #EC4899">
+    <div class="card p-6" style="border-left:4px solid #EC4899">
         <div class="flex items-start gap-4">
-            <div class="feature-icon grad" style="min-width:40px"><i class="ph ph-shield-check text-white text-lg"></i></div>
+            <div class="ficon grad" style="min-width:44px"><i class="ph ph-shield-check text-white text-xl"></i></div>
             <div>
-                <h3 class="font-bold text-faiston-dark mb-1">Perfil Admin</h3>
-                <p class="text-sm text-faiston-muted">O admin tem acesso a tudo: dashboard, clientes, financeiro + gerenciamento de usuários no <strong class="text-faiston-dark">/admin</strong>. Acesse pelo link <strong>"Admin"</strong> no menu lateral.</p>
+                <h3 class="font-bold text-faiston-dark text-base mb-1.5">Perfil Admin</h3>
+                <p class="text-sm text-faiston-muted leading-relaxed">O admin tem acesso a tudo: dashboard, clientes, financeiro + gerenciamento de usuários em <strong class="text-faiston-dark">/admin</strong>. Acesse pelo link <strong class="text-faiston-dark">"Admin"</strong> no menu lateral.</p>
             </div>
         </div>
     </div>
 
     <div>
-        <h2 class="text-lg font-black text-faiston-dark mb-3 flex items-center gap-2"><i class="ph ph-users text-faiston-purple text-xl"></i> Gerenciar Usuários</h2>
+        <div class="section-title"><i class="ph ph-users"></i> Gerenciar Usuários</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            <div class="feature-card">
+            <div class="fcard">
                 <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#5B2EE010"><i class="ph ph-user-plus text-faiston-purple text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Criar Usuário</h4>
+                    <div class="ficon" style="background:#5B2EE012"><i class="ph ph-user-plus text-faiston-purple" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Criar Usuário</h4>
                 </div>
-                <ol class="space-y-1.5 text-sm text-faiston-muted mt-1">
-                    <li class="flex items-center gap-2"><span class="step-dot grad text-white" style="width:20px;height:20px;font-size:9px">1</span> Clique em <strong class="text-faiston-dark">"Novo Usuário"</strong></li>
-                    <li class="flex items-center gap-2"><span class="step-dot grad text-white" style="width:20px;height:20px;font-size:9px">2</span> Preencha nome, usuário, senha temporária e perfil</li>
-                    <li class="flex items-center gap-2"><span class="step-dot grad text-white" style="width:20px;height:20px;font-size:9px">3</span> Salve — o sistema vai pedir troca de senha no primeiro login</li>
+                <ol class="space-y-3">
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">1</span><span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Novo Usuário"</strong></span></li>
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">2</span><span class="text-sm text-faiston-muted leading-relaxed">Preencha nome, usuário, senha temporária e perfil</span></li>
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">3</span><span class="text-sm text-faiston-muted leading-relaxed">Salve — o sistema pedirá troca de senha no primeiro login</span></li>
                 </ol>
-                <div class="mt-3 p-3 rounded-lg text-xs" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                    <strong class="text-faiston-purple">Perfis disponíveis:</strong>
-                    <div class="mt-1.5 space-y-1">
-                        <div><span class="badge" style="background:#EC489920;color:#EC4899">Admin</span> <span class="text-faiston-muted ml-1">— acesso total + usuários</span></div>
-                        <div><span class="badge" style="background:#5B2EE020;color:#5B2EE0">Gestor</span> <span class="text-faiston-muted ml-1">— dashboard + clientes + financeiro</span></div>
-                        <div><span class="badge" style="background:#06D7E620;color:#06D7E6">Funcionário</span> <span class="text-faiston-muted ml-1">— só as próprias tarefas</span></div>
+                <div class="p-4 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                    <p class="text-xs font-bold text-faiston-purple uppercase tracking-wide mb-3">Perfis disponíveis</p>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2.5"><span class="pill" style="background:#EC489920;color:#EC4899">Admin</span><span class="text-sm text-faiston-muted">acesso total + usuários</span></div>
+                        <div class="flex items-center gap-2.5"><span class="pill" style="background:#5B2EE020;color:#5B2EE0">Gestor</span><span class="text-sm text-faiston-muted">dashboard + clientes + financeiro</span></div>
+                        <div class="flex items-center gap-2.5"><span class="pill" style="background:#06D7E620;color:#06D7E6">Funcionário</span><span class="text-sm text-faiston-muted">só as próprias tarefas</span></div>
                     </div>
                 </div>
             </div>
 
-            <div class="feature-card">
+            <div class="fcard">
                 <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#EC489910"><i class="ph ph-pencil text-faiston-pink text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Editar / Remover Usuários</h4>
+                    <div class="ficon" style="background:#EC489912"><i class="ph ph-pencil text-faiston-pink" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Editar / Remover Usuários</h4>
                 </div>
-                <ul class="space-y-2.5 text-sm text-faiston-muted mt-1">
-                    <li class="flex items-start gap-2"><i class="ph ph-pencil-simple text-faiston-faint mt-0.5 flex-shrink-0"></i> Ícone de <strong class="text-faiston-dark">lápis</strong> → editar nome, perfil, status, ou redefinir senha</li>
-                    <li class="flex items-start gap-2"><i class="ph ph-trash text-faiston-faint mt-0.5 flex-shrink-0"></i> Ícone de <strong class="text-faiston-dark">lixeira</strong> → desativa o usuário (não apaga o histórico)</li>
-                    <li class="flex items-start gap-2"><i class="ph ph-lock-key text-faiston-faint mt-0.5 flex-shrink-0"></i> Ao <strong class="text-faiston-dark">redefinir senha</strong> → usuário é obrigado a trocar na próxima entrada</li>
-                </ul>
-                <div class="mt-3 p-3 rounded-lg text-xs text-faiston-muted" style="background:#07070F08;border:1px solid #E5E8F0">
-                    ⚠️ O usuário <strong class="text-faiston-dark">admin</strong> não pode ser desativado.
+                <div class="space-y-3">
+                    <div class="info-row"><i class="ph ph-pencil-simple" style="color:#5B2EE0"></i><div>Ícone de <strong>lápis</strong> → editar nome, perfil ou redefinir senha</div></div>
+                    <div class="info-row"><i class="ph ph-trash" style="color:#EC4899"></i><div>Ícone de <strong>lixeira</strong> → desativa o usuário (histórico preservado)</div></div>
+                    <div class="info-row"><i class="ph ph-lock-key text-faiston-faint"></i><div>Ao <strong>redefinir senha</strong>, usuário é obrigado a trocar no próximo login</div></div>
+                </div>
+                <div class="p-3 rounded-xl text-sm text-faiston-muted flex items-center gap-2" style="background:#F4F5FA;border:1px solid #E5E8F0">
+                    <i class="ph ph-warning text-faiston-faint text-base flex-shrink-0"></i>
+                    O usuário <strong class="text-faiston-dark">admin</strong> não pode ser desativado.
                 </div>
             </div>
 
-            <div class="feature-card md:col-span-2">
+            <div class="fcard md:col-span-2" style="border:1.5px solid #EC489930">
                 <div class="flex items-center gap-3">
-                    <div class="feature-icon" style="background:#EC489910"><i class="ph ph-trash text-faiston-pink text-xl"></i></div>
-                    <h4 class="font-bold text-faiston-dark text-sm">Limpar Tarefas</h4>
+                    <div class="ficon" style="background:#EC489912"><i class="ph ph-trash text-faiston-pink" style="font-size:22px"></i></div>
+                    <div>
+                        <h4 class="font-bold text-faiston-dark">Limpar Todas as Tarefas</h4>
+                        <p class="text-xs font-bold uppercase tracking-wide" style="color:#EC4899">Ação irreversível</p>
+                    </div>
                 </div>
-                <p class="text-sm text-faiston-muted">Na aba <strong class="text-faiston-dark">"Tarefas do Time"</strong>, o botão <span class="shortcut" style="color:#EC4899;border-color:#EC489930">🗑 Limpar Todas</span> remove todas as tarefas do sistema de uma vez. Pede confirmação antes. <strong class="text-faiston-pink">Ação irreversível.</strong></p>
+                <p class="text-sm text-faiston-muted leading-relaxed">Na aba <strong class="text-faiston-dark">"Tarefas do Time"</strong>, o botão <span class="pill" style="background:#EC489920;color:#EC4899">🗑 Limpar Todas</span> remove todas as tarefas do sistema de uma vez. Uma confirmação é exibida antes. Use com cuidado.</p>
             </div>
         </div>
     </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     DICAS GERAIS (sempre visíveis)
-══════════════════════════════════════════════════ -->
+<!-- ═══════════ DICAS GERAIS ═══════════ -->
 <div>
-    <h2 class="text-lg font-black text-faiston-dark mb-3 flex items-center gap-2"><i class="ph ph-lightbulb text-faiston-purple text-xl"></i> Dicas Gerais</h2>
+    <div class="section-title"><i class="ph ph-lightbulb"></i> Dicas Gerais</div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="feature-card">
-            <i class="ph ph-moon text-faiston-purple text-2xl"></i>
-            <h4 class="font-bold text-faiston-dark text-sm">Tema Escuro</h4>
-            <p class="text-xs text-faiston-muted">Clique no ícone 🌙/☀️ no canto superior direito. A preferência fica salva no seu navegador.</p>
+        <div class="fcard">
+            <div class="ficon" style="background:#5B2EE012;width:44px;height:44px"><i class="ph ph-moon text-faiston-purple text-xl"></i></div>
+            <h4 class="font-bold text-faiston-dark">Tema Escuro</h4>
+            <p class="text-sm text-faiston-muted leading-relaxed">Clique no ícone 🌙/☀️ no canto superior direito. A preferência fica salva no seu navegador.</p>
         </div>
-        <div class="feature-card">
-            <i class="ph ph-arrows-clockwise text-faiston-cyan text-2xl"></i>
-            <h4 class="font-bold text-faiston-dark text-sm">Atualizar Dados</h4>
-            <p class="text-xs text-faiston-muted">Use o botão 🔄 no topo para recarregar os dados sem precisar atualizar a página inteira.</p>
+        <div class="fcard">
+            <div class="ficon" style="background:#06D7E612;width:44px;height:44px"><i class="ph ph-arrows-clockwise text-faiston-cyan text-xl"></i></div>
+            <h4 class="font-bold text-faiston-dark">Atualizar Dados</h4>
+            <p class="text-sm text-faiston-muted leading-relaxed">Use o botão 🔄 no topo para recarregar os dados sem precisar atualizar a página inteira.</p>
         </div>
-        <div class="feature-card">
-            <i class="ph ph-warning text-faiston-pink text-2xl"></i>
-            <h4 class="font-bold text-faiston-dark text-sm">Problemas?</h4>
-            <p class="text-xs text-faiston-muted">Tire um print e mande para o responsável. Descreva o que você estava fazendo quando o problema aconteceu.</p>
+        <div class="fcard">
+            <div class="ficon" style="background:#EC489912;width:44px;height:44px"><i class="ph ph-warning text-faiston-pink text-xl"></i></div>
+            <h4 class="font-bold text-faiston-dark">Problemas?</h4>
+            <p class="text-sm text-faiston-muted leading-relaxed">Tire um print e mande para o responsável. Descreva o que você estava fazendo quando o problema aconteceu.</p>
         </div>
     </div>
 </div>
 
 <!-- FOOTER -->
-<div class="text-center py-6 text-xs text-faiston-faint">
+<div class="text-center py-4 text-sm text-faiston-faint">
     Faiston OPS · Torre de Controle · <span id="ano"></span>
 </div>
 
-</div><!-- /main container -->
+</div>
 
 <script>
 function setTab(id) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-        const ids = ['func','gestor','admin'];
-        b.classList.toggle('active', ids[i] === id);
+        b.classList.toggle('active', ['func','gestor','admin'][i] === id);
     });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('tab-' + id).classList.add('active');
