@@ -383,6 +383,70 @@
     </div>
 </div>
 
+<!-- MODAL PLANILHA ONLINE -->
+<div id="modal-planilha" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(7,7,15,0.6);backdrop-filter:blur(8px)">
+    <div class="modal-bg bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-faiston-border fade-in flex flex-col" style="max-height:90vh">
+        <div class="grad-bg px-6 py-4 flex items-center gap-3 rounded-t-2xl flex-shrink-0">
+            <i class="ph ph-cloud-arrow-up text-white text-xl"></i>
+            <span class="text-white font-bold">Vincular Planilha OneDrive / SharePoint</span>
+            <button onclick="fecharModalPlanilha()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors">
+                <i class="ph ph-x text-sm"></i>
+            </button>
+        </div>
+        <div class="overflow-y-auto p-6 flex flex-col gap-5">
+            <input type="hidden" id="plan-projeto-id">
+
+            <!-- URL -->
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Link de compartilhamento OneDrive / SharePoint *</label>
+                <div class="flex gap-2">
+                    <input type="url" id="plan-url" placeholder="https://empresa.sharepoint.com/..."
+                        class="flex-1 border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+                    <button onclick="testarConexao()" id="btn-testar"
+                        class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-purple text-faiston-purple hover:bg-faiston-purple hover:text-white transition-colors flex-shrink-0">
+                        <i class="ph ph-plug text-sm"></i> Testar
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Cole o link "Compartilhar" do OneDrive/SharePoint. O link deve permitir acesso sem login.</p>
+                <div id="plan-teste-status" class="hidden mt-2 text-xs rounded-lg px-3 py-2"></div>
+            </div>
+
+            <!-- Mapeamento de colunas -->
+            <div id="plan-mapeamento-section" class="hidden">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Mapeamento de Colunas</p>
+                <div class="bg-slate-50 rounded-xl p-4 mb-3">
+                    <p class="text-[11px] text-slate-500 mb-2">Aba da planilha:</p>
+                    <select id="plan-sheet" onchange="trocarAba()" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-3" id="plan-col-selects">
+                    <!-- populated by JS -->
+                </div>
+
+                <!-- Opção replace -->
+                <label class="flex items-center gap-2.5 mt-4 cursor-pointer select-none">
+                    <input type="checkbox" id="plan-replace" class="w-4 h-4 rounded border-slate-300 text-faiston-purple">
+                    <span class="text-sm text-slate-600">Substituir lançamentos existentes ao sincronizar</span>
+                </label>
+                <p class="text-[11px] text-slate-400 mt-1 ml-6.5">Se marcado, limpa os lançamentos anteriores e importa os dados atuais da planilha.</p>
+            </div>
+
+            <!-- Preview -->
+            <div id="plan-preview" class="hidden">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Preview (5 primeiras linhas)</p>
+                <div class="overflow-x-auto rounded-xl border border-faiston-border">
+                    <table class="text-xs w-full" id="plan-preview-table"></table>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-faiston-border flex-shrink-0">
+            <button onclick="fecharModalPlanilha()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvarPlanilhaConfig()" id="btn-salvar-planilha" class="flex-1 rounded-lg py-2.5 text-sm font-semibold text-white btn-grad disabled:opacity-50" disabled>
+                <i class="ph ph-floppy-disk mr-1"></i> Salvar Vínculo
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL LANÇAMENTO -->
 <div id="modal-lancamento" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(7,7,15,0.6);backdrop-filter:blur(8px)">
     <div class="modal-bg bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-faiston-border fade-in">
@@ -551,6 +615,28 @@ function renderProjetos() {
                 </div>
                 <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div class="h-full rounded-full progress-bar" style="width:${pct}%;background:${barColor}"></div>
+                </div>
+            </div>
+
+            <!-- Planilha Online -->
+            <div class="px-5 py-2.5 border-b border-faiston-border flex items-center justify-between gap-3" style="background:rgba(6,215,230,0.03)">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i class="ph ph-microsoft-excel-logo text-sm ${p.planilha_url ? 'text-emerald-500' : 'text-slate-300'} flex-shrink-0"></i>
+                    ${p.planilha_url
+                        ? `<span class="text-[11px] text-slate-500 truncate">Planilha vinculada${p.planilha_sync_em ? ` · sync ${p.planilha_sync_em.slice(5,16).replace('T',' ')}` : ''}</span>`
+                        : `<span class="text-[11px] text-slate-400">Sem planilha vinculada</span>`
+                    }
+                </div>
+                <div class="flex items-center gap-1.5 flex-shrink-0">
+                    ${p.planilha_url ? `
+                    <button onclick="event.stopPropagation();sincronizarPlanilha(${p.id})" id="btn-sync-${p.id}"
+                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors">
+                        <i class="ph ph-arrows-clockwise text-xs"></i> Sincronizar
+                    </button>` : ''}
+                    <button onclick="event.stopPropagation();abrirModalPlanilha(${p.id})"
+                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-colors">
+                        <i class="ph ph-link text-xs"></i> ${p.planilha_url ? 'Editar' : 'Vincular'}
+                    </button>
                 </div>
             </div>
 
@@ -727,6 +813,175 @@ async function deletarLancamento(lid, pid) {
 
 // ── Auth / tema ──
 function logout() { document.cookie = 'faiston_token=; Max-Age=0; path=/'; window.location.href = '/login'; }
+
+// ── PLANILHA ONLINE ──────────────────────────────────────────────────
+const PLAN_FIELDS = [
+    { key: 'col_descricao',  label: 'Descrição *',  required: true },
+    { key: 'col_valor',      label: 'Valor *',       required: true },
+    { key: 'col_data',       label: 'Data',          required: false },
+    { key: 'col_categoria',  label: 'Categoria',     required: false },
+    { key: 'col_localidade', label: 'Localidade',    required: false },
+    { key: 'col_tecnico',    label: 'Técnico',       required: false },
+];
+let planHeaders = [];
+let planSheets = [];
+let planCurrentUrl = '';
+
+function abrirModalPlanilha(pid) {
+    const proj = projetos.find(p => p.id === pid);
+    if (!proj) return;
+    document.getElementById('plan-projeto-id').value = pid;
+    document.getElementById('plan-url').value = proj.planilha_url || '';
+    document.getElementById('plan-replace').checked = proj.planilha_replace || false;
+    document.getElementById('plan-teste-status').classList.add('hidden');
+    document.getElementById('plan-mapeamento-section').classList.add('hidden');
+    document.getElementById('plan-preview').classList.add('hidden');
+    document.getElementById('btn-salvar-planilha').disabled = true;
+    planHeaders = [];
+    planSheets = [];
+    planCurrentUrl = proj.planilha_url || '';
+
+    // If already configured, populate mapping
+    if (proj.planilha_mapeamento && Object.keys(proj.planilha_mapeamento).length) {
+        // Will be populated after test
+    }
+    document.getElementById('modal-planilha').classList.remove('hidden');
+}
+
+function fecharModalPlanilha() {
+    document.getElementById('modal-planilha').classList.add('hidden');
+}
+
+async function testarConexao() {
+    const pid = document.getElementById('plan-projeto-id').value;
+    const url = document.getElementById('plan-url').value.trim();
+    if (!url) { alert('Cole o link de compartilhamento'); return; }
+    const btn = document.getElementById('btn-testar');
+    const status = document.getElementById('plan-teste-status');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner spin"></i> Testando...';
+    status.className = 'mt-2 text-xs rounded-lg px-3 py-2 bg-slate-100 text-slate-500';
+    status.classList.remove('hidden');
+    status.textContent = 'Conectando ao OneDrive...';
+    try {
+        const res = await fetch(`/api/projetos/${pid}/testar-planilha`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Erro desconhecido');
+        planHeaders = data.headers;
+        planSheets = data.sheets;
+        planCurrentUrl = url;
+        status.className = 'mt-2 text-xs rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200';
+        status.innerHTML = `<i class="ph ph-check-circle mr-1"></i> Conexão OK — ${data.headers.length} colunas encontradas`;
+
+        // Populate sheet select
+        const sheetSel = document.getElementById('plan-sheet');
+        sheetSel.innerHTML = data.sheets.map(s => `<option value="${s}">${s}</option>`).join('');
+        const proj = projetos.find(p => p.id == pid);
+        if (proj?.planilha_mapeamento?.sheet_name) {
+            sheetSel.value = proj.planilha_mapeamento.sheet_name;
+        }
+
+        // Render column selects
+        renderColSelects(proj?.planilha_mapeamento || {});
+
+        // Preview
+        renderPlanPreview(data.headers, data.sample);
+
+        document.getElementById('plan-mapeamento-section').classList.remove('hidden');
+        document.getElementById('plan-preview').classList.remove('hidden');
+        document.getElementById('btn-salvar-planilha').disabled = false;
+    } catch (e) {
+        status.className = 'mt-2 text-xs rounded-lg px-3 py-2 bg-red-50 text-red-600 border border-red-200';
+        status.innerHTML = `<i class="ph ph-x-circle mr-1"></i> ${e.message}`;
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ph ph-plug text-sm"></i> Testar';
+}
+
+function renderColSelects(saved) {
+    const opts = planHeaders.map(h => `<option value="${h}">${h}</option>`).join('');
+    document.getElementById('plan-col-selects').innerHTML = PLAN_FIELDS.map(f => `
+        <div>
+            <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wide block mb-1">${f.label}</label>
+            <select id="plan-col-${f.key}" class="w-full border border-faiston-border rounded-lg px-2 py-2 text-xs bg-white focus:outline-none focus:border-faiston-purple">
+                ${f.required ? '' : '<option value="">— não usar —</option>'}
+                ${opts}
+            </select>
+        </div>`).join('');
+    // Apply saved mapping
+    PLAN_FIELDS.forEach(f => {
+        const el = document.getElementById(`plan-col-${f.key}`);
+        if (saved[f.key] && planHeaders.includes(saved[f.key])) el.value = saved[f.key];
+        else if (f.required) autoDetectCol(el, f.key);
+    });
+}
+
+function autoDetectCol(el, key) {
+    const guesses = {
+        col_descricao:  ['descri', 'atividade', 'serviço', 'item', 'historico'],
+        col_valor:      ['valor', 'custo', 'gasto', 'total', 'preco'],
+        col_data:       ['data', 'date', 'dt'],
+        col_categoria:  ['categ', 'tipo', 'classe'],
+        col_localidade: ['local', 'cidade', 'unidade'],
+        col_tecnico:    ['tecnic', 'responsav', 'pessoa', 'funcionario'],
+    };
+    const terms = guesses[key] || [];
+    const match = planHeaders.find(h => terms.some(t => h.toLowerCase().includes(t)));
+    if (match) el.value = match;
+}
+
+function renderPlanPreview(headers, rows) {
+    const table = document.getElementById('plan-preview-table');
+    table.innerHTML = `
+        <thead class="bg-slate-50"><tr>${headers.map(h=>`<th class="px-2 py-1.5 text-left font-semibold text-slate-500 border-b border-faiston-border whitespace-nowrap">${h}</th>`).join('')}</tr></thead>
+        <tbody>${(rows||[]).map(r=>`<tr class="border-b border-faiston-border last:border-0">${headers.map((_,i)=>`<td class="px-2 py-1.5 text-slate-600 whitespace-nowrap">${r[i]||''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+}
+
+function trocarAba() {
+    // Re-test with new sheet (user should re-test or we keep current headers)
+}
+
+async function salvarPlanilhaConfig() {
+    const pid = document.getElementById('plan-projeto-id').value;
+    const url = document.getElementById('plan-url').value.trim();
+    const sheet = document.getElementById('plan-sheet')?.value || '';
+    const replace = document.getElementById('plan-replace').checked;
+    const mapeamento = { sheet_name: sheet };
+    PLAN_FIELDS.forEach(f => {
+        const v = document.getElementById(`plan-col-${f.key}`)?.value;
+        if (v) mapeamento[f.key] = v;
+    });
+    try {
+        const res = await fetch(`/api/projetos/${pid}/planilha-config`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ url, mapeamento, replace_on_sync: replace })
+        });
+        if (!res.ok) throw new Error((await res.json()).detail);
+        fecharModalPlanilha();
+        await carregarProjetos();
+    } catch (e) { alert('Erro ao salvar: ' + e.message); }
+}
+
+async function sincronizarPlanilha(pid) {
+    const btn = document.getElementById(`btn-sync-${pid}`);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner spin mr-1"></i> Sincronizando...'; }
+    try {
+        const res = await fetch(`/api/projetos/${pid}/sincronizar`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+        await carregarProjetos();
+        // If project is open, reload lancamentos
+        if (openProjects.has(pid)) carregarLancamentos(pid);
+    } catch (e) {
+        alert('Erro ao sincronizar: ' + e.message);
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph ph-arrows-clockwise text-xs"></i> Sincronizar'; }
+    }
+}
 
 function toggleTheme() {
     const html = document.documentElement;
