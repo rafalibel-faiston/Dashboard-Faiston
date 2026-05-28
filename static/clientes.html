@@ -22,6 +22,24 @@
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+    [data-theme='dark'] .proj-card-section { border-color: rgba(255,255,255,0.07) !important; }
+    [data-theme='dark'] .proj-item-row span { color: #c4b5fd !important; }
+    [data-theme='dark'] #modal-projeto .bg-white,
+    [data-theme='dark'] #modal-importar .bg-white { background:#1a1d2e !important; border-color:rgba(255,255,255,0.1) !important; }
+    [data-theme='dark'] #modal-projeto input,
+    [data-theme='dark'] #modal-projeto textarea,
+    [data-theme='dark'] #modal-projeto select,
+    [data-theme='dark'] #modal-importar input,
+    [data-theme='dark'] #modal-importar select { background:#0f1120 !important; color:#e2e8f0 !important; border-color:rgba(255,255,255,0.12) !important; }
+    [data-theme='dark'] #modal-projeto label,
+    [data-theme='dark'] #modal-importar label { color:#94a3b8 !important; }
+    [data-theme='dark'] #modal-projeto h2,
+    [data-theme='dark'] #modal-importar h2 { color:#e2e8f0 !important; }
+    [data-theme='dark'] #modal-projeto p,
+    [data-theme='dark'] #modal-importar p { color:#94a3b8 !important; }
+    [data-theme='dark'] #imp-sample { background:#0f1120 !important; color:#94a3b8 !important; }
+    </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
 
@@ -162,7 +180,10 @@
             <button class="flex items-center gap-2 px-3 py-2 rounded-lg border border-faiston-border bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
                 <i class="ph ph-funnel text-slate-400"></i> Filtros
             </button>
-            <div class="ml-auto">
+            <div class="ml-auto flex items-center gap-2">
+                <button onclick="openImportarProjetos()" class="flex items-center gap-2 px-3 py-2 rounded-lg border border-faiston-border bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                    <i class="ph ph-upload-simple text-slate-400"></i> Importar Projetos
+                </button>
                 <button onclick="openModal()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
                     <i class="ph ph-plus"></i> Novo Cliente
                 </button>
@@ -223,6 +244,99 @@
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="closeModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="salvar()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL PROJETO -->
+<div id="modal-projeto" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h2 id="modal-proj-title" class="text-lg font-bold text-faiston-dark">Novo Projeto</h2>
+            <button onclick="closeProjetoModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="proj-edit-id">
+            <input type="hidden" id="proj-cliente-id">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do Projeto *</label>
+                <input type="text" id="proj-nome" placeholder="Ex: Implantação, Manutenção..."
+                       class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Orçamento (R$)</label>
+                <input type="number" id="proj-orcamento" placeholder="0,00" step="0.01" min="0"
+                       class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Descrição</label>
+                <textarea id="proj-descricao" rows="2" placeholder="Descrição opcional..."
+                          class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="closeProjetoModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvarProjeto()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL IMPORTAR PROJETOS -->
+<div id="modal-importar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark">Importar Projetos</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Importe projetos a partir de uma planilha online</p>
+            </div>
+            <button onclick="closeImportarModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <!-- Step 1: URL -->
+        <div id="imp-step1" class="p-6 flex flex-col gap-4">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Link da Planilha (OneDrive / SharePoint)</label>
+                <input type="url" id="imp-url" placeholder="https://..."
+                       class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+                <p class="text-[11px] text-faiston-faint mt-1.5">A planilha deve estar compartilhada como "qualquer pessoa com o link pode ver".</p>
+            </div>
+            <button onclick="importarPreview()" id="btn-preview"
+                    class="btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
+                <i class="ph ph-magnifying-glass text-sm"></i> Buscar Colunas
+            </button>
+        </div>
+        <!-- Step 2: Column mapping -->
+        <div id="imp-step2" class="hidden p-6 flex flex-col gap-4">
+            <div class="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <i class="ph ph-check-circle text-emerald-500"></i>
+                <span class="text-xs text-emerald-700 font-medium">Planilha carregada com sucesso!</span>
+                <button onclick="importarReset()" class="ml-auto text-xs text-slate-400 hover:text-slate-600 underline">Trocar</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Coluna: Cliente *</label>
+                    <select id="imp-col-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple bg-white"></select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Coluna: Projeto *</label>
+                    <select id="imp-col-projeto" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple bg-white"></select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Coluna: Orçamento</label>
+                    <select id="imp-col-orcamento" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple bg-white"></select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Coluna: Descrição</label>
+                    <select id="imp-col-descricao" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple bg-white"></select>
+                </div>
+            </div>
+            <div id="imp-sample" class="bg-slate-50 rounded-lg p-3 text-[11px] text-slate-500 font-mono overflow-auto max-h-28 leading-relaxed"></div>
+            <div class="flex gap-3">
+                <button onclick="closeImportarModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                <button onclick="importarExecutar()" id="btn-executar"
+                        class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
+                    <i class="ph ph-upload-simple text-sm"></i> Importar Projetos
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -327,21 +441,41 @@ function render(lista) {
                 </div>
             </div>
             <!-- Content -->
-            <div class="pt-9 px-5 pb-4">
+            <div class="pt-9 px-5 pb-0">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="font-bold text-faiston-dark text-sm">${c.nome}</h3>
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.cls}">${status.label}</span>
                 </div>
-
-
+                <div class="flex items-center gap-3 mb-3">
+                    <button onclick="editar(${c.id})" class="text-[11px] text-slate-400 hover:text-faiston-purple transition-colors flex items-center gap-1"><i class="ph ph-pencil text-[10px]"></i> Editar</button>
+                    <button onclick="deletar(${c.id},'${c.nome.replace(/'/g,"\\'")}')" class="text-[11px] text-slate-400 hover:text-faiston-pink transition-colors flex items-center gap-1"><i class="ph ph-trash text-[10px]"></i> Remover</button>
+                </div>
                 <!-- Links -->
-                <div class="flex items-center justify-between pt-1 border-t border-faiston-border">
+                <div class="flex items-center justify-between py-3 border-t border-faiston-border">
                     <a href="/financeiro/${c.id}" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta transition-colors flex items-center gap-1">
                         <i class="ph ph-currency-circle-dollar text-xs"></i> Financeiro
                     </a>
                     <a href="/relatorio/${encodeURIComponent(c.nome)}" target="_blank" class="text-xs font-semibold text-slate-400 hover:text-faiston-purple transition-colors flex items-center gap-1">
                         Relatório <i class="ph ph-arrow-square-out text-xs"></i>
                     </a>
+                </div>
+            </div>
+            <!-- Projects accordion -->
+            <div class="border-t border-faiston-border/40 proj-card-section">
+                <button onclick="toggleProjetosCard(${c.id})"
+                        class="w-full flex items-center justify-between px-5 py-2.5 text-xs font-semibold text-slate-400 hover:text-faiston-purple transition-colors">
+                    <span class="flex items-center gap-1.5">
+                        <i class="ph ph-folder text-xs"></i> Projetos
+                        <span id="proj-count-${c.id}" class="hidden text-[9px] font-bold bg-faiston-purple/10 text-faiston-purple px-1.5 py-0.5 rounded-full">0</span>
+                    </span>
+                    <i class="ph ph-caret-down text-xs transition-transform" id="caret-${c.id}"></i>
+                </button>
+                <div id="proj-${c.id}" class="hidden px-5 pb-3">
+                    <div id="proj-items-${c.id}" class="space-y-1.5 mb-2.5"></div>
+                    <button onclick="openProjetoModal(${c.id})"
+                            class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta flex items-center gap-1 transition-colors">
+                        <i class="ph ph-plus-circle text-xs"></i> Adicionar projeto
+                    </button>
                 </div>
             </div>
         </div>`;
@@ -410,7 +544,186 @@ function toggleTema() {
 }
 
 document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('modal-projeto').addEventListener('click', e => { if (e.target === document.getElementById('modal-projeto')) closeProjetoModal(); });
+document.getElementById('modal-importar').addEventListener('click', e => { if (e.target === document.getElementById('modal-importar')) closeImportarModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeProjetoModal(); closeImportarModal(); } });
+
+// ── Projects per card ────────────────────────────────────
+let _projLoaded = {};
+
+function toggleProjetosCard(cid) {
+    const panel = document.getElementById(`proj-${cid}`);
+    const caret = document.getElementById(`caret-${cid}`);
+    const isOpen = !panel.classList.contains('hidden');
+    if (isOpen) {
+        panel.classList.add('hidden');
+        caret.style.transform = '';
+    } else {
+        panel.classList.remove('hidden');
+        caret.style.transform = 'rotate(180deg)';
+        if (!_projLoaded[cid]) carregarProjetosCarta(cid);
+    }
+}
+
+async function carregarProjetosCarta(cid) {
+    const el = document.getElementById(`proj-items-${cid}`);
+    const countEl = document.getElementById(`proj-count-${cid}`);
+    el.innerHTML = '<span class="text-slate-300 text-xs italic">Carregando...</span>';
+    const r = await fetch(`/api/clientes/${cid}/projetos`);
+    if (!r.ok) { el.innerHTML = '<span class="text-red-400 text-xs">Erro ao carregar</span>'; return; }
+    const projs = await r.json();
+    _projLoaded[cid] = projs;
+    if (countEl) {
+        countEl.textContent = projs.length;
+        countEl.classList.toggle('hidden', projs.length === 0);
+    }
+    if (!projs.length) {
+        el.innerHTML = '<span class="text-slate-300 text-xs italic">Nenhum projeto cadastrado</span>';
+        return;
+    }
+    el.innerHTML = projs.map(p => {
+        const gasto = p.gasto || 0;
+        const orc = p.orcamento || 0;
+        const pct = orc > 0 ? Math.min(100, Math.round(gasto / orc * 100)) : 0;
+        const barColor = pct > 90 ? '#EC4899' : pct > 70 ? '#f59e0b' : '#5B2EE0';
+        const orcStr = orc > 0 ? `R$ ${Number(gasto).toLocaleString('pt-BR',{maximumFractionDigits:0})} / ${Number(orc).toLocaleString('pt-BR',{maximumFractionDigits:0})}` : '';
+        return `<div class="proj-item-row group py-1">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-600 truncate flex-1 mr-2">${p.nome}</span>
+                <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <button onclick="openProjetoModal(${cid},${p.id})" class="text-slate-300 hover:text-faiston-purple p-0.5 transition-colors" title="Editar"><i class="ph ph-pencil text-[10px]"></i></button>
+                    <button onclick="deletarProjeto(${p.id},${cid})" class="text-slate-300 hover:text-faiston-pink p-0.5 transition-colors" title="Remover"><i class="ph ph-trash text-[10px]"></i></button>
+                </div>
+            </div>
+            ${orc > 0 ? `<div class="flex items-center gap-2 mt-0.5">
+                <div class="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full" style="width:${pct}%;background:${barColor}"></div>
+                </div>
+                <span class="text-[10px] text-slate-400 flex-shrink-0">${orcStr}</span>
+            </div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function openProjetoModal(cid, pid) {
+    const projs = _projLoaded[cid];
+    const p = pid ? projs?.find(x => x.id === pid) : null;
+    document.getElementById('modal-proj-title').textContent = p ? 'Editar Projeto' : 'Novo Projeto';
+    document.getElementById('proj-edit-id').value = pid || '';
+    document.getElementById('proj-cliente-id').value = cid;
+    document.getElementById('proj-nome').value = p?.nome || '';
+    document.getElementById('proj-orcamento').value = p?.orcamento || '';
+    document.getElementById('proj-descricao').value = p?.descricao || '';
+    document.getElementById('modal-projeto').classList.remove('hidden');
+    setTimeout(() => document.getElementById('proj-nome').focus(), 100);
+}
+
+function closeProjetoModal() { document.getElementById('modal-projeto').classList.add('hidden'); }
+
+async function salvarProjeto() {
+    const nome = document.getElementById('proj-nome').value.trim();
+    if (!nome) { alert('Informe o nome do projeto.'); return; }
+    const cid = document.getElementById('proj-cliente-id').value;
+    const pid = document.getElementById('proj-edit-id').value;
+    const body = { nome, orcamento: parseFloat(document.getElementById('proj-orcamento').value) || 0, descricao: document.getElementById('proj-descricao').value.trim() };
+    const url = pid ? `/api/projetos/${pid}` : `/api/clientes/${cid}/projetos`;
+    const r = await fetch(url, { method: pid ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) { alert(data.detail || 'Erro ao salvar projeto'); return; }
+    closeProjetoModal();
+    _projLoaded[cid] = null;
+    carregarProjetosCarta(parseInt(cid));
+}
+
+async function deletarProjeto(pid, cid) {
+    if (!confirm('Remover este projeto?')) return;
+    const r = await fetch(`/api/projetos/${pid}`, { method: 'DELETE' });
+    if (!r.ok) { alert('Erro ao remover projeto'); return; }
+    _projLoaded[cid] = null;
+    carregarProjetosCarta(cid);
+}
+
+// ── Importar Projetos ────────────────────────────────────
+let _impHeaders = [];
+
+function openImportarProjetos() {
+    importarReset();
+    document.getElementById('modal-importar').classList.remove('hidden');
+}
+
+function closeImportarModal() { document.getElementById('modal-importar').classList.add('hidden'); }
+
+function importarReset() {
+    document.getElementById('imp-step1').classList.remove('hidden');
+    document.getElementById('imp-step2').classList.add('hidden');
+    document.getElementById('imp-url').value = '';
+    _impHeaders = [];
+}
+
+async function importarPreview() {
+    const url = document.getElementById('imp-url').value.trim();
+    if (!url) { alert('Informe a URL da planilha.'); return; }
+    const btn = document.getElementById('btn-preview');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner-gap animate-spin"></i> Buscando...';
+    try {
+        const r = await fetch('/api/importar-projetos/preview', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url})
+        });
+        const data = await r.json();
+        if (!r.ok) { alert(data.detail || 'Erro ao buscar planilha'); return; }
+        _impHeaders = data.headers || [];
+        const opts = '<option value="">— Não usar —</option>' + _impHeaders.map(h => `<option value="${h}">${h}</option>`).join('');
+        ['imp-col-cliente','imp-col-projeto','imp-col-orcamento','imp-col-descricao'].forEach(id => {
+            document.getElementById(id).innerHTML = opts;
+        });
+        _impHeaders.forEach(h => {
+            const hl = h.toLowerCase();
+            if (hl.includes('client')) document.getElementById('imp-col-cliente').value = h;
+            if (hl.includes('projeto') || hl.includes('project')) document.getElementById('imp-col-projeto').value = h;
+            if (hl.includes('orcam') || hl.includes('orçam') || hl.includes('budget')) document.getElementById('imp-col-orcamento').value = h;
+            if (hl.includes('descri')) document.getElementById('imp-col-descricao').value = h;
+        });
+        const sample = data.sample || [];
+        document.getElementById('imp-sample').innerHTML =
+            `<b>Colunas: </b>${_impHeaders.join(' · ')}<br><br>` +
+            sample.slice(0,3).map(row => row.join(' | ')).join('<br>');
+        document.getElementById('imp-step1').classList.add('hidden');
+        document.getElementById('imp-step2').classList.remove('hidden');
+    } catch(e) { alert('Erro: ' + e.message); }
+    finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-magnifying-glass text-sm"></i> Buscar Colunas';
+    }
+}
+
+async function importarExecutar() {
+    const url = document.getElementById('imp-url').value.trim();
+    const col_cliente = document.getElementById('imp-col-cliente').value;
+    const col_projeto = document.getElementById('imp-col-projeto').value;
+    if (!col_cliente || !col_projeto) { alert('Selecione as colunas de Cliente e Projeto.'); return; }
+    const btn = document.getElementById('btn-executar');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner-gap animate-spin"></i> Importando...';
+    try {
+        const r = await fetch('/api/importar-projetos/executar', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ url, col_cliente, col_projeto,
+                col_orcamento: document.getElementById('imp-col-orcamento').value,
+                col_descricao: document.getElementById('imp-col-descricao').value })
+        });
+        const data = await r.json();
+        if (!r.ok) { alert(data.detail || 'Erro ao importar'); return; }
+        alert(`Importação concluída!\n✓ ${data.criados} projeto(s) criado(s)\n— ${data.ignorados} ignorado(s) (duplicado ou cliente não encontrado)`);
+        closeImportarModal();
+        _projLoaded = {};
+    } catch(e) { alert('Erro: ' + e.message); }
+    finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-upload-simple text-sm"></i> Importar Projetos';
+    }
+}
+
 init();
 </script>
 </body>
