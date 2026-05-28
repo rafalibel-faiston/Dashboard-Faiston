@@ -39,11 +39,10 @@
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
             <nav class="flex flex-col gap-1 mb-8">
                 <div class="flex flex-col">
-                    <a href="#" onclick="toggleMenu()" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
+                    <div class="flex items-center btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm"><i class="ph ph-network text-lg"></i> Backoffice</div>
-                        <i class="ph ph-caret-down text-sm transition-transform duration-200" id="caret-menu"></i>
-                    </a>
-                    <div id="submenu-clientes" class="flex flex-col pl-9 py-3 gap-3 relative">
+                    </div>
+                    <div class="flex flex-col pl-9 py-3 gap-3 relative">
                         <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
                         <a href="#" onclick="filtrarFuncionarioSidebar(''); return false;" data-func="" class="func-link text-sm font-bold text-faiston-cyan flex items-center gap-3 relative">
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan shadow-[0_0_8px_#06D7E6] animate-pulse" id="dot-geral"></div>
@@ -399,15 +398,6 @@ const GK_FUNC_PALETTE   = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#f59e0b','#3
 const gkClientColors = {}, gkFuncColors = {};
 let gkCI = 0, gkFI = 0;
 const cor_cyan='#06D7E6', cor_purple='#5B2EE0', cor_magenta='#EC4899', cor_dark='#0B0D1F';
-
-let menuAberto = true;
-function toggleMenu() {
-    menuAberto = !menuAberto;
-    const submenu = document.getElementById('submenu-clientes');
-    const caret = document.getElementById('caret-menu');
-    submenu.style.display = menuAberto ? '' : 'none';
-    caret.style.transform = menuAberto ? '' : 'rotate(-90deg)';
-}
 
 let projetosAberto = true;
 function toggleProjetos() {
