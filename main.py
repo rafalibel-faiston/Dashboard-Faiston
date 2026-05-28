@@ -237,7 +237,7 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM usuarios WHERE id=%s", (uid,))
+        cur.execute("UPDATE usuarios SET ativo=FALSE WHERE id=%s AND usuario != 'admin'", (uid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
