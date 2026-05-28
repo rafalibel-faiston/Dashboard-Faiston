@@ -87,9 +87,15 @@
     <div id="painel-tarefas" class="hidden">
         <div class="flex items-center justify-between mb-5">
             <h2 class="text-lg font-bold text-faiston-dark">Tarefas do Time</h2>
-            <select id="filtro-func" onchange="carregarTarefas()" class="text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-cyan">
-                <option value="">Todos os funcionários</option>
-            </select>
+            <div class="flex items-center gap-3">
+                <select id="filtro-func" onchange="carregarTarefas()" class="text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-cyan">
+                    <option value="">Todos os funcionários</option>
+                </select>
+                <button onclick="limparTodasTarefas()"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-red-600 text-sm font-semibold hover:bg-red-100 transition-colors">
+                    <i class="ph ph-trash text-sm"></i> Limpar Todas
+                </button>
+            </div>
         </div>
         <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
             <table class="w-full text-sm">
@@ -263,6 +269,16 @@ async function carregarTarefas() {
             <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-semibold">${h}h ${String(m).padStart(2,'0')}m</td>
         </tr>`;
     }).join('');
+}
+
+async function limparTodasTarefas() {
+    const n = document.querySelectorAll('#tabela-tarefas tr').length;
+    if (!confirm(`Tem certeza que deseja remover TODAS as tarefas${n > 0 ? ' (' + n + ' registros visíveis)' : ''}?\n\nEsta ação não pode ser desfeita.`)) return;
+    const r = await fetch('/api/admin/limpar-tarefas', { method: 'DELETE' });
+    const data = await r.json();
+    if (!r.ok) { alert(data.detail || 'Erro ao limpar tarefas'); return; }
+    alert(`✓ ${data.removidas} tarefa(s) removida(s) com sucesso.`);
+    carregarTarefas();
 }
 
 function openModalUser() {

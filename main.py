@@ -369,6 +369,20 @@ def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/admin/limpar-tarefas")
+def limpar_todas_tarefas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin pode limpar tarefas")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM tarefas")
+        deleted = cur.rowcount
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "removidas": deleted}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 # --- MÉTRICAS DASHBOARD ---
 @app.get("/api/metricas")
 def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", faiston_token: str = Cookie(None)):
