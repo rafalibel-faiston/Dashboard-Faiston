@@ -622,7 +622,8 @@ function startTimer(taskId) {
         }
     }, 1000);
     fetch(`/api/tarefas/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'em_andamento',segundos:task.segundos})});
+        body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'em_andamento',segundos:task.segundos,
+            data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
     task.status = 'em_andamento';
     renderTasks();
 }
@@ -728,7 +729,8 @@ async function concluirTarefa(taskId) {
     if (!task) return;
     task.status = 'concluido'; task._running = false;
     await fetch(`/api/tarefas/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',segundos:task.segundos})});
+        body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',segundos:task.segundos,
+            data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
     renderTasks(); updateSummary();
 }
 
@@ -789,6 +791,113 @@ window.addEventListener('beforeunload',()=>{
         }
     }
 });
+
+// ── AGENDA ───────────────────────────────────────────────────────────
+function renderAgenda() {
+    const container = document.getElementById('agenda-container');
+    if (!container) return;
+
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const amanha = new Date(hoje); amanha.setDate(amanha.getDate()+1);
+    const semana = new Date(hoje); semana.setDate(semana.getDate()+7);
+
+    const getDateObj = t => {
+        const s = t.data_agendamento || t.data_prazo;
+        return s ? new Date(s + 'T00:00:00') : null;
+    };
+
+    const ativas = tasks.filter(t => t.status !== 'concluido');
+    const comData = ativas.filter(t => t.data_agendamento || t.data_prazo);
+    comData.sort((a,b) => getDateObj(a) - getDateObj(b));
+    const semData = ativas.filter(t => !t.data_agendamento && !t.data_prazo);
+
+    const atrasadas   = comData.filter(t => getDateObj(t) < hoje);
+    const deHoje      = comData.filter(t => getDateObj(t).getTime() === hoje.getTime());
+    const deAmanha    = comData.filter(t => getDateObj(t).getTime() === amanha.getTime());
+    const estaSemana  = comData.filter(t => { const d=getDateObj(t); return d>amanha && d<=semana; });
+    const proximas    = comData.filter(t => getDateObj(t) > semana);
+
+    function agendaGroup(titulo, tarefas, dotColor) {
+        if (!tarefas.length) return '';
+        return `<div>
+            <div class="flex items-center gap-2 mb-3 agenda-group-header">
+                <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${dotColor}"></div>
+                <span class="text-[10px] font-bold uppercase tracking-widest" style="color:${dotColor}">${titulo}</span>
+                <span class="text-[10px] font-semibold text-slate-400 ml-auto">${tarefas.length} tarefa${tarefas.length>1?'s':''}</span>
+            </div>
+            <div class="flex flex-col gap-2">
+                ${tarefas.map(t => agendaCard(t)).join('')}
+            </div>
+        </div>`;
+    }
+
+    function agendaCard(t) {
+        const d = getDateObj(t);
+        const diff = d ? Math.round((d - hoje)/(1000*60*60*24)) : null;
+        const PRIO = {'Alta':'#EC4899','Media':'#5B2EE0','Baixa':'#06D7E6'};
+        const pColor = PRIO[t.prioridade]||PRIO.Media;
+        const statusMap = {aberto:'Aberto',em_andamento:'Em Andamento',concluido:'Concluído'};
+
+        let dateTag = '';
+        if (t.data_prazo) {
+            const dp = new Date(t.data_prazo+'T00:00:00');
+            const dd = Math.round((dp-hoje)/(1000*60*60*24));
+            const c = dd<0?'#EC4899':dd<=2?'#f59e0b':'#5B2EE0';
+            const lbl = dd===0?'hoje':dd===1?'amanhã':dd<0?`${Math.abs(dd)}d atraso`:dp.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+            dateTag += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${c}18;color:${c};border:1px solid ${c}30;display:inline-flex;align-items:center;gap:3px"><i class="ph ph-calendar-x" style="font-size:11px"></i> Prazo: ${lbl}</span>`;
+        }
+        if (t.data_agendamento) {
+            const da = new Date(t.data_agendamento+'T00:00:00');
+            const lbl = da.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
+            dateTag += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:#5B2EE018;color:#5B2EE0;border:1px solid #5B2EE030;display:inline-flex;align-items:center;gap:3px"><i class="ph ph-calendar-check" style="font-size:11px"></i> ${lbl}</span>`;
+        }
+
+        return `<div class="agenda-card bg-white rounded-xl border border-faiston-border p-4 cursor-pointer hover:border-faiston-purple/40 transition-all"
+            onclick="editTask(${t.id})" style="border-left:3px solid ${pColor}">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-faiston-dark leading-snug mb-1.5">${t.descricao}</p>
+                    <div class="flex flex-wrap items-center gap-1.5 mb-2">
+                        ${dateTag}
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${pColor}15;color:${pColor}">${t.prioridade}</span>
+                        <span class="text-[10px] text-slate-400 font-semibold">${t.cliente}</span>
+                        ${t.projeto_nome ? `<span class="text-[10px] font-semibold" style="color:#5B2EE0">· ${t.projeto_nome}</span>` : ''}
+                    </div>
+                </div>
+                <div class="flex-shrink-0 flex flex-col items-end gap-1">
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${t.status==='em_andamento'?'bg-faiston-purple/10 text-faiston-purple':t.status==='concluido'?'bg-faiston-cyan/10 text-faiston-cyan':'bg-slate-100 text-slate-500'}">${statusMap[t.status]||t.status}</span>
+                    ${t.segundos>0?`<span class="font-mono text-[10px] text-faiston-muted">${fmtH(t.segundos)}</span>`:''}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    const semDataHtml = semData.length ? `<div>
+        <div class="flex items-center gap-2 mb-3 agenda-group-header">
+            <div class="w-2.5 h-2.5 rounded-full bg-slate-300 flex-shrink-0"></div>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sem Data</span>
+            <span class="text-[10px] font-semibold text-slate-400 ml-auto">${semData.length}</span>
+        </div>
+        <div class="flex flex-col gap-2">${semData.map(t=>agendaCard(t)).join('')}</div>
+    </div>` : '';
+
+    const all = [
+        agendaGroup('🔴 Atrasado', atrasadas, '#EC4899'),
+        agendaGroup('Hoje', deHoje, '#06D7E6'),
+        agendaGroup('Amanhã', deAmanha, '#5B2EE0'),
+        agendaGroup('Esta Semana', estaSemana, '#B826C9'),
+        agendaGroup('Próximas', proximas, '#9097AC'),
+        semDataHtml
+    ].filter(Boolean).join('');
+
+    container.innerHTML = all || `<div class="text-center py-20 text-slate-300">
+        <i class="ph ph-calendar-blank text-4xl mb-3 block"></i>
+        <p class="text-sm font-medium">Nenhuma tarefa ativa</p>
+        <p class="text-xs mt-1">Crie tarefas com prazo ou agendamento para vê-las aqui</p>
+    </div>`;
+}
 
 // ── NOTAS ────────────────────────────────────────────────────────────
 let notas=[],notaAtualId=null,alterado=false,autoSaveTimer=null,notasAberto=false;
