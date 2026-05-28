@@ -763,15 +763,16 @@ async function saveTask() {
             if (task._running && body.status!=='em_andamento') await stopTimer(parseInt(editId),true);
             await fetch(`/api/tarefas/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
             Object.assign(task,body);
-            if (!task._running && body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); startTimer(parseInt(editId)); return; }
+            if (!task._running && body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(parseInt(editId)); return; }
         }
     } else {
         const res  = await fetch('/api/tarefas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         const data = await res.json();
         tasks.unshift({id:data.id,...body,_running:false,funcionario:''});
-        if (body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); startTimer(data.id); return; }
+        if (body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(data.id); return; }
     }
     closeModal(); renderTasks(); updateSummary();
+    if (tabAtiva === 'agenda') renderAgenda();
 }
 
 async function concluirTarefa(taskId) {
