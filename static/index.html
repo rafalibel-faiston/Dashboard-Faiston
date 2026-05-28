@@ -184,22 +184,22 @@
     <!-- Filtros rápidos -->
     <div class="flex items-center gap-2 mb-5 flex-wrap">
         <!-- Dropdown: Cliente -->
-        <div class="relative flex items-center">
-            <i class="ph ph-buildings absolute left-2.5 text-faiston-faint text-sm pointer-events-none filter-icon"></i>
+        <div class="relative flex items-center bg-white border border-faiston-border rounded-lg hover:border-faiston-cyan/50 transition-colors shadow-sm">
+            <i class="ph ph-buildings pl-3 text-faiston-faint text-sm pointer-events-none filter-icon"></i>
             <select id="filtro-cliente-drop" onchange="filtrarClienteDrop(this.value)"
-                class="filter-drop pl-8 pr-7 py-1.5 rounded-lg border border-faiston-border bg-white text-xs text-slate-600 focus:outline-none focus:border-faiston-cyan appearance-none cursor-pointer transition-colors">
+                class="filter-drop pl-2 pr-8 py-2 text-sm text-slate-700 focus:outline-none appearance-none cursor-pointer bg-transparent min-w-[160px]">
                 <option value="">Todos os clientes</option>
             </select>
-            <i class="ph ph-caret-down absolute right-2 text-faiston-faint text-[10px] pointer-events-none filter-icon"></i>
+            <i class="ph ph-caret-down absolute right-2.5 text-faiston-faint text-xs pointer-events-none filter-icon"></i>
         </div>
         <!-- Dropdown: Projeto -->
-        <div class="relative flex items-center">
-            <i class="ph ph-folder-open absolute left-2.5 text-faiston-purple text-sm pointer-events-none"></i>
+        <div class="relative flex items-center bg-faiston-purple/5 border border-faiston-purple/20 rounded-lg hover:border-faiston-purple/50 transition-colors shadow-sm">
+            <i class="ph ph-folder-open pl-3 text-faiston-purple text-sm pointer-events-none"></i>
             <select id="filtro-projeto-drop" onchange="filtrarProjetoDrop(this.value)"
-                class="filter-drop pl-8 pr-7 py-1.5 rounded-lg border border-faiston-purple/30 bg-faiston-purple/5 text-xs text-faiston-purple focus:outline-none focus:border-faiston-purple appearance-none cursor-pointer transition-colors">
+                class="filter-drop pl-2 pr-8 py-2 text-sm text-faiston-purple focus:outline-none appearance-none cursor-pointer bg-transparent min-w-[160px]">
                 <option value="">Todos os projetos</option>
             </select>
-            <i class="ph ph-caret-down absolute right-2 text-faiston-purple/50 text-[10px] pointer-events-none"></i>
+            <i class="ph ph-caret-down absolute right-2.5 text-faiston-purple/50 text-xs pointer-events-none"></i>
         </div>
     </div>
 
