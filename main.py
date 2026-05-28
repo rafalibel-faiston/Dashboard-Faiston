@@ -126,6 +126,8 @@ class TarefaModel(BaseModel):
     segundos: int = 0
     funcionario_id: Optional[int] = None
     projeto_id: Optional[int] = None
+    data_prazo: Optional[str] = None
+    data_agendamento: Optional[str] = None
 
 class AtualizarSegundos(BaseModel):
     segundos: int
@@ -251,9 +253,12 @@ def listar_tarefas(faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         # Migração silenciosa: adiciona projeto_id se ainda não existe
         cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS projeto_id INTEGER REFERENCES projetos(id)")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_prazo DATE")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_agendamento DATE")
         conn.commit()
         base_sel = """SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
-                             t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome
+                             t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome,
+                             t.data_prazo, t.data_agendamento
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
         if sess["perfil"] in ("admin", "gestor"):
@@ -263,7 +268,9 @@ def listar_tarefas(faiston_token: str = Cookie(None)):
         rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "descricao": r[1], "cliente": r[2], "prioridade": r[3],
                  "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7],
-                 "projeto_id": r[8], "projeto_nome": r[9]} for r in rows]
+                 "projeto_id": r[8], "projeto_nome": r[9],
+                 "data_prazo": str(r[10]) if r[10] else None,
+                 "data_agendamento": str(r[11]) if r[11] else None} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/tarefas")
@@ -280,8 +287,11 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
             cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (t.funcionario_id,))
             if cur.fetchone():
                 uid = t.funcionario_id
-        cur.execute("INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-                    (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None))
+        cur.execute(
+            "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id, data_prazo, data_agendamento) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+            (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
+             t.data_prazo or None, t.data_agendamento or None)
+        )
         new_id = cur.fetchone()[0]
         criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]")
         conn.commit(); cur.close(); conn.close()
@@ -296,8 +306,11 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
-                    (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None, tid, sess["id"]))
+        cur.execute(
+            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
+            (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
+             t.data_prazo or None, t.data_agendamento or None, tid, sess["id"])
+        )
         if t.status == "concluido":
             criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]")
         elif t.status == "em_andamento":
