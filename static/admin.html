@@ -128,6 +128,10 @@
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome completo</label>
                 <input type="text" id="u-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
             </div>
+            <div id="wrap-email">
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Email <span class="normal-case font-normal text-faiston-faint">(para enviar o acesso)</span></label>
+                <input type="email" id="u-email" placeholder="nome@empresa.com" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+            </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Usuário (login)</label>
@@ -287,10 +291,12 @@ function openModalUser() {
     document.getElementById('u-nome').value = '';
     document.getElementById('u-usuario').value = '';
     document.getElementById('u-senha').value = '';
+    document.getElementById('u-email').value = '';
     document.getElementById('u-perfil').value = 'funcionario';
     document.getElementById('u-ativo').checked = true;
     document.getElementById('senha-hint').textContent = '';
     document.getElementById('wrap-ativo').classList.add('hidden');
+    document.getElementById('wrap-email').classList.remove('hidden');
     document.getElementById('u-usuario').disabled = false;
     document.getElementById('modal-user').classList.remove('hidden');
 }
@@ -302,11 +308,13 @@ function editarUsuario(id, usuario, nome, perfil, ativo) {
     document.getElementById('u-usuario').value = usuario;
     document.getElementById('u-usuario').disabled = true;
     document.getElementById('u-senha').value = '';
+    document.getElementById('u-email').value = '';
     document.getElementById('u-perfil').value = perfil;
     document.getElementById('u-ativo').checked = ativo;
     document.getElementById('senha-hint').textContent = '(deixe em branco para não alterar)';
     document.getElementById('wrap-ativo').classList.remove('hidden');
     document.getElementById('wrap-ativo').classList.add('flex');
+    document.getElementById('wrap-email').classList.add('hidden');
     document.getElementById('modal-user').classList.remove('hidden');
 }
 
@@ -319,6 +327,7 @@ async function salvarUsuario() {
     const nome = document.getElementById('u-nome').value.trim();
     const usuario = document.getElementById('u-usuario').value.trim();
     const senha = document.getElementById('u-senha').value;
+    const email = document.getElementById('u-email').value.trim();
     const perfil = document.getElementById('u-perfil').value;
     const ativo = document.getElementById('u-ativo').checked;
 
@@ -336,13 +345,18 @@ async function salvarUsuario() {
             res = await fetch('/api/usuarios', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ usuario, senha, nome, perfil })
+                body: JSON.stringify({ usuario, senha, nome, perfil, email })
             });
         }
         const data = await res.json();
         if (!res.ok) { alert(data.detail || 'Erro ao salvar'); return; }
         closeModalUser();
         carregarUsuarios();
+        if (!uid && data.email_enviado) {
+            setTimeout(() => alert(`✅ Usuário criado!\n📧 Email de acesso enviado para ${email}.`), 100);
+        } else if (!uid && email) {
+            setTimeout(() => alert(`✅ Usuário criado!\n⚠️ Email não enviado — verifique a configuração de email no servidor.`), 100);
+        }
     } catch(e) { alert('Erro de conexão'); }
 }
 

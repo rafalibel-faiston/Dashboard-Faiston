@@ -112,6 +112,7 @@ class NovoUsuario(BaseModel):
     senha: str
     nome: str
     perfil: str
+    email: str = ""
 
 class AtualizarUsuario(BaseModel):
     nome: str
@@ -139,6 +140,68 @@ class TrocarSenhaModel(BaseModel):
 class AcaoBackoffice(BaseModel):
     comando: str
     cliente: str = "Geral"
+
+# --- EMAIL ---
+def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha: str) -> bool:
+    email_user = os.environ.get("EMAIL_USER", "")
+    email_pass = os.environ.get("EMAIL_APP_PASSWORD", "")
+    system_url = os.environ.get("SYSTEM_URL", "").rstrip("/")
+    if not email_user or not email_pass or not destinatario:
+        return False
+    try:
+        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário"}
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = "Seu acesso ao Faiston OPS"
+        msg["From"] = f"Faiston OPS <{email_user}>"
+        msg["To"] = destinatario
+        html = f"""
+        <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;background:#F4F5FA;padding:32px 16px">
+          <div style="background:linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px">
+            <h1 style="color:white;margin:0;font-size:24px;font-weight:900;letter-spacing:-0.5px">Faiston OPS</h1>
+            <p style="color:rgba(255,255,255,0.75);margin:8px 0 0;font-size:14px">Torre de Controle</p>
+          </div>
+          <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:28px;margin-bottom:16px">
+            <p style="color:#0B0D1F;font-size:16px;font-weight:700;margin:0 0 8px">Olá, {nome}!</p>
+            <p style="color:#5E647A;font-size:14px;margin:0 0 24px;line-height:1.6">Seu acesso ao <strong>Faiston OPS</strong> foi criado. Abaixo estão suas credenciais de entrada:</p>
+            <div style="background:#F4F5FA;border-radius:12px;padding:20px;margin-bottom:24px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <span style="color:#9097AC;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Usuário</span>
+                <span style="color:#0B0D1F;font-size:15px;font-weight:700;font-family:monospace">{usuario}</span>
+              </div>
+              <div style="height:1px;background:#E5E8F0;margin-bottom:12px"></div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:#9097AC;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Senha temporária</span>
+                <span style="color:#5B2EE0;font-size:15px;font-weight:700;font-family:monospace">{senha}</span>
+              </div>
+            </div>
+            <div style="background:#5B2EE008;border:1px solid #5B2EE030;border-radius:10px;padding:14px;margin-bottom:24px">
+              <p style="color:#5B2EE0;font-size:13px;font-weight:600;margin:0 0 4px">⚠️ Troca de senha obrigatória</p>
+              <p style="color:#5E647A;font-size:13px;margin:0;line-height:1.5">No primeiro acesso, o sistema pedirá que você crie uma senha pessoal.</p>
+            </div>
+            {"<a href='" + system_url + "' style='display:block;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:24px'>Acessar o Sistema</a>" if system_url else ""}
+            <div style="border-top:1px solid #E5E8F0;padding-top:20px">
+              <p style="color:#9097AC;font-size:12px;margin:0 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Primeiros passos</p>
+              <ol style="color:#5E647A;font-size:13px;margin:0;padding-left:20px;line-height:2">
+                <li>Acesse o sistema com o usuário e senha acima</li>
+                <li>Crie sua senha pessoal (mín. 6 caracteres)</li>
+                <li>Explore o <strong>Guia de Uso</strong> em{" <a href='" + system_url + "/ajuda' style='color:#5B2EE0'>/ajuda</a>" if system_url else " /ajuda"} para conhecer o sistema</li>
+              </ol>
+            </div>
+          </div>
+          <p style="color:#9097AC;font-size:11px;text-align:center;margin:0">Faiston OPS · Este é um email automático, não responda.</p>
+        </div>
+        """
+        msg.attach(MIMEText(html, "html"))
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP("smtp.gmail.com", 587) as s:
+            s.ehlo()
+            s.starttls(context=ctx)
+            s.login(email_user, email_pass)
+            s.sendmail(email_user, destinatario, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"[email] Falha ao enviar para {destinatario}: {e}")
+        return False
 
 # --- AUTH ---
 @app.post("/api/login")
@@ -227,7 +290,8 @@ def criar_usuario(u: NovoUsuario, faiston_token: str = Cookie(None)):
                     (u.usuario, hash_senha(u.senha), u.nome, u.perfil))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True, "id": new_id}
+        email_enviado = enviar_email_acesso(u.email, u.nome, u.usuario, u.senha)
+        return {"sucesso": True, "id": new_id, "email_enviado": email_enviado}
     except psycopg2.errors.UniqueViolation: raise HTTPException(status_code=400, detail="Usuário já existe")
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
