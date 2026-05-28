@@ -208,8 +208,14 @@ async function init() {
 async function carregar() {
     let dados = [];
     try {
-        dados = await fetch('/api/financeiro/resumo').then(r => r.json());
-    } catch {}
+        const r = await fetch('/api/financeiro/resumo');
+        if (r.ok) {
+            dados = await r.json();
+        } else {
+            console.error('financeiro/resumo', r.status, await r.text());
+        }
+    } catch (e) { console.error('financeiro/resumo fetch error', e); }
+    if (!Array.isArray(dados)) dados = [];
 
     const comProjetos = dados.filter(d => d.num_projetos > 0);
     const totalOrc  = dados.reduce((s,d) => s + d.orcamento, 0);
