@@ -422,12 +422,11 @@
                     <!-- populated by JS -->
                 </div>
 
-                <!-- Opção replace -->
-                <label class="flex items-center gap-2.5 mt-4 cursor-pointer select-none">
-                    <input type="checkbox" id="plan-replace" class="w-4 h-4 rounded border-slate-300 text-faiston-purple">
-                    <span class="text-sm text-slate-600">Substituir lançamentos existentes ao sincronizar</span>
-                </label>
-                <p class="text-[11px] text-slate-400 mt-1 ml-6.5">Se marcado, limpa os lançamentos anteriores e importa os dados atuais da planilha.</p>
+                <input type="hidden" id="plan-replace" value="true">
+                <p class="text-[11px] text-slate-400 mt-3 flex items-center gap-1.5">
+                    <i class="ph ph-info text-faiston-purple"></i>
+                    Cada sincronização substitui os lançamentos anteriores — a planilha é sempre a fonte da verdade.
+                </p>
             </div>
 
             <!-- Preview -->
@@ -949,7 +948,7 @@ async function salvarPlanilhaConfig() {
     const pid = document.getElementById('plan-projeto-id').value;
     const url = document.getElementById('plan-url').value.trim();
     const sheet = document.getElementById('plan-sheet')?.value || '';
-    const replace = document.getElementById('plan-replace').checked;
+    const replace = true;
     const mapeamento = { sheet_name: sheet };
     PLAN_FIELDS.forEach(f => {
         const v = document.getElementById(`plan-col-${f.key}`)?.value;
