@@ -358,6 +358,16 @@ async function salvarUsuario() {
             setTimeout(() => alert(`✅ Usuário criado!\n📧 Email de acesso enviado para ${email}.`), 100);
         } else if (!uid && email) {
             setTimeout(() => alert(`✅ Usuário criado!\n⚠️ Email não enviado — verifique a configuração de email no servidor.`), 100);
+        } else if (!uid) {
+            setTimeout(() => alert(`✅ Usuário criado!`), 100);
+        } else if (uid && email) {
+            setTimeout(() => {
+                if (confirm(`✅ Dados salvos!\n\nDeseja enviar o email de acesso agora para ${email}?`)) {
+                    reenviarEmail(parseInt(uid), nome, email);
+                }
+            }, 100);
+        } else {
+            setTimeout(() => alert(`✅ Dados salvos!`), 100);
         }
     } catch(e) { alert('Erro de conexão'); }
 }
