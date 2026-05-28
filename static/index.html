@@ -850,7 +850,16 @@ const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:
 const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
 
 function renderCharts(data) {
-    // 1. Tarefas por Funcionário — white card, barras gradiente + linha cyan
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tt   = dark ? ttDark : ttLight;
+    const grid = dark ? gridDark : gridLight;
+    const axisC  = dark ? '#6A718A' : '#94A3B8';
+    const valC   = dark ? '#F1F2F8' : '#0B0D1F';
+    const dlC    = dark ? '#94A3B8' : '#64748B';
+    const trackC = dark ? 'rgba(255,255,255,0.06)' : '#F1F5F9';
+    const strokeC = dark ? '#11111E' : '#FFFFFF';
+
+    // 1. Tarefas por Funcionário
     destroyChart('producao');
     const hpf = data.horas_por_func;
     const nomes = hpf.map(f => f.nome.split(' ')[0]);
@@ -877,20 +886,20 @@ function renderCharts(data) {
         },
         dataLabels: { enabled: false },
         stroke: { width: [0, 2.5], curve: 'smooth' },
-        markers: { size: [0, 5], strokeColors: '#fff', strokeWidth: 2, hover: { size: 7 } },
+        markers: { size: [0, 5], strokeColors: strokeC, strokeWidth: 2, hover: { size: 7 } },
         xaxis: { categories: nomes, axisBorder:{show:false}, axisTicks:{show:false},
-            labels:{style:{fontSize:'12px', colors:'#94A3B8', fontFamily:'Inter,sans-serif'}} },
+            labels:{style:{fontSize:'12px', colors: axisC, fontFamily:'Inter,sans-serif'}} },
         yaxis: [
-            { min: 0, labels: { style: { colors: ['#94A3B8'], fontSize: '11px', fontFamily:'Inter,sans-serif' } } },
-            { opposite: true, min: 0, labels: { style: { colors: ['#94A3B8'], fontSize: '11px', fontFamily:'Inter,sans-serif' } } }
+            { min: 0, labels: { style: { colors: [axisC], fontSize: '11px', fontFamily:'Inter,sans-serif' } } },
+            { opposite: true, min: 0, labels: { style: { colors: [axisC], fontSize: '11px', fontFamily:'Inter,sans-serif' } } }
         ],
         legend: { show: false },
-        grid: { ...gridLight, padding: { left: 4, right: 4 } },
-        tooltip: { ...ttLight, shared: true, intersect: false }
+        grid: { ...grid, padding: { left: 4, right: 4 } },
+        tooltip: { ...tt, shared: true, intersect: false }
     });
     charts['producao'].render();
 
-    // 2. Donut status — gradientes por fatia
+    // 2. Donut status
     destroyChart('status');
     const sf = data.status_fila;
     const totalFila = (sf['concluido']||0)+(sf['em_andamento']||0)+(sf['aberto']||0);
@@ -907,17 +916,18 @@ function renderCharts(data) {
         colors: ['#06D7E6', '#5B2EE0', '#CBD5E1'],
         plotOptions: { pie: { donut: { size: '75%',
             labels: { show: true,
-                value: { fontSize: '28px', fontWeight: 900, color: '#0B0D1F' },
-                total: { show: true, label: 'Total', fontSize: '12px', color: '#94A3B8',
+                value: { fontSize: '28px', fontWeight: 900, color: valC },
+                total: { show: true, label: 'Total', fontSize: '12px', color: axisC,
                     formatter: () => totalFila } } } } },
         dataLabels: { enabled: false },
-        legend: { position: 'bottom', fontSize: '12px', markers: { radius: 6 } },
-        stroke: { colors: [document.documentElement.getAttribute('data-theme')==='dark' ? '#11111E' : '#FFFFFF'], width: 4 },
-        tooltip: ttLight
+        legend: { position: 'bottom', fontSize: '12px', markers: { radius: 6 },
+            labels: { colors: [valC] } },
+        stroke: { colors: [strokeC], width: 4 },
+        tooltip: tt
     });
     charts['status'].render();
 
-    // 3. Barras horizontais — gradiente magenta→roxo
+    // 3. Barras horizontais
     destroyChart('barras');
     const hpc = data.horas_por_cliente;
     charts['barras'] = new ApexCharts(document.querySelector("#chart-barras"), {
@@ -934,17 +944,18 @@ function renderCharts(data) {
         fill: { type: 'gradient', gradient: { shade: 'light', type: 'horizontal',
             gradientToColors: ['#5B2EE0'], opacityFrom: 1, opacityTo: 0.85, stops: [0, 100] } },
         dataLabels: { enabled: true, offsetX: 8,
-            style: { fontSize: '11px', fontFamily: 'Inter, sans-serif', colors: ['#64748B'], fontWeight: 600 },
+            style: { fontSize: '11px', fontFamily: 'Inter, sans-serif', colors: [dlC], fontWeight: 600 },
             formatter: val => val + 'h' },
-        xaxis: { categories: hpc.map(h => h.cliente), labels: { style: { fontSize: '11px', colors: '#94A3B8' } },
-            title: { text: clienteAtivo ? '' : '← clique para filtrar', style: { fontSize: '10px', color: '#CBD5E1' } } },
+        xaxis: { categories: hpc.map(h => h.cliente), labels: { style: { fontSize: '11px', colors: axisC } },
+            title: { text: clienteAtivo ? '' : '← clique para filtrar', style: { fontSize: '10px', color: axisC } } },
+        yaxis: { labels: { style: { colors: axisC } } },
         states: { active: { filter: { type: 'darken', value: 0.7 } } },
-        grid: { ...gridLight, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
-        tooltip: { ...ttLight, y: { formatter: val => val + ' horas' } }
+        grid: { ...grid, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+        tooltip: { ...tt, y: { formatter: val => val + ' horas' } }
     });
     charts['barras'].render();
 
-    // 4. Funil — colorido com gradiente
+    // 4. Funil
     destroyChart('funil');
     const funil = data.funil;
     charts['funil'] = new ApexCharts(document.querySelector("#chart-funil"), {
@@ -955,14 +966,14 @@ function renderCharts(data) {
         dataLabels: { enabled: true, style: { fontSize: '11px', fontFamily: 'Inter, sans-serif', fontWeight: 700 },
             formatter: (val, opt) => opt.w.globals.labels[opt.dataPointIndex] + ': ' + val },
         xaxis: { categories: ['Abertura','Triagem','Acionamento','Acompanhamento','Fechamento'],
-            labels: { style: { fontSize: '10px', colors: '#94A3B8' } } },
+            labels: { style: { fontSize: '10px', colors: axisC } } },
         legend: { show: false },
-        grid: { ...gridLight, xaxis: { lines: { show: false } } },
-        tooltip: ttLight
+        grid: { ...grid, xaxis: { lines: { show: false } } },
+        tooltip: tt
     });
     charts['funil'].render();
 
-    // 5. NOVO — Tarefas por Prioridade (barras agrupadas por cliente)
+    // 5. Tarefas por Prioridade
     destroyChart('prioridade');
     const clientes_uniq = [...new Set((data.recentes||[]).map(t => t.cliente))].slice(0,5);
     const alta = clientes_uniq.map(c => (data.recentes||[]).filter(t => t.cliente===c && t.prioridade==='Alta').length);
@@ -979,16 +990,17 @@ function renderCharts(data) {
         plotOptions: { bar: { borderRadius: 6, columnWidth: '50%', borderRadiusApplication: 'end' } },
         dataLabels: { enabled: false },
         xaxis: { categories: clientes_uniq, axisBorder:{show:false}, axisTicks:{show:false},
-            labels:{style:{fontSize:'11px',colors:'#94A3B8'}} },
+            labels:{style:{fontSize:'11px', colors: axisC}} },
         fill: { opacity: 1, type: 'gradient',
             gradient: { shade: 'light', type: 'vertical', opacityFrom: 1, opacityTo: 0.8 } },
-        legend: { position: 'top', fontSize: '11px', markers: { radius: 4 } },
-        grid: gridLight,
-        tooltip: { ...ttLight, y: { formatter: val => val + ' tarefas' } }
+        legend: { position: 'top', fontSize: '11px', markers: { radius: 4 },
+            labels: { colors: [valC] } },
+        grid,
+        tooltip: { ...tt, y: { formatter: val => val + ' tarefas' } }
     });
     charts['prioridade'].render();
 
-    // 6. NOVO — Taxa de conclusão por cliente (radialBar) — dados reais do backend
+    // 6. Taxa de conclusão por cliente (radialBar)
     destroyChart('conclusao');
     const taxaData = (data.taxa_conclusao || []).slice(0, 4);
     const clientes_taxa = taxaData.map(t => t.cliente);
@@ -1002,14 +1014,16 @@ function renderCharts(data) {
             offsetY: 0,
             startAngle: -90, endAngle: 270,
             hollow: { margin: 5, size: '30%', background: 'transparent' },
-            track: { background: '#F1F5F9', strokeWidth: '97%' },
-            dataLabels: { name: { fontSize: '11px' }, value: { fontSize: '13px', fontWeight: 700,
+            track: { background: trackC, strokeWidth: '97%' },
+            dataLabels: { name: { fontSize: '11px', color: axisC },
+                value: { fontSize: '13px', fontWeight: 700, color: valC,
                 formatter: val => val + '%' } }
         } },
         fill: { type: 'gradient', gradient: { shade: 'dark', type: 'horizontal',
             gradientToColors: ['#5B2EE0', '#5B2EE0', '#06D7E6', '#06D7E6'], stops: [0, 100] } },
-        legend: { show: true, position: 'bottom', fontSize: '11px' },
-        tooltip: ttLight
+        legend: { show: true, position: 'bottom', fontSize: '11px',
+            labels: { colors: [valC] } },
+        tooltip: tt
     });
     charts['conclusao'].render();
 
