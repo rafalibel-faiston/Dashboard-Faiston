@@ -309,6 +309,13 @@
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição <span class="text-faiston-pink">*</span></label>
                 <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/20 transition-all">
             </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
+                <select id="input-projeto" onchange="selecionarProjeto(this.value)"
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="">— Sem projeto —</option>
+                </select>
+            </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Cliente <span class="text-faiston-pink">*</span></label>
@@ -449,6 +456,7 @@
 
 <script>
 let tasks = [];
+let _todosProjetos = [];
 let activeTaskId = null;
 let timerInterval = null;
 let timerSeconds = 0;
@@ -503,6 +511,21 @@ async function init() {
                 const o1 = document.createElement('option'); o1.value = c.nome; o1.textContent = c.nome;
                 const o2 = o1.cloneNode(true);
                 sel.appendChild(o1); selF.appendChild(o2);
+            });
+        }
+    } catch(e) {}
+
+    try {
+        const resP = await fetch('/api/todos-projetos');
+        if (resP.ok) {
+            _todosProjetos = await resP.json();
+            const sel = document.getElementById('input-projeto');
+            _todosProjetos.forEach(p => {
+                const o = document.createElement('option');
+                o.value = p.id;
+                o.textContent = `${p.nome} · ${p.cliente}`;
+                o.dataset.cliente = p.cliente;
+                sel.appendChild(o);
             });
         }
     } catch(e) {}
@@ -713,7 +736,9 @@ function editTask(taskId) {
     document.getElementById('modal-title').textContent = 'Editar Tarefa';
     document.getElementById('edit-id').value = taskId;
     document.getElementById('input-descricao').value = task.descricao;
-    document.getElementById('input-cliente').value = task.cliente;
+    document.getElementById('input-projeto').value = task.projeto_id || '';
+    selecionarProjeto(task.projeto_id || '');
+    if (!task.projeto_id) document.getElementById('input-cliente').value = task.cliente;
     document.getElementById('input-prioridade').value = task.prioridade;
     document.getElementById('input-status').value = task.status;
     document.getElementById('input-horas').value = Math.floor(task.segundos/3600);
@@ -727,7 +752,10 @@ function openModal() {
     document.getElementById('modal-title').textContent = 'Nova Tarefa';
     document.getElementById('edit-id').value = '';
     document.getElementById('input-descricao').value = '';
+    document.getElementById('input-projeto').value = '';
     document.getElementById('input-cliente').value = '';
+    document.getElementById('input-cliente').disabled = false;
+    document.getElementById('input-cliente').style.opacity = '';
     document.getElementById('input-prioridade').value = 'Media';
     document.getElementById('input-status').value = 'aberto';
     document.getElementById('input-horas').value = '';
@@ -740,16 +768,30 @@ function openModal() {
 
 function closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
+function selecionarProjeto(projetoId) {
+    const proj = _todosProjetos.find(p => p.id == projetoId);
+    const selCliente = document.getElementById('input-cliente');
+    if (proj) {
+        selCliente.value = proj.cliente;
+        selCliente.disabled = true;
+        selCliente.style.opacity = '0.6';
+    } else {
+        selCliente.disabled = false;
+        selCliente.style.opacity = '';
+    }
+}
+
 async function saveTask() {
-    const descricao = document.getElementById('input-descricao').value.trim();
-    const cliente   = document.getElementById('input-cliente').value;
+    const descricao  = document.getElementById('input-descricao').value.trim();
+    const cliente    = document.getElementById('input-cliente').value;
+    const projeto_id = parseInt(document.getElementById('input-projeto').value) || null;
     if (!descricao || !cliente) { alert('Preencha a descrição e o cliente.'); return; }
     const horas    = parseInt(document.getElementById('input-horas').value) || 0;
     const minutos  = parseInt(document.getElementById('input-minutos').value) || 0;
     const segundos = (horas*3600)+(minutos*60);
     const editId   = document.getElementById('edit-id').value;
     const body = {
-        descricao, cliente,
+        descricao, cliente, projeto_id,
         prioridade: document.getElementById('input-prioridade').value,
         status: document.getElementById('input-status').value,
         segundos,

@@ -1329,6 +1329,26 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/todos-projetos")
+def todos_projetos(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur); conn.commit()
+        cur.execute("""
+            SELECT p.id, p.nome, c.nome
+            FROM projetos p
+            JOIN clientes c ON c.id = p.cliente_id
+            WHERE p.ativo = TRUE AND c.ativo = TRUE
+            ORDER BY c.nome, p.nome
+        """)
+        rows = cur.fetchall(); cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1], "cliente": r[2]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/projetos-by-cliente")
 def projetos_by_cliente_nome(nome: str, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
