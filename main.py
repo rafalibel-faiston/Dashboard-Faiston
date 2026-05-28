@@ -1130,6 +1130,9 @@ def deletar_cliente(cid: int, faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/ajuda")
+def ajuda_page(): return FileResponse("static/ajuda.html")
+
 @app.get("/clientes")
 def clientes_page(): return FileResponse("static/clientes.html")
 
