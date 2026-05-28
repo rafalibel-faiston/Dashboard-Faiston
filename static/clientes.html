@@ -57,17 +57,20 @@
                 <a href="/historico" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-base"></i> Histórico
                 </a>
-                <a href="/clientes" class="flex items-center gap-2 bg-faiston-purple/10 text-faiston-purple font-semibold text-sm rounded-md p-2.5 border border-faiston-purple/20">
-                    <i class="ph ph-buildings text-base"></i> Clientes
-                </a>
-                <a href="/financeiro" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-currency-circle-dollar text-base"></i> Financeiro
-                </a>
                 <a href="/apresentacao" target="_blank" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-presentation-chart text-base"></i> Apresentação
                 </a>
                 <a href="/admin" id="link-admin" class="hidden flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-gear text-base"></i> Admin
+                </a>
+            </nav>
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 mt-4">Projetos</p>
+            <nav class="flex flex-col gap-1">
+                <a href="/clientes" class="flex items-center gap-2 bg-faiston-purple/10 text-faiston-purple font-semibold text-sm rounded-md p-2.5 border border-faiston-purple/20">
+                    <i class="ph ph-buildings text-base"></i> Clientes
+                </a>
+                <a href="/financeiro" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-currency-circle-dollar text-base"></i> Financeiro
                 </a>
             </nav>
         </div>
@@ -130,26 +133,11 @@
 
     <main class="flex-1 overflow-y-auto custom-scrollbar p-6">
         <!-- STATS BAR -->
-        <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-1 gap-4 mb-6 max-w-xs">
             <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Clientes</p>
                 <p class="text-3xl font-black text-faiston-dark" id="stat-total">—</p>
                 <p class="text-xs text-slate-400 mt-1">Ativos no período</p>
-            </div>
-            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Orçamento Total</p>
-                <p class="text-2xl font-black text-faiston-purple" id="stat-orcamento">—</p>
-                <p class="text-xs text-slate-400 mt-1">Soma de todos os projetos</p>
-            </div>
-            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Gasto</p>
-                <p class="text-2xl font-black text-faiston-pink" id="stat-gasto">—</p>
-                <p class="text-xs text-slate-400 mt-1">Lançamentos registrados</p>
-            </div>
-            <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Saldo Global</p>
-                <p class="text-2xl font-black" id="stat-saldo">—</p>
-                <p class="text-xs text-slate-400 mt-1">Disponível em carteira</p>
             </div>
         </div>
 
@@ -231,7 +219,6 @@
 <script>
 let clientes = [];
 let metricas = null;
-let financeiro = []; // [{id, nome, num_projetos, total_orcamento, total_gasto}]
 
 const GRADIENTS = [
     'linear-gradient(135deg, #06D7E6 0%, #5B2EE0 100%)',
@@ -257,14 +244,9 @@ async function init() {
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
 
-    // Load metricas and financial summary in parallel
     try {
-        const [mRes, fRes] = await Promise.all([
-            fetch('/api/metricas'),
-            fetch('/api/financeiro/resumo')
-        ]);
+        const mRes = await fetch('/api/metricas');
         if (mRes.ok) metricas = await mRes.json();
-        if (fRes.ok) financeiro = await fRes.json();
     } catch(e) {}
 
     await carregar();
@@ -283,27 +265,10 @@ async function carregar() {
     filtrar();
 }
 
-function fmtMoeda(v) {
-    if (!v) return 'R$ 0';
-    if (v >= 1000000) return 'R$ ' + (v/1000000).toFixed(1) + 'M';
-    if (v >= 1000) return 'R$ ' + (v/1000).toFixed(0) + 'k';
-    return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:0});
-}
-
 function renderStats() {
     const ativos = clientes.filter(c => c.ativo).length;
     document.getElementById('stat-total').textContent = ativos;
     document.getElementById('header-sub').textContent = `${ativos} clientes ativos · gestão de carteira`;
-
-    const totalOrc   = financeiro.reduce((s, f) => s + (f.total_orcamento || 0), 0);
-    const totalGasto = financeiro.reduce((s, f) => s + (f.total_gasto || 0), 0);
-    const saldo      = totalOrc - totalGasto;
-
-    document.getElementById('stat-orcamento').textContent = fmtMoeda(totalOrc);
-    document.getElementById('stat-gasto').textContent     = fmtMoeda(totalGasto);
-    const saldoEl = document.getElementById('stat-saldo');
-    saldoEl.textContent = fmtMoeda(Math.abs(saldo));
-    saldoEl.style.color = saldo >= 0 ? '#06D7E6' : '#EC4899';
 }
 
 function filtrar() {
@@ -332,16 +297,6 @@ function render(lista) {
         const status = getStatusInfo(c, i);
         const hpc = (metricas?.horas_por_cliente||[]).find(h => h.cliente === c.nome);
         const initials = c.nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-        const fin = financeiro.find(f => f.id === c.id) || {};
-        const orcamento    = fin.total_orcamento || 0;
-        const gasto        = fin.total_gasto || 0;
-        const saldo        = orcamento - gasto;
-        const numProjetos  = fin.num_projetos || 0;
-        const pct          = orcamento > 0 ? Math.min(100, (gasto / orcamento) * 100) : 0;
-        const over         = pct >= 100;
-        const barColor     = over ? '#EC4899' : pct > 75 ? '#f59e0b' : '#5B2EE0';
-        const saldoColor   = saldo >= 0 ? '#06D7E6' : '#EC4899';
-        const semFinanceiro = !orcamento && !gasto;
 
         return `<div class="bg-white rounded-2xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_8px_32px_-8px_rgba(91,46,224,0.18)] transition-all duration-300">
             <!-- Gradient header -->
@@ -358,36 +313,6 @@ function render(lista) {
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.cls}">${status.label}</span>
                 </div>
 
-                ${semFinanceiro ? `
-                <div class="text-center py-3 text-slate-300 text-xs">
-                    <i class="ph ph-currency-circle-dollar block text-2xl mb-1"></i>
-                    Sem dados financeiros
-                </div>` : `
-                <!-- Financeiro -->
-                <div class="grid grid-cols-3 gap-2 mb-3">
-                    <div>
-                        <p class="text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">Projetos</p>
-                        <p class="text-base font-black text-faiston-dark">${numProjetos}</p>
-                    </div>
-                    <div>
-                        <p class="text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">Gasto</p>
-                        <p class="text-base font-black text-faiston-pink">${fmtMoeda(gasto)}</p>
-                    </div>
-                    <div>
-                        <p class="text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">Saldo</p>
-                        <p class="text-base font-black" style="color:${saldoColor}">${fmtMoeda(Math.abs(saldo))}</p>
-                    </div>
-                </div>
-                <!-- Barra de utilização -->
-                <div class="mb-3">
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="text-[9px] text-slate-400 uppercase tracking-wide">${over ? '⚠ Orç. excedido' : 'Utilização do orçamento'}</span>
-                        <span class="text-[9px] font-bold" style="color:${barColor}">${pct.toFixed(0)}%</span>
-                    </div>
-                    <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div class="h-full rounded-full transition-all" style="width:${pct}%;background:${barColor}"></div>
-                    </div>
-                </div>`}
 
                 <!-- Links -->
                 <div class="flex items-center justify-between pt-1 border-t border-faiston-border">
