@@ -1161,6 +1161,10 @@ def _ensure_financeiro_tables(cur):
     """)
     cur.execute("ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS localidade VARCHAR(150) DEFAULT ''")
     cur.execute("ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS tecnico VARCHAR(150) DEFAULT ''")
+    cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_url TEXT DEFAULT ''")
+    cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_mapeamento JSONB")
+    cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_sync_em TIMESTAMP")
+    cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_replace BOOLEAN DEFAULT FALSE")
 
 class ProjetoModel(BaseModel):
     nome: str
@@ -1218,7 +1222,11 @@ def listar_projetos(cid: int, faiston_token: str = Cookie(None)):
         conn.commit()
         cur.execute("""
             SELECT p.id, p.nome, p.descricao, p.orcamento, p.criado_em,
-                   COALESCE(SUM(l.valor), 0) AS gasto
+                   COALESCE(SUM(l.valor), 0) AS gasto,
+                   COALESCE(p.planilha_url, '') AS planilha_url,
+                   p.planilha_mapeamento,
+                   p.planilha_sync_em,
+                   COALESCE(p.planilha_replace, FALSE) AS planilha_replace
             FROM projetos p
             LEFT JOIN lancamentos l ON l.projeto_id = p.id
             WHERE p.cliente_id = %s AND p.ativo = TRUE
@@ -1228,7 +1236,11 @@ def listar_projetos(cid: int, faiston_token: str = Cookie(None)):
         cur.close(); conn.close()
         return [{"id": r[0], "nome": r[1], "descricao": r[2],
                  "orcamento": float(r[3]), "criado_em": str(r[4])[:10],
-                 "gasto": float(r[5])} for r in rows]
+                 "gasto": float(r[5]),
+                 "planilha_url": r[6] or "",
+                 "planilha_mapeamento": r[7] or {},
+                 "planilha_sync_em": str(r[8])[:16] if r[8] else None,
+                 "planilha_replace": bool(r[9])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/clientes/{cid}/projetos")
@@ -1431,6 +1443,183 @@ def importar_lancamentos(pid: int, body: ImportarLancamentosBody, faiston_token:
             count += 1
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "importados": count}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────
+#  PLANILHA ONLINE (OneDrive / SharePoint)
+# ─────────────────────────────────────────────
+
+class PlanilhaConfigModel(BaseModel):
+    url: str
+    mapeamento: dict
+    replace_on_sync: bool = False
+
+def _resolve_download_url(url: str) -> str:
+    """Convert OneDrive/SharePoint share links to direct download URLs."""
+    import urllib.parse
+    u = url.strip()
+    # SharePoint / OneDrive for Business
+    if 'sharepoint.com' in u or 'onedrive.live.com' in u:
+        sep = '&' if '?' in u else '?'
+        return u + sep + 'download=1'
+    # 1drv.ms short link — follow redirect then add download=1
+    if '1drv.ms' in u or 'onedrive.com' in u:
+        try:
+            import requests as _req
+            r = _req.head(u, timeout=15, allow_redirects=True)
+            resolved = r.url
+            sep = '&' if '?' in resolved else '?'
+            return resolved + sep + 'download=1'
+        except Exception:
+            pass
+    return u
+
+def _download_planilha(url: str) -> bytes:
+    import requests as _req
+    dl_url = _resolve_download_url(url)
+    r = _req.get(dl_url, timeout=60, allow_redirects=True,
+                 headers={"User-Agent": "Mozilla/5.0"})
+    if r.status_code != 200:
+        raise ValueError(f"Erro ao baixar planilha (HTTP {r.status_code}). Verifique se o link permite acesso sem login.")
+    if len(r.content) < 50:
+        raise ValueError("Arquivo baixado está vazio. Verifique as permissões do link de compartilhamento.")
+    return r.content
+
+def _apply_mapeamento(headers, rows, mapeamento):
+    """Convert raw sheet rows to LancamentoImportItem dicts using saved mapping."""
+    from datetime import date as _date
+    today = _date.today().isoformat()
+    def col_idx(col_name):
+        if not col_name:
+            return None
+        try:
+            return headers.index(col_name)
+        except ValueError:
+            return None
+
+    idx_desc  = col_idx(mapeamento.get("col_descricao"))
+    idx_valor = col_idx(mapeamento.get("col_valor"))
+    idx_data  = col_idx(mapeamento.get("col_data"))
+    idx_cat   = col_idx(mapeamento.get("col_categoria"))
+    idx_loc   = col_idx(mapeamento.get("col_localidade"))
+    idx_tec   = col_idx(mapeamento.get("col_tecnico"))
+
+    if idx_desc is None or idx_valor is None:
+        raise ValueError("Mapeamento incompleto: coluna de descrição ou valor não encontrada nos cabeçalhos.")
+
+    result = []
+    for row in rows:
+        def get(i): return row[i].strip() if i is not None and i < len(row) else ""
+        raw_val = get(idx_valor).replace("R$","").replace(".","").replace(",",".").strip()
+        try:
+            val = float(raw_val)
+        except Exception:
+            continue
+        if val == 0:
+            continue
+        result.append({
+            "descricao":  get(idx_desc)[:200] or "—",
+            "valor":       val,
+            "data_lancamento": get(idx_data)[:10] if idx_data is not None else today,
+            "categoria":  get(idx_cat)[:50] if idx_cat is not None else "Outros",
+            "localidade": get(idx_loc)[:150] if idx_loc is not None else "",
+            "tecnico":    get(idx_tec)[:150] if idx_tec is not None else "",
+        })
+    return result
+
+@app.put("/api/projetos/{pid}/planilha-config")
+def salvar_planilha_config(pid: int, body: PlanilhaConfigModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        import json
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur)
+        cur.execute(
+            "UPDATE projetos SET planilha_url=%s, planilha_mapeamento=%s, planilha_replace=%s WHERE id=%s",
+            (body.url, json.dumps(body.mapeamento), body.replace_on_sync, pid)
+        )
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/projetos/{pid}/testar-planilha")
+def testar_planilha(pid: int, body: dict, faiston_token: str = Cookie(None)):
+    """Download the file from stored/given URL and return its headers for mapping."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    global _OPENPYXL_OK, openpyxl
+    if not _OPENPYXL_OK:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
+        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
+    url = body.get("url", "")
+    if not url: raise HTTPException(status_code=400, detail="URL não informada")
+    try:
+        content = _download_planilha(url)
+        import io as _io
+        wb = openpyxl.load_workbook(_io.BytesIO(content), data_only=True)
+        usable = []
+        for sname in wb.sheetnames:
+            ws = wb[sname]
+            rows_peek = list(ws.iter_rows(min_row=1, max_row=10, values_only=True))
+            hi = _detect_header_row(rows_peek)
+            hrow = rows_peek[hi] if rows_peek else []
+            if sum(1 for c in hrow if c and isinstance(c, str) and c.strip()) >= 2:
+                usable.append(sname)
+        if not usable: raise ValueError("Nenhuma aba com dados encontrada")
+        ws = wb[usable[0]]
+        headers, rows = _parse_sheet(ws)
+        return {"sheets": usable, "headers": headers, "sample": rows[:3]}
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/projetos/{pid}/sincronizar")
+def sincronizar_planilha(pid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    global _OPENPYXL_OK, openpyxl
+    if not _OPENPYXL_OK:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
+        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        import io as _io
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur)
+        cur.execute("SELECT planilha_url, planilha_mapeamento, planilha_replace FROM projetos WHERE id=%s AND ativo=TRUE", (pid,))
+        row = cur.fetchone()
+        if not row or not row[0]:
+            raise HTTPException(status_code=400, detail="Planilha não configurada para este projeto")
+        url, mapeamento, replace = row[0], row[1] or {}, bool(row[2])
+
+        content = _download_planilha(url)
+        wb = openpyxl.load_workbook(_io.BytesIO(content), data_only=True)
+        sheet_name = mapeamento.get("sheet_name")
+        ws = wb[sheet_name] if sheet_name and sheet_name in wb.sheetnames else wb.active
+        headers, rows = _parse_sheet(ws)
+        lancamentos = _apply_mapeamento(headers, rows, mapeamento)
+
+        if not lancamentos:
+            raise HTTPException(status_code=400, detail="Nenhum lançamento encontrado com o mapeamento configurado")
+
+        today = date.today().isoformat()
+        if replace:
+            cur.execute("DELETE FROM lancamentos WHERE projeto_id=%s", (pid,))
+        for l in lancamentos:
+            cur.execute(
+                "INSERT INTO lancamentos (projeto_id, descricao, categoria, valor, data_lancamento, localidade, tecnico) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (pid, l["descricao"], l["categoria"], l["valor"],
+                 l["data_lancamento"] or today, l["localidade"], l["tecnico"])
+            )
+        cur.execute("UPDATE projetos SET planilha_sync_em=NOW() WHERE id=%s", (pid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "importados": len(lancamentos), "replace": replace}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
