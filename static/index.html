@@ -23,6 +23,19 @@
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+        /* ── Dark mode: Kanban cards ── */
+        [data-theme="dark"] .gestor-card { background-color: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
+        [data-theme="dark"] .gestor-card p { color: #F1F2F8 !important; }
+        [data-theme="dark"] .gk-func-header { background-color: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
+        [data-theme="dark"] .gk-func-header p { color: #F1F2F8 !important; }
+        [data-theme="dark"] .gk-func-header { box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; }
+        /* ── Dark mode: dropdowns / selects ── */
+        [data-theme="dark"] select,
+        [data-theme="dark"] .filter-drop { background-color: #11111E !important; color: #F1F2F8 !important; border-color: rgba(255,255,255,0.1) !important; }
+        [data-theme="dark"] .filter-drop option { background-color: #11111E; color: #F1F2F8; }
+        [data-theme="dark"] .filter-icon { color: #6A718A !important; }
+    </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden selection:bg-faiston-cyan selection:text-faiston-dark">
 
@@ -168,11 +181,26 @@
         </div>
     </header>
 
-    <!-- Filtro rápido de clientes -->
-    <div class="flex items-center gap-2 mb-5 flex-wrap" id="filtro-clientes-pills">
-        <button onclick="filtrarCliente('')" data-cliente="" data-pillidx="0" class="cliente-pill px-3 py-1.5 rounded-full text-xs font-semibold border transition-all" style="background:rgba(6,215,230,0.15);color:#06D7E6;border-color:rgba(6,215,230,0.5);box-shadow:0 0 0 2px rgba(6,215,230,0.25)">
-            Todos
-        </button>
+    <!-- Filtros rápidos -->
+    <div class="flex items-center gap-2 mb-5 flex-wrap">
+        <!-- Dropdown: Cliente -->
+        <div class="relative flex items-center">
+            <i class="ph ph-buildings absolute left-2.5 text-faiston-faint text-sm pointer-events-none filter-icon"></i>
+            <select id="filtro-cliente-drop" onchange="filtrarClienteDrop(this.value)"
+                class="filter-drop pl-8 pr-7 py-1.5 rounded-lg border border-faiston-border bg-white text-xs text-slate-600 focus:outline-none focus:border-faiston-cyan appearance-none cursor-pointer transition-colors">
+                <option value="">Todos os clientes</option>
+            </select>
+            <i class="ph ph-caret-down absolute right-2 text-faiston-faint text-[10px] pointer-events-none filter-icon"></i>
+        </div>
+        <!-- Dropdown: Projeto -->
+        <div class="relative flex items-center">
+            <i class="ph ph-folder-open absolute left-2.5 text-faiston-purple text-sm pointer-events-none"></i>
+            <select id="filtro-projeto-drop" onchange="filtrarProjetoDrop(this.value)"
+                class="filter-drop pl-8 pr-7 py-1.5 rounded-lg border border-faiston-purple/30 bg-faiston-purple/5 text-xs text-faiston-purple focus:outline-none focus:border-faiston-purple appearance-none cursor-pointer transition-colors">
+                <option value="">Todos os projetos</option>
+            </select>
+            <i class="ph ph-caret-down absolute right-2 text-faiston-purple/50 text-[10px] pointer-events-none"></i>
+        </div>
     </div>
 
     <!-- KPIs -->
@@ -390,6 +418,7 @@
 
 <script>
 let clienteAtivo = '';
+let projetoFiltro = '';
 let charts = {};
 let vistaAtiva = 'metricas';
 let todasTarefasKanban = [];
@@ -537,23 +566,17 @@ async function init() {
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
 
-    // Carrega clientes: pills no dashboard + select do modal
+    // Carrega clientes: dropdown do dashboard + select do modal
     try {
         const resCls = await fetch('/api/clientes');
         if (resCls.ok) {
             const cls = await resCls.json();
-            const pillsWrap = document.getElementById('filtro-clientes-pills');
-            cls.filter(c => c.ativo).forEach((c, i) => {
-                const nome = c.nome;
-                const idx = (i + 1) % 4; // +1 porque 0 é reservado pro pill "Todos"
-                const btn = document.createElement('button');
-                btn.dataset.cliente = nome;
-                btn.dataset.pillidx = idx;
-                btn.className = 'cliente-pill px-3 py-1.5 rounded-full text-xs font-semibold border transition-all';
-                btn.style.cssText = PILL_STYLE_INACTIVE;
-                btn.textContent = nome;
-                btn.onclick = () => filtrarCliente(nome);
-                pillsWrap.appendChild(btn);
+            const selCliente = document.getElementById('filtro-cliente-drop');
+            cls.filter(c => c.ativo).forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.nome;
+                opt.textContent = c.nome;
+                selCliente.appendChild(opt);
             });
         }
     } catch(e) {}
@@ -600,29 +623,40 @@ async function fazerLogout() {
     window.location.href = '/';
 }
 
-const PILL_STYLE_ACTIVE = [
-    'background:rgba(6,215,230,0.15);color:#06D7E6;border-color:rgba(6,215,230,0.5);box-shadow:0 0 0 2px rgba(6,215,230,0.25)',
-    'background:rgba(91,46,224,0.15);color:#5B2EE0;border-color:rgba(91,46,224,0.5);box-shadow:0 0 0 2px rgba(91,46,224,0.25)',
-    'background:rgba(184,38,201,0.15);color:#B826C9;border-color:rgba(184,38,201,0.5);box-shadow:0 0 0 2px rgba(184,38,201,0.25)',
-    'background:rgba(236,72,153,0.15);color:#EC4899;border-color:rgba(236,72,153,0.5);box-shadow:0 0 0 2px rgba(236,72,153,0.25)',
-];
-const PILL_STYLE_INACTIVE = 'background:transparent;color:#9097AC;border-color:rgba(148,163,184,0.3);box-shadow:none';
-
 function filtrarCliente(cliente) {
     clienteAtivo = cliente;
-    document.querySelectorAll('.cliente-pill').forEach(el => {
-        if (el.dataset.cliente === cliente) {
-            const idx = parseInt(el.dataset.pillidx || '0');
-            el.style.cssText = PILL_STYLE_ACTIVE[idx % PILL_STYLE_ACTIVE.length];
-        } else {
-            el.style.cssText = PILL_STYLE_INACTIVE;
-        }
-    });
+    const sel = document.getElementById('filtro-cliente-drop');
+    if (sel) sel.value = cliente;
     document.getElementById('header-titulo').textContent = cliente ? cliente : 'Visão Geral';
     document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
     if (cliente) mostrarToastFiltro(`Cliente: ${cliente}`, '🏢');
     carregarDados(cliente);
     return false;
+}
+
+function filtrarClienteDrop(cliente) {
+    clienteAtivo = cliente;
+    document.getElementById('header-titulo').textContent = cliente ? cliente : 'Visão Geral';
+    document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
+    if (cliente) mostrarToastFiltro(`Cliente: ${cliente}`, '🏢');
+    carregarDados(cliente);
+    if (vistaAtiva === 'kanban') renderKanbanGestor();
+}
+
+function filtrarProjetoDrop(projeto) {
+    projetoFiltro = projeto;
+    if (projeto) mostrarToastFiltro(`Projeto: ${projeto}`, '📁');
+    if (vistaAtiva === 'kanban') renderKanbanGestor();
+}
+
+function popularDropdownProjetos() {
+    const projetos = [...new Set(todasTarefasKanban.map(t => t.projeto_nome).filter(Boolean))].sort();
+    const sel = document.getElementById('filtro-projeto-drop');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Todos os projetos</option>' +
+        projetos.map(p => `<option value="${p}">${p}</option>`).join('');
+    if (current && projetos.includes(current)) sel.value = current;
 }
 
 function filtrarFuncionarioSidebar(nome) {
@@ -1264,6 +1298,7 @@ async function carregarTarefasKanban() {
         const res = await fetch('/api/tarefas');
         if (!res.ok) return;
         todasTarefasKanban = await res.json();
+        popularDropdownProjetos();
         renderKanbanGestor();
     } catch(e) { console.error(e); }
 }
@@ -1271,6 +1306,7 @@ async function carregarTarefasKanban() {
 function renderKanbanGestor() {
     const fc = clienteAtivo;
     const ff = (document.getElementById('filtro-funcionario')?.value || '').toLowerCase();
+    const fp = projetoFiltro;
     const PRIO_COLOR = { 'Alta':'#EC4899', 'Media':'#5B2EE0', 'Baixa':'#06D7E6' };
 
     ['aberto','em_andamento','concluido'].forEach(status => {
@@ -1282,6 +1318,7 @@ function renderKanbanGestor() {
             if (t.status !== status) return false;
             if (fc && t.cliente !== fc) return false;
             if (ff && !t.funcionario.toLowerCase().includes(ff)) return false;
+            if (fp && t.projeto_nome !== fp) return false;
             return true;
         });
 
@@ -1343,6 +1380,7 @@ function renderKanbanGestor() {
 
             return `<div style="margin-bottom:18px">
                 <div onclick="(function(el){const body=document.getElementById('${groupId}');const open=body.style.display!=='none';body.style.display=open?'none':'flex';el.querySelector('.gk-chevron').style.transform=open?'rotate(0deg)':'rotate(180deg)';})(this)"
+                    class="gk-func-header"
                     style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:white;border-radius:12px;border:1px solid #E5E8F0;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05);cursor:pointer;user-select:none">
                     <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,${fColor},${fColor}99);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700;flex-shrink:0">${initial}</div>
                     <div style="flex:1;min-width:0">
