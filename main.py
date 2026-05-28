@@ -1104,15 +1104,26 @@ def financeiro_resumo(faiston_token: str = Cookie(None)):
         conn.commit()
         cur.execute("""
             SELECT c.id, c.nome,
-                   COUNT(DISTINCT p.id) AS num_projetos,
-                   COALESCE(SUM(p.orcamento), 0) AS total_orcamento,
-                   COALESCE(SUM(l.valor), 0) AS total_gasto
+                   COALESCE(p_agg.num_projetos, 0) AS num_projetos,
+                   COALESCE(p_agg.total_orcamento, 0) AS total_orcamento,
+                   COALESCE(l_agg.total_gasto, 0) AS total_gasto
             FROM clientes c
-            LEFT JOIN projetos p ON p.cliente_id = c.id AND p.ativo = TRUE
-            LEFT JOIN lancamentos l ON l.projeto_id = p.id
+            LEFT JOIN (
+                SELECT cliente_id,
+                       COUNT(*) AS num_projetos,
+                       SUM(orcamento) AS total_orcamento
+                FROM projetos
+                WHERE ativo = TRUE
+                GROUP BY cliente_id
+            ) p_agg ON p_agg.cliente_id = c.id
+            LEFT JOIN (
+                SELECT p.cliente_id, SUM(l.valor) AS total_gasto
+                FROM lancamentos l
+                JOIN projetos p ON p.id = l.projeto_id AND p.ativo = TRUE
+                GROUP BY p.cliente_id
+            ) l_agg ON l_agg.cliente_id = c.id
             WHERE c.ativo = TRUE
-            GROUP BY c.id, c.nome
-            ORDER BY total_gasto DESC, c.nome
+            ORDER BY COALESCE(l_agg.total_gasto, 0) DESC, c.nome
         """)
         rows = cur.fetchall()
         cur.close(); conn.close()
