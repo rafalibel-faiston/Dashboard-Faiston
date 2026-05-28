@@ -80,12 +80,17 @@
         /* Global timer */
         [data-theme="dark"] #global-timer    { background-color: #11111E !important; border-color: rgba(91,46,224,0.35) !important; }
 
-        /* Agenda view */
-        [data-theme="dark"] .agenda-group-header { color: #9097AC !important; }
+        /* Agenda view dark mode */
         [data-theme="dark"] .agenda-card { background: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
         [data-theme="dark"] .agenda-card:hover { background: #161628 !important; }
         [data-theme="dark"] .agenda-card .text-faiston-dark { color: #F1F2F8 !important; }
         [data-theme="dark"] .agenda-card .text-slate-500, [data-theme="dark"] .agenda-card .text-slate-400 { color: #6A718A !important; }
+        [data-theme="dark"] .agenda-day-num { background-color: rgba(255,255,255,0.06) !important; color: #9097AC !important; }
+        [data-theme="dark"] .agenda-day-num.is-today { background-color: #06D7E6 !important; color: white !important; }
+        [data-theme="dark"] .agenda-day-num.is-amanha { background-color: rgba(91,46,224,0.2) !important; color: #a78bfa !important; }
+        [data-theme="dark"] .mini-cal-card { background: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
+        [data-theme="dark"] .mini-cal-day:not(.cal-today):not(.cal-empty) { color: #9097AC; }
+        [data-theme="dark"] .mini-cal-day:not(.cal-today):not(.cal-empty):hover { background: rgba(255,255,255,0.06) !important; }
     </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
@@ -233,13 +238,57 @@
     </div>
     </div><!-- /view-kanban-func -->
 
-    <!-- VIEW: AGENDA -->
+    <!-- VIEW: AGENDA (Outlook style) -->
     <div id="view-agenda-func" class="hidden">
-        <div id="agenda-container" class="space-y-6">
-            <div class="text-center py-20 text-slate-300">
-                <i class="ph ph-calendar text-4xl mb-3 block"></i>
-                <p class="text-sm font-medium">Carregando agenda...</p>
+        <div class="flex gap-5 items-start">
+
+            <!-- ── Mini Calendário ────────────────────── -->
+            <div class="w-56 flex-shrink-0 sticky top-20">
+                <div class="mini-cal-card bg-white rounded-2xl border border-faiston-border overflow-hidden">
+                    <!-- Navegação de mês -->
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-faiston-border">
+                        <button onclick="agendaPrevMes()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-faiston-dark transition-colors">
+                            <i class="ph ph-caret-left text-xs"></i>
+                        </button>
+                        <span id="cal-mes-label" class="text-xs font-bold text-faiston-dark uppercase tracking-wider"></span>
+                        <button onclick="agendaNextMes()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-faiston-dark transition-colors">
+                            <i class="ph ph-caret-right text-xs"></i>
+                        </button>
+                    </div>
+                    <!-- Headers dias da semana -->
+                    <div class="grid grid-cols-7 px-3 pt-3 pb-1">
+                        <span class="text-center text-[10px] font-bold text-slate-400">S</span>
+                        <span class="text-center text-[10px] font-bold text-slate-400">T</span>
+                        <span class="text-center text-[10px] font-bold text-slate-400">Q</span>
+                        <span class="text-center text-[10px] font-bold text-slate-400">Q</span>
+                        <span class="text-center text-[10px] font-bold text-slate-400">S</span>
+                        <span class="text-center text-[10px] font-bold text-slate-400">S</span>
+                        <span class="text-center text-[10px] font-bold text-slate-400">D</span>
+                    </div>
+                    <!-- Grid dias -->
+                    <div class="grid grid-cols-7 gap-0.5 px-2 pb-3" id="cal-grid"></div>
+                    <!-- Legenda -->
+                    <div class="px-4 py-3 border-t border-faiston-border space-y-2">
+                        <div class="flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full bg-faiston-pink"></div>
+                            <span class="text-[10px] text-slate-400">Prazo</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full bg-faiston-purple"></div>
+                            <span class="text-[10px] text-slate-400">Agendado</span>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            <!-- ── Lista estilo Outlook ────────────────── -->
+            <div class="flex-1 min-w-0" id="agenda-lista">
+                <div class="text-center py-20 text-slate-300">
+                    <i class="ph ph-calendar text-4xl mb-3 block"></i>
+                    <p class="text-sm">Carregando...</p>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -405,6 +454,8 @@ let timerInterval = null;
 let timerSeconds = 0;
 let timerStart = null;
 let tabAtiva = 'kanban';
+let calMes = new Date().getMonth();
+let calAno = new Date().getFullYear();
 
 // Cores por cliente (geradas dinamicamente)
 const CLIENT_PALETTE = ['#5B2EE0','#06D7E6','#B826C9','#EC4899','#a78bfa','#34d399','#f59e0b','#3b82f6'];
@@ -792,110 +843,191 @@ window.addEventListener('beforeunload',()=>{
     }
 });
 
-// ── AGENDA ───────────────────────────────────────────────────────────
+// ── AGENDA (Outlook style) ────────────────────────────────────────────
+function agendaPrevMes() { calMes--; if(calMes<0){calMes=11;calAno--;} renderMiniCalendario(); }
+function agendaNextMes() { calMes++; if(calMes>11){calMes=0;calAno++;} renderMiniCalendario(); }
+
+function agendaIrPara(dateStr) {
+    const el = document.getElementById(`agenda-dia-${dateStr}`);
+    if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function renderMiniCalendario() {
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    document.getElementById('cal-mes-label').textContent = `${meses[calMes].slice(0,3)} ${calAno}`;
+
+    // Datas com tarefas
+    const taskDates = {};
+    tasks.forEach(t => {
+        if (t.status === 'concluido') return;
+        if (t.data_prazo)       taskDates[t.data_prazo]       = (taskDates[t.data_prazo]||0)+1;
+        if (t.data_agendamento) taskDates[t.data_agendamento] = (taskDates[t.data_agendamento]||0)+1;
+    });
+
+    const firstDay = new Date(calAno, calMes, 1);
+    const lastDay  = new Date(calAno, calMes+1, 0);
+    // Seg=0 … Dom=6
+    let startDow = (firstDay.getDay()+6)%7;
+
+    let cells = '';
+    for (let i=0; i<startDow; i++) cells += '<div class="cal-empty"></div>';
+
+    for (let day=1; day<=lastDay.getDate(); day++) {
+        const ds = `${calAno}-${String(calMes+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const d  = new Date(calAno, calMes, day);
+        const isToday = d.getTime()===hoje.getTime();
+        const isPast  = d < hoje;
+        const hasPrazo= tasks.some(t=>t.status!=='concluido'&&t.data_prazo===ds);
+        const hasAg   = tasks.some(t=>t.status!=='concluido'&&t.data_agendamento===ds);
+        const hasTask = hasPrazo||hasAg;
+        const dotColor= hasPrazo?'#EC4899':'#5B2EE0';
+
+        cells += `<div onclick="agendaIrPara('${ds}')"
+            class="mini-cal-day relative flex flex-col items-center justify-center w-7 h-7 rounded-full mx-auto text-[11px] font-semibold cursor-pointer transition-all
+                ${isToday ? 'cal-today bg-faiston-cyan text-white shadow-[0_0_8px_rgba(6,215,230,0.4)]' :
+                  isPast  ? 'cal-past text-slate-300 cursor-default' :
+                  hasTask ? 'text-faiston-dark hover:bg-faiston-purple/10 font-bold' :
+                            'text-slate-500 hover:bg-slate-100'}">
+            ${day}
+            ${hasTask ? `<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style="background:${isToday?'#fff':dotColor}"></div>` : ''}
+        </div>`;
+    }
+    document.getElementById('cal-grid').innerHTML = cells;
+}
+
 function renderAgenda() {
-    const container = document.getElementById('agenda-container');
-    if (!container) return;
+    const lista = document.getElementById('agenda-lista');
+    if (!lista) return;
+    renderMiniCalendario();
 
     const hoje = new Date(); hoje.setHours(0,0,0,0);
     const amanha = new Date(hoje); amanha.setDate(amanha.getDate()+1);
-    const semana = new Date(hoje); semana.setDate(semana.getDate()+7);
-
-    const getDateObj = t => {
-        const s = t.data_agendamento || t.data_prazo;
-        return s ? new Date(s + 'T00:00:00') : null;
-    };
+    const PRIO   = {'Alta':'#EC4899','Media':'#5B2EE0','Baixa':'#06D7E6'};
+    const STATUS = {aberto:'Aberto',em_andamento:'Em Andamento',concluido:'Concluído'};
 
     const ativas = tasks.filter(t => t.status !== 'concluido');
-    const comData = ativas.filter(t => t.data_agendamento || t.data_prazo);
-    comData.sort((a,b) => getDateObj(a) - getDateObj(b));
+
+    // Mapa dateStr → [tarefas]
+    const dateMap = {};
+    ativas.forEach(t => {
+        [t.data_agendamento, t.data_prazo].filter(Boolean).forEach(ds => {
+            if (!dateMap[ds]) dateMap[ds] = [];
+            if (!dateMap[ds].find(x=>x.id===t.id)) dateMap[ds].push(t);
+        });
+    });
+
+    // Atrasadas
+    const atrasadas = ativas.filter(t => {
+        const ds = t.data_agendamento || t.data_prazo;
+        return ds && new Date(ds+'T00:00:00') < hoje;
+    });
+
+    // Datas futuras ordenadas
+    const futureDates = Object.keys(dateMap)
+        .filter(ds => new Date(ds+'T00:00:00') >= hoje)
+        .sort();
+
+    // Sem data
     const semData = ativas.filter(t => !t.data_agendamento && !t.data_prazo);
 
-    const atrasadas   = comData.filter(t => getDateObj(t) < hoje);
-    const deHoje      = comData.filter(t => getDateObj(t).getTime() === hoje.getTime());
-    const deAmanha    = comData.filter(t => getDateObj(t).getTime() === amanha.getTime());
-    const estaSemana  = comData.filter(t => { const d=getDateObj(t); return d>amanha && d<=semana; });
-    const proximas    = comData.filter(t => getDateObj(t) > semana);
-
-    function agendaGroup(titulo, tarefas, dotColor) {
-        if (!tarefas.length) return '';
-        return `<div>
-            <div class="flex items-center gap-2 mb-3 agenda-group-header">
-                <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${dotColor}"></div>
-                <span class="text-[10px] font-bold uppercase tracking-widest" style="color:${dotColor}">${titulo}</span>
-                <span class="text-[10px] font-semibold text-slate-400 ml-auto">${tarefas.length} tarefa${tarefas.length>1?'s':''}</span>
-            </div>
-            <div class="flex flex-col gap-2">
-                ${tarefas.map(t => agendaCard(t)).join('')}
-            </div>
-        </div>`;
-    }
-
-    function agendaCard(t) {
-        const d = getDateObj(t);
-        const diff = d ? Math.round((d - hoje)/(1000*60*60*24)) : null;
-        const PRIO = {'Alta':'#EC4899','Media':'#5B2EE0','Baixa':'#06D7E6'};
+    // ── Event card ──────────────────────────────────────────────────
+    function eventCard(t) {
         const pColor = PRIO[t.prioridade]||PRIO.Media;
-        const statusMap = {aberto:'Aberto',em_andamento:'Em Andamento',concluido:'Concluído'};
-
-        let dateTag = '';
+        let badges = '';
         if (t.data_prazo) {
-            const dp = new Date(t.data_prazo+'T00:00:00');
-            const dd = Math.round((dp-hoje)/(1000*60*60*24));
-            const c = dd<0?'#EC4899':dd<=2?'#f59e0b':'#5B2EE0';
-            const lbl = dd===0?'hoje':dd===1?'amanhã':dd<0?`${Math.abs(dd)}d atraso`:dp.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-            dateTag += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${c}18;color:${c};border:1px solid ${c}30;display:inline-flex;align-items:center;gap:3px"><i class="ph ph-calendar-x" style="font-size:11px"></i> Prazo: ${lbl}</span>`;
+            const dp  = new Date(t.data_prazo+'T00:00:00');
+            const dd  = Math.round((dp-hoje)/(86400000));
+            const c   = dd<0?'#EC4899':dd<=2?'#f59e0b':'#9097AC';
+            const lbl = dd===0?'Hoje':dd===1?'Amanhã':dd<0?`${Math.abs(dd)}d atraso`:dp.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+            badges += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${c}20;color:${c};border:1px solid ${c}35;display:inline-flex;align-items:center;gap:3px">
+                <i class="ph ph-flag" style="font-size:10px"></i>${lbl}</span>`;
         }
         if (t.data_agendamento) {
-            const da = new Date(t.data_agendamento+'T00:00:00');
-            const lbl = da.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'});
-            dateTag += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:#5B2EE018;color:#5B2EE0;border:1px solid #5B2EE030;display:inline-flex;align-items:center;gap:3px"><i class="ph ph-calendar-check" style="font-size:11px"></i> ${lbl}</span>`;
+            badges += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:#5B2EE018;color:#5B2EE0;border:1px solid #5B2EE030;display:inline-flex;align-items:center;gap:3px">
+                <i class="ph ph-calendar-check" style="font-size:10px"></i>Agendado</span>`;
         }
-
-        return `<div class="agenda-card bg-white rounded-xl border border-faiston-border p-4 cursor-pointer hover:border-faiston-purple/40 transition-all"
+        const stCls = t.status==='em_andamento'?'bg-faiston-purple/10 text-faiston-purple':
+                      t.status==='concluido'    ?'bg-faiston-cyan/10 text-faiston-cyan'  :
+                                                 'bg-slate-100 text-slate-500';
+        return `<div class="agenda-card bg-white rounded-xl border border-faiston-border overflow-hidden cursor-pointer transition-all duration-150 hover:shadow-[0_4px_16px_-4px_rgba(91,46,224,0.2)] hover:-translate-y-px"
             onclick="editTask(${t.id})" style="border-left:3px solid ${pColor}">
-            <div class="flex items-start justify-between gap-3">
+            <div class="px-4 py-3 flex items-center gap-3">
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-faiston-dark leading-snug mb-1.5">${t.descricao}</p>
-                    <div class="flex flex-wrap items-center gap-1.5 mb-2">
-                        ${dateTag}
-                    </div>
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${pColor}15;color:${pColor}">${t.prioridade}</span>
-                        <span class="text-[10px] text-slate-400 font-semibold">${t.cliente}</span>
-                        ${t.projeto_nome ? `<span class="text-[10px] font-semibold" style="color:#5B2EE0">· ${t.projeto_nome}</span>` : ''}
+                    <p class="text-sm font-semibold text-faiston-dark truncate mb-1">${t.descricao}</p>
+                    <div class="flex items-center flex-wrap gap-1.5">
+                        <span style="font-size:10px;font-weight:800;color:${pColor}">${t.prioridade}</span>
+                        <span class="text-slate-300 text-xs">·</span>
+                        <span class="text-[11px] text-slate-500 font-medium">${t.cliente}</span>
+                        ${t.projeto_nome?`<span class="text-slate-300 text-xs">·</span><span class="text-[11px] font-bold" style="color:#5B2EE0">${t.projeto_nome}</span>`:''}
                     </div>
                 </div>
-                <div class="flex-shrink-0 flex flex-col items-end gap-1">
-                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${t.status==='em_andamento'?'bg-faiston-purple/10 text-faiston-purple':t.status==='concluido'?'bg-faiston-cyan/10 text-faiston-cyan':'bg-slate-100 text-slate-500'}">${statusMap[t.status]||t.status}</span>
-                    ${t.segundos>0?`<span class="font-mono text-[10px] text-faiston-muted">${fmtH(t.segundos)}</span>`:''}
+                <div class="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                    ${badges}
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${stCls}">${STATUS[t.status]||t.status}</span>
+                    ${t.segundos>0?`<span class="font-mono text-[10px] text-slate-400">${fmtH(t.segundos)}</span>`:''}
                 </div>
             </div>
         </div>`;
     }
 
-    const semDataHtml = semData.length ? `<div>
-        <div class="flex items-center gap-2 mb-3 agenda-group-header">
-            <div class="w-2.5 h-2.5 rounded-full bg-slate-300 flex-shrink-0"></div>
-            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sem Data</span>
-            <span class="text-[10px] font-semibold text-slate-400 ml-auto">${semData.length}</span>
-        </div>
-        <div class="flex flex-col gap-2">${semData.map(t=>agendaCard(t)).join('')}</div>
-    </div>` : '';
+    // ── Day row (coluna data + eventos) ─────────────────────────────
+    function dayRow(dateStr, tarefas) {
+        const d      = new Date(dateStr+'T00:00:00');
+        const isToday  = d.getTime()===hoje.getTime();
+        const isAmanha = d.getTime()===amanha.getTime();
+        const dayN   = d.getDate();
+        const dayLbl = isToday?'Hoje':isAmanha?'Amanhã':d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','');
+        const monLbl = d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','');
+        const numCls = isToday ?'is-today bg-faiston-cyan text-white shadow-[0_0_10px_rgba(6,215,230,0.4)]':
+                       isAmanha?'is-amanha bg-faiston-purple/10 text-faiston-purple':'bg-slate-100 text-slate-600';
+        const lblCls = isToday?'text-faiston-cyan':isAmanha?'text-faiston-purple':'text-slate-400';
 
-    const all = [
-        agendaGroup('🔴 Atrasado', atrasadas, '#EC4899'),
-        agendaGroup('Hoje', deHoje, '#06D7E6'),
-        agendaGroup('Amanhã', deAmanha, '#5B2EE0'),
-        agendaGroup('Esta Semana', estaSemana, '#B826C9'),
-        agendaGroup('Próximas', proximas, '#9097AC'),
-        semDataHtml
-    ].filter(Boolean).join('');
+        return `<div class="flex gap-4 mb-6" id="agenda-dia-${dateStr}">
+            <div class="w-14 flex-shrink-0 flex flex-col items-center pt-0.5">
+                <p class="text-[10px] font-bold uppercase tracking-wide mb-1 ${lblCls}">${dayLbl}</p>
+                <div class="agenda-day-num ${numCls} w-10 h-10 rounded-xl flex items-center justify-center mb-1">
+                    <span class="text-lg font-black leading-none">${dayN}</span>
+                </div>
+                <p class="text-[10px] text-slate-400 uppercase font-medium">${monLbl}</p>
+            </div>
+            <div class="flex-1 min-w-0 flex flex-col gap-2 pt-0.5">
+                ${tarefas.map(t=>eventCard(t)).join('')}
+            </div>
+        </div>`;
+    }
 
-    container.innerHTML = all || `<div class="text-center py-20 text-slate-300">
-        <i class="ph ph-calendar-blank text-4xl mb-3 block"></i>
-        <p class="text-sm font-medium">Nenhuma tarefa ativa</p>
-        <p class="text-xs mt-1">Crie tarefas com prazo ou agendamento para vê-las aqui</p>
+    // ── Build HTML ───────────────────────────────────────────────────
+    let html = '';
+
+    if (atrasadas.length) {
+        html += `<div class="mb-6 rounded-2xl overflow-hidden border border-faiston-pink/20 bg-faiston-pink/5">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-faiston-pink/15">
+                <i class="ph ph-warning text-faiston-pink text-sm"></i>
+                <span class="text-[11px] font-bold uppercase tracking-widest text-faiston-pink">Atrasado</span>
+                <span class="ml-auto text-[10px] font-semibold bg-faiston-pink/20 text-faiston-pink px-2 py-0.5 rounded-full">${atrasadas.length}</span>
+            </div>
+            <div class="p-3 flex flex-col gap-2">${atrasadas.map(t=>eventCard(t)).join('')}</div>
+        </div>`;
+    }
+
+    futureDates.forEach(ds => { html += dayRow(ds, dateMap[ds]); });
+
+    if (semData.length) {
+        html += `<div class="mt-4 pt-6 border-t border-faiston-border">
+            <div class="flex items-center gap-2 mb-4 px-1">
+                <div class="w-2 h-2 rounded-full bg-slate-300"></div>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sem Data</span>
+                <span class="ml-auto text-[10px] text-slate-400">${semData.length}</span>
+            </div>
+            <div class="flex flex-col gap-2">${semData.map(t=>eventCard(t)).join('')}</div>
+        </div>`;
+    }
+
+    lista.innerHTML = html || `<div class="text-center py-24 text-slate-300">
+        <i class="ph ph-calendar-blank text-5xl mb-4 block opacity-40"></i>
+        <p class="text-sm font-medium">Agenda vazia</p>
+        <p class="text-xs mt-1 opacity-70">Crie tarefas com prazo ou agendamento para vê-las aqui</p>
     </div>`;
 }
 
