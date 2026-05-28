@@ -1243,6 +1243,50 @@ def listar_projetos(cid: int, faiston_token: str = Cookie(None)):
                  "planilha_replace": bool(r[9])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/clientes/{cid}/analise-financeira")
+def analise_financeira(cid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur)
+        conn.commit()
+
+        # Gasto por localidade
+        cur.execute("""
+            SELECT COALESCE(NULLIF(TRIM(l.localidade),''), 'Não informado') AS loc,
+                   SUM(l.valor) AS total
+            FROM lancamentos l
+            JOIN projetos p ON p.id = l.projeto_id
+            WHERE p.cliente_id = %s AND p.ativo = TRUE
+            GROUP BY loc ORDER BY total DESC LIMIT 10
+        """, (cid,))
+        loc_rows = cur.fetchall()
+        total_loc = sum(r[1] for r in loc_rows) or 1
+        por_localidade = [{"localidade": r[0], "gasto": float(r[1]),
+                           "pct": round(float(r[1]) / total_loc * 100, 1)} for r in loc_rows]
+
+        # Gasto por período (mês)
+        cur.execute("""
+            SELECT TO_CHAR(l.data_lancamento, 'YYYY-MM') AS periodo,
+                   TO_CHAR(l.data_lancamento, 'Mon/YY') AS label,
+                   SUM(l.valor) AS total
+            FROM lancamentos l
+            JOIN projetos p ON p.id = l.projeto_id
+            WHERE p.cliente_id = %s AND p.ativo = TRUE
+            GROUP BY periodo, label ORDER BY periodo
+        """, (cid,))
+        per_rows = cur.fetchall()
+        max_per = max((float(r[2]) for r in per_rows), default=1)
+        por_periodo = [{"periodo": r[0], "label": r[1], "gasto": float(r[2]),
+                        "pct": round(float(r[2]) / max_per * 100, 1)} for r in per_rows]
+
+        cur.close(); conn.close()
+        return {"por_localidade": por_localidade, "por_periodo": por_periodo}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/clientes/{cid}/projetos")
 def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)

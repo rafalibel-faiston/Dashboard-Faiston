@@ -190,6 +190,28 @@
             </div>
         </div>
 
+        <!-- Análise Financeira -->
+        <div id="analise-section" class="hidden mb-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <!-- Por Localidade -->
+                <div class="bg-white rounded-2xl border border-faiston-border p-5">
+                    <div class="flex items-center gap-2 mb-4">
+                        <i class="ph ph-map-pin text-faiston-purple text-base"></i>
+                        <p class="text-sm font-bold text-faiston-dark">Gasto por Localidade</p>
+                    </div>
+                    <div id="kpi-localidade" class="flex flex-col gap-2.5"></div>
+                </div>
+                <!-- Por Período -->
+                <div class="bg-white rounded-2xl border border-faiston-border p-5">
+                    <div class="flex items-center gap-2 mb-4">
+                        <i class="ph ph-calendar-dots text-faiston-cyan text-base"></i>
+                        <p class="text-sm font-bold text-faiston-dark">Gasto por Período</p>
+                    </div>
+                    <div id="kpi-periodo" class="flex flex-col gap-2.5"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Projetos list -->
         <div id="projetos-lista" class="flex flex-col gap-4"></div>
 
@@ -528,6 +550,7 @@ async function init() {
     } catch {}
 
     await carregarProjetos();
+    carregarAnalise();
 }
 
 async function carregarProjetos() {
@@ -535,6 +558,44 @@ async function carregarProjetos() {
         projetos = await fetch(`/api/clientes/${clienteId}/projetos`).then(r => r.json());
     } catch { projetos = []; }
     renderProjetos();
+}
+
+const PALETTE_LOC = ['#5B2EE0','#B826C9','#06D7E6','#EC4899','#f59e0b','#34d399','#3b82f6','#f97316','#8b5cf6','#14b8a6'];
+const PALETTE_PER = ['#06D7E6','#5B2EE0','#B826C9','#EC4899','#f59e0b'];
+
+async function carregarAnalise() {
+    try {
+        const data = await fetch(`/api/clientes/${clienteId}/analise-financeira`).then(r => r.json());
+        const section = document.getElementById('analise-section');
+
+        const renderCards = (items, containerEl, palette, labelKey, gatoKey, pctKey) => {
+            if (!items.length) { containerEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Sem dados</p>'; return; }
+            containerEl.innerHTML = items.map((item, i) => `
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-700 truncate max-w-[60%]">${item[labelKey]}</span>
+                        <span class="text-xs font-bold text-faiston-dark flex-shrink-0">${fmtMoedaCompacto(item[gatoKey])}
+                            <span class="text-[10px] font-normal text-slate-400 ml-1">${item[pctKey]}%</span>
+                        </span>
+                    </div>
+                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full transition-all duration-500"
+                            style="width:${item[pctKey]}%;background:${palette[i % palette.length]}"></div>
+                    </div>
+                </div>`).join('');
+        };
+
+        renderCards(data.por_localidade, document.getElementById('kpi-localidade'), PALETTE_LOC, 'localidade', 'gasto', 'pct');
+        renderCards(data.por_periodo,    document.getElementById('kpi-periodo'),    PALETTE_PER, 'label',      'gasto', 'pct');
+
+        if (data.por_localidade.length || data.por_periodo.length) section.classList.remove('hidden');
+    } catch {}
+}
+
+function fmtMoedaCompacto(v) {
+    if (v >= 1000000) return 'R$ ' + (v/1000000).toFixed(1).replace('.',',') + 'M';
+    if (v >= 1000) return 'R$ ' + (v/1000).toFixed(1).replace('.',',') + 'k';
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:0});
 }
 
 function fmtMoeda(v) {
