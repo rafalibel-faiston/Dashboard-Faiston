@@ -58,6 +58,7 @@ def setup_banco():
             )
         """)
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS primeiro_acesso BOOLEAN DEFAULT FALSE")
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT ''")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tarefas (
                 id SERIAL PRIMARY KEY,
@@ -119,6 +120,7 @@ class AtualizarUsuario(BaseModel):
     perfil: str
     senha: str = ""
     ativo: bool = True
+    email: str = ""
 
 class TarefaModel(BaseModel):
     descricao: str
@@ -259,9 +261,9 @@ def listar_usuarios(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
+        cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,'') FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
         rows = cur.fetchall(); cur.close(); conn.close()
-        return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5])} for r in rows]
+        return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5]), "email": r[6]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/funcionarios")
@@ -286,8 +288,8 @@ def criar_usuario(u: NovoUsuario, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, primeiro_acesso) VALUES (%s, %s, %s, %s, TRUE) RETURNING id",
-                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil))
+        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso) VALUES (%s, %s, %s, %s, %s, TRUE) RETURNING id",
+                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         email_enviado = enviar_email_acesso(u.email, u.nome, u.usuario, u.senha)
@@ -304,13 +306,32 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
     try:
         cur = conn.cursor()
         if u.senha:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, senha_hash=%s, primeiro_acesso=TRUE WHERE id=%s",
-                        (u.nome, u.perfil, u.ativo, hash_senha(u.senha), uid))
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE WHERE id=%s",
+                        (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), uid))
         else:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s WHERE id=%s",
-                        (u.nome, u.perfil, u.ativo, uid))
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s WHERE id=%s",
+                        (u.nome, u.perfil, u.ativo, u.email, uid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/usuarios/{uid}/reenviar-email")
+def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome, usuario, email FROM usuarios WHERE id=%s AND ativo=TRUE", (uid,))
+        row = cur.fetchone(); cur.close(); conn.close()
+        if not row: raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        nome, usuario, email = row
+        if not email: raise HTTPException(status_code=400, detail="Este usuário não tem email cadastrado")
+        enviado = enviar_email_acesso(email, nome, usuario, "(sua senha atual)")
+        if not enviado: raise HTTPException(status_code=500, detail="Falha ao enviar email — verifique as variáveis EMAIL_USER e EMAIL_APP_PASSWORD no servidor")
+        return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/usuarios/{uid}")
