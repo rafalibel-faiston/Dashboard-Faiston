@@ -145,17 +145,11 @@ class AcaoBackoffice(BaseModel):
 
 # --- EMAIL ---
 def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha: str) -> bool:
-    email_user = os.environ.get("EMAIL_USER", "")
-    email_pass = os.environ.get("EMAIL_APP_PASSWORD", "")
     system_url = os.environ.get("SYSTEM_URL", "").rstrip("/")
-    if not email_user or not email_pass or not destinatario:
+    if not destinatario:
         return False
     try:
         perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário"}
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = "Seu acesso ao Faiston OPS"
-        msg["From"] = f"Faiston OPS <{email_user}>"
-        msg["To"] = destinatario
         html = f"""
         <div style="font-family:Inter,sans-serif;max-width:520px;margin:0 auto;background:#F4F5FA;padding:32px 16px">
           <div style="background:linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px">
@@ -193,16 +187,50 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha: str) 
           <p style="color:#9097AC;font-size:11px;text-align:center;margin:0">Faiston OPS · Este é um email automático, não responda.</p>
         </div>
         """
+        subject = "Seu acesso ao Faiston OPS"
+
+        # Resend (preferencial no Railway)
+        resend_key = os.environ.get("RESEND_API_KEY", "")
+        if resend_key:
+            import urllib.request, json as _json
+            payload = _json.dumps({
+                "from": "Faiston OPS <onboarding@resend.dev>",
+                "to": [destinatario],
+                "subject": subject,
+                "html": html,
+            }).encode()
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=payload,
+                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                result = _json.loads(resp.read())
+            print(f"[email-acesso] Resend OK — id {result.get('id')} → {destinatario}")
+            return True
+
+        # Fallback Gmail SMTP
+        email_user = os.environ.get("EMAIL_USER", "")
+        email_pass = os.environ.get("EMAIL_APP_PASSWORD", "")
+        if not email_user or not email_pass:
+            print("[email-acesso] Nenhuma configuração de email encontrada (RESEND_API_KEY ou EMAIL_USER+EMAIL_APP_PASSWORD)")
+            return False
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"Faiston OPS <{email_user}>"
+        msg["To"] = destinatario
         msg.attach(MIMEText(html, "html"))
         ctx = ssl.create_default_context()
-        with smtplib.SMTP("smtp.gmail.com", 587) as s:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as s:
             s.ehlo()
             s.starttls(context=ctx)
             s.login(email_user, email_pass)
             s.sendmail(email_user, destinatario, msg.as_string())
+        print(f"[email-acesso] Gmail SMTP OK → {destinatario}")
         return True
     except Exception as e:
-        print(f"[email] Falha ao enviar para {destinatario}: {e}")
+        print(f"[email-acesso] Falha ao enviar para {destinatario}: {e}")
         return False
 
 # --- AUTH ---
