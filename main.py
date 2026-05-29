@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File
+from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
@@ -280,7 +280,7 @@ def listar_funcionarios(faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/usuarios")
-def criar_usuario(u: NovoUsuario, faiston_token: str = Cookie(None)):
+def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
     if u.perfil not in ("admin", "gestor", "funcionario"): raise HTTPException(status_code=400, detail="Perfil inválido")
@@ -292,8 +292,10 @@ def criar_usuario(u: NovoUsuario, faiston_token: str = Cookie(None)):
                     (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
-        email_enviado = enviar_email_acesso(u.email, u.nome, u.usuario, u.senha)
-        return {"sucesso": True, "id": new_id, "email_enviado": email_enviado}
+        tem_email = bool(u.email)
+        if tem_email:
+            bg.add_task(enviar_email_acesso, u.email, u.nome, u.usuario, u.senha)
+        return {"sucesso": True, "id": new_id, "email_enviado": tem_email}
     except psycopg2.errors.UniqueViolation: raise HTTPException(status_code=400, detail="Usuário já existe")
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
