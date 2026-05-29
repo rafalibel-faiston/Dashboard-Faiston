@@ -160,7 +160,7 @@
         </div>
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="closeModalUser()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
-            <button onclick="salvarUsuario()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+            <button id="btn-salvar-usuario" onclick="salvarUsuario()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
         </div>
     </div>
 </div>
@@ -335,6 +335,10 @@ async function salvarUsuario() {
 
     if (!nome || (!uid && (!usuario || !senha))) { alert('Preencha todos os campos obrigatórios.'); return; }
 
+    const btnSalvar = document.getElementById('btn-salvar-usuario');
+    btnSalvar.disabled = true;
+    btnSalvar.textContent = 'Salvando...';
+
     try {
         let res;
         if (uid) {
@@ -370,6 +374,10 @@ async function salvarUsuario() {
             setTimeout(() => alert(`✅ Dados salvos!`), 100);
         }
     } catch(e) { alert('Erro de conexão'); }
+    finally {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = 'Salvar';
+    }
 }
 
 async function reenviarEmail(id, nome, email) {
