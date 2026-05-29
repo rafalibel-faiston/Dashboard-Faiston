@@ -341,7 +341,7 @@ async function salvarUsuario() {
             res = await fetch(`/api/usuarios/${uid}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome, perfil, senha, ativo })
+                body: JSON.stringify({ nome, perfil, senha, ativo, email })
             });
         } else {
             res = await fetch('/api/usuarios', {
