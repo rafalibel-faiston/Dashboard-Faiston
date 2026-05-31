@@ -189,46 +189,31 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha: str) 
         """
         subject = "Seu acesso ao Faiston OPS"
 
-        # Resend (preferencial no Railway)
-        resend_key = os.environ.get("RESEND_API_KEY", "")
-        if resend_key:
-            import urllib.request, json as _json
+        import urllib.request, json as _json
+
+        # Brevo (API HTTP — funciona no Railway)
+        brevo_key = os.environ.get("BREVO_API_KEY", "")
+        email_user = os.environ.get("EMAIL_USER", "")
+        if brevo_key and email_user:
             payload = _json.dumps({
-                "from": "Faiston OPS <onboarding@resend.dev>",
-                "to": [destinatario],
+                "sender": {"name": "Faiston OPS", "email": email_user},
+                "to": [{"email": destinatario}],
                 "subject": subject,
-                "html": html,
+                "htmlContent": html,
             }).encode()
             req = urllib.request.Request(
-                "https://api.resend.com/emails",
+                "https://api.brevo.com/v3/smtp/email",
                 data=payload,
-                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                headers={"api-key": brevo_key, "Content-Type": "application/json"},
                 method="POST"
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 result = _json.loads(resp.read())
-            print(f"[email-acesso] Resend OK — id {result.get('id')} → {destinatario}")
+            print(f"[email-acesso] Brevo OK — id {result.get('messageId')} → {destinatario}")
             return True
 
-        # Fallback Gmail SMTP
-        email_user = os.environ.get("EMAIL_USER", "")
-        email_pass = os.environ.get("EMAIL_APP_PASSWORD", "")
-        if not email_user or not email_pass:
-            print("[email-acesso] Nenhuma configuração de email encontrada (RESEND_API_KEY ou EMAIL_USER+EMAIL_APP_PASSWORD)")
-            return False
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"Faiston OPS <{email_user}>"
-        msg["To"] = destinatario
-        msg.attach(MIMEText(html, "html"))
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as s:
-            s.ehlo()
-            s.starttls(context=ctx)
-            s.login(email_user, email_pass)
-            s.sendmail(email_user, destinatario, msg.as_string())
-        print(f"[email-acesso] Gmail SMTP OK → {destinatario}")
-        return True
+        print("[email-acesso] Nenhuma configuração de email encontrada (BREVO_API_KEY + EMAIL_USER)")
+        return False
     except Exception as e:
         print(f"[email-acesso] Falha ao enviar para {destinatario}: {e}")
         return False
@@ -2115,25 +2100,26 @@ def _enviar_email(html: str, mes_nome: str, ano: int):
     email_to = os.environ.get("EMAIL_RELATORIO", "rafael.libel@faiston.com")
     subject  = f"Relatório Faiston OPS · {mes_nome} {ano}"
 
-    # ── Resend (recomendado no Railway) ──────────────────────────────
-    resend_key = os.environ.get("RESEND_API_KEY", "")
-    if resend_key:
-        import urllib.request, json as _json
+    # ── Brevo (API HTTP — funciona no Railway) ───────────────────────
+    import urllib.request, json as _json
+    brevo_key = os.environ.get("BREVO_API_KEY", "")
+    email_user = os.environ.get("EMAIL_USER", "")
+    if brevo_key and email_user:
         payload = _json.dumps({
-            "from": "Faiston OPS <onboarding@resend.dev>",
-            "to": [email_to],
+            "sender": {"name": "Faiston OPS", "email": email_user},
+            "to": [{"email": email_to}],
             "subject": subject,
-            "html": html,
+            "htmlContent": html,
         }).encode()
         req = urllib.request.Request(
-            "https://api.resend.com/emails",
+            "https://api.brevo.com/v3/smtp/email",
             data=payload,
-            headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+            headers={"api-key": brevo_key, "Content-Type": "application/json"},
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
             result = _json.loads(resp.read())
-        print(f"Resend OK — id {result.get('id')} — {mes_nome}/{ano} → {email_to}")
+        print(f"Brevo OK — id {result.get('messageId')} — {mes_nome}/{ano} → {email_to}")
         return
 
     # ── Fallback SMTP (Gmail) ─────────────────────────────────────────
