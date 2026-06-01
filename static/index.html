@@ -152,9 +152,12 @@
                 <option value="">Todos os funcionários</option>
             </select>
             <!-- Novo Ticket -->
-            <button onclick="analisarIA()" id="btn-ia" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-purple text-faiston-purple hover:bg-faiston-purple/10 transition-all" title="Analisar com IA">
-                <i class="ph ph-sparkle text-base"></i> <span id="btn-ia-label">Analisar</span>
-            </button>
+            <div class="relative flex items-center">
+                <button onclick="analisarIA()" id="btn-ia" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-purple text-faiston-purple hover:bg-faiston-purple/10 transition-all" title="Analisar com IA">
+                    <i class="ph ph-sparkle text-base"></i> <span id="btn-ia-label">Analisar</span>
+                </button>
+                <span class="absolute -top-2 -right-2 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-white leading-none" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">Beta</span>
+            </div>
             <button onclick="abrirModalTicket()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
                 <i class="ph ph-plus text-base"></i> Novo Ticket
             </button>
