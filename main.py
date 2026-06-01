@@ -150,8 +150,9 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha: str) 
         return False
     try:
         perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário"}
-        btn = f"<a href='{system_url}' style='display:block;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:24px'>Acessar o Sistema</a>" if system_url else ""
-        ajuda = f"<a href='{system_url}/ajuda' style='color:#5B2EE0'>/ajuda</a>" if system_url else "/ajuda"
+        btn = f"<a href='{system_url}' style='display:block;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:12px'>Acessar o Sistema</a>" if system_url else ""
+        btn_ajuda = f"<a href='https://dashboard-faiston-production.up.railway.app/ajuda' style='display:block;background:white;color:#5B2EE0;text-decoration:none;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:24px;border:2px solid #5B2EE0'>📖 Ver Guia de Uso</a>"
+        ajuda = f"<a href='https://dashboard-faiston-production.up.railway.app/ajuda' style='color:#5B2EE0'>Guia de Uso</a>"
         html = f"""
         <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#F4F5FA;padding:32px 16px">
           <div style="background:linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px">
@@ -183,6 +184,7 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha: str) 
               <p style="color:#7A6020;font-size:13px;margin:0;line-height:1.5">No primeiro acesso, o sistema pedirá que você crie uma senha pessoal.</p>
             </div>
             {btn}
+            {btn_ajuda}
             <div style="border-top:1px solid #E5E8F0;padding-top:20px">
               <p style="color:#9097AC;font-size:11px;margin:0 0 10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Primeiros passos</p>
               <ol style="color:#5E647A;font-size:13px;margin:0;padding-left:20px;line-height:2.2">
