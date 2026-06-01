@@ -761,7 +761,7 @@ def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "",
 
 @app.delete("/api/limpar-seed")
 def limpar_seed(faiston_token: str = Cookie(None)):
-    sess = verificar_sessao(faiston_token)
+    sess = get_session(faiston_token)
     if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
