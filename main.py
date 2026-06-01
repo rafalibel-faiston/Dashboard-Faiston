@@ -1124,9 +1124,9 @@ Tickets de alta prioridade sem concluir: {por_prioridade.get('Alta', 0)}
 
 Gere 3 insights curtos (máx 120 caracteres cada), um por linha, começando com emoji."""
 
-        import urllib.request, json as _json
+        import urllib.request, urllib.error, json as _json
         payload = _json.dumps({
-            "model": "llama3-8b-8192",
+            "model": "llama-3.1-8b-instant",
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 400,
             "temperature": 0.7
@@ -1137,8 +1137,13 @@ Gere 3 insights curtos (máx 120 caracteres cada), um por linha, começando com 
             headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            result = _json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                result = _json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            body = e.read().decode()
+            print(f"[ia/insights] Groq HTTP {e.code}: {body}")
+            raise HTTPException(status_code=500, detail=f"Groq {e.code}: {body}")
 
         texto = result["choices"][0]["message"]["content"].strip()
         insights = [l.strip() for l in texto.split("\n") if l.strip()][:3]
