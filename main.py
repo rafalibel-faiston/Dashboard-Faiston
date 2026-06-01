@@ -26,7 +26,13 @@ app = FastAPI(title="Faiston Ops - API", version="1.0")
 Path("static/css").mkdir(parents=True, exist_ok=True)
 Path("static/js").mkdir(parents=True, exist_ok=True)
 
-sessions = {}
+sessions = {}  # token -> {id, nome, perfil, last_seen, page}
+
+def _touch_session(token: str, page: str = ""):
+    if token and token in sessions:
+        sessions[token]["last_seen"] = datetime.utcnow()
+        if page:
+            sessions[token]["page"] = page
 
 def get_db():
     try:
@@ -38,8 +44,12 @@ def get_db():
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
-def get_session(token: str):
-    return sessions.get(token)
+def get_session(token: str, page: str = ""):
+    sess = sessions.get(token)
+    if sess:
+        sess["last_seen"] = datetime.utcnow()
+        if page: sess["page"] = page
+    return sess
 
 def setup_banco():
     conn = get_db()
@@ -242,7 +252,7 @@ def login(req: LoginRequest, response: Response):
         cur.close(); conn.close()
         if not row: raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
         token = secrets.token_hex(32)
-        sessions[token] = {"id": row[0], "nome": row[1], "perfil": row[2]}
+        sessions[token] = {"id": row[0], "nome": row[1], "perfil": row[2], "last_seen": datetime.utcnow(), "page": "dashboard"}
         response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
         return {"sucesso": True, "perfil": row[2], "nome": row[1], "primeiro_acesso": bool(row[3])}
     except HTTPException: raise
@@ -479,6 +489,52 @@ def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/admin/online")
+def usuarios_online(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    agora = datetime.utcnow()
+    online = []
+    for token, s in list(sessions.items()):
+        last = s.get("last_seen")
+        if last and (agora - last).total_seconds() < 300:  # ativo nos últimos 5 min
+            minutos = int((agora - last).total_seconds() / 60)
+            online.append({
+                "nome": s["nome"],
+                "perfil": s["perfil"],
+                "page": s.get("page", "—"),
+                "ultimo_acesso": f"há {minutos} min" if minutos > 0 else "agora"
+            })
+    return sorted(online, key=lambda x: x["ultimo_acesso"])
+
+@app.get("/api/admin/atividades")
+def atividades_recentes(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT u.nome, u.perfil, n.tipo, n.mensagem, n.criado_em
+            FROM notificacoes n
+            JOIN usuarios u ON n.usuario_id = u.id
+            WHERE n.criado_em >= NOW() - INTERVAL '24 hours'
+            ORDER BY n.criado_em DESC
+            LIMIT 50
+        """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"nome": r[0], "perfil": r[1], "tipo": r[2], "mensagem": r[3],
+                 "quando": r[4].strftime("%H:%M")} for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/admin/ping")
+def ping_session(page: str = "", faiston_token: str = Cookie(None)):
+    get_session(faiston_token, page)
+    return {"ok": True}
 
 @app.delete("/api/admin/limpar-tarefas")
 def limpar_todas_tarefas(faiston_token: str = Cookie(None)):
