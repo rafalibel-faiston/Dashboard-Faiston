@@ -493,7 +493,7 @@ def limpar_todas_tarefas(faiston_token: str = Cookie(None)):
 
 # --- MÉTRICAS DASHBOARD ---
 @app.get("/api/metricas")
-def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", faiston_token: str = Cookie(None)):
+def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", projeto: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -514,31 +514,36 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         if data_fim:
             conditions.append("t.criado_em <= %s")
             params.append(data_fim + " 23:59:59")
+        if projeto:
+            conditions.append("p.nome = %s")
+            params.append(projeto)
         filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         params = tuple(params)
 
-        # JOIN usuarios necessário quando filtro por funcionário referencia u.nome
+        # JOINs necessários
         join_u = "JOIN usuarios u ON t.usuario_id = u.id" if funcionario else ""
+        join_p = "LEFT JOIN projetos p ON t.projeto_id = p.id" if projeto else ""
         # Helpers para adicionar condição de status sem quebrar o filtro existente
         def fwhere(extra): return f"{filtro} AND {extra}" if filtro else f"WHERE {extra}"
 
         # KPIs gerais
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {filtro}", params)
+        joins = f"{join_u} {join_p}"
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {joins} {filtro}", params)
         total = cur.fetchone()[0]
 
         w_aberto = fwhere("t.status = 'aberto'")
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {w_aberto}", params)
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {joins} {w_aberto}", params)
         abertos = cur.fetchone()[0]
 
         w_concluido = fwhere("t.status = 'concluido'")
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {w_concluido}", params)
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {joins} {w_concluido}", params)
         concluidos = cur.fetchone()[0]
 
         w_andamento = fwhere("t.status = 'em_andamento'")
-        cur.execute(f"SELECT COUNT(*) FROM tarefas t {join_u} {w_andamento}", params)
+        cur.execute(f"SELECT COUNT(*) FROM tarefas t {joins} {w_andamento}", params)
         em_andamento = cur.fetchone()[0]
 
-        cur.execute(f"SELECT COALESCE(SUM(t.segundos),0) FROM tarefas t {join_u} {filtro}", params)
+        cur.execute(f"SELECT COALESCE(SUM(t.segundos),0) FROM tarefas t {joins} {filtro}", params)
         total_segundos = cur.fetchone()[0]
 
         # Clientes ativos (distintos)
@@ -554,7 +559,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
 
         # Média de horas por funcionário — respeita todos os filtros
         cur.execute(
-            f"SELECT COUNT(DISTINCT t.usuario_id), COALESCE(SUM(t.segundos),0) FROM tarefas t {join_u} {filtro}",
+            f"SELECT COUNT(DISTINCT t.usuario_id), COALESCE(SUM(t.segundos),0) FROM tarefas t {joins} {filtro}",
             params
         )
         row_media = cur.fetchone()
@@ -564,13 +569,13 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         # Horas por cliente — respeita todos os filtros
         cur.execute(
             f"SELECT t.cliente, COALESCE(SUM(t.segundos),0) as total_seg "
-            f"FROM tarefas t {join_u} {filtro} GROUP BY t.cliente ORDER BY total_seg DESC",
+            f"FROM tarefas t {joins} {filtro} GROUP BY t.cliente ORDER BY total_seg DESC",
             params
         )
         horas_por_cliente = [{"cliente": r[0], "horas": round(r[1]/3600, 1)} for r in cur.fetchall()]
 
         # Status da fila (para donut)
-        cur.execute(f"SELECT t.status, COUNT(*) FROM tarefas t {join_u} {filtro} GROUP BY t.status", params)
+        cur.execute(f"SELECT t.status, COUNT(*) FROM tarefas t {joins} {filtro} GROUP BY t.status", params)
         status_fila = {r[0]: r[1] for r in cur.fetchall()}
 
         # Volume por dia da semana (últimos 7 dias — para área)
