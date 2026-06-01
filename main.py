@@ -767,8 +767,10 @@ def limpar_seed(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM tarefas WHERE descricao LIKE '%[TESTE]%'")
+        cur.execute("DELETE FROM tarefas WHERE usuario_id IN (SELECT id FROM usuarios WHERE usuario IN ('mariana','joao','carlos','fernanda','thiago'))")
         tarefas = cur.rowcount
+        cur.execute("DELETE FROM tarefas WHERE descricao LIKE '%[TESTE]%'")
+        tarefas += cur.rowcount
         cur.execute("DELETE FROM usuarios WHERE usuario IN ('mariana','joao','carlos','fernanda','thiago')")
         usuarios = cur.rowcount
         conn.commit()
