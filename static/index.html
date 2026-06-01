@@ -152,6 +152,9 @@
                 <option value="">Todos os funcionários</option>
             </select>
             <!-- Novo Ticket -->
+            <button onclick="analisarIA()" id="btn-ia" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-purple text-faiston-purple hover:bg-faiston-purple/10 transition-all" title="Analisar com IA">
+                <i class="ph ph-sparkle text-base"></i> <span id="btn-ia-label">Analisar</span>
+            </button>
             <button onclick="abrirModalTicket()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
                 <i class="ph ph-plus text-base"></i> Novo Ticket
             </button>
@@ -468,7 +471,7 @@ async function carregarNotificacoes() {
             lista.innerHTML = '<div class="px-4 py-8 text-center text-slate-400 text-sm">Nenhuma notificação</div>';
             return;
         }
-        const tipoIcon = { nova_tarefa: 'ph-plus-circle text-faiston-cyan', tarefa_concluida: 'ph-check-circle text-faiston-cyan', tarefa_iniciada: 'ph-play-circle text-cyan-500' };
+        const tipoIcon = { nova_tarefa: 'ph-plus-circle text-faiston-cyan', tarefa_concluida: 'ph-check-circle text-faiston-cyan', tarefa_iniciada: 'ph-play-circle text-cyan-500', ia_insight: 'ph-sparkle text-faiston-purple' };
         lista.innerHTML = notifs.map(n => {
             const icon = tipoIcon[n.tipo] || 'ph-bell text-slate-400';
             const data = new Date(n.criado_em.replace(' ','T')).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -822,6 +825,29 @@ function exportarCSV() {
     if (df) params.push('data_fim=' + df);
     url += params.join('&');
     window.location.href = url;
+}
+
+async function analisarIA() {
+    const btn = document.getElementById('btn-ia');
+    const label = document.getElementById('btn-ia-label');
+    btn.disabled = true;
+    label.textContent = 'Analisando...';
+    btn.classList.add('opacity-60');
+    try {
+        const res = await fetch('/api/ia/insights', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) { alert(data.detail || 'Erro ao analisar'); return; }
+        // Abre o sino e recarrega notificações
+        notifAberto = false;
+        toggleNotif();
+        mostrarToastFiltro('✨ IA gerou ' + data.insights.length + ' insights!', '🤖');
+    } catch(e) {
+        alert('Erro de conexão');
+    } finally {
+        btn.disabled = false;
+        label.textContent = 'Analisar';
+        btn.classList.remove('opacity-60');
+    }
 }
 
 async function carregarDados(cliente) {
