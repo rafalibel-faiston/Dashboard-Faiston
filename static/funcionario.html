@@ -139,6 +139,15 @@
 
 <main class="px-6 py-5">
 
+    <!-- Barra demo: só aparece para perfil demo -->
+    <div id="demo-back-bar" class="hidden mb-4 flex items-center gap-3 rounded-xl px-4 py-3 border" style="background:linear-gradient(135deg,rgba(91,46,224,0.06),rgba(184,38,201,0.06));border-color:rgba(91,46,224,0.2)">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <i class="ph ph-swap text-white text-sm"></i>
+        </div>
+        <span class="text-sm font-semibold text-faiston-purple flex-1">Modo Demo — você está vendo a visão de: <strong>Funcionário</strong></span>
+        <button onclick="window.location.href='/dashboard'" class="px-4 py-1.5 rounded-lg text-sm font-bold border-2 border-faiston-purple text-faiston-purple bg-white">Ver Visão Gestor</button>
+    </div>
+
     <!-- Tab bar -->
     <div class="flex items-center gap-1 mb-5 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
         <button onclick="switchTab('kanban')" id="tab-kanban"
@@ -496,6 +505,7 @@ async function init() {
         if (me.perfil === 'gestor') { window.location.href = '/dashboard'; return; }
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
+        if (me.perfil === 'demo') document.getElementById('demo-back-bar').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
 
     await carregarTarefas();

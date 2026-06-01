@@ -125,6 +125,17 @@
 
 <!-- CONTEÚDO PRINCIPAL -->
 <main class="flex-1 flex flex-col p-8 overflow-y-auto custom-scrollbar">
+    <!-- Barra demo: só aparece para perfil demo -->
+    <div id="demo-toggle-bar" class="hidden mb-4 flex items-center gap-3 rounded-xl px-4 py-3 border" style="background:linear-gradient(135deg,rgba(91,46,224,0.06),rgba(184,38,201,0.06));border-color:rgba(91,46,224,0.2)">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <i class="ph ph-swap text-white text-sm"></i>
+        </div>
+        <span class="text-sm font-semibold text-faiston-purple flex-1">Modo Demo — você está vendo a visão de:</span>
+        <div class="flex gap-2">
+            <button id="demo-btn-gestor" onclick="demoSwitchView('gestor')" class="px-4 py-1.5 rounded-lg text-sm font-bold transition-all" style="background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white">Gestor</button>
+            <button id="demo-btn-funcionario" onclick="demoSwitchView('funcionario')" class="px-4 py-1.5 rounded-lg text-sm font-bold border-2 border-faiston-purple text-faiston-purple bg-white transition-all">Funcionário</button>
+        </div>
+    </div>
     <header class="flex justify-between items-start mb-8">
         <div>
             <div class="flex items-center gap-2 mb-1">
@@ -617,8 +628,15 @@ async function init() {
         if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
         document.getElementById('sidebar-nome').textContent = me.nome;
         document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
-        document.getElementById('sidebar-perfil').textContent = me.perfil === 'admin' ? 'Administrador' : 'Gestor';
-        if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
+        if (me.perfil === 'admin') {
+            document.getElementById('sidebar-perfil').textContent = 'Administrador';
+            document.getElementById('link-admin').classList.remove('hidden');
+        } else if (me.perfil === 'demo') {
+            document.getElementById('sidebar-perfil').textContent = 'Demo';
+            document.getElementById('demo-toggle-bar').classList.remove('hidden');
+        } else {
+            document.getElementById('sidebar-perfil').textContent = 'Gestor';
+        }
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
 
@@ -1448,6 +1466,15 @@ document.addEventListener('click', e => {
 // ── KANBAN GESTOR ─────────────────────────────────────────────────────
 function gkClientColor(n){ if(!gkClientColors[n]) gkClientColors[n]=GK_CLIENT_PALETTE[gkCI++%GK_CLIENT_PALETTE.length]; return gkClientColors[n]; }
 function gkFuncColor(n){   if(!gkFuncColors[n])   gkFuncColors[n]=GK_FUNC_PALETTE[gkFI++%GK_FUNC_PALETTE.length];   return gkFuncColors[n]; }
+
+function demoSwitchView(mode) {
+    if (mode === 'funcionario') {
+        window.location.href = '/funcionario';
+    } else {
+        document.getElementById('demo-btn-gestor').style.cssText = 'background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;';
+        document.getElementById('demo-btn-funcionario').style.cssText = 'border:2px solid #5B2EE0;color:#5B2EE0;background:white;';
+    }
+}
 
 function switchView(view) {
     vistaAtiva = view;
