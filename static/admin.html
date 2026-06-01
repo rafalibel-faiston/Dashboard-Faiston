@@ -412,7 +412,7 @@ async function deletarUsuario(id, nome) {
     else alert('Erro ao deletar');
 }
 
-document.getElementById('modal-user').addEventListener('click', e => { if (e.target === document.getElementById('modal-user')) closeModalUser(); });
+// modal fecha apenas pelo botão X ou Cancelar, não pelo clique no fundo
 
 init();
 </script>
