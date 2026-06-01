@@ -7,7 +7,7 @@ import psycopg2
 import smtplib, ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from calendar import monthrange
 import os, hashlib, secrets, csv, io
 from dotenv import load_dotenv
