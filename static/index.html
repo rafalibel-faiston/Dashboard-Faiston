@@ -281,6 +281,11 @@
             style="background:transparent;color:#9097AC;box-shadow:none">
             <i class="ph ph-kanban text-base"></i> Kanban
         </button>
+        <button onclick="switchView('agenda')" id="btn-view-agenda"
+            class="view-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-calendar-check text-base"></i> Agenda
+        </button>
     </div>
 
     <div id="view-metricas">
@@ -419,7 +424,40 @@
 
         </div>
     </div><!-- /view-kanban -->
+
+    <!-- VIEW AGENDA -->
+    <div id="view-agenda" class="hidden p-6">
+        <div class="flex items-center justify-between mb-5">
+            <div>
+                <h2 class="text-base font-bold text-faiston-dark">Agenda de Prazos</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Tickets com prazo ou agendamento definido</p>
+            </div>
+        </div>
+        <div id="agenda-gestor-lista" class="flex flex-col gap-3"></div>
+    </div><!-- /view-agenda -->
 </main>
+
+<!-- MODAL IA INSIGHTS -->
+<div id="modal-ia" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.5)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-faiston-border">
+        <div class="px-6 py-4 flex items-center gap-3" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                <i class="ph ph-sparkle text-white text-lg"></i>
+            </div>
+            <div class="flex-1">
+                <p class="text-white font-bold text-sm">Análise da IA</p>
+                <p class="text-white/70 text-xs">Insights gerados com base nos tickets atuais</p>
+            </div>
+            <button onclick="fecharModalIA()" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+        <div id="modal-ia-corpo" class="p-6 flex flex-col gap-3"></div>
+        <div class="px-6 pb-6">
+            <button onclick="fecharModalIA()" class="w-full py-2.5 rounded-lg border border-faiston-border text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Fechar</button>
+        </div>
+    </div>
+</div>
 
 
 <script>
@@ -837,10 +875,7 @@ async function analisarIA() {
         const res = await fetch('/api/ia/insights', { method: 'POST' });
         const data = await res.json();
         if (!res.ok) { alert(data.detail || 'Erro ao analisar'); return; }
-        // Abre o sino e recarrega notificações
-        notifAberto = false;
-        toggleNotif();
-        mostrarToastFiltro('✨ IA gerou ' + data.insights.length + ' insights!', '🤖');
+        abrirModalIA(data.insights);
     } catch(e) {
         alert('Erro de conexão');
     } finally {
@@ -848,6 +883,69 @@ async function analisarIA() {
         label.textContent = 'Analisar';
         btn.classList.remove('opacity-60');
     }
+}
+
+function abrirModalIA(insights) {
+    const corpo = document.getElementById('modal-ia-corpo');
+    const PRIO_EMOJI = ['🔴','🟠','🟡','🟢','🔵'];
+    corpo.innerHTML = insights.map((txt, i) => `
+        <div class="flex items-start gap-3 p-4 rounded-xl border border-faiston-border bg-slate-50">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-lg" style="background:linear-gradient(135deg,rgba(91,46,224,0.1),rgba(184,38,201,0.1))">${PRIO_EMOJI[i] || '✨'}</div>
+            <p class="text-sm text-faiston-dark leading-relaxed flex-1">${txt}</p>
+        </div>
+    `).join('');
+    document.getElementById('modal-ia').classList.remove('hidden');
+}
+
+function fecharModalIA() {
+    document.getElementById('modal-ia').classList.add('hidden');
+}
+
+async function renderAgendaGestor() {
+    const lista = document.getElementById('agenda-gestor-lista');
+    lista.innerHTML = '<p class="text-sm text-slate-400">Carregando...</p>';
+    try {
+        const res = await fetch('/api/tarefas');
+        if (!res.ok) return;
+        const tarefas = await res.json();
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        const comData = tarefas
+            .filter(t => t.data_prazo || t.data_agendamento)
+            .map(t => ({ ...t, _data: new Date(t.data_prazo || t.data_agendamento) }))
+            .sort((a,b) => a._data - b._data);
+        if (!comData.length) {
+            lista.innerHTML = '<div class="text-center py-16 text-slate-300"><i class="ph ph-calendar-blank text-3xl mb-2 block"></i><p class="text-sm">Nenhum ticket com prazo definido</p></div>';
+            return;
+        }
+        const PRIO = { Critica:'bg-faiston-pink/10 text-faiston-pink border-faiston-pink/30', Alta:'bg-orange-50 text-orange-500 border-orange-200', Media:'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/30', Baixa:'bg-slate-100 text-slate-400 border-slate-200' };
+        const STATUS = { aberto:'bg-slate-100 text-slate-500', em_andamento:'bg-faiston-purple/10 text-faiston-purple', concluido:'bg-faiston-cyan/10 text-faiston-cyan', revisao:'bg-faiston-pink/10 text-faiston-pink' };
+        lista.innerHTML = comData.map(t => {
+            const d = t._data;
+            const diff = Math.round((d - hoje) / 86400000);
+            const diffTxt = diff < 0 ? `<span class="text-faiston-pink font-bold">${Math.abs(diff)}d atrasado</span>` : diff === 0 ? `<span class="text-orange-500 font-bold">Hoje</span>` : diff === 1 ? `<span class="text-orange-400 font-bold">Amanhã</span>` : `<span class="text-slate-400">em ${diff}d</span>`;
+            const tipo = t.data_prazo ? '⏰ Prazo' : '📅 Agendado';
+            const dataFmt = d.toLocaleDateString('pt-BR');
+            const prioClass = PRIO[t.prioridade] || PRIO.Media;
+            const stClass = STATUS[t.status] || STATUS.aberto;
+            const stLabel = { aberto:'Aberto', em_andamento:'Em andamento', concluido:'Concluído', revisao:'Em revisão' }[t.status] || t.status;
+            return `<div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-4">
+                <div class="text-center min-w-[52px]">
+                    <p class="text-xs text-slate-400 font-medium">${tipo}</p>
+                    <p class="text-sm font-bold text-faiston-dark">${dataFmt}</p>
+                    <p class="text-xs mt-0.5">${diffTxt}</p>
+                </div>
+                <div class="w-px h-10 bg-faiston-border flex-shrink-0"></div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-faiston-dark truncate">${t.descricao}</p>
+                    <p class="text-xs text-faiston-muted mt-0.5">${t.cliente} · ${t.funcionario}</p>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="text-[11px] font-semibold px-2 py-1 rounded-md border ${prioClass}">${t.prioridade}</span>
+                    <span class="text-[11px] font-semibold px-2 py-1 rounded-md ${stClass}">${stLabel}</span>
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) { lista.innerHTML = '<p class="text-sm text-red-400">Erro ao carregar</p>'; }
 }
 
 async function carregarDados(cliente) {
@@ -1340,6 +1438,8 @@ async function criarTicket() {
 document.addEventListener('click', e => {
     const mt = document.getElementById('modal-ticket');
     if (mt && !mt.classList.contains('hidden') && e.target === mt) fecharModalTicket();
+    const mia = document.getElementById('modal-ia');
+    if (mia && !mia.classList.contains('hidden') && e.target === mia) fecharModalIA();
 });
 
 // ── KANBAN GESTOR ─────────────────────────────────────────────────────
@@ -1350,6 +1450,7 @@ function switchView(view) {
     vistaAtiva = view;
     document.getElementById('view-metricas').classList.toggle('hidden', view !== 'metricas');
     document.getElementById('view-kanban').classList.toggle('hidden', view !== 'kanban');
+    document.getElementById('view-agenda').classList.toggle('hidden', view !== 'agenda');
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const ACTIVE  = isDark
@@ -1359,8 +1460,10 @@ function switchView(view) {
 
     document.getElementById('btn-view-metricas').style.cssText = view==='metricas' ? ACTIVE : INACTIVE;
     document.getElementById('btn-view-kanban').style.cssText   = view==='kanban'   ? ACTIVE : INACTIVE;
+    document.getElementById('btn-view-agenda').style.cssText   = view==='agenda'   ? ACTIVE : INACTIVE;
 
     if (view === 'kanban') carregarTarefasKanban();
+    if (view === 'agenda') renderAgendaGestor();
 }
 
 async function carregarTarefasKanban() {
