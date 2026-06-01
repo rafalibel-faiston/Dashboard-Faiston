@@ -1148,6 +1148,8 @@ function abrirModalTicket() {
 
 function fecharModalTicket() {
     document.getElementById('modal-ticket').classList.add('hidden');
+    document.getElementById('nt-prazo').value = '';
+    document.getElementById('nt-agendamento').value = '';
     if (timerModalInterval) { clearInterval(timerModalInterval); timerModalInterval = null; timerModalRunning = false; }
 }
 
@@ -1282,7 +1284,9 @@ async function criarTicket() {
                 status: statusAtivo,
                 funcionario_id: parseInt(responsavelId),
                 segundos,
-                projeto_id: parseInt(document.getElementById('nt-projeto').value) || null
+                projeto_id: parseInt(document.getElementById('nt-projeto').value) || null,
+                data_prazo: document.getElementById('nt-prazo').value || null,
+                data_agendamento: document.getElementById('nt-agendamento').value || null
             })
         });
         if (res.ok) {
@@ -1542,6 +1546,19 @@ init();
                         <button onclick="setStatusTicket('concluido')" data-status="concluido" class="status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors">
                             <span class="w-2 h-2 rounded-full bg-faiston-cyan"></span> Concluído
                         </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Datas</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] text-faiston-faint mb-1 block"><i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Prazo (até quando)</label>
+                            <input type="date" id="nt-prazo" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white">
+                        </div>
+                        <div>
+                            <label class="text-[10px] text-faiston-faint mb-1 block"><i class="ph ph-calendar-plus text-faiston-purple mr-1"></i>Agendar para</label>
+                            <input type="date" id="nt-agendamento" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                        </div>
                     </div>
                 </div>
                 <div>
