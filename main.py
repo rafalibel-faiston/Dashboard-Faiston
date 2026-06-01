@@ -759,6 +759,24 @@ def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "",
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/limpar-seed")
+def limpar_seed(faiston_token: str = Cookie(None)):
+    sess = verificar_sessao(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM tarefas WHERE descricao LIKE '%[TESTE]%'")
+        tarefas = cur.rowcount
+        cur.execute("DELETE FROM usuarios WHERE usuario IN ('mariana','joao','carlos','fernanda','thiago')")
+        usuarios = cur.rowcount
+        conn.commit()
+        return {"ok": True, "tarefas_removidas": tarefas, "usuarios_removidos": usuarios}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/seed-dados")
 def seed_dados():
     import random, hashlib
