@@ -637,12 +637,14 @@ async function fazerLogout() {
 
 function filtrarCliente(cliente) {
     clienteAtivo = cliente;
+    projetoFiltro = '';
     const sel = document.getElementById('filtro-cliente-drop');
     if (sel) sel.value = cliente;
     document.getElementById('header-titulo').textContent = cliente ? cliente : 'Visão Geral';
     document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
     if (cliente) mostrarToastFiltro(`Cliente: ${cliente}`, '🏢');
     carregarDados(cliente);
+    popularDropdownProjetos();
     return false;
 }
 
@@ -653,6 +655,7 @@ function filtrarClienteDrop(cliente) {
     document.getElementById('header-sub').textContent = cliente ? cliente : 'Visão Geral';
     if (cliente) mostrarToastFiltro(`Cliente: ${cliente}`, '🏢');
     carregarDados(cliente);
+    popularDropdownProjetos();
     if (vistaAtiva === 'kanban') renderKanbanGestor();
 }
 
