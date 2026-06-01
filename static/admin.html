@@ -59,6 +59,9 @@
         <button onclick="setTab('tarefas')" id="tab-tarefas" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
             <i class="ph ph-clipboard-text mr-1.5"></i>Tarefas do Time
         </button>
+        <button onclick="setTab('online')" id="tab-online" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+            <i class="ph ph-activity mr-1.5"></i>Atividade
+        </button>
     </div>
 
     <!-- PAINEL USUÁRIOS -->
@@ -117,6 +120,36 @@
                 </thead>
                 <tbody id="tabela-tarefas"></tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- PAINEL ATIVIDADE -->
+    <div id="painel-online" class="hidden">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-bold text-faiston-dark">Atividade do Time</h2>
+            <button onclick="carregarAtividade()" class="flex items-center gap-2 px-3 py-2 rounded-lg border border-faiston-border bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                <i class="ph ph-arrows-clockwise text-sm"></i> Atualizar
+            </button>
+        </div>
+
+        <!-- Online agora -->
+        <div class="bg-white rounded-xl border border-faiston-border p-5 mb-4">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-400 inline-block animate-pulse"></span> Online agora (últimos 5 min)
+            </p>
+            <div id="lista-online" class="flex flex-col gap-2">
+                <p class="text-sm text-faiston-muted">Carregando...</p>
+            </div>
+        </div>
+
+        <!-- Atividades recentes -->
+        <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="px-5 py-4 border-b border-faiston-border">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Atividades nas últimas 24h</p>
+            </div>
+            <div id="lista-atividades" class="divide-y divide-faiston-border">
+                <p class="text-sm text-faiston-muted p-5">Carregando...</p>
+            </div>
         </div>
     </div>
 </main>
@@ -212,13 +245,14 @@ function setTab(tab) {
     currentTab = tab;
     document.getElementById('painel-usuarios').classList.toggle('hidden', tab !== 'usuarios');
     document.getElementById('painel-tarefas').classList.toggle('hidden', tab !== 'tarefas');
-    document.getElementById('tab-usuarios').className = tab === 'usuarios'
-        ? 'tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all'
-        : 'bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all';
-    document.getElementById('tab-tarefas').className = tab === 'tarefas'
-        ? 'tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all'
-        : 'bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all';
+    document.getElementById('painel-online').classList.toggle('hidden', tab !== 'online');
+    ['usuarios','tarefas','online'].forEach(t => {
+        document.getElementById('tab-' + t).className = tab === t
+            ? 'tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all'
+            : 'bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all';
+    });
     if (tab === 'tarefas') carregarTarefas();
+    if (tab === 'online') carregarAtividade();
 }
 
 async function carregarUsuarios() {
@@ -281,6 +315,48 @@ async function carregarTarefas() {
             <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-semibold">${h}h ${String(m).padStart(2,'0')}m</td>
         </tr>`;
     }).join('');
+}
+
+async function carregarAtividade() {
+    const [resOnline, resAtiv] = await Promise.all([
+        fetch('/api/admin/online'),
+        fetch('/api/admin/atividades')
+    ]);
+    const online = await resOnline.json();
+    const atividades = await resAtiv.json();
+
+    const perfilLabel = { admin: 'Admin', gestor: 'Gestor', funcionario: 'Funcionário', demo: 'Demo' };
+    const perfilColor = { admin: 'text-red-600 bg-red-50', gestor: 'text-faiston-purple bg-purple-50', funcionario: 'text-cyan-600 bg-cyan-50', demo: 'text-orange-600 bg-orange-50' };
+
+    const listaOnline = document.getElementById('lista-online');
+    if (!online.length) {
+        listaOnline.innerHTML = '<p class="text-sm text-faiston-muted">Nenhum usuário ativo no momento.</p>';
+    } else {
+        listaOnline.innerHTML = online.map(u => `
+            <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">${u.nome.charAt(0).toUpperCase()}</div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-faiston-dark">${u.nome}</p>
+                    <p class="text-xs text-faiston-muted">${u.page} · ${u.ultimo_acesso}</p>
+                </div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${perfilColor[u.perfil] || ''}">${perfilLabel[u.perfil] || u.perfil}</span>
+            </div>`).join('');
+    }
+
+    const tipoIcon = { nova_tarefa: '➕', tarefa_concluida: '✅', tarefa_iniciada: '▶️', ia_insight: '✨', nota: '📝' };
+    const listaAtiv = document.getElementById('lista-atividades');
+    if (!atividades.length) {
+        listaAtiv.innerHTML = '<p class="text-sm text-faiston-muted p-5">Nenhuma atividade nas últimas 24h.</p>';
+    } else {
+        listaAtiv.innerHTML = atividades.map(a => `
+            <div class="flex items-center gap-3 px-5 py-3">
+                <span class="text-base flex-shrink-0">${tipoIcon[a.tipo] || '🔹'}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-faiston-dark"><span class="font-semibold">${a.nome}</span> — ${a.mensagem}</p>
+                </div>
+                <span class="text-xs text-faiston-muted flex-shrink-0">${a.quando}</span>
+            </div>`).join('');
+    }
 }
 
 async function limparSeed() {

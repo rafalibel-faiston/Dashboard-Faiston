@@ -1192,6 +1192,7 @@ function toggleTemaFunc() {
 (function(){ const icon=document.getElementById('icon-tema-f'); if(icon&&localStorage.getItem('faiston_tema')==='dark') icon.className='ph ph-sun text-faiston-cyan'; })();
 
 init();
+setInterval(() => fetch('/api/admin/ping?page=funcionario', { method: 'POST' }), 60000);
 </script>
 </body>
 </html>
