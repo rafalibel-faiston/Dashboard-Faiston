@@ -144,15 +144,36 @@ class AcaoBackoffice(BaseModel):
     cliente: str = "Geral"
 
 # --- EMAIL ---
-def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha: str) -> bool:
-    system_url = os.environ.get("SYSTEM_URL", "").rstrip("/")
+def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bool:
+    system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
     if not destinatario:
         return False
     try:
         perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário"}
-        btn = f"<a href='{system_url}' style='display:block;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:12px'>Acessar o Sistema</a>" if system_url else ""
-        btn_ajuda = f"<a href='https://dashboard-faiston-production.up.railway.app/ajuda' style='display:block;background:white;color:#5B2EE0;text-decoration:none;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:24px;border:2px solid #5B2EE0'>📖 Ver Guia de Uso</a>"
-        ajuda = f"<a href='https://dashboard-faiston-production.up.railway.app/ajuda' style='color:#5B2EE0'>Guia de Uso</a>"
+        btn = f"<a href='{system_url}' style='display:block;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:12px'>Acessar o Sistema</a>"
+        btn_ajuda = f"<a href='{system_url}/ajuda' style='display:block;background:white;color:#5B2EE0;text-decoration:none;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:24px;border:2px solid #5B2EE0'>📖 Ver Guia de Uso</a>"
+        ajuda = f"<a href='{system_url}/ajuda' style='color:#5B2EE0'>Guia de Uso</a>"
+        if senha is None:
+            bloco_senha = """<div style="background:#FFF8E6;border:1px solid #FFD166;border-radius:10px;padding:14px;margin-bottom:24px">
+              <p style="color:#B8860B;font-size:13px;font-weight:700;margin:0 0 4px">🔑 Senha não alterada</p>
+              <p style="color:#7A6020;font-size:13px;margin:0;line-height:1.5">Use a senha que você já cadastrou no sistema. Caso não lembre, entre em contato com o administrador para redefinir.</p>
+            </div>"""
+        else:
+            bloco_senha = f"""<table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5FA;border-radius:12px;margin-bottom:24px">
+              <tr><td style="padding:16px 20px 8px">
+                <p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0 0 4px">Usuário</p>
+                <p style="color:#0B0D1F;font-size:16px;font-weight:700;font-family:monospace;margin:0">{usuario}</p>
+              </td></tr>
+              <tr><td style="padding:0 20px"><div style="height:1px;background:#E5E8F0"></div></td></tr>
+              <tr><td style="padding:8px 20px 16px">
+                <p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0 0 4px">Senha temporária</p>
+                <p style="color:#5B2EE0;font-size:20px;font-weight:900;font-family:monospace;letter-spacing:2px;margin:0">{senha}</p>
+              </td></tr>
+            </table>
+            <div style="background:#FFF8E6;border:1px solid #FFD166;border-radius:10px;padding:14px;margin-bottom:24px">
+              <p style="color:#B8860B;font-size:13px;font-weight:700;margin:0 0 4px">⚠️ Troca de senha obrigatória</p>
+              <p style="color:#7A6020;font-size:13px;margin:0;line-height:1.5">No primeiro acesso, o sistema pedirá que você crie uma senha pessoal.</p>
+            </div>"""
         html = f"""
         <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#F4F5FA;padding:32px 16px">
           <div style="background:linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px">
@@ -162,27 +183,7 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha: str) 
           <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:28px;margin-bottom:16px">
             <p style="color:#0B0D1F;font-size:17px;font-weight:700;margin:0 0 8px">Olá, {nome}!</p>
             <p style="color:#5E647A;font-size:14px;margin:0 0 24px;line-height:1.6">Seu acesso ao <strong>Faiston OPS</strong> foi criado. Abaixo estão suas credenciais de entrada:</p>
-            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5FA;border-radius:12px;margin-bottom:24px">
-              <tr>
-                <td style="padding:16px 20px 8px">
-                  <p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0 0 4px">Usuário</p>
-                  <p style="color:#0B0D1F;font-size:16px;font-weight:700;font-family:monospace;margin:0">{usuario}</p>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:0 20px"><div style="height:1px;background:#E5E8F0"></div></td>
-              </tr>
-              <tr>
-                <td style="padding:8px 20px 16px">
-                  <p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0 0 4px">Senha temporária</p>
-                  <p style="color:#5B2EE0;font-size:20px;font-weight:900;font-family:monospace;letter-spacing:2px;margin:0">{senha}</p>
-                </td>
-              </tr>
-            </table>
-            <div style="background:#FFF8E6;border:1px solid #FFD166;border-radius:10px;padding:14px;margin-bottom:24px">
-              <p style="color:#B8860B;font-size:13px;font-weight:700;margin:0 0 4px">⚠️ Troca de senha obrigatória</p>
-              <p style="color:#7A6020;font-size:13px;margin:0;line-height:1.5">No primeiro acesso, o sistema pedirá que você crie uma senha pessoal.</p>
-            </div>
+            {bloco_senha}
             {btn}
             {btn_ajuda}
             <div style="border-top:1px solid #E5E8F0;padding-top:20px">
@@ -353,7 +354,7 @@ def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
         if not row: raise HTTPException(status_code=404, detail="Usuário não encontrado")
         nome, usuario, email = row
         if not email: raise HTTPException(status_code=400, detail="Este usuário não tem email cadastrado")
-        enviado = enviar_email_acesso(email, nome, usuario, "(sua senha atual)")
+        enviado = enviar_email_acesso(email, nome, usuario, None)
         if not enviado: raise HTTPException(status_code=500, detail="Falha ao enviar email — verifique as variáveis EMAIL_USER e EMAIL_APP_PASSWORD no servidor")
         return {"sucesso": True}
     except HTTPException: raise
