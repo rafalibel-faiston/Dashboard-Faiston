@@ -1110,19 +1110,29 @@ def gerar_insights_ia(faiston_token: str = Cookie(None)):
             for r in por_cliente
         ]) or "Nenhum dado"
 
-        prompt = f"""Você é um assistente de operações da empresa Faiston. Analise os dados abaixo e gere exatamente 3 insights práticos e diretos em português, cada um em uma linha separada começando com um emoji relevante. Seja objetivo, use nomes reais, aponte problemas e sugira ações.
+        criticos = por_prioridade.get('Critica', 0)
+        altos = por_prioridade.get('Alta', 0)
+        medios = por_prioridade.get('Media', 0)
+        prompt = f"""Você é um assistente de operações da empresa Faiston. Analise APENAS os dados abaixo e gere exatamente 3 insights em português. Use somente os números fornecidos, não invente valores.
 
-DADOS POR FUNCIONÁRIO:
+DADOS POR FUNCIONÁRIO (nome: total tickets, abertos, em andamento, concluídos):
 {func_lines}
 
-DADOS POR CLIENTE:
+DADOS POR CLIENTE (cliente: total tickets, abertos, concluídos):
 {cliente_lines}
 
-Tickets abertos há mais de 7 dias: {tickets_antigos}
-Tickets críticos sem concluir: {por_prioridade.get('Critica', 0)}
-Tickets de alta prioridade sem concluir: {por_prioridade.get('Alta', 0)}
+RESUMO GERAL:
+- Tickets abertos há mais de 7 dias (atrasados): {tickets_antigos}
+- Tickets com prioridade CRÍTICA ainda abertos/em andamento: {criticos}
+- Tickets com prioridade ALTA ainda abertos/em andamento: {altos}
+- Tickets com prioridade MÉDIA ainda abertos/em andamento: {medios}
 
-Gere 3 insights curtos (máx 120 caracteres cada), um por linha, começando com emoji."""
+REGRAS:
+- Use apenas os números acima, nunca some categorias diferentes
+- Use os nomes reais dos funcionários
+- Cada insight em uma linha, começando com emoji
+- Máximo 130 caracteres por insight
+- Foque nos problemas mais graves primeiro"""
 
         import json as _json, http.client, ssl
         body_json = _json.dumps({
