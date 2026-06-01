@@ -398,21 +398,21 @@
 </div>
 
 <!-- NOTAS WIDGET -->
-<div id="notas-widget" style="position:fixed;bottom:24px;right:24px;z-index:40;width:340px">
+<div id="notas-widget" style="position:fixed;bottom:24px;right:24px;z-index:40;width:360px">
     <div id="notas-collapsed" onclick="toggleNotas()"
-        class="cursor-pointer flex items-center gap-3 bg-white border border-faiston-border rounded-xl px-4 py-3 shadow-lg hover:shadow-[0_4px_20px_rgba(74,0,224,0.15)] transition-all"
-        style="box-shadow:0 4px 20px rgba(74,0,224,0.1)">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center flex-shrink-0">
-            <i class="ph ph-note-pencil text-white text-sm"></i>
+        class="cursor-pointer flex items-center gap-3 bg-white border border-faiston-border rounded-2xl px-4 py-3 transition-all"
+        style="box-shadow:0 4px 24px rgba(74,0,224,0.12)">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <i class="ph ph-note-pencil text-white"></i>
         </div>
         <div class="flex-1 min-w-0">
-            <p class="text-xs font-bold text-faiston-dark">Minhas Notas</p>
-            <p class="text-[10px] text-slate-400" id="notas-count-label">carregando...</p>
+            <p class="text-sm font-bold text-faiston-dark">Minhas Notas</p>
+            <p class="text-[11px] text-slate-400" id="notas-count-label">carregando...</p>
         </div>
-        <i class="ph ph-caret-up text-slate-400 text-sm" id="notas-caret"></i>
+        <i class="ph ph-caret-up text-slate-400" id="notas-caret"></i>
     </div>
     <div id="notas-expanded" class="hidden bg-white border border-faiston-border rounded-2xl overflow-hidden mt-2"
-        style="box-shadow:0 8px 32px rgba(74,0,224,0.15);max-height:520px;display:flex;flex-direction:column">
+        style="box-shadow:0 8px 32px rgba(74,0,224,0.15);max-height:520px;flex-direction:column">
         <div class="flex items-center justify-between px-4 py-3 border-b border-faiston-border flex-shrink-0"
             style="background:linear-gradient(135deg,rgba(74,0,224,0.05),rgba(0,229,255,0.02))">
             <div class="flex items-center gap-2">
