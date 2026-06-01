@@ -98,9 +98,23 @@
     <div class="card p-6" style="border-left:4px solid #5B2EE0">
         <div class="flex items-start gap-4">
             <div class="ficon grad" style="min-width:44px"><i class="ph ph-lock-key text-white text-xl"></i></div>
-            <div>
+            <div class="flex-1">
                 <h3 class="font-bold text-faiston-dark text-base mb-1.5">Primeiro Acesso</h3>
-                <p class="text-sm text-faiston-muted leading-relaxed">Na primeira vez que você logar com a <strong class="text-faiston-dark">senha temporária</strong>, o sistema vai pedir para criar uma senha pessoal. Mínimo 6 caracteres. Depois disso, é só usar normalmente.</p>
+                <p class="text-sm text-faiston-muted leading-relaxed mb-4">Quando o admin criar sua conta, você receberá um <strong class="text-faiston-dark">email automático</strong> com seu usuário e senha temporária. Basta acessar o link no email e entrar.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="flex items-start gap-2.5 p-3 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                        <span class="step-num-sm flex-shrink-0" style="margin-top:1px">1</span>
+                        <span class="text-sm text-faiston-muted leading-relaxed">Abra o email e clique em <strong class="text-faiston-dark">Acessar o Sistema</strong></span>
+                    </div>
+                    <div class="flex items-start gap-2.5 p-3 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                        <span class="step-num-sm flex-shrink-0" style="margin-top:1px">2</span>
+                        <span class="text-sm text-faiston-muted leading-relaxed">Entre com o <strong class="text-faiston-dark">usuário e senha</strong> que estão no email</span>
+                    </div>
+                    <div class="flex items-start gap-2.5 p-3 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
+                        <span class="step-num-sm flex-shrink-0" style="margin-top:1px">3</span>
+                        <span class="text-sm text-faiston-muted leading-relaxed">Crie sua <strong class="text-faiston-dark">senha pessoal</strong> (mín. 6 caracteres) e pronto</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -383,9 +397,14 @@
                 </div>
                 <ol class="space-y-3">
                     <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">1</span><span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Novo Usuário"</strong></span></li>
-                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">2</span><span class="text-sm text-faiston-muted leading-relaxed">Preencha nome, usuário, senha temporária e perfil</span></li>
-                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">3</span><span class="text-sm text-faiston-muted leading-relaxed">Salve — o sistema pedirá troca de senha no primeiro login</span></li>
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">2</span><span class="text-sm text-faiston-muted leading-relaxed">Preencha nome, usuário, senha temporária, perfil e <strong class="text-faiston-dark">email</strong></span></li>
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">3</span><span class="text-sm text-faiston-muted leading-relaxed">Salve — o sistema envia automaticamente um <strong class="text-faiston-dark">email com as credenciais</strong> de acesso</span></li>
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">4</span><span class="text-sm text-faiston-muted leading-relaxed">No primeiro login, o usuário será obrigado a criar uma senha pessoal</span></li>
                 </ol>
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E625">
+                    <i class="ph ph-envelope text-faiston-cyan mt-0.5 flex-shrink-0" style="font-size:18px"></i>
+                    <div class="text-sm text-faiston-muted leading-relaxed">O email contém o link de acesso, usuário e senha temporária. Para reenviar, clique no ícone <i class="ph ph-envelope" style="color:#5B2EE0"></i> na linha do usuário.</div>
+                </div>
                 <div class="p-4 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
                     <p class="text-xs font-bold text-faiston-purple uppercase tracking-wide mb-3">Perfis disponíveis</p>
                     <div class="space-y-2">
@@ -402,7 +421,8 @@
                     <h4 class="font-bold text-faiston-dark">Editar / Remover Usuários</h4>
                 </div>
                 <div class="space-y-3">
-                    <div class="info-row"><i class="ph ph-pencil-simple" style="color:#5B2EE0"></i><div>Ícone de <strong>lápis</strong> → editar nome, perfil ou redefinir senha</div></div>
+                    <div class="info-row"><i class="ph ph-pencil-simple" style="color:#5B2EE0"></i><div>Ícone de <strong>lápis</strong> → editar nome, perfil, email ou redefinir senha</div></div>
+                    <div class="info-row"><i class="ph ph-envelope" style="color:#5B2EE0"></i><div>Ícone de <strong>envelope</strong> → reenviar email de acesso (aparece se email estiver cadastrado)</div></div>
                     <div class="info-row"><i class="ph ph-trash" style="color:#EC4899"></i><div>Ícone de <strong>lixeira</strong> → desativa o usuário (histórico preservado)</div></div>
                     <div class="info-row"><i class="ph ph-lock-key text-faiston-faint"></i><div>Ao <strong>redefinir senha</strong>, usuário é obrigado a trocar no próximo login</div></div>
                 </div>
