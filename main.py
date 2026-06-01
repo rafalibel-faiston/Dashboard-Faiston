@@ -1124,26 +1124,28 @@ Tickets de alta prioridade sem concluir: {por_prioridade.get('Alta', 0)}
 
 Gere 3 insights curtos (máx 120 caracteres cada), um por linha, começando com emoji."""
 
-        import urllib.request, urllib.error, json as _json
-        payload = _json.dumps({
+        import json as _json, http.client, ssl
+        body_json = _json.dumps({
             "model": "llama-3.1-8b-instant",
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": 400,
             "temperature": 0.7
-        }).encode()
-        req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=payload,
-            headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
-            method="POST"
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                result = _json.loads(resp.read())
-        except urllib.error.HTTPError as e:
-            body = e.read().decode()
-            print(f"[ia/insights] Groq HTTP {e.code}: {body}")
-            raise HTTPException(status_code=500, detail=f"Groq {e.code}: {body}")
+        })
+        ctx = ssl.create_default_context()
+        conn = http.client.HTTPSConnection("api.groq.com", timeout=25, context=ctx)
+        conn.request("POST", "/openai/v1/chat/completions", body=body_json, headers={
+            "Authorization": f"Bearer {groq_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "python-httpx/0.27",
+            "Accept": "application/json",
+        })
+        resp = conn.getresponse()
+        resp_body = resp.read().decode()
+        conn.close()
+        if resp.status != 200:
+            print(f"[ia/insights] Groq {resp.status}: {resp_body}")
+            raise HTTPException(status_code=500, detail=f"Groq {resp.status}: {resp_body}")
+        result = _json.loads(resp_body)
 
         texto = result["choices"][0]["message"]["content"].strip()
         insights = [l.strip() for l in texto.split("\n") if l.strip()][:3]
