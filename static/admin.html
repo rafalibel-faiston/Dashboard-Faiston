@@ -93,6 +93,10 @@
                 <select id="filtro-func" onchange="carregarTarefas()" class="text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-cyan">
                     <option value="">Todos os funcionários</option>
                 </select>
+                <button onclick="limparSeed()"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-200 bg-orange-50 text-orange-600 text-sm font-semibold hover:bg-orange-100 transition-colors">
+                    <i class="ph ph-broom text-sm"></i> Limpar Testes
+                </button>
                 <button onclick="limparTodasTarefas()"
                         class="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-red-600 text-sm font-semibold hover:bg-red-100 transition-colors">
                     <i class="ph ph-trash text-sm"></i> Limpar Todas
@@ -276,6 +280,15 @@ async function carregarTarefas() {
             <td class="px-5 py-3 font-mono text-sm text-faiston-purple font-semibold">${h}h ${String(m).padStart(2,'0')}m</td>
         </tr>`;
     }).join('');
+}
+
+async function limparSeed() {
+    if (!confirm('Remover todos os dados de teste?\n\nIsso vai deletar tarefas com [TESTE] e os usuários: mariana, joao, carlos, fernanda, thiago.')) return;
+    const r = await fetch('/api/limpar-seed', { method: 'DELETE' });
+    const data = await r.json();
+    if (!r.ok) { alert(data.detail || 'Erro ao limpar'); return; }
+    alert(`Limpeza concluída!\n${data.tarefas_removidas} tarefas removidas\n${data.usuarios_removidos} usuários removidos`);
+    carregarTarefas();
 }
 
 async function limparTodasTarefas() {
