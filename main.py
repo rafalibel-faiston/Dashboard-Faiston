@@ -599,7 +599,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
 
         # Tarefas recentes
         q = f"""SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.criado_em, u.nome
-            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p}
             {filtro} ORDER BY t.criado_em DESC LIMIT 10"""
         cur.execute(q, params)
         recentes = [{"id": r[0], "descricao": r[1], "cliente": r[2], "prioridade": r[3],
@@ -611,7 +611,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         func_filtro = "WHERE " + " AND ".join(func_conds)
         cur.execute(
             f"SELECT u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas "
-            f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id "
+            f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
             f"{func_filtro} GROUP BY u.nome ORDER BY SUM(t.segundos) DESC",
             params
         )
@@ -621,7 +621,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         cur.execute(
             f"SELECT t.cliente, COUNT(*) as total, "
             f"SUM(CASE WHEN t.status='concluido' THEN 1 ELSE 0 END) as concluidas "
-            f"FROM tarefas t {join_u} {filtro} GROUP BY t.cliente ORDER BY total DESC",
+            f"FROM tarefas t {joins} {filtro} GROUP BY t.cliente ORDER BY total DESC",
             params)
         taxa_rows = cur.fetchall()
         taxa_conclusao = [{"cliente": r[0], "total": r[1], "concluidas": r[2],
