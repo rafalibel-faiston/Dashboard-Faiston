@@ -280,7 +280,7 @@ def me(faiston_token: str = Cookie(None)):
 @app.get("/api/usuarios")
 def listar_usuarios(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -307,7 +307,7 @@ def listar_funcionarios(faiston_token: str = Cookie(None)):
 def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
-    if u.perfil not in ("admin", "gestor", "funcionario"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in ("admin", "gestor", "funcionario", "demo"): raise HTTPException(status_code=400, detail="Perfil inválido")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -392,7 +392,7 @@ def listar_tarefas(faiston_token: str = Cookie(None)):
                              t.data_prazo, t.data_agendamento
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
-        if sess["perfil"] in ("admin", "gestor"):
+        if sess["perfil"] in ("admin", "gestor", "demo"):
             cur.execute(base_sel + " ORDER BY t.criado_em DESC")
         else:
             cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
@@ -414,7 +414,7 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         # Gestor/admin pode atribuir a outro funcionário via funcionario_id
         uid = sess["id"]
-        if t.funcionario_id and sess["perfil"] in ("admin", "gestor"):
+        if t.funcionario_id and sess["perfil"] in ("admin", "gestor", "demo"):
             cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (t.funcionario_id,))
             if cur.fetchone():
                 uid = t.funcionario_id
@@ -472,7 +472,7 @@ def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        if sess["perfil"] in ("admin", "gestor"):
+        if sess["perfil"] in ("admin", "gestor", "demo"):
             cur.execute("DELETE FROM tarefas WHERE id=%s", (tid,))
         else:
             cur.execute("DELETE FROM tarefas WHERE id=%s AND usuario_id=%s", (tid, sess["id"]))
@@ -667,7 +667,7 @@ def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "",
     import io
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    if sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -945,7 +945,7 @@ def deletar_comentario(cid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        if sess["perfil"] in ("admin", "gestor"):
+        if sess["perfil"] in ("admin", "gestor", "demo"):
             cur.execute("DELETE FROM comentarios WHERE id=%s", (cid,))
         else:
             cur.execute("DELETE FROM comentarios WHERE id=%s AND usuario_id=%s", (cid, sess["id"]))
@@ -1033,7 +1033,7 @@ def criar_notificacao(conn, tipo: str, mensagem: str):
 def get_notificacoes(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    if sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1061,7 +1061,7 @@ def marcar_lidas(faiston_token: str = Cookie(None)):
 def count_nao_lidas(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401)
-    if sess["perfil"] not in ("admin", "gestor"): return {"count": 0}
+    if sess["perfil"] not in ("admin", "gestor", "demo"): return {"count": 0}
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1076,7 +1076,7 @@ def count_nao_lidas(faiston_token: str = Cookie(None)):
 @app.post("/api/ia/insights")
 def gerar_insights_ia(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"):
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     groq_key = os.environ.get("GROQ_API_KEY", "")
@@ -1214,7 +1214,7 @@ def get_historico(
 ):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    if sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -1411,7 +1411,7 @@ class ClienteModel(BaseModel):
 @app.post("/api/clientes")
 def criar_cliente(c: ClienteModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1428,7 +1428,7 @@ def criar_cliente(c: ClienteModel, faiston_token: str = Cookie(None)):
 @app.put("/api/clientes/{cid}")
 def atualizar_cliente(cid: int, c: ClienteModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1467,7 +1467,7 @@ def financeiro_page(cid: int): return FileResponse("static/financeiro.html")
 @app.get("/api/financeiro/resumo")
 def financeiro_resumo(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1575,7 +1575,7 @@ class ImportarLancamentosBody(BaseModel):
 @app.post("/api/importar-projetos/preview")
 async def importar_projetos_preview(body: ImportarProjetosPreviewBody, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
         import subprocess, sys
@@ -1593,7 +1593,7 @@ async def importar_projetos_preview(body: ImportarProjetosPreviewBody, faiston_t
 @app.post("/api/importar-projetos/executar")
 async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
         import subprocess, sys
@@ -1777,7 +1777,7 @@ def analise_financeira(cid: int, faiston_token: str = Cookie(None)):
 @app.post("/api/clientes/{cid}/projetos")
 def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1793,7 +1793,7 @@ def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
 @app.put("/api/projetos/{pid}")
 def atualizar_projeto(pid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1807,7 +1807,7 @@ def atualizar_projeto(pid: int, p: ProjetoModel, faiston_token: str = Cookie(Non
 @app.delete("/api/projetos/{pid}")
 def deletar_projeto(pid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1837,7 +1837,7 @@ def listar_lancamentos(pid: int, faiston_token: str = Cookie(None)):
 @app.post("/api/projetos/{pid}/lancamentos")
 def criar_lancamento(pid: int, l: LancamentoModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1853,7 +1853,7 @@ def criar_lancamento(pid: int, l: LancamentoModel, faiston_token: str = Cookie(N
 @app.delete("/api/lancamentos/{lid}")
 def deletar_lancamento(lid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -1889,7 +1889,7 @@ def _parse_sheet(ws):
 async def parse_planilha(pid: int, file: UploadFile = File(...),
                           sheet_name: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
         import subprocess, sys
@@ -1957,7 +1957,7 @@ async def parse_planilha(pid: int, file: UploadFile = File(...),
 @app.post("/api/projetos/{pid}/importar-lancamentos")
 def importar_lancamentos(pid: int, body: ImportarLancamentosBody, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -2062,7 +2062,7 @@ def _apply_mapeamento(headers, rows, mapeamento):
 @app.put("/api/projetos/{pid}/planilha-config")
 def salvar_planilha_config(pid: int, body: PlanilhaConfigModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -2081,7 +2081,7 @@ def salvar_planilha_config(pid: int, body: PlanilhaConfigModel, faiston_token: s
 def testar_planilha(pid: int, body: dict, faiston_token: str = Cookie(None)):
     """Download the file from stored/given URL and return its headers for mapping."""
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
         import subprocess, sys
@@ -2110,7 +2110,7 @@ def testar_planilha(pid: int, body: dict, faiston_token: str = Cookie(None)):
 @app.post("/api/projetos/{pid}/sincronizar")
 def sincronizar_planilha(pid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
         import subprocess, sys
@@ -2407,7 +2407,7 @@ except ImportError:
 @app.get("/api/relatorio-mensal/preview", response_class=HTMLResponse)
 def preview_relatorio(mes: int = 0, ano: int = 0, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"):
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
         raise HTTPException(status_code=403)
     hoje = date.today()
     if not mes:
@@ -2427,7 +2427,7 @@ def preview_relatorio(mes: int = 0, ano: int = 0, faiston_token: str = Cookie(No
 @app.post("/api/relatorio-mensal/enviar")
 def enviar_relatorio_manual(mes: int = 0, ano: int = 0, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"):
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
         raise HTTPException(status_code=403)
     hoje = date.today()
     if not mes:

@@ -305,7 +305,7 @@ async function fazerLogin() {
 }
 
 function redirecionarPorPerfil(perfil) {
-    if (perfil === 'admin' || perfil === 'gestor') window.location.href = '/dashboard';
+    if (perfil === 'admin' || perfil === 'gestor' || perfil === 'demo') window.location.href = '/dashboard';
     else window.location.href = '/funcionario';
 }
 
