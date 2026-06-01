@@ -1154,6 +1154,8 @@ Gere 3 insights curtos (máx 120 caracteres cada), um por linha, começando com 
         return {"insights": insights}
 
     except Exception as e:
+        import traceback
+        print(f"[ia/insights] ERRO: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- HISTÓRICO COMPLETO ---
