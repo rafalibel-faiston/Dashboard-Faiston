@@ -662,6 +662,7 @@ function filtrarClienteDrop(cliente) {
 function filtrarProjetoDrop(projeto) {
     projetoFiltro = projeto;
     if (projeto) mostrarToastFiltro(`Projeto: ${projeto}`, '📁');
+    carregarDados(clienteAtivo);
     if (vistaAtiva === 'kanban') renderKanbanGestor();
 }
 
@@ -834,6 +835,7 @@ async function carregarDados(cliente) {
         if (func) params.push('funcionario=' + encodeURIComponent(func));
         if (di) params.push('data_inicio=' + di);
         if (df) params.push('data_fim=' + df);
+        if (projetoFiltro) params.push('projeto=' + encodeURIComponent(projetoFiltro));
         url += params.join('&');
         const res = await fetch(url);
         if (!res.ok) return;
