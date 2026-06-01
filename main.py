@@ -761,45 +761,105 @@ def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "",
 
 @app.get("/api/seed-dados")
 def seed_dados():
-    """Rota temporária para popular banco com dados fictícios — delete após usar"""
     import random, hashlib
     from datetime import datetime, timedelta
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM tarefas")
-        cur.execute("DELETE FROM usuarios WHERE usuario != 'admin'")
+        cur.execute("DELETE FROM tarefas WHERE descricao LIKE '%[TESTE]%'")
+        cur.execute("DELETE FROM usuarios WHERE usuario IN ('mariana','joao','carlos','fernanda','thiago')")
+
         funcionarios = [
-            ("rafael","rafael123","Rafael Ribeiro Libel","funcionario"),
-            ("pedro","pedro123","Pedro Alves","funcionario"),
-            ("ezequiel","ezequiel123","Ezequiel Santos","funcionario"),
-            ("ronald","ronald123","Ronald Ferreira","funcionario"),
-            ("ana","ana123","Ana Carolina","funcionario"),
-            ("lucas","lucas123","Lucas Martins","gestor"),
+            ("mariana","faiston123","Mariana Silva","funcionario"),
+            ("joao","faiston123","João Henrique","funcionario"),
+            ("carlos","faiston123","Carlos Eduardo","funcionario"),
+            ("fernanda","faiston123","Fernanda Lima","funcionario"),
+            ("thiago","faiston123","Thiago Rocha","funcionario"),
         ]
         ids = {}
         for usuario, senha, nome, perfil in funcionarios:
-            cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil) VALUES (%s,%s,%s,%s) ON CONFLICT (usuario) DO UPDATE SET nome=%s RETURNING id",
+            cur.execute("""INSERT INTO usuarios (usuario, senha_hash, nome, perfil, primeiro_acesso)
+                VALUES (%s,%s,%s,%s,FALSE) ON CONFLICT (usuario) DO UPDATE SET nome=%s RETURNING id""",
                 (usuario, hashlib.sha256(senha.encode()).hexdigest(), nome, perfil, nome))
             ids[nome] = cur.fetchone()[0]
-        clientes = ["NTT","Arcos Dourados","Zamp","Telcoweb"]
-        prioridades = ["Alta","Alta","Media","Media","Media","Baixa"]
-        status_opts = ["concluido","concluido","concluido","em_andamento","aberto"]
-        descricoes = ["Abertura de chamado no NOC","Acompanhamento de incidente","Configuração de switch","Monitoramento de links MPLS","Troca de equipamento","Atualização de firmware","Relatório de disponibilidade","Escalada para fornecedor","Revisão de topologia","Acionamento de parceiro","Documentação de circuito","Teste de failover","Análise de log","Criação de tickets","Validação de SLA","Suporte remoto","Instalação de CPE","Diagnóstico de latência","Agendamento de manutenção","Follow-up de chamado crítico"]
+
+        clientes = ["NTT","Arcos Dourados","Zamp","Telcoweb","VIVO VITA"]
+        prioridades_peso = ["Critica","Alta","Alta","Media","Media","Media","Baixa"]
+        descricoes = [
+            "[TESTE] Abertura de chamado no NOC",
+            "[TESTE] Acompanhamento de incidente crítico",
+            "[TESTE] Configuração de switch core",
+            "[TESTE] Monitoramento de links MPLS",
+            "[TESTE] Troca de equipamento defeituoso",
+            "[TESTE] Atualização de firmware",
+            "[TESTE] Relatório de disponibilidade mensal",
+            "[TESTE] Escalada para fornecedor",
+            "[TESTE] Revisão de topologia de rede",
+            "[TESTE] Acionamento de parceiro técnico",
+            "[TESTE] Documentação de circuito",
+            "[TESTE] Teste de failover",
+            "[TESTE] Análise de log de erros",
+            "[TESTE] Validação de SLA",
+            "[TESTE] Suporte remoto ao cliente",
+            "[TESTE] Instalação de CPE",
+            "[TESTE] Diagnóstico de latência",
+            "[TESTE] Follow-up de chamado crítico",
+        ]
         now = datetime.now()
         total = 0
-        for nome, uid in ids.items():
-            if nome == "Lucas Martins": continue
-            for _ in range(random.randint(8,15)):
-                criado_em = now - timedelta(days=random.randint(0,6), hours=random.randint(0,8), minutes=random.randint(0,59))
-                status = random.choice(status_opts)
-                segundos = random.randint(1800,14400) if status=="concluido" else random.randint(600,5400) if status=="em_andamento" else 0
-                cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                    (uid, random.choice(descricoes), random.choice(clientes), random.choice(prioridades), status, segundos, criado_em, criado_em))
-                total += 1
+
+        # Mariana — sobrecarregada, muitos abertos antigos (IA deve alertar)
+        for i in range(12):
+            dias = random.randint(8, 20)
+            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                (ids["Mariana Silva"], random.choice(descricoes), random.choice(clientes),
+                 random.choice(["Alta","Critica"]), "aberto", 0,
+                 now - timedelta(days=dias), now - timedelta(days=dias)))
+            total += 1
+
+        # João — lento, tickets em andamento há muito tempo
+        for i in range(8):
+            dias = random.randint(5, 15)
+            status = random.choice(["em_andamento","em_andamento","aberto"])
+            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                (ids["João Henrique"], random.choice(descricoes), random.choice(clientes),
+                 random.choice(prioridades_peso), status, random.randint(600, 3600),
+                 now - timedelta(days=dias), now - timedelta(days=dias)))
+            total += 1
+
+        # Carlos — equilibrado, maioria concluído
+        for i in range(10):
+            status = random.choice(["concluido","concluido","concluido","em_andamento","aberto"])
+            segundos = random.randint(1800, 7200) if status == "concluido" else random.randint(600, 3600)
+            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                (ids["Carlos Eduardo"], random.choice(descricoes), random.choice(clientes),
+                 random.choice(prioridades_peso), status, segundos,
+                 now - timedelta(days=random.randint(1,7)), now))
+            total += 1
+
+        # Fernanda — poucos tickets, bem resolvidos
+        for i in range(5):
+            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                (ids["Fernanda Lima"], random.choice(descricoes), random.choice(clientes),
+                 "Media", random.choice(["concluido","concluido","aberto"]), random.randint(1800, 5400),
+                 now - timedelta(days=random.randint(1,5)), now))
+            total += 1
+
+        # Thiago — vários críticos abertos
+        for i in range(7):
+            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                (ids["Thiago Rocha"], random.choice(descricoes), random.choice(clientes),
+                 random.choice(["Critica","Alta"]), random.choice(["aberto","aberto","em_andamento"]), 0,
+                 now - timedelta(days=random.randint(2,10)), now))
+            total += 1
+
         conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True, "tarefas_criadas": total, "usuarios": [u[0] for u in funcionarios]}
+        return {
+            "sucesso": True,
+            "tarefas_criadas": total,
+            "usuarios": {u[0]: "senha: faiston123" for u in funcionarios}
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
