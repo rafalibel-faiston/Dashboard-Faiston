@@ -1461,7 +1461,7 @@ def todos_projetos(faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/projetos-by-cliente")
-def projetos_by_cliente_nome(nome: str, faiston_token: str = Cookie(None)):
+def projetos_by_cliente_nome(nome: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401)
     conn = get_db()
@@ -1470,11 +1470,14 @@ def projetos_by_cliente_nome(nome: str, faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         _ensure_financeiro_tables(cur)
         conn.commit()
-        cur.execute("SELECT id FROM clientes WHERE nome=%s AND ativo=TRUE", (nome,))
-        row = cur.fetchone()
-        if not row: return []
-        cid = row[0]
-        cur.execute("""SELECT id, nome FROM projetos WHERE cliente_id=%s AND ativo=TRUE ORDER BY nome""", (cid,))
+        if nome:
+            cur.execute("SELECT id FROM clientes WHERE nome=%s AND ativo=TRUE", (nome,))
+            row = cur.fetchone()
+            if not row: return []
+            cid = row[0]
+            cur.execute("SELECT id, nome FROM projetos WHERE cliente_id=%s AND ativo=TRUE ORDER BY nome", (cid,))
+        else:
+            cur.execute("SELECT id, nome FROM projetos WHERE ativo=TRUE ORDER BY nome")
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "nome": r[1]} for r in rows]

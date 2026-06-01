@@ -662,17 +662,22 @@ function filtrarProjetoDrop(projeto) {
     if (vistaAtiva === 'kanban') renderKanbanGestor();
 }
 
-function popularDropdownProjetos() {
-    const base = clienteAtivo
-        ? todasTarefasKanban.filter(t => t.cliente === clienteAtivo)
-        : todasTarefasKanban;
-    const projetos = [...new Set(base.map(t => t.projeto_nome).filter(Boolean))].sort();
+async function popularDropdownProjetos() {
     const sel = document.getElementById('filtro-projeto-drop');
     if (!sel) return;
-    sel.innerHTML = '<option value="">Todos os projetos</option>' +
-        projetos.map(p => `<option value="${p}">${p}</option>`).join('');
-    if (projetoFiltro && !projetos.includes(projetoFiltro)) projetoFiltro = '';
-    if (projetoFiltro) sel.value = projetoFiltro;
+    try {
+        const url = clienteAtivo
+            ? `/api/projetos-by-cliente?nome=${encodeURIComponent(clienteAtivo)}`
+            : '/api/projetos-by-cliente';
+        const projetos = await fetch(url).then(r => r.ok ? r.json() : []);
+        const nomes = [...new Set(projetos.map(p => p.nome).filter(Boolean))].sort();
+        sel.innerHTML = '<option value="">Todos os projetos</option>' +
+            nomes.map(p => `<option value="${p}">${p}</option>`).join('');
+        if (projetoFiltro && !nomes.includes(projetoFiltro)) projetoFiltro = '';
+        if (projetoFiltro) sel.value = projetoFiltro;
+    } catch(e) {
+        console.error('Erro ao carregar projetos', e);
+    }
 }
 
 function filtrarFuncionarioSidebar(nome) {
