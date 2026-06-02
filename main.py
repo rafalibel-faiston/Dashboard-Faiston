@@ -69,6 +69,7 @@ def setup_banco():
         """)
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS primeiro_acesso BOOLEAN DEFAULT FALSE")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT ''")
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tarefas (
                 id SERIAL PRIMARY KEY,
@@ -125,12 +126,15 @@ class LoginRequest(BaseModel):
     usuario: str
     senha: str
 
+TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada']
+
 class NovoUsuario(BaseModel):
     usuario: str
     senha: str
     nome: str
     perfil: str
     email: str = ""
+    time: str = "Projetos"
 
 class AtualizarUsuario(BaseModel):
     nome: str
@@ -138,6 +142,7 @@ class AtualizarUsuario(BaseModel):
     senha: str = ""
     ativo: bool = True
     email: str = ""
+    time: str = "Projetos"
 
 class TarefaModel(BaseModel):
     descricao: str
@@ -253,13 +258,13 @@ def login(req: LoginRequest, response: Response):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE) FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
+        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos') FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
                     (req.usuario, hash_senha(req.senha)))
         row = cur.fetchone()
         cur.close(); conn.close()
         if not row: raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
         token = secrets.token_hex(32)
-        sessions[token] = {"id": row[0], "nome": row[1], "perfil": row[2], "last_seen": datetime.utcnow(), "page": "dashboard"}
+        sessions[token] = {"id": row[0], "nome": row[1], "perfil": row[2], "time": row[4], "last_seen": datetime.utcnow(), "page": "dashboard"}
         response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
         return {"sucesso": True, "perfil": row[2], "nome": row[1], "primeiro_acesso": bool(row[3])}
     except HTTPException: raise
@@ -302,9 +307,12 @@ def listar_usuarios(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,'') FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
+        if sess["perfil"] == "admin":
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos') FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
+        else:
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos') FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (sess.get("time","Projetos"),))
         rows = cur.fetchall(); cur.close(); conn.close()
-        return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5]), "email": r[6]} for r in rows]
+        return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5]), "email": r[6], "time": r[7]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/funcionarios")
@@ -315,7 +323,10 @@ def listar_funcionarios(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome FROM usuarios WHERE perfil='funcionario' AND ativo=TRUE ORDER BY nome")
+        if sess["perfil"] == "admin":
+            cur.execute("SELECT id, nome FROM usuarios WHERE perfil='funcionario' AND ativo=TRUE ORDER BY nome")
+        else:
+            cur.execute("SELECT id, nome FROM usuarios WHERE perfil='funcionario' AND ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY nome", (sess.get("time","Projetos"),))
         rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "nome": r[1]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -329,8 +340,9 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso) VALUES (%s, %s, %s, %s, %s, TRUE) RETURNING id",
-                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email))
+        time_val = u.time if u.time in TIMES_VALIDOS else "Projetos"
+        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso, time) VALUES (%s, %s, %s, %s, %s, TRUE, %s) RETURNING id",
+                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email, time_val))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         tem_email = bool(u.email)
@@ -348,12 +360,13 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        time_val = u.time if u.time in TIMES_VALIDOS else "Projetos"
         if u.senha:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE WHERE id=%s",
-                        (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), uid))
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE, time=%s WHERE id=%s",
+                        (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), time_val, uid))
         else:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s WHERE id=%s",
-                        (u.nome, u.perfil, u.ativo, u.email, uid))
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s WHERE id=%s",
+                        (u.nome, u.perfil, u.ativo, u.email, time_val, uid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -409,8 +422,10 @@ def listar_tarefas(faiston_token: str = Cookie(None)):
                              t.data_prazo, t.data_agendamento
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
-        if sess["perfil"] in ("admin", "gestor", "demo"):
+        if sess["perfil"] == "admin":
             cur.execute(base_sel + " ORDER BY t.criado_em DESC")
+        elif sess["perfil"] in ("gestor", "demo"):
+            cur.execute(base_sel + " WHERE COALESCE(u.time,'Projetos')=%s ORDER BY t.criado_em DESC", (sess.get("time","Projetos"),))
         else:
             cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
         rows = cur.fetchall(); cur.close(); conn.close()
@@ -1451,6 +1466,7 @@ def listar_clientes(faiston_token: str = Cookie(None)):
                 criado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
         # Migrar clientes existentes das tarefas
         cur.execute("""
             INSERT INTO clientes (nome)
@@ -1459,10 +1475,13 @@ def listar_clientes(faiston_token: str = Cookie(None)):
             ON CONFLICT (nome) DO NOTHING
         """)
         conn.commit()
-        cur.execute("SELECT id, nome, contato, email, ativo, criado_em FROM clientes WHERE ativo=TRUE ORDER BY nome")
+        if sess["perfil"] == "admin":
+            cur.execute("SELECT id, nome, contato, email, ativo, criado_em, COALESCE(time,'Projetos') FROM clientes WHERE ativo=TRUE ORDER BY nome")
+        else:
+            cur.execute("SELECT id, nome, contato, email, ativo, criado_em, COALESCE(time,'Projetos') FROM clientes WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY nome", (sess.get("time","Projetos"),))
         rows = cur.fetchall()
         cur.close(); conn.close()
-        return [{"id": r[0], "nome": r[1], "contato": r[2], "email": r[3], "ativo": r[4], "criado_em": str(r[5])[:10]} for r in rows]
+        return [{"id": r[0], "nome": r[1], "contato": r[2], "email": r[3], "ativo": r[4], "criado_em": str(r[5])[:10], "time": r[6]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 class ClienteModel(BaseModel):
@@ -1470,6 +1489,7 @@ class ClienteModel(BaseModel):
     contato: str = ""
     email: str = ""
     ativo: bool = True
+    time: str = "Projetos"
 
 @app.post("/api/clientes")
 def criar_cliente(c: ClienteModel, faiston_token: str = Cookie(None)):
@@ -1479,8 +1499,9 @@ def criar_cliente(c: ClienteModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO clientes (nome, contato, email) VALUES (%s,%s,%s) RETURNING id",
-                    (c.nome, c.contato, c.email))
+        time_val = c.time if (sess["perfil"] == "admin" and c.time in TIMES_VALIDOS) else sess.get("time", "Projetos")
+        cur.execute("INSERT INTO clientes (nome, contato, email, time) VALUES (%s,%s,%s,%s) RETURNING id",
+                    (c.nome, c.contato, c.email, time_val))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}

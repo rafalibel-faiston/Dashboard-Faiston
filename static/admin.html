@@ -79,6 +79,7 @@
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Usuário</th>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Perfil</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Time</th>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                         <th class="px-5 py-3"></th>
                     </tr>
@@ -187,6 +188,14 @@
                 </div>
             </div>
             <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Time</label>
+                <select id="u-time" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
+                    <option value="Projetos">Projetos</option>
+                    <option value="Logística">Logística</option>
+                    <option value="Rede Credenciada">Rede Credenciada</option>
+                </select>
+            </div>
+            <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha <span id="senha-hint" class="normal-case font-normal text-faiston-faint">(deixe em branco para não alterar)</span></label>
                 <input type="password" id="u-senha" placeholder="••••••••" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
             </div>
@@ -274,6 +283,9 @@ async function carregarUsuarios() {
             <td class="px-5 py-3 text-slate-500 font-mono text-xs">${u.usuario}</td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
             <td class="px-5 py-3">
+                <span class="text-xs font-semibold px-2 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200">${u.time || 'Projetos'}</span>
+            </td>
+            <td class="px-5 py-3">
                 <span class="text-xs font-semibold px-2 py-1 rounded-md ${u.ativo ? 'bg-faiston-cyan/10 text-faiston-cyan border border-faiston-cyan/30' : 'bg-red-100 text-red-600 border border-red-200'}">
                     ${u.ativo ? 'Ativo' : 'Inativo'}
                 </span>
@@ -281,7 +293,7 @@ async function carregarUsuarios() {
             <td class="px-5 py-3">
                 <div class="flex items-center gap-1 justify-end">
                     ${u.email ? `<button onclick="reenviarEmail(${u.id},'${u.nome}','${u.email}')" title="Reenviar email de acesso para ${u.email}" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors"><i class="ph ph-envelope"></i></button>` : ''}
-                    <button onclick="editarUsuario(${u.id},'${u.usuario}','${u.nome}','${u.perfil}',${u.ativo},'${u.email || ''}')" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>
+                    <button onclick="editarUsuario(${u.id},'${u.usuario}','${u.nome}','${u.perfil}',${u.ativo},'${u.email || ''}','${u.time || 'Projetos'}')" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>
                     <button onclick="deletarUsuario(${u.id},'${u.nome}')" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-trash"></i></button>
                 </div>
             </td>
@@ -394,7 +406,7 @@ function openModalUser() {
     document.getElementById('modal-user').classList.remove('hidden');
 }
 
-function editarUsuario(id, usuario, nome, perfil, ativo, email) {
+function editarUsuario(id, usuario, nome, perfil, ativo, email, time) {
     document.getElementById('modal-user-title').textContent = 'Editar Usuário';
     document.getElementById('edit-uid').value = id;
     document.getElementById('u-nome').value = nome;
@@ -403,6 +415,7 @@ function editarUsuario(id, usuario, nome, perfil, ativo, email) {
     document.getElementById('u-senha').value = '';
     document.getElementById('u-email').value = email || '';
     document.getElementById('u-perfil').value = perfil;
+    document.getElementById('u-time').value = time || 'Projetos';
     document.getElementById('u-ativo').checked = ativo;
     document.getElementById('senha-hint').textContent = '(deixe em branco para não alterar)';
     document.getElementById('wrap-ativo').classList.remove('hidden');
@@ -424,6 +437,7 @@ async function salvarUsuario() {
     const email = document.getElementById('u-email').value.trim();
     const perfil = document.getElementById('u-perfil').value;
     const ativo = document.getElementById('u-ativo').checked;
+    const time = document.getElementById('u-time').value;
 
     if (!nome || (!uid && (!usuario || !senha))) { alert('Preencha todos os campos obrigatórios.'); return; }
 
@@ -437,13 +451,13 @@ async function salvarUsuario() {
             res = await fetch(`/api/usuarios/${uid}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome, perfil, senha, ativo, email })
+                body: JSON.stringify({ nome, perfil, senha, ativo, email, time })
             });
         } else {
             res = await fetch('/api/usuarios', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ usuario, senha, nome, perfil, email })
+                body: JSON.stringify({ usuario, senha, nome, perfil, email, time })
             });
         }
         const data = await res.json();
