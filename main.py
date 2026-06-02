@@ -589,6 +589,11 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         cur = conn.cursor()
         conditions = []
         params = []
+        # Filtro de time: gestor/demo vê só seu time; admin vê tudo
+        is_admin = sess["perfil"] == "admin"
+        if not is_admin:
+            conditions.append("COALESCE(u.time,'Projetos') = %s")
+            params.append(sess.get("time", "Projetos"))
         if cliente:
             conditions.append("t.cliente = %s")
             params.append(cliente)
@@ -607,8 +612,8 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         params = tuple(params)
 
-        # JOINs necessários
-        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if funcionario else ""
+        # JOINs necessários — time filter sempre precisa do JOIN com usuarios
+        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if (funcionario or not is_admin) else ""
         join_p = "LEFT JOIN projetos p ON t.projeto_id = p.id" if projeto else ""
         # Helpers para adicionar condição de status sem quebrar o filtro existente
         def fwhere(extra): return f"{filtro} AND {extra}" if filtro else f"WHERE {extra}"
@@ -633,12 +638,12 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         cur.execute(f"SELECT COALESCE(SUM(t.segundos),0) FROM tarefas t {joins} {filtro}", params)
         total_segundos = cur.fetchone()[0]
 
-        # Clientes ativos (distintos)
-        cur.execute("SELECT COUNT(DISTINCT cliente) FROM tarefas")
+        # Clientes ativos (distintos) — respeita filtro de time
+        cur.execute(f"SELECT COUNT(DISTINCT t.cliente) FROM tarefas t {join_u} {join_p} {filtro}", params)
         clientes_ativos = cur.fetchone()[0]
 
-        # Funcionários com tarefas
-        cur.execute("SELECT COUNT(DISTINCT usuario_id) FROM tarefas")
+        # Funcionários com tarefas — respeita filtro de time
+        cur.execute(f"SELECT COUNT(DISTINCT t.usuario_id) FROM tarefas t {join_u} {join_p} {filtro}", params)
         funcionarios_ativos = cur.fetchone()[0]
 
         # SLA: % de tarefas concluídas sobre o total
@@ -693,14 +698,19 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
                      "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7]}
                     for r in cur.fetchall()]
 
-        # Horas por funcionário — respeita todos os filtros
+        # Horas por funcionário — respeita todos os filtros incluindo time
         func_conds = list(conditions) + ["u.perfil = 'funcionario'"]
+        if not is_admin and not any("u.time" in c for c in func_conds):
+            func_conds.append("COALESCE(u.time,'Projetos') = %s")
+            func_params = params + (sess.get("time", "Projetos"),)
+        else:
+            func_params = params
         func_filtro = "WHERE " + " AND ".join(func_conds)
         cur.execute(
             f"SELECT u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas "
             f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
             f"{func_filtro} GROUP BY u.nome ORDER BY SUM(t.segundos) DESC",
-            params
+            func_params
         )
         horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2]} for r in cur.fetchall()]
 
