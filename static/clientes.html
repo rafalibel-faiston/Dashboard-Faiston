@@ -687,9 +687,12 @@ async function atualizarBase() {
         const r = await fetch('/api/base-importacao/atualizar', { method: 'POST' });
         const data = await r.json();
         if (!r.ok) { alert(data.detail || 'Erro ao atualizar base'); return; }
-        const msg = data.criados > 0
-            ? `Base atualizada!\n✓ ${data.criados} projeto(s) novo(s) adicionado(s)`
+        let msg = data.criados > 0
+            ? `✓ ${data.criados} projeto(s) novo(s) adicionado(s)`
             : `Nenhum projeto novo encontrado. A base já está atualizada.`;
+        if (data.ja_existem > 0) msg += `\n— ${data.ja_existem} já existiam (ignorados)`;
+        if (data.clientes_nao_encontrados && data.clientes_nao_encontrados.length > 0)
+            msg += `\n\n⚠️ Clientes da planilha NÃO encontrados no sistema:\n${data.clientes_nao_encontrados.join(', ')}\n\nCadastre esses clientes primeiro ou verifique se o nome está igual.`;
         alert(msg);
         _projLoaded = {};
     } catch(e) { alert('Erro de conexão'); }
@@ -758,7 +761,12 @@ async function importarExecutar() {
         });
         const data = await r.json();
         if (!r.ok) { alert(data.detail || 'Erro ao importar'); return; }
-        alert(`Configuração salva e importação concluída!\n✓ ${data.criados} projeto(s) criado(s)\n— ${data.ignorados} ignorado(s)\n\nAgora use o botão "Atualizar Base" para sincronizar novos projetos com um clique.`);
+        let msgImp = `Configuração salva!\n✓ ${data.criados} projeto(s) criado(s)`;
+        if (data.ja_existem > 0) msgImp += `\n— ${data.ja_existem} já existiam (ignorados)`;
+        if (data.clientes_nao_encontrados && data.clientes_nao_encontrados.length > 0)
+            msgImp += `\n\n⚠️ Clientes da planilha NÃO encontrados no sistema:\n${data.clientes_nao_encontrados.join(', ')}\n\nCadastre esses clientes primeiro.`;
+        msgImp += `\n\nUse "Atualizar Base" para sincronizar novos projetos com um clique.`;
+        alert(msgImp);
         _baseConfig = { url, col_cliente, col_projeto, col_orcamento, col_descricao };
         document.getElementById('btn-atualizar-base').classList.replace('hidden', 'flex');
         closeImportarModal();

@@ -1699,25 +1699,27 @@ async def atualizar_base_importacao(faiston_token: str = Cookie(None)):
         wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
         ws = wb.active
         headers, rows = _parse_sheet(ws)
+        headers_lower = [h.lower() for h in headers]
         def col_idx(name):
             if not name: return None
-            try: return headers.index(name)
+            try: return headers_lower.index(name.lower())
             except ValueError: return None
         idx_cliente = col_idx(cfg["col_cliente"])
         idx_projeto = col_idx(cfg["col_projeto"])
         idx_orc     = col_idx(cfg.get("col_orcamento", ""))
         idx_desc    = col_idx(cfg.get("col_descricao", ""))
         if idx_cliente is None or idx_projeto is None:
-            raise HTTPException(status_code=400, detail="Colunas configuradas não encontradas na planilha. Reconfigure a base.")
+            raise HTTPException(status_code=400, detail=f"Colunas não encontradas na planilha. Colunas disponíveis: {', '.join(headers)}. Reconfigure a base.")
         cur.execute("SELECT id, LOWER(nome) FROM clientes WHERE ativo=TRUE")
         clientes_db = {r[1].strip(): r[0] for r in cur.fetchall()}
-        criados = ignorados = 0
+        criados = ignorados = ja_existem = 0
+        clientes_nao_encontrados = set()
         for row in rows:
             c_nome = row[idx_cliente].strip() if idx_cliente < len(row) else ""
             p_nome = row[idx_projeto].strip() if idx_projeto < len(row) else ""
             if not c_nome or not p_nome: ignorados += 1; continue
             cid = clientes_db.get(c_nome.lower())
-            if not cid: ignorados += 1; continue
+            if not cid: clientes_nao_encontrados.add(c_nome); ignorados += 1; continue
             orc = 0.0
             if idx_orc is not None and idx_orc < len(row):
                 try:
@@ -1726,11 +1728,12 @@ async def atualizar_base_importacao(faiston_token: str = Cookie(None)):
                 except Exception: pass
             desc = row[idx_desc].strip() if idx_desc is not None and idx_desc < len(row) else ""
             cur.execute("SELECT id FROM projetos WHERE cliente_id=%s AND LOWER(nome)=%s AND ativo=TRUE", (cid, p_nome.lower()))
-            if cur.fetchone(): ignorados += 1; continue
+            if cur.fetchone(): ja_existem += 1; continue
             cur.execute("INSERT INTO projetos (cliente_id, nome, descricao, orcamento) VALUES (%s,%s,%s,%s)", (cid, p_nome, desc, orc))
             criados += 1
         conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True, "criados": criados, "ignorados": ignorados}
+        return {"sucesso": True, "criados": criados, "ja_existem": ja_existem, "ignorados": ignorados,
+                "clientes_nao_encontrados": sorted(clientes_nao_encontrados)}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -1769,9 +1772,10 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
         ws = wb.active
         headers, rows = _parse_sheet(ws)
 
+        headers_lower = [h.lower() for h in headers]
         def col_idx(name):
             if not name: return None
-            try: return headers.index(name)
+            try: return headers_lower.index(name.lower())
             except ValueError: return None
 
         idx_cliente  = col_idx(body.col_cliente)
@@ -1780,14 +1784,15 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
         idx_desc     = col_idx(body.col_descricao) if body.col_descricao else None
 
         if idx_cliente is None or idx_projeto is None:
-            raise HTTPException(status_code=400, detail="Colunas de cliente ou projeto não encontradas nos cabeçalhos.")
+            raise HTTPException(status_code=400, detail=f"Colunas não encontradas. Disponíveis: {', '.join(headers)}")
 
         cur = conn.cursor()
         _ensure_financeiro_tables(cur)
         cur.execute("SELECT id, LOWER(nome) FROM clientes WHERE ativo=TRUE")
         clientes_db = {r[1].strip(): r[0] for r in cur.fetchall()}
 
-        criados = ignorados = 0
+        criados = ignorados = ja_existem = 0
+        clientes_nao_encontrados = set()
         for row in rows:
             c_nome = row[idx_cliente].strip() if idx_cliente < len(row) else ""
             p_nome = row[idx_projeto].strip() if idx_projeto < len(row) else ""
@@ -1795,7 +1800,7 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
                 ignorados += 1; continue
             cid = clientes_db.get(c_nome.lower())
             if not cid:
-                ignorados += 1; continue
+                clientes_nao_encontrados.add(c_nome); ignorados += 1; continue
             orc = 0.0
             if idx_orc is not None and idx_orc < len(row):
                 try:
@@ -1806,13 +1811,14 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
             cur.execute("SELECT id FROM projetos WHERE cliente_id=%s AND LOWER(nome)=%s AND ativo=TRUE",
                         (cid, p_nome.lower()))
             if cur.fetchone():
-                ignorados += 1; continue
+                ja_existem += 1; continue
             cur.execute("INSERT INTO projetos (cliente_id, nome, descricao, orcamento) VALUES (%s,%s,%s,%s)",
                         (cid, p_nome, desc, orc))
             criados += 1
 
         conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True, "criados": criados, "ignorados": ignorados}
+        return {"sucesso": True, "criados": criados, "ja_existem": ja_existem, "ignorados": ignorados,
+                "clientes_nao_encontrados": sorted(clientes_nao_encontrados)}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
