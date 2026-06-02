@@ -106,6 +106,13 @@ def setup_banco():
                 "INSERT INTO usuarios (usuario, senha_hash, nome, perfil) VALUES (%s, %s, %s, %s)",
                 ('admin', hash_senha('admin123'), 'Administrador', 'admin')
             )
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS configuracoes (
+                chave VARCHAR(100) PRIMARY KEY,
+                valor TEXT NOT NULL,
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -1627,6 +1634,105 @@ class ImportarProjetosBody(BaseModel):
 
 class ImportarLancamentosBody(BaseModel):
     lancamentos: List[LancamentoImportItem]
+
+class BaseImportacaoConfig(BaseModel):
+    url: str
+    col_cliente: str
+    col_projeto: str
+    col_orcamento: str = ""
+    col_descricao: str = ""
+
+@app.get("/api/config/base-importacao")
+def get_base_importacao_config(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT valor FROM configuracoes WHERE chave='base_importacao'")
+        row = cur.fetchone(); cur.close(); conn.close()
+        if row:
+            import json as _json
+            return _json.loads(row[0])
+        return None
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/config/base-importacao")
+def salvar_base_importacao_config(body: BaseImportacaoConfig, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        import json as _json
+        cur = conn.cursor()
+        valor = _json.dumps({"url": body.url, "col_cliente": body.col_cliente,
+                             "col_projeto": body.col_projeto, "col_orcamento": body.col_orcamento,
+                             "col_descricao": body.col_descricao})
+        cur.execute("""INSERT INTO configuracoes (chave, valor, atualizado_em) VALUES ('base_importacao', %s, NOW())
+                       ON CONFLICT (chave) DO UPDATE SET valor=EXCLUDED.valor, atualizado_em=NOW()""", (valor,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/base-importacao/atualizar")
+async def atualizar_base_importacao(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    global _OPENPYXL_OK, openpyxl
+    if not _OPENPYXL_OK:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
+        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        import json as _json
+        cur = conn.cursor()
+        cur.execute("SELECT valor FROM configuracoes WHERE chave='base_importacao'")
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=400, detail="Base não configurada. Configure a URL primeiro.")
+        cfg = _json.loads(row[0])
+        _ensure_financeiro_tables(cur)
+        content = _download_planilha(cfg["url"])
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+        ws = wb.active
+        headers, rows = _parse_sheet(ws)
+        def col_idx(name):
+            if not name: return None
+            try: return headers.index(name)
+            except ValueError: return None
+        idx_cliente = col_idx(cfg["col_cliente"])
+        idx_projeto = col_idx(cfg["col_projeto"])
+        idx_orc     = col_idx(cfg.get("col_orcamento", ""))
+        idx_desc    = col_idx(cfg.get("col_descricao", ""))
+        if idx_cliente is None or idx_projeto is None:
+            raise HTTPException(status_code=400, detail="Colunas configuradas não encontradas na planilha. Reconfigure a base.")
+        cur.execute("SELECT id, LOWER(nome) FROM clientes WHERE ativo=TRUE")
+        clientes_db = {r[1].strip(): r[0] for r in cur.fetchall()}
+        criados = ignorados = 0
+        for row in rows:
+            c_nome = row[idx_cliente].strip() if idx_cliente < len(row) else ""
+            p_nome = row[idx_projeto].strip() if idx_projeto < len(row) else ""
+            if not c_nome or not p_nome: ignorados += 1; continue
+            cid = clientes_db.get(c_nome.lower())
+            if not cid: ignorados += 1; continue
+            orc = 0.0
+            if idx_orc is not None and idx_orc < len(row):
+                try:
+                    v = row[idx_orc].replace('R$','').replace('.','').replace(',','.').strip()
+                    orc = float(v)
+                except Exception: pass
+            desc = row[idx_desc].strip() if idx_desc is not None and idx_desc < len(row) else ""
+            cur.execute("SELECT id FROM projetos WHERE cliente_id=%s AND LOWER(nome)=%s AND ativo=TRUE", (cid, p_nome.lower()))
+            if cur.fetchone(): ignorados += 1; continue
+            cur.execute("INSERT INTO projetos (cliente_id, nome, descricao, orcamento) VALUES (%s,%s,%s,%s)", (cid, p_nome, desc, orc))
+            criados += 1
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "criados": criados, "ignorados": ignorados}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/importar-projetos/preview")
 async def importar_projetos_preview(body: ImportarProjetosPreviewBody, faiston_token: str = Cookie(None)):

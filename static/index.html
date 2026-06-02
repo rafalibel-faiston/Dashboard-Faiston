@@ -625,6 +625,7 @@ async function init() {
         const res = await fetch('/api/me');
         if (!res.ok) { window.location.href = '/'; return; }
         const me = await res.json();
+        window.ME = me;
         if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
         document.getElementById('sidebar-nome').textContent = me.nome;
         document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
@@ -1325,14 +1326,20 @@ async function carregarDadosModal() {
             }).join('');
         }
     } catch(e) {}
-    // Funcionários para responsável
+    // Responsável: inclui gestores e funcionários (gestor pode atribuir a si mesmo)
     try {
         const res = await fetch('/api/usuarios');
         if (res.ok) {
             const users = await res.json();
             const sel = document.getElementById('nt-responsavel');
+            const me = window.ME || {};
+            const elegíveis = users.filter(u => u.perfil === 'funcionario' || u.perfil === 'gestor' || u.perfil === 'demo');
             sel.innerHTML = '<option value="">Selecionar...</option>' +
-                users.filter(u => u.perfil === 'funcionario').map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+                elegíveis.map(u => {
+                    const label = u.id === me.id ? `${u.nome} (Eu)` : u.nome;
+                    return `<option value="${u.id}">${label}</option>`;
+                }).join('');
+            if (me.id) sel.value = me.id;
         }
     } catch(e) {}
 }
@@ -1423,7 +1430,6 @@ async function criarTicket() {
 
     if (!titulo) { alert('Informe o título do ticket.'); return; }
     if (!clienteSelecionado) { alert('Selecione um cliente.'); return; }
-    if (!responsavelId) { alert('Selecione um responsável.'); return; }
 
     const horasManual = parseInt(document.getElementById('nt-horas-manual').value || '0');
     const segundos = horasManual * 3600 + timerModalSeg;

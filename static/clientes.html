@@ -181,8 +181,11 @@
                 <i class="ph ph-funnel text-slate-400"></i> Filtros
             </button>
             <div class="ml-auto flex items-center gap-2">
+                <button onclick="atualizarBase()" id="btn-atualizar-base" class="hidden items-center gap-2 px-3 py-2 rounded-lg border border-faiston-purple/30 bg-faiston-purple/5 text-sm font-medium text-faiston-purple hover:bg-faiston-purple/10 transition-colors">
+                    <i class="ph ph-arrows-clockwise text-faiston-purple"></i> Atualizar Base
+                </button>
                 <button onclick="openImportarProjetos()" class="flex items-center gap-2 px-3 py-2 rounded-lg border border-faiston-border bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                    <i class="ph ph-upload-simple text-slate-400"></i> Importar Projetos
+                    <i class="ph ph-upload-simple text-slate-400"></i> Configurar Base
                 </button>
                 <button onclick="openModal()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
                     <i class="ph ph-plus"></i> Novo Cliente
@@ -286,8 +289,8 @@
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div class="flex items-center justify-between p-6 border-b border-faiston-border">
             <div>
-                <h2 class="text-lg font-bold text-faiston-dark">Importar Projetos</h2>
-                <p class="text-xs text-faiston-muted mt-0.5">Importe projetos a partir de uma planilha online</p>
+                <h2 class="text-lg font-bold text-faiston-dark">Configurar Base de Projetos</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Configure a planilha — URL e mapeamento ficam salvos para atualização com um clique</p>
             </div>
             <button onclick="closeImportarModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
@@ -334,7 +337,7 @@
                 <button onclick="closeImportarModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
                 <button onclick="importarExecutar()" id="btn-executar"
                         class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
-                    <i class="ph ph-upload-simple text-sm"></i> Importar Projetos
+                    <i class="ph ph-upload-simple text-sm"></i> Salvar e Importar
                 </button>
             </div>
         </div>
@@ -384,6 +387,7 @@ async function init() {
     } catch(e) {}
 
     await carregar();
+    await carregarBaseConfig();
 }
 
 async function logout() {
@@ -643,8 +647,19 @@ async function deletarProjeto(pid, cid) {
     carregarProjetosCarta(cid);
 }
 
-// ── Importar Projetos ────────────────────────────────────
+// ── Importar / Base Projetos ─────────────────────────────
 let _impHeaders = [];
+let _baseConfig = null;
+
+async function carregarBaseConfig() {
+    try {
+        const r = await fetch('/api/config/base-importacao');
+        if (r.ok) {
+            _baseConfig = await r.json();
+            if (_baseConfig) document.getElementById('btn-atualizar-base').classList.replace('hidden', 'flex');
+        }
+    } catch(e) {}
+}
 
 function openImportarProjetos() {
     importarReset();
@@ -656,8 +671,29 @@ function closeImportarModal() { document.getElementById('modal-importar').classL
 function importarReset() {
     document.getElementById('imp-step1').classList.remove('hidden');
     document.getElementById('imp-step2').classList.add('hidden');
-    document.getElementById('imp-url').value = '';
+    if (_baseConfig) document.getElementById('imp-url').value = _baseConfig.url || '';
+    else document.getElementById('imp-url').value = '';
     _impHeaders = [];
+}
+
+async function atualizarBase() {
+    const btn = document.getElementById('btn-atualizar-base');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner-gap animate-spin"></i> Atualizando...';
+    try {
+        const r = await fetch('/api/base-importacao/atualizar', { method: 'POST' });
+        const data = await r.json();
+        if (!r.ok) { alert(data.detail || 'Erro ao atualizar base'); return; }
+        const msg = data.criados > 0
+            ? `Base atualizada!\n✓ ${data.criados} projeto(s) novo(s) adicionado(s)`
+            : `Nenhum projeto novo encontrado. A base já está atualizada.`;
+        alert(msg);
+        _projLoaded = {};
+    } catch(e) { alert('Erro de conexão'); }
+    finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-arrows-clockwise text-faiston-purple"></i> Atualizar Base';
+    }
 }
 
 async function importarPreview() {
@@ -701,26 +737,33 @@ async function importarExecutar() {
     const url = document.getElementById('imp-url').value.trim();
     const col_cliente = document.getElementById('imp-col-cliente').value;
     const col_projeto = document.getElementById('imp-col-projeto').value;
+    const col_orcamento = document.getElementById('imp-col-orcamento').value;
+    const col_descricao = document.getElementById('imp-col-descricao').value;
     if (!col_cliente || !col_projeto) { alert('Selecione as colunas de Cliente e Projeto.'); return; }
     const btn = document.getElementById('btn-executar');
     btn.disabled = true;
-    btn.innerHTML = '<i class="ph ph-spinner-gap animate-spin"></i> Importando...';
+    btn.innerHTML = '<i class="ph ph-spinner-gap animate-spin"></i> Salvando e Importando...';
     try {
+        // Salva config para atualização futura com um clique
+        await fetch('/api/config/base-importacao', {
+            method: 'PUT', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ url, col_cliente, col_projeto, col_orcamento, col_descricao })
+        });
         const r = await fetch('/api/importar-projetos/executar', {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ url, col_cliente, col_projeto,
-                col_orcamento: document.getElementById('imp-col-orcamento').value,
-                col_descricao: document.getElementById('imp-col-descricao').value })
+            body: JSON.stringify({ url, col_cliente, col_projeto, col_orcamento, col_descricao })
         });
         const data = await r.json();
         if (!r.ok) { alert(data.detail || 'Erro ao importar'); return; }
-        alert(`Importação concluída!\n✓ ${data.criados} projeto(s) criado(s)\n— ${data.ignorados} ignorado(s) (duplicado ou cliente não encontrado)`);
+        alert(`Configuração salva e importação concluída!\n✓ ${data.criados} projeto(s) criado(s)\n— ${data.ignorados} ignorado(s)\n\nAgora use o botão "Atualizar Base" para sincronizar novos projetos com um clique.`);
+        _baseConfig = { url, col_cliente, col_projeto, col_orcamento, col_descricao };
+        document.getElementById('btn-atualizar-base').classList.replace('hidden', 'flex');
         closeImportarModal();
         _projLoaded = {};
     } catch(e) { alert('Erro: ' + e.message); }
     finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="ph ph-upload-simple text-sm"></i> Importar Projetos';
+        btn.innerHTML = '<i class="ph ph-upload-simple text-sm"></i> Salvar e Importar';
     }
 }
 
