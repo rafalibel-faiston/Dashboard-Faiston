@@ -1686,11 +1686,12 @@ def get_base_importacao_config(faiston_token: str = Cookie(None)):
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
+        import json as _json
         cur = conn.cursor()
-        cur.execute("SELECT valor FROM configuracoes WHERE chave='base_importacao'")
+        chave = f"base_importacao_{sess.get('time','Projetos')}"
+        cur.execute("SELECT valor FROM configuracoes WHERE chave=%s", (chave,))
         row = cur.fetchone(); cur.close(); conn.close()
         if row:
-            import json as _json
             return _json.loads(row[0])
         return None
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1704,11 +1705,12 @@ def salvar_base_importacao_config(body: BaseImportacaoConfig, faiston_token: str
     try:
         import json as _json
         cur = conn.cursor()
+        chave = f"base_importacao_{sess.get('time','Projetos')}"
         valor = _json.dumps({"url": body.url, "col_cliente": body.col_cliente,
                              "col_projeto": body.col_projeto, "col_orcamento": body.col_orcamento,
                              "col_descricao": body.col_descricao})
-        cur.execute("""INSERT INTO configuracoes (chave, valor, atualizado_em) VALUES ('base_importacao', %s, NOW())
-                       ON CONFLICT (chave) DO UPDATE SET valor=EXCLUDED.valor, atualizado_em=NOW()""", (valor,))
+        cur.execute("""INSERT INTO configuracoes (chave, valor, atualizado_em) VALUES (%s, %s, NOW())
+                       ON CONFLICT (chave) DO UPDATE SET valor=EXCLUDED.valor, atualizado_em=NOW()""", (chave, valor))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1727,9 +1729,11 @@ async def atualizar_base_importacao(faiston_token: str = Cookie(None)):
     try:
         import json as _json
         cur = conn.cursor()
-        cur.execute("SELECT valor FROM configuracoes WHERE chave='base_importacao'")
+        time_sess = sess.get("time", "Projetos")
+        chave = f"base_importacao_{time_sess}"
+        cur.execute("SELECT valor FROM configuracoes WHERE chave=%s", (chave,))
         row = cur.fetchone()
-        if not row: raise HTTPException(status_code=400, detail="Base não configurada. Configure a URL primeiro.")
+        if not row: raise HTTPException(status_code=400, detail="Base não configurada para este time. Configure a URL primeiro.")
         cfg = _json.loads(row[0])
         _ensure_financeiro_tables(cur)
         content = _download_planilha(cfg["url"])
@@ -1747,7 +1751,8 @@ async def atualizar_base_importacao(faiston_token: str = Cookie(None)):
         idx_desc    = col_idx(cfg.get("col_descricao", ""))
         if idx_cliente is None or idx_projeto is None:
             raise HTTPException(status_code=400, detail=f"Colunas não encontradas na planilha. Colunas disponíveis: {', '.join(headers)}. Reconfigure a base.")
-        cur.execute("SELECT id, LOWER(nome) FROM clientes WHERE ativo=TRUE")
+        # Filtra clientes apenas do time do usuário logado
+        cur.execute("SELECT id, LOWER(nome) FROM clientes WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s", (time_sess,))
         clientes_db = {r[1].strip(): r[0] for r in cur.fetchall()}
         criados = ignorados = ja_existem = 0
         clientes_nao_encontrados = set()
@@ -1825,7 +1830,8 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
 
         cur = conn.cursor()
         _ensure_financeiro_tables(cur)
-        cur.execute("SELECT id, LOWER(nome) FROM clientes WHERE ativo=TRUE")
+        time_sess = sess.get("time", "Projetos")
+        cur.execute("SELECT id, LOWER(nome) FROM clientes WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s", (time_sess,))
         clientes_db = {r[1].strip(): r[0] for r in cur.fetchall()}
 
         criados = ignorados = ja_existem = 0
