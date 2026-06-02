@@ -1326,20 +1326,19 @@ async function carregarDadosModal() {
             }).join('');
         }
     } catch(e) {}
-    // Responsável: inclui gestores e funcionários (gestor pode atribuir a si mesmo)
+    // Responsável: todos os usuários ativos, com (Eu) destacado para o usuário logado
     try {
         const res = await fetch('/api/usuarios');
         if (res.ok) {
             const users = await res.json();
             const sel = document.getElementById('nt-responsavel');
-            const me = window.ME || {};
-            const elegíveis = users.filter(u => u.perfil === 'funcionario' || u.perfil === 'gestor' || u.perfil === 'demo');
+            const meId = window.ME ? String(window.ME.id) : '';
             sel.innerHTML = '<option value="">Selecionar...</option>' +
-                elegíveis.map(u => {
-                    const label = u.id === me.id ? `${u.nome} (Eu)` : u.nome;
+                users.map(u => {
+                    const label = String(u.id) === meId ? `${u.nome} (Eu)` : u.nome;
                     return `<option value="${u.id}">${label}</option>`;
                 }).join('');
-            if (me.id) sel.value = me.id;
+            if (meId) sel.value = meId;
         }
     } catch(e) {}
 }
