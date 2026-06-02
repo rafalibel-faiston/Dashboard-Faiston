@@ -368,6 +368,12 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, u.email, time_val, uid))
         conn.commit(); cur.close(); conn.close()
+        # Atualiza sessões ativas deste usuário com o novo time/perfil sem precisar fazer logout
+        for s in sessions.values():
+            if s.get("id") == uid:
+                s["time"] = time_val
+                s["perfil"] = u.perfil
+                s["nome"] = u.nome
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
