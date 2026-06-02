@@ -465,7 +465,13 @@
                 <button onclick="agendaNavMes(1)" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"><i class="ph ph-caret-right"></i></button>
             </div>
             <div class="grid grid-cols-7 mb-1">
-                ${['Dom','Seg','Ter','Qua','Qui','Sex','Sab'].map(d=>`<div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">${d}</div>`).join('')}
+                <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">Dom</div>
+                <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">Seg</div>
+                <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">Ter</div>
+                <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">Qua</div>
+                <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">Qui</div>
+                <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">Sex</div>
+                <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">Sáb</div>
             </div>
             <div id="agenda-cal-grid" class="grid grid-cols-7 gap-1"></div>
             <div id="agenda-cal-detalhe" class="mt-4 hidden flex flex-col gap-2"></div>
