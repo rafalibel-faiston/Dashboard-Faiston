@@ -932,7 +932,7 @@ async function renderAgendaGestor() {
         const tarefas = await res.json();
         const hoje = new Date(); hoje.setHours(0,0,0,0);
         const comData = tarefas
-            .filter(t => t.data_prazo || t.data_agendamento)
+            .filter(t => (t.data_prazo || t.data_agendamento) && t.status !== 'concluido')
             .map(t => ({ ...t, _data: new Date(t.data_prazo || t.data_agendamento) }))
             .sort((a,b) => a._data - b._data);
         if (!comData.length) {
