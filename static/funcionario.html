@@ -626,7 +626,10 @@ function renderKanbanCard(task, status) {
     return `<div class="task-card bg-white rounded-xl border ${isRunning ? 'border-faiston-purple timer-running' : 'border-faiston-border'} p-3 relative overflow-hidden ${isDone ? 'opacity-60' : ''}">
         ${isRunning ? '<div class="absolute top-0 left-0 right-0 h-[3px] grad-bg"></div>' : ''}
         <div class="flex items-start justify-between gap-2 mb-2">
-            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded border ${pc.cls}">${task.prioridade}</span>
+            <div class="flex items-center gap-1.5">
+                <span class="font-mono text-[9px] font-bold text-slate-400">#${task.id}</span>
+                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded border ${pc.cls}">${task.prioridade}</span>
+            </div>
             <div class="flex items-center gap-0.5 flex-shrink-0">
                 <button onclick="abrirComentarios(${task.id},'${task.descricao.replace(/'/g,"\\'")}')" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors" title="Comentários">
                     <i class="ph ph-chat-circle-dots text-sm"></i>
@@ -859,7 +862,7 @@ async function carregarComentarios() {
     const lista = document.getElementById('lista-comentarios');
     if (!comentarios.length) { lista.innerHTML='<div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda</div>'; return; }
     lista.innerHTML = comentarios.map(c=>{
-        const data=new Date(c.criado_em.replace(' ','T')).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+        const data=new Date(c.criado_em.replace(' ','T') + '-03:00').toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
         return `<div class="bg-slate-50 rounded-xl p-3 border border-faiston-border">
             <div class="flex items-center justify-between mb-1.5">
                 <div class="flex items-center gap-2">

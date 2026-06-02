@@ -36,7 +36,12 @@ def _touch_session(token: str, page: str = ""):
 
 def get_db():
     try:
-        return psycopg2.connect(os.environ.get("DATABASE_URL"))
+        conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
+        cur = conn.cursor()
+        cur.execute("SET TIME ZONE 'America/Sao_Paulo'")
+        cur.close()
+        conn.commit()
+        return conn
     except Exception as e:
         print(f"Erro BD: {e}")
         return None
