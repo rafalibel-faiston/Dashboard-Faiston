@@ -446,8 +446,30 @@
                 <h2 class="text-base font-bold text-faiston-dark">Agenda de Prazos</h2>
                 <p class="text-xs text-faiston-muted mt-0.5">Tickets com prazo ou agendamento definido</p>
             </div>
+            <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                <button id="btn-agenda-lista" onclick="setAgendaView('lista')"
+                    class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all text-slate-600">
+                    <i class="ph ph-list mr-1"></i>Lista
+                </button>
+                <button id="btn-agenda-cal" onclick="setAgendaView('calendario')"
+                    class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all text-slate-600">
+                    <i class="ph ph-calendar-blank mr-1"></i>Calendário
+                </button>
+            </div>
         </div>
         <div id="agenda-gestor-lista" class="flex flex-col gap-3"></div>
+        <div id="agenda-calendario" class="hidden">
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="agendaNavMes(-1)" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"><i class="ph ph-caret-left"></i></button>
+                <span id="agenda-cal-titulo" class="text-sm font-bold text-faiston-dark capitalize"></span>
+                <button onclick="agendaNavMes(1)" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"><i class="ph ph-caret-right"></i></button>
+            </div>
+            <div class="grid grid-cols-7 mb-1">
+                ${['Dom','Seg','Ter','Qua','Qui','Sex','Sab'].map(d=>`<div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1">${d}</div>`).join('')}
+            </div>
+            <div id="agenda-cal-grid" class="grid grid-cols-7 gap-1"></div>
+            <div id="agenda-cal-detalhe" class="mt-4 hidden flex flex-col gap-2"></div>
+        </div>
     </div><!-- /view-agenda -->
 </main>
 
@@ -968,6 +990,136 @@ async function renderAgendaGestor() {
             </div>`;
         }).join('');
     } catch(e) { lista.innerHTML = '<p class="text-sm text-red-400">Erro ao carregar</p>'; }
+}
+
+// ── AGENDA CALENDÁRIO ─────────────────────────────────────
+let _agendaView = 'lista';
+let _agendaMes = new Date().getMonth();
+let _agendaAno = new Date().getFullYear();
+let _agendaTarefasCache = null;
+let _agendaDiaSel = null;
+
+function setAgendaView(v) {
+    _agendaView = v;
+    const isLista = v === 'lista';
+    document.getElementById('agenda-gestor-lista').classList.toggle('hidden', !isLista);
+    document.getElementById('agenda-calendario').classList.toggle('hidden', isLista);
+    const btnL = document.getElementById('btn-agenda-lista');
+    const btnC = document.getElementById('btn-agenda-cal');
+    btnL.className = 'px-3 py-1.5 rounded-md text-xs font-semibold transition-all ' + (isLista ? 'bg-white text-faiston-purple shadow-sm' : 'text-slate-500 hover:text-slate-700');
+    btnC.className = 'px-3 py-1.5 rounded-md text-xs font-semibold transition-all ' + (!isLista ? 'bg-white text-faiston-purple shadow-sm' : 'text-slate-500 hover:text-slate-700');
+    if (!isLista) renderAgendaCalendario();
+}
+
+function agendaNavMes(delta) {
+    _agendaMes += delta;
+    if (_agendaMes > 11) { _agendaMes = 0; _agendaAno++; }
+    if (_agendaMes < 0)  { _agendaMes = 11; _agendaAno--; }
+    _agendaDiaSel = null;
+    document.getElementById('agenda-cal-detalhe').classList.add('hidden');
+    renderAgendaCalendario();
+}
+
+async function renderAgendaCalendario() {
+    if (!_agendaTarefasCache) {
+        try {
+            const res = await fetch('/api/tarefas');
+            if (!res.ok) return;
+            _agendaTarefasCache = await res.json();
+        } catch(e) { return; }
+    }
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const tarefas = _agendaTarefasCache.filter(t => (t.data_prazo || t.data_agendamento) && t.status !== 'concluido');
+
+    // Agrupar por data YYYY-MM-DD
+    const porDia = {};
+    tarefas.forEach(t => {
+        const raw = t.data_prazo || t.data_agendamento;
+        const key = raw.slice(0,10);
+        if (!porDia[key]) porDia[key] = [];
+        porDia[key].push(t);
+    });
+
+    const titulo = new Date(_agendaAno, _agendaMes, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    document.getElementById('agenda-cal-titulo').textContent = titulo;
+
+    const primeiroDia = new Date(_agendaAno, _agendaMes, 1).getDay();
+    const diasNoMes = new Date(_agendaAno, _agendaMes + 1, 0).getDate();
+    const grid = document.getElementById('agenda-cal-grid');
+
+    let cells = '';
+    // Células vazias antes do dia 1
+    for (let i = 0; i < primeiroDia; i++) {
+        cells += `<div class="rounded-xl h-20 bg-slate-50/50"></div>`;
+    }
+    for (let d = 1; d <= diasNoMes; d++) {
+        const key = `${_agendaAno}-${String(_agendaMes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const tsDia = new Date(_agendaAno, _agendaMes, d);
+        const isHoje = tsDia.getTime() === hoje.getTime();
+        const isPassado = tsDia < hoje;
+        const isSel = _agendaDiaSel === key;
+        const ts = porDia[key] || [];
+        const temAtrasado = isPassado && ts.length > 0;
+
+        const bgBase = isSel ? 'bg-faiston-purple/10 border-faiston-purple' : isHoje ? 'bg-faiston-cyan/5 border-faiston-cyan' : 'bg-white border-faiston-border hover:border-faiston-purple/40';
+        const numCls = isHoje ? 'text-faiston-cyan font-extrabold' : temAtrasado ? 'text-faiston-pink font-bold' : 'text-faiston-dark font-semibold';
+
+        const dots = ts.slice(0,3).map(t => {
+            const cor = t.data_prazo ? (isPassado ? '#EC4899' : '#5B2EE0') : '#06D7E6';
+            return `<div class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${cor}"></div>`;
+        }).join('');
+        const extra = ts.length > 3 ? `<span class="text-[9px] text-slate-400 font-bold">+${ts.length-3}</span>` : '';
+
+        cells += `<div onclick="agendaSelDia('${key}')" class="rounded-xl h-20 border cursor-pointer transition-all p-2 flex flex-col ${bgBase}">
+            <span class="text-xs ${numCls} leading-none">${d}</span>
+            ${ts.length ? `<div class="mt-auto flex flex-wrap gap-0.5 items-center">${dots}${extra}</div>` : ''}
+            ${ts.length ? `<span class="text-[9px] text-slate-400 mt-0.5">${ts.length} ticket${ts.length>1?'s':''}</span>` : ''}
+        </div>`;
+    }
+    grid.innerHTML = cells;
+
+    // Se tinha dia selecionado, re-renderiza detalhe
+    if (_agendaDiaSel && porDia[_agendaDiaSel]) agendaSelDia(_agendaDiaSel, true);
+}
+
+function agendaSelDia(key, manterAberto = false) {
+    if (!manterAberto && _agendaDiaSel === key) {
+        _agendaDiaSel = null;
+        document.getElementById('agenda-cal-detalhe').classList.add('hidden');
+        renderAgendaCalendario();
+        return;
+    }
+    _agendaDiaSel = key;
+    renderAgendaCalendario();
+
+    const tarefas = (_agendaTarefasCache || []).filter(t => {
+        const raw = t.data_prazo || t.data_agendamento;
+        return raw && raw.slice(0,10) === key && t.status !== 'concluido';
+    });
+    const detalhe = document.getElementById('agenda-cal-detalhe');
+    if (!tarefas.length) { detalhe.classList.add('hidden'); return; }
+
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const PRIO = { Critica:'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30', Alta:'text-orange-500 bg-orange-50 border-orange-200', Media:'text-faiston-purple bg-faiston-purple/10 border-faiston-purple/30', Baixa:'text-slate-400 bg-slate-100 border-slate-200' };
+    const [ano, mes, dia] = key.split('-').map(Number);
+    const dObj = new Date(ano, mes-1, dia);
+    const diff = Math.round((dObj - hoje) / 86400000);
+    const diffTxt = diff < 0 ? `<span class="text-faiston-pink font-bold">${Math.abs(diff)}d atrasado</span>` : diff === 0 ? `<span class="text-orange-500 font-bold">Hoje</span>` : `<span class="text-slate-400">em ${diff}d</span>`;
+
+    detalhe.classList.remove('hidden');
+    detalhe.innerHTML = `<p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">${dObj.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})} · ${diffTxt}</p>` +
+        tarefas.map(t => {
+            const tipo = t.data_prazo ? '⏰' : '📅';
+            const prioClass = PRIO[t.prioridade] || PRIO.Media;
+            return `<div class="bg-white rounded-xl border border-faiston-border p-3 flex items-center gap-3">
+                <span class="text-base">${tipo}</span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-faiston-dark truncate">${t.descricao}</p>
+                    <p class="text-xs text-faiston-muted">${t.cliente} · ${t.funcionario}</p>
+                </div>
+                <span class="text-[11px] font-semibold px-2 py-1 rounded-md border ${prioClass} flex-shrink-0">${t.prioridade}</span>
+            </div>`;
+        }).join('');
 }
 
 async function carregarDados(cliente) {
@@ -1498,7 +1650,14 @@ function switchView(view) {
     document.getElementById('btn-view-agenda').style.cssText   = view==='agenda'   ? ACTIVE : INACTIVE;
 
     if (view === 'kanban') carregarTarefasKanban();
-    if (view === 'agenda') renderAgendaGestor();
+    if (view === 'agenda') {
+        _agendaTarefasCache = null;
+        _agendaMes = new Date().getMonth();
+        _agendaAno = new Date().getFullYear();
+        _agendaDiaSel = null;
+        setAgendaView('lista');
+        renderAgendaGestor();
+    }
 }
 
 async function carregarTarefasKanban() {
