@@ -80,6 +80,12 @@
         [data-theme="dark"] #notas-sidebar-editor { border-color: rgba(255,255,255,0.07) !important; }
         [data-theme="dark"] #nota-texto-s,
         [data-theme="dark"] .bg-slate-50     { background-color: rgba(255,255,255,0.03) !important; }
+        /* Modal nota expandida */
+        [data-theme="dark"] #modal-nota-expand > div { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #modal-nota-texto { background-color: #11111E !important; color: #E2E4EF !important; }
+        [data-theme="dark"] #modal-nota-titulo { color: #F1F2F8 !important; }
+        [data-theme="dark"] #modal-ia-section { border-color: rgba(91,46,224,0.3) !important; background: rgba(91,46,224,0.06) !important; }
+        [data-theme="dark"] #modal-ia-resultado { color: #C4C8DC !important; }
         /* Global timer */
         [data-theme="dark"] #global-timer    { background-color: #11111E !important; border-color: rgba(91,46,224,0.35) !important; }
 
@@ -406,6 +412,57 @@
                     class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
                 <button onclick="enviarComentario()" class="bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white px-4 py-2 rounded-lg text-sm font-semibold">
                     <i class="ph ph-paper-plane-tilt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NOTA EXPANDIDA -->
+<div id="modal-nota-expand" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(13,15,35,0.65);backdrop-filter:blur(6px)" onclick="if(event.target===this)fecharModalNota()">
+    <div class="bg-white rounded-2xl w-full max-w-2xl flex flex-col" style="max-height:88vh;box-shadow:0 24px 64px rgba(74,0,224,0.22)">
+        <div class="flex items-center gap-3 px-6 py-4 border-b border-faiston-border flex-shrink-0" style="background:linear-gradient(135deg,rgba(74,0,224,0.05),rgba(0,229,255,0.02))">
+            <i class="ph ph-note-pencil text-faiston-purple flex-shrink-0"></i>
+            <input type="text" id="modal-nota-titulo" placeholder="Título da nota..."
+                class="flex-1 text-sm font-bold text-faiston-dark outline-none bg-transparent placeholder-slate-300"
+                oninput="modalMarcarAlterado()">
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button onclick="analisarNota()" id="btn-analisar-ia"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white"
+                    style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+                    <i class="ph ph-sparkle text-xs"></i> Analisar com IA
+                </button>
+                <button onclick="salvarModalNota()" class="text-xs text-faiston-cyan font-bold hover:underline px-1">Salvar</button>
+                <button onclick="fecharModalNota()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
+                    <i class="ph ph-x text-slate-400 text-sm"></i>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+            <textarea id="modal-nota-texto" placeholder="Escreva suas observações..."
+                class="w-full outline-none resize-none text-sm text-slate-600 leading-relaxed placeholder-slate-300 p-6 flex-1"
+                style="min-height:260px" oninput="modalMarcarAlterado()"></textarea>
+            <div id="modal-ia-section" class="hidden mx-6 mb-6 rounded-2xl border border-faiston-border overflow-hidden">
+                <div class="flex items-center gap-2 px-4 py-3 border-b border-faiston-border" style="background:linear-gradient(135deg,rgba(91,46,224,0.07),rgba(6,215,230,0.04))">
+                    <i class="ph ph-sparkle text-faiston-purple text-sm"></i>
+                    <span class="text-xs font-bold text-faiston-purple">Análise de IA</span>
+                    <button onclick="fecharAnalise()" class="ml-auto w-6 h-6 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors">
+                        <i class="ph ph-x text-slate-400 text-xs"></i>
+                    </button>
+                </div>
+                <div id="modal-ia-loading" class="hidden items-center justify-center py-8 gap-3">
+                    <div class="w-5 h-5 border-2 border-faiston-purple border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-xs text-slate-400">Analisando com IA...</span>
+                </div>
+                <div id="modal-ia-resultado" class="p-4 text-xs text-slate-600 leading-relaxed whitespace-pre-wrap"></div>
+            </div>
+        </div>
+        <div class="px-6 py-3 border-t border-faiston-border flex items-center justify-between rounded-b-2xl flex-shrink-0" style="background:rgba(248,249,252,0.8)">
+            <span class="text-[10px] text-slate-300" id="modal-nota-status">—</span>
+            <div class="flex items-center gap-4">
+                <span class="text-[10px] text-slate-300" id="modal-nota-chars">0 caracteres</span>
+                <button onclick="deletarNotaModal()" class="text-[10px] text-slate-300 hover:text-red-400 transition-colors flex items-center gap-1">
+                    <i class="ph ph-trash text-xs"></i> Deletar
                 </button>
             </div>
         </div>
@@ -1168,9 +1225,14 @@ function renderListaNotas() {
     document.getElementById('notas-sidebar-empty').classList.toggle('hidden',notas.length>0);
     if (!notas.length) { lista.innerHTML=''; return; }
     lista.innerHTML=notas.map(n=>`
-        <div onclick="selecionarNota(${n.id})" class="cursor-pointer px-4 py-3 border-b border-faiston-border hover:bg-slate-50 transition-colors ${notaAtualId===n.id?'bg-faiston-purple/10 border-l-2 border-l-faiston-purple':''}">
-            <p class="text-xs font-bold text-faiston-dark truncate">${n.titulo||'Sem título'}</p>
-            <p class="text-[10px] text-slate-400 mt-0.5 truncate">${(n.texto||'').substring(0,50)}${(n.texto||'').length>50?'...':''}</p>
+        <div class="flex items-center border-b border-faiston-border hover:bg-slate-50 transition-colors ${notaAtualId===n.id?'bg-faiston-purple/10 border-l-2 border-l-faiston-purple':''}">
+            <div onclick="selecionarNota(${n.id})" class="cursor-pointer flex-1 min-w-0 px-4 py-3">
+                <p class="text-xs font-bold text-faiston-dark truncate">${n.titulo||'Sem título'}</p>
+                <p class="text-[10px] text-slate-400 mt-0.5 truncate">${(n.texto||'').substring(0,50)}${(n.texto||'').length>50?'...':''}</p>
+            </div>
+            <button onclick="abrirModalNota(${n.id})" title="Expandir" class="flex-shrink-0 w-8 h-8 mr-2 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors">
+                <i class="ph ph-arrows-out text-xs"></i>
+            </button>
         </div>`).join('');
 }
 
@@ -1235,6 +1297,84 @@ async function deletarNotaAtual() {
     if (!confirm('Deletar esta nota?')) return;
     await fetch(`/api/notas/${notaAtualId}`,{method:'DELETE'});
     notaAtualId=null; alterado=false;
+    await carregarNotas();
+    if (notas.length>0) selecionarNota(notas[0].id); else mostrarVazioSidebar();
+}
+
+// ── MODAL NOTA EXPANDIDA ─────────────────────────────────────────────
+let modalNotaId=null, modalAlterado=false;
+
+function abrirModalNota(id) {
+    const nota=notas.find(n=>n.id===id); if(!nota) return;
+    modalNotaId=id; modalAlterado=false;
+    document.getElementById('modal-nota-titulo').value=nota.titulo||'';
+    document.getElementById('modal-nota-texto').value=nota.texto||'';
+    document.getElementById('modal-nota-status').textContent='Salvo';
+    document.getElementById('modal-nota-chars').textContent=`${(nota.texto||'').length} caracteres`;
+    document.getElementById('modal-ia-section').classList.add('hidden');
+    document.getElementById('modal-ia-resultado').textContent='';
+    document.getElementById('modal-nota-expand').classList.remove('hidden');
+    document.body.style.overflow='hidden';
+}
+
+function fecharModalNota() {
+    if (modalAlterado) salvarModalNota();
+    document.getElementById('modal-nota-expand').classList.add('hidden');
+    document.body.style.overflow='';
+}
+
+function modalMarcarAlterado() {
+    modalAlterado=true;
+    document.getElementById('modal-nota-status').textContent='Não salvo...';
+    document.getElementById('modal-nota-chars').textContent=`${document.getElementById('modal-nota-texto').value.length} caracteres`;
+}
+
+async function salvarModalNota() {
+    if (!modalNotaId) return;
+    const titulo=document.getElementById('modal-nota-titulo').value.trim()||'Sem título';
+    const texto=document.getElementById('modal-nota-texto').value;
+    await fetch(`/api/notas/${modalNotaId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({titulo,texto})});
+    modalAlterado=false;
+    document.getElementById('modal-nota-status').textContent='Salvo ✓';
+    const nota=notas.find(n=>n.id===modalNotaId);
+    if (nota) { nota.titulo=titulo; nota.texto=texto; }
+    await carregarNotas();
+}
+
+async function analisarNota() {
+    if (!modalNotaId) return;
+    if (modalAlterado) await salvarModalNota();
+    const section=document.getElementById('modal-ia-section');
+    const loading=document.getElementById('modal-ia-loading');
+    const resultado=document.getElementById('modal-ia-resultado');
+    const btn=document.getElementById('btn-analisar-ia');
+    section.classList.remove('hidden');
+    loading.style.display='flex'; resultado.textContent='';
+    btn.disabled=true; btn.style.opacity='0.6';
+    try {
+        const res=await fetch(`/api/notas/${modalNotaId}/analise`,{method:'POST'});
+        if (!res.ok) throw new Error(await res.text());
+        const data=await res.json();
+        loading.style.display='none';
+        resultado.textContent=data.analise||'Sem análise disponível.';
+    } catch(e) {
+        loading.style.display='none';
+        resultado.textContent='Erro ao analisar. Verifique sua conexão e tente novamente.';
+    } finally {
+        btn.disabled=false; btn.style.opacity='1';
+    }
+}
+
+function fecharAnalise() {
+    document.getElementById('modal-ia-section').classList.add('hidden');
+}
+
+async function deletarNotaModal() {
+    if (!modalNotaId) return;
+    if (!confirm('Deletar esta nota?')) return;
+    await fetch(`/api/notas/${modalNotaId}`,{method:'DELETE'});
+    fecharModalNota();
+    modalNotaId=null;
     await carregarNotas();
     if (notas.length>0) selecionarNota(notas[0].id); else mostrarVazioSidebar();
 }
