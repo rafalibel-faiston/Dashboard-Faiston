@@ -38,8 +38,11 @@
         .pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
         @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
         .kanban-col { min-height: calc(100vh - 220px); }
-        .task-card { transition: transform .15s ease, box-shadow .2s ease; }
+        .task-card { transition: transform .15s ease, box-shadow .2s ease; cursor: grab; }
         .task-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -8px rgba(13,15,35,.15); }
+        .task-card:active { cursor: grabbing; }
+        .task-card.dragging { opacity: 0.35; transform: scale(0.97); box-shadow: none !important; }
+        .kanban-col.drag-over { outline: 2px dashed #5B2EE0; outline-offset: -4px; }
 
         /* ── DARK MODE — Kanban ─────────────────────────── */
         [data-theme="dark"] body { background-color: #07070F; color: #F1F2F8; }
@@ -215,7 +218,8 @@
                 <span class="text-xs font-bold text-faiston-muted uppercase tracking-wider">Aberto</span>
                 <span class="ml-auto text-xs font-bold bg-slate-100 text-faiston-muted px-2 py-0.5 rounded-full" id="badge-aberto">0</span>
             </div>
-            <div class="bg-slate-100/70 rounded-2xl p-3 kanban-col custom-scrollbar overflow-y-auto" id="kanban-aberto">
+            <div class="bg-slate-100/70 rounded-2xl p-3 kanban-col custom-scrollbar overflow-y-auto" id="kanban-aberto"
+                 ondragover="onColDragOver(event)" ondragenter="onColDragEnter(event,this)" ondragleave="onColDragLeave(event,this)" ondrop="onColDrop(event,'aberto')">
                 <div class="text-center py-12 text-slate-300"><i class="ph ph-tray text-2xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
             </div>
         </div>
@@ -227,7 +231,8 @@
                 <span class="text-xs font-bold text-faiston-purple uppercase tracking-wider">Em Andamento</span>
                 <span class="ml-auto text-xs font-bold bg-faiston-purple/10 text-faiston-purple px-2 py-0.5 rounded-full" id="badge-em_andamento">0</span>
             </div>
-            <div class="bg-faiston-purple/5 rounded-2xl p-3 kanban-col custom-scrollbar overflow-y-auto" id="kanban-em_andamento">
+            <div class="bg-faiston-purple/5 rounded-2xl p-3 kanban-col custom-scrollbar overflow-y-auto" id="kanban-em_andamento"
+                 ondragover="onColDragOver(event)" ondragenter="onColDragEnter(event,this)" ondragleave="onColDragLeave(event,this)" ondrop="onColDrop(event,'em_andamento')">
                 <div class="text-center py-12 text-slate-300"><i class="ph ph-tray text-2xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
             </div>
         </div>
@@ -239,7 +244,8 @@
                 <span class="text-xs font-bold text-faiston-cyan uppercase tracking-wider">Concluído</span>
                 <span class="ml-auto text-xs font-bold bg-faiston-cyan/10 text-faiston-cyan px-2 py-0.5 rounded-full" id="badge-concluido">0</span>
             </div>
-            <div class="bg-faiston-cyan/5 rounded-2xl p-3 kanban-col custom-scrollbar overflow-y-auto" id="kanban-concluido">
+            <div class="bg-faiston-cyan/5 rounded-2xl p-3 kanban-col custom-scrollbar overflow-y-auto" id="kanban-concluido"
+                 ondragover="onColDragOver(event)" ondragenter="onColDragEnter(event,this)" ondragleave="onColDragLeave(event,this)" ondrop="onColDrop(event,'concluido')">
                 <div class="text-center py-12 text-slate-300"><i class="ph ph-tray text-2xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
             </div>
         </div>
@@ -623,7 +629,7 @@ function renderKanbanCard(task, status) {
     const secs = isRunning ? task.segundos + Math.floor((Date.now()-timerStart)/1000) : task.segundos;
     const pc = PRIO_CFG[task.prioridade] || PRIO_CFG['Media'];
 
-    return `<div class="task-card bg-white rounded-xl border ${isRunning ? 'border-faiston-purple timer-running' : 'border-faiston-border'} p-3 relative overflow-hidden ${isDone ? 'opacity-60' : ''}">
+    return `<div class="task-card bg-white rounded-xl border ${isRunning ? 'border-faiston-purple timer-running' : 'border-faiston-border'} p-3 relative overflow-hidden ${isDone ? 'opacity-60' : ''}" draggable="true" data-task-id="${task.id}" ondragstart="onTaskDragStart(event,${task.id})" ondragend="onTaskDragEnd(event)">
         ${isRunning ? '<div class="absolute top-0 left-0 right-0 h-[3px] grad-bg"></div>' : ''}
         <div class="flex items-start justify-between gap-2 mb-2">
             <div class="flex items-center gap-1.5">
@@ -839,6 +845,56 @@ async function concluirTarefa(taskId) {
         body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',segundos:task.segundos,
             data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
     renderTasks(); updateSummary();
+}
+
+// ── DRAG & DROP ──────────────────────────────────────────────────────
+let draggedTaskId = null;
+
+function onTaskDragStart(e, taskId) {
+    draggedTaskId = taskId;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => e.target.classList.add('dragging'), 0);
+}
+
+function onTaskDragEnd(e) {
+    e.target.classList.remove('dragging');
+    document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+}
+
+function onColDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function onColDragEnter(e, el) {
+    e.preventDefault();
+    el.classList.add('drag-over');
+}
+
+function onColDragLeave(e, el) {
+    if (!el.contains(e.relatedTarget)) el.classList.remove('drag-over');
+}
+
+async function onColDrop(e, newStatus) {
+    e.preventDefault();
+    document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+    if (!draggedTaskId) return;
+    const task = tasks.find(t => t.id === draggedTaskId);
+    draggedTaskId = null;
+    if (!task || task.status === newStatus) return;
+
+    if (task._running && newStatus !== 'em_andamento') await stopTimer(task.id, true);
+    task.status = newStatus;
+    await fetch(`/api/tarefas/${task.id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({descricao: task.descricao, cliente: task.cliente, prioridade: task.prioridade,
+            status: newStatus, segundos: task.segundos,
+            data_prazo: task.data_prazo || null, data_agendamento: task.data_agendamento || null})
+    });
+    renderTasks(); updateSummary();
+    if (newStatus === 'em_andamento' && !task._running) startTimer(task.id);
+    if (tabAtiva === 'agenda') renderAgenda();
 }
 
 // ── COMENTÁRIOS ──────────────────────────────────────────────────────
