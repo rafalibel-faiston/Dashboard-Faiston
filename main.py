@@ -121,6 +121,7 @@ def setup_banco():
                 criado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        cur.execute("ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
         cur.execute("SELECT id FROM usuarios WHERE usuario = 'admin'")
         if not cur.fetchone():
             cur.execute(
@@ -522,7 +523,7 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
              t.data_prazo or None, t.data_agendamento or None)
         )
         new_id = cur.fetchone()[0]
-        criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]")
+        criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -541,9 +542,9 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
              t.data_prazo or None, t.data_agendamento or None, tid, sess["id"])
         )
         if t.status == "concluido":
-            criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]")
+            criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         elif t.status == "em_andamento":
-            criar_notificacao(conn, "tarefa_iniciada", f"▶️ {sess['nome']} iniciou: {t.descricao[:50]} [{t.cliente}]")
+            criar_notificacao(conn, "tarefa_iniciada", f"▶️ {sess['nome']} iniciou: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -617,9 +618,9 @@ def atividades_recentes(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT u.nome, u.perfil, n.tipo, n.mensagem, n.criado_em
+            SELECT COALESCE(u.nome, 'Sistema'), COALESCE(u.perfil, '—'), n.tipo, n.mensagem, n.criado_em
             FROM notificacoes n
-            JOIN usuarios u ON n.usuario_id = u.id
+            LEFT JOIN usuarios u ON n.usuario_id = u.id
             WHERE n.criado_em >= NOW() - INTERVAL '24 hours'
             ORDER BY n.criado_em DESC
             LIMIT 50
@@ -1185,11 +1186,10 @@ def relatorio_page(cliente: str): return FileResponse("static/relatorio.html")
 def apresentacao_page(): return FileResponse("static/apresentacao.html")
 
 # --- NOTIFICAÇÕES ---
-def criar_notificacao(conn, tipo: str, mensagem: str):
+def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None):
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO notificacoes (tipo, mensagem) VALUES (%s, %s)", (tipo, mensagem))
-        # Mantém só as últimas 50
+        cur.execute("INSERT INTO notificacoes (tipo, mensagem, usuario_id) VALUES (%s, %s, %s)", (tipo, mensagem, usuario_id))
         cur.execute("DELETE FROM notificacoes WHERE id NOT IN (SELECT id FROM notificacoes ORDER BY criado_em DESC LIMIT 50)")
         cur.close()
     except:
