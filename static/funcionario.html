@@ -1423,6 +1423,18 @@ async function deletarCarimboModal() {
     renderCarimbos();
 }
 
+const CAT_COLORS = [
+    {border:'#5B2EE0', bg:'#f5f0ff', badge:'#ede5ff', text:'#5B2EE0'},
+    {border:'#06D7E6', bg:'#f0fffe', badge:'#d6feff', text:'#0a9ba6'},
+    {border:'#f59e0b', bg:'#fffbf0', badge:'#fef3c7', text:'#b45309'},
+    {border:'#10b981', bg:'#f0fdf8', badge:'#d1fae5', text:'#047857'},
+    {border:'#ef4444', bg:'#fff5f5', badge:'#fee2e2', text:'#b91c1c'},
+    {border:'#8b5cf6', bg:'#f8f5ff', badge:'#ede9fe', text:'#6d28d9'},
+    {border:'#f97316', bg:'#fff7f0', badge:'#ffedd5', text:'#c2410c'},
+    {border:'#3b82f6', bg:'#f0f6ff', badge:'#dbeafe', text:'#1d4ed8'},
+];
+function catColor(idx){ return CAT_COLORS[idx % CAT_COLORS.length]; }
+
 function renderCarimbos() {
     const cont=document.getElementById('carimbos-view-content'); if(!cont) return;
     if (!carimbos.length) {
@@ -1431,25 +1443,32 @@ function renderCarimbos() {
     }
     const byCat={};
     carimbos.forEach(c=>{ if(!byCat[c.categoria||'Geral']) byCat[c.categoria||'Geral']=[]; byCat[c.categoria||'Geral'].push(c); });
-    cont.innerHTML=Object.entries(byCat).map(([cat,items])=>`
-        <div class="mb-6">
-            <p class="text-[10px] font-bold uppercase tracking-widest text-faiston-muted mb-3 flex items-center gap-2">
-                <span class="w-4 h-px bg-faiston-border inline-block"></span>${cat}<span class="flex-1 h-px bg-faiston-border inline-block"></span>
-            </p>
+    cont.innerHTML=Object.entries(byCat).map(([cat,items],idx)=>{
+        const col=catColor(idx);
+        return `
+        <div class="mb-8">
+            <div class="flex items-center gap-3 mb-4">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider" style="background:${col.badge};color:${col.text}">
+                    <i class="ph ph-stamp text-xs"></i>${cat}
+                </span>
+                <span class="flex-1 h-px" style="background:${col.border};opacity:0.2"></span>
+                <span class="text-[10px] text-slate-400">${items.length} carimbo${items.length>1?'s':''}</span>
+            </div>
             <div class="grid grid-cols-3 gap-4">
                 ${items.map(c=>`
-                <div class="bg-white border border-faiston-border rounded-2xl p-4 hover:border-faiston-cyan/50 hover:shadow-md transition-all flex flex-col">
+                <div class="bg-white rounded-2xl p-4 hover:shadow-lg transition-all flex flex-col" style="border-left:4px solid ${col.border};border-top:1px solid #e8e8f0;border-right:1px solid #e8e8f0;border-bottom:1px solid #e8e8f0;">
                     <div class="flex items-start justify-between mb-2 gap-2">
-                        <p class="text-sm font-bold text-faiston-dark">${c.titulo}</p>
-                        ${c.meu ? `<button onclick="abrirModalCarimbo(${c.id})" class="text-slate-300 hover:text-faiston-purple transition-colors flex-shrink-0" title="Editar"><i class="ph ph-pencil text-sm"></i></button>` : ''}
+                        <p class="text-sm font-bold text-faiston-dark leading-tight">${c.titulo}</p>
+                        ${c.meu ? `<button onclick="abrirModalCarimbo(${c.id})" class="flex-shrink-0 transition-colors" style="color:#ccc" onmouseover="this.style.color='${col.border}'" onmouseout="this.style.color='#ccc'" title="Editar"><i class="ph ph-pencil text-sm"></i></button>` : ''}
                     </div>
                     <pre class="text-xs text-slate-500 leading-relaxed mb-4 whitespace-pre-wrap font-sans flex-1" style="min-height:60px;max-height:120px;overflow:hidden">${c.conteudo||''}</pre>
-                    <button onclick="copiarCarimbo(${c.id},this)" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border border-faiston-border text-faiston-muted hover:border-faiston-cyan hover:text-faiston-cyan transition-all">
+                    <button onclick="copiarCarimbo(${c.id},this)" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all" style="border:1px solid ${col.border}30;color:${col.text};background:${col.bg}" onmouseover="this.style.background='${col.badge}'" onmouseout="this.style.background='${col.bg}'">
                         <i class="ph ph-copy text-sm"></i> Copiar
                     </button>
                 </div>`).join('')}
             </div>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 }
 
 async function copiarCarimbo(id, btn) {
