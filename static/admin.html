@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         tailwind.config = {
             theme: { extend: {
@@ -127,19 +128,61 @@
     <!-- PAINEL ATIVIDADE -->
     <div id="painel-online" class="hidden">
         <div class="flex items-center justify-between mb-5">
-            <h2 class="text-lg font-bold text-faiston-dark">Atividade do Time</h2>
+            <h2 class="text-lg font-bold text-faiston-dark">Uso do Sistema</h2>
             <button onclick="carregarAtividade()" class="flex items-center gap-2 px-3 py-2 rounded-lg border border-faiston-border bg-white text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
                 <i class="ph ph-arrows-clockwise text-sm"></i> Atualizar
             </button>
         </div>
 
         <!-- Online agora -->
-        <div class="bg-white rounded-xl border border-faiston-border p-5 mb-4">
+        <div class="bg-white rounded-xl border border-faiston-border p-5 mb-5">
             <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-green-400 inline-block animate-pulse"></span> Online agora (últimos 5 min)
             </p>
-            <div id="lista-online" class="flex flex-col gap-2">
+            <div id="lista-online" class="flex flex-wrap gap-2">
                 <p class="text-sm text-faiston-muted">Carregando...</p>
+            </div>
+        </div>
+
+        <!-- KPIs -->
+        <div id="kpis-uso" class="grid grid-cols-4 gap-4 mb-5"></div>
+
+        <!-- Linha 1: Tarefas por usuário + Atividade 7 dias -->
+        <div class="grid grid-cols-2 gap-5 mb-5">
+            <div class="bg-white rounded-xl border border-faiston-border p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Tarefas por Funcionário</p>
+                <canvas id="chart-tarefas-usuario" height="220"></canvas>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Atividade — Últimos 7 dias</p>
+                <canvas id="chart-atividade-diaria" height="220"></canvas>
+            </div>
+        </div>
+
+        <!-- Linha 2: Horas por usuário + Tipos de ação -->
+        <div class="grid grid-cols-2 gap-5 mb-5">
+            <div class="bg-white rounded-xl border border-faiston-border p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Horas Trabalhadas por Funcionário</p>
+                <canvas id="chart-horas" height="220"></canvas>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-5 flex flex-col">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Tipo de Ação (últimos 30 dias)</p>
+                <div class="flex items-center justify-center flex-1 gap-8">
+                    <canvas id="chart-tipos" style="max-width:180px;max-height:180px"></canvas>
+                    <div id="legend-tipos" class="flex flex-col gap-2 text-sm"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Linha 3: Notas + Carimbos -->
+        <div class="grid grid-cols-2 gap-5 mb-5">
+            <div class="bg-white rounded-xl border border-faiston-border p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Notas Criadas por Usuário</p>
+                <canvas id="chart-notas" height="180"></canvas>
+            </div>
+            <div class="bg-white rounded-xl border border-faiston-border p-5">
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Carimbos Criados por Usuário</p>
+                <canvas id="chart-carimbos" height="180"></canvas>
             </div>
         </div>
 
@@ -148,7 +191,7 @@
             <div class="px-5 py-4 border-b border-faiston-border">
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Atividades nas últimas 24h</p>
             </div>
-            <div id="lista-atividades" class="divide-y divide-faiston-border">
+            <div id="lista-atividades" class="divide-y divide-faiston-border max-h-80 overflow-y-auto">
                 <p class="text-sm text-faiston-muted p-5">Carregando...</p>
             </div>
         </div>
@@ -329,46 +372,141 @@ async function carregarTarefas() {
     }).join('');
 }
 
+let _charts = {};
+function _destroyChart(id) { if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; } }
+
+function _mkBar(id, labels, datasets, opts={}) {
+    _destroyChart(id);
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+    _charts[id] = new Chart(ctx, { type: 'bar', data: { labels, datasets }, options: {
+        responsive: true, maintainAspectRatio: false, plugins: { legend: { display: datasets.length > 1, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 12 } } },
+        scales: { x: { ticks: { font: { size: 11 } }, grid: { display: false } }, y: { ticks: { font: { size: 11 }, precision: 0 }, grid: { color: 'rgba(0,0,0,0.05)' }, beginAtZero: true } },
+        ...opts
+    }});
+}
+
+function _mkLine(id, labels, data) {
+    _destroyChart(id);
+    const ctx = document.getElementById(id); if (!ctx) return;
+    _charts[id] = new Chart(ctx, { type: 'line', data: { labels, datasets: [{ data, fill: true,
+        borderColor: '#5B2EE0', backgroundColor: 'rgba(91,46,224,0.08)',
+        tension: 0.4, pointBackgroundColor: '#5B2EE0', pointRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { ticks: { font: { size: 11 } }, grid: { display: false } },
+                      y: { ticks: { font: { size: 11 }, precision: 0 }, grid: { color: 'rgba(0,0,0,0.05)' }, beginAtZero: true } } }
+    });
+}
+
+function _mkDoughnut(id, labels, data, colors) {
+    _destroyChart(id);
+    const ctx = document.getElementById(id); if (!ctx) return;
+    _charts[id] = new Chart(ctx, { type: 'doughnut', data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+        options: { responsive: true, cutout: '65%', plugins: { legend: { display: false } } }
+    });
+}
+
 async function carregarAtividade() {
-    const [resOnline, resAtiv] = await Promise.all([
+    const [resOnline, resAtiv, resUso] = await Promise.all([
         fetch('/api/admin/online'),
-        fetch('/api/admin/atividades')
+        fetch('/api/admin/atividades'),
+        fetch('/api/admin/uso')
     ]);
-    const online = await resOnline.json();
-    const atividades = await resAtiv.json();
+    const online    = resOnline.ok ? await resOnline.json() : [];
+    const atividades = resAtiv.ok ? await resAtiv.json() : [];
+    const uso       = resUso.ok   ? await resUso.json()   : null;
 
-    const perfilLabel = { admin: 'Admin', gestor: 'Gestor', funcionario: 'Funcionário', demo: 'Demo' };
-    const perfilColor = { admin: 'text-red-600 bg-red-50', gestor: 'text-faiston-purple bg-purple-50', funcionario: 'text-cyan-600 bg-cyan-50', demo: 'text-orange-600 bg-orange-50' };
-
+    // ── Online ──────────────────────────────────────────────────────
+    const perfilLabel = { admin:'Admin', gestor:'Gestor', funcionario:'Funcionário', demo:'Demo' };
+    const perfilColor = { admin:'text-red-600 bg-red-50', gestor:'text-faiston-purple bg-purple-50', funcionario:'text-cyan-600 bg-cyan-50', demo:'text-orange-600 bg-orange-50' };
     const listaOnline = document.getElementById('lista-online');
-    if (!online.length) {
-        listaOnline.innerHTML = '<p class="text-sm text-faiston-muted">Nenhum usuário ativo no momento.</p>';
-    } else {
-        listaOnline.innerHTML = online.map(u => `
-            <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">${u.nome.charAt(0).toUpperCase()}</div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-faiston-dark">${u.nome}</p>
-                    <p class="text-xs text-faiston-muted">${u.page} · ${u.ultimo_acesso}</p>
+    listaOnline.innerHTML = !online.length
+        ? '<p class="text-sm text-faiston-muted">Nenhum usuário ativo no momento.</p>'
+        : online.map(u => `
+            <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-xs flex-shrink-0" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">${u.nome.charAt(0)}</div>
+                <div class="min-w-0">
+                    <p class="text-xs font-semibold text-faiston-dark truncate">${u.nome}</p>
+                    <p class="text-[10px] text-faiston-muted">${u.page} · ${u.ultimo_acesso}</p>
                 </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${perfilColor[u.perfil] || ''}">${perfilLabel[u.perfil] || u.perfil}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ml-1 ${perfilColor[u.perfil]||''}">${perfilLabel[u.perfil]||u.perfil}</span>
             </div>`).join('');
+
+    // ── KPIs ─────────────────────────────────────────────────────────
+    if (uso) {
+        const totalTarefas   = uso.por_usuario.reduce((s,u)=>s+u.total,0);
+        const totalConcluidas= uso.por_usuario.reduce((s,u)=>s+u.concluidas,0);
+        const totalHoras     = uso.por_usuario.reduce((s,u)=>s+u.horas,0);
+        const totalNotas     = uso.notas.reduce((s,u)=>s+u.notas,0);
+        const kpis = [
+            { icon:'ph-clipboard-text', label:'Tarefas', value: totalTarefas, color:'#5B2EE0' },
+            { icon:'ph-check-circle',   label:'Concluídas', value: totalConcluidas, color:'#10b981' },
+            { icon:'ph-clock',          label:'Horas registradas', value: totalHoras.toFixed(1)+'h', color:'#f59e0b' },
+            { icon:'ph-note',           label:'Notas criadas', value: totalNotas, color:'#3b82f6' },
+        ];
+        document.getElementById('kpis-uso').innerHTML = kpis.map(k=>`
+            <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:${k.color}18">
+                    <i class="ph ${k.icon} text-xl" style="color:${k.color}"></i>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-faiston-dark leading-none">${k.value}</p>
+                    <p class="text-xs text-faiston-muted mt-0.5">${k.label}</p>
+                </div>
+            </div>`).join('');
+
+        // Tarefas por usuário (stacked bar)
+        const nomes = uso.por_usuario.map(u=>u.nome.split(' ')[0]);
+        _mkBar('chart-tarefas-usuario', nomes, [
+            { label:'Abertas',      data: uso.por_usuario.map(u=>u.abertas),      backgroundColor:'#e2e8f0' },
+            { label:'Em andamento', data: uso.por_usuario.map(u=>u.em_andamento), backgroundColor:'#5B2EE0' },
+            { label:'Concluídas',   data: uso.por_usuario.map(u=>u.concluidas),   backgroundColor:'#06D7E6' },
+        ]);
+
+        // Atividade diária
+        _mkLine('chart-atividade-diaria',
+            uso.atividade_diaria.map(d=>d.dia),
+            uso.atividade_diaria.map(d=>d.total));
+
+        // Horas
+        _mkBar('chart-horas', nomes, [
+            { label:'Horas', data: uso.por_usuario.map(u=>u.horas),
+              backgroundColor: nomes.map((_,i) => `hsl(${250+i*22},70%,${55+i*4}%)`) }
+        ]);
+
+        // Donut tipos
+        const donutColors = ['#5B2EE0','#06D7E6','#f59e0b','#10b981','#ef4444'];
+        _mkDoughnut('chart-tipos', uso.tipos.map(t=>t.tipo), uso.tipos.map(t=>t.total), donutColors);
+        document.getElementById('legend-tipos').innerHTML = uso.tipos.map((t,i)=>`
+            <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${donutColors[i%donutColors.length]}"></span>
+                <span class="text-xs text-slate-600">${t.tipo}</span>
+                <span class="text-xs font-bold text-faiston-dark ml-auto">${t.total}</span>
+            </div>`).join('');
+
+        // Notas
+        _mkBar('chart-notas', uso.notas.map(u=>u.nome.split(' ')[0]),
+            [{ label:'Notas', data: uso.notas.map(u=>u.notas), backgroundColor:'#3b82f6' }]);
+
+        // Carimbos
+        _mkBar('chart-carimbos', uso.carimbos.map(u=>u.nome.split(' ')[0]),
+            [{ label:'Carimbos', data: uso.carimbos.map(u=>u.carimbos), backgroundColor:'#8b5cf6' }]);
     }
 
-    const tipoIcon = { nova_tarefa: '➕', tarefa_concluida: '✅', tarefa_iniciada: '▶️', ia_insight: '✨', nota: '📝' };
+    // ── Atividades recentes ──────────────────────────────────────────
+    const tipoIcon = { nova_tarefa:'➕', tarefa_concluida:'✅', tarefa_iniciada:'▶️', ia_insight:'✨' };
     const listaAtiv = document.getElementById('lista-atividades');
-    if (!atividades.length) {
-        listaAtiv.innerHTML = '<p class="text-sm text-faiston-muted p-5">Nenhuma atividade nas últimas 24h.</p>';
-    } else {
-        listaAtiv.innerHTML = atividades.map(a => `
+    listaAtiv.innerHTML = !atividades.length
+        ? '<p class="text-sm text-faiston-muted p-5">Nenhuma atividade nas últimas 24h.</p>'
+        : atividades.map(a => `
             <div class="flex items-center gap-3 px-5 py-3">
-                <span class="text-base flex-shrink-0">${tipoIcon[a.tipo] || '🔹'}</span>
+                <span class="text-base flex-shrink-0">${tipoIcon[a.tipo]||'🔹'}</span>
                 <div class="flex-1 min-w-0">
                     <p class="text-sm text-faiston-dark"><span class="font-semibold">${a.nome}</span> — ${a.mensagem}</p>
                 </div>
                 <span class="text-xs text-faiston-muted flex-shrink-0">${a.quando}</span>
             </div>`).join('');
-    }
 }
 
 async function limparSeed() {

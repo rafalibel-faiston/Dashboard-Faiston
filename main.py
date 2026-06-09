@@ -632,6 +632,67 @@ def atividades_recentes(faiston_token: str = Cookie(None)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/admin/uso")
+def uso_sistema(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT u.nome,
+                   COUNT(t.id) as total,
+                   SUM(CASE WHEN t.status='aberto' THEN 1 ELSE 0 END) as abertas,
+                   SUM(CASE WHEN t.status='em_andamento' THEN 1 ELSE 0 END) as em_andamento,
+                   SUM(CASE WHEN t.status='concluido' THEN 1 ELSE 0 END) as concluidas,
+                   COALESCE(SUM(t.segundos), 0) as segundos_total
+            FROM usuarios u
+            LEFT JOIN tarefas t ON t.usuario_id = u.id
+            WHERE u.perfil IN ('funcionario','gestor','demo') AND u.ativo = TRUE
+            GROUP BY u.id, u.nome ORDER BY total DESC
+        """)
+        por_usuario = [{"nome": r[0], "total": int(r[1]), "abertas": int(r[2] or 0),
+                        "em_andamento": int(r[3] or 0), "concluidas": int(r[4] or 0),
+                        "horas": round(int(r[5])/3600, 1)} for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT TO_CHAR(criado_em AT TIME ZONE 'America/Sao_Paulo', 'DD/MM') as dia, COUNT(*) as total
+            FROM notificacoes WHERE criado_em >= NOW() - INTERVAL '7 days'
+            GROUP BY dia ORDER BY MIN(criado_em)
+        """)
+        atividade_diaria = [{"dia": r[0], "total": int(r[1])} for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT tipo, COUNT(*) as total FROM notificacoes
+            WHERE criado_em >= NOW() - INTERVAL '30 days'
+            GROUP BY tipo ORDER BY total DESC
+        """)
+        tipo_label = {"nova_tarefa": "Nova Tarefa", "tarefa_concluida": "Concluída",
+                      "tarefa_iniciada": "Iniciada", "ia_insight": "IA Insight"}
+        tipos = [{"tipo": tipo_label.get(r[0], r[0]), "total": int(r[1])} for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT u.nome, COUNT(n.id) as notas
+            FROM usuarios u LEFT JOIN notas n ON n.usuario_id = u.id
+            WHERE u.perfil IN ('funcionario','gestor','demo') AND u.ativo = TRUE
+            GROUP BY u.id, u.nome ORDER BY notas DESC LIMIT 10
+        """)
+        notas = [{"nome": r[0], "notas": int(r[1])} for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT u.nome, COUNT(c.id) as carimbos
+            FROM usuarios u LEFT JOIN carimbos c ON c.criado_por = u.id
+            WHERE u.ativo = TRUE GROUP BY u.id, u.nome ORDER BY carimbos DESC LIMIT 10
+        """)
+        carimbos_uso = [{"nome": r[0], "carimbos": int(r[1])} for r in cur.fetchall()]
+
+        cur.close(); conn.close()
+        return {"por_usuario": por_usuario, "atividade_diaria": atividade_diaria,
+                "tipos": tipos, "notas": notas, "carimbos": carimbos_uso}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/admin/ping")
 def ping_session(page: str = "", faiston_token: str = Cookie(None)):
     get_session(faiston_token, page)
