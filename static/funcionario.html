@@ -495,9 +495,6 @@
                 <span class="text-sm font-bold text-faiston-dark">Carimbos</span>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="abrirModalCarimbo(null)" class="flex items-center gap-1 text-white px-3 py-1 rounded-lg text-xs font-semibold" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)">
-                    <i class="ph ph-plus text-xs"></i> Novo
-                </button>
                 <button onclick="toggleCarimbos()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
                     <i class="ph ph-caret-down text-slate-400 text-sm"></i>
                 </button>
@@ -1429,9 +1426,6 @@ function renderCarimbos() {
                 <div class="carimbo-item bg-slate-50 border border-faiston-border rounded-xl p-3 hover:border-faiston-cyan/40 transition-all">
                     <div class="flex items-center justify-between gap-2 mb-1">
                         <span class="carimbo-titulo text-xs font-bold text-faiston-dark truncate">${c.titulo}</span>
-                        <button onclick="abrirModalCarimbo(${c.id})" class="flex-shrink-0 w-6 h-6 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors">
-                            <i class="ph ph-pencil-simple text-xs"></i>
-                        </button>
                     </div>
                     <p class="carimbo-preview text-[10px] text-slate-400 leading-relaxed line-clamp-2 mb-2">${(c.conteudo||'').substring(0,80)}${(c.conteudo||'').length>80?'...':''}</p>
                     <button onclick="copiarCarimbo(${c.id},this)" class="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border text-faiston-muted hover:border-faiston-cyan hover:text-faiston-cyan transition-all">

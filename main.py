@@ -1547,7 +1547,7 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
         cur.execute("""
             CREATE TABLE IF NOT EXISTS carimbos (
                 id SERIAL PRIMARY KEY,
-                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
                 titulo VARCHAR(200) NOT NULL,
                 categoria VARCHAR(100) DEFAULT 'Geral',
                 conteudo TEXT DEFAULT '',
@@ -1557,8 +1557,7 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
         """)
         conn.commit()
         cur.execute("""SELECT id, titulo, categoria, conteudo, criado_em, atualizado_em
-            FROM carimbos WHERE usuario_id = %s ORDER BY categoria, titulo""",
-            (sess["id"],))
+            FROM carimbos ORDER BY categoria, titulo""")
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "titulo": r[1], "categoria": r[2], "conteudo": r[3],
@@ -1569,11 +1568,13 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
 def criar_carimbo(c: CarimboModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if sess.get("perfil") not in ("gestor", "admin"):
+        raise HTTPException(status_code=403, detail="Apenas gestores podem criar carimbos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO carimbos (usuario_id, titulo, categoria, conteudo) VALUES (%s,%s,%s,%s) RETURNING id",
+        cur.execute("INSERT INTO carimbos (criado_por, titulo, categoria, conteudo) VALUES (%s,%s,%s,%s) RETURNING id",
                     (sess["id"], c.titulo, c.categoria, c.conteudo))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
@@ -1584,12 +1585,14 @@ def criar_carimbo(c: CarimboModel, faiston_token: str = Cookie(None)):
 def atualizar_carimbo(cid: int, c: CarimboModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if sess.get("perfil") not in ("gestor", "admin"):
+        raise HTTPException(status_code=403, detail="Apenas gestores podem editar carimbos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE carimbos SET titulo=%s, categoria=%s, conteudo=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
-                    (c.titulo, c.categoria, c.conteudo, cid, sess["id"]))
+        cur.execute("UPDATE carimbos SET titulo=%s, categoria=%s, conteudo=%s, atualizado_em=NOW() WHERE id=%s",
+                    (c.titulo, c.categoria, c.conteudo, cid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1598,11 +1601,13 @@ def atualizar_carimbo(cid: int, c: CarimboModel, faiston_token: str = Cookie(Non
 def deletar_carimbo(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if sess.get("perfil") not in ("gestor", "admin"):
+        raise HTTPException(status_code=403, detail="Apenas gestores podem deletar carimbos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM carimbos WHERE id=%s AND usuario_id=%s", (cid, sess["id"]))
+        cur.execute("DELETE FROM carimbos WHERE id=%s", (cid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
