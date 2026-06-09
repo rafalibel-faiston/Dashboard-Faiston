@@ -339,13 +339,16 @@ def listar_funcionarios(faiston_token: str = Cookie(None)):
 @app.post("/api/usuarios")
 def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
+    is_gestor = sess["perfil"] == "gestor"
+    if is_gestor and u.perfil not in ("funcionario", "demo"):
+        raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
     if u.perfil not in ("admin", "gestor", "funcionario", "demo"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        time_val = u.time if u.time in TIMES_VALIDOS else "Projetos"
         cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso, time) VALUES (%s, %s, %s, %s, %s, TRUE, %s) RETURNING id",
                     (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email, time_val))
         new_id = cur.fetchone()[0]
@@ -360,12 +363,25 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
 @app.put("/api/usuarios/{uid}")
 def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
+    is_gestor = sess["perfil"] == "gestor"
+    if is_gestor:
+        conn2 = get_db()
+        if not conn2: raise HTTPException(status_code=500, detail="Banco offline")
+        cur2 = conn2.cursor()
+        cur2.execute("SELECT COALESCE(time,'Projetos'), perfil FROM usuarios WHERE id=%s", (uid,))
+        row = cur2.fetchone(); cur2.close(); conn2.close()
+        if not row or row[0] != sess.get("time", "Projetos"):
+            raise HTTPException(status_code=403, detail="Acesso negado — usuário não pertence ao seu time")
+        if row[1] in ("admin", "gestor"):
+            raise HTTPException(status_code=403, detail="Não é possível editar admins ou gestores")
+        if u.perfil not in ("funcionario", "demo"):
+            raise HTTPException(status_code=403, detail="Gestores só podem definir perfil funcionário/demo")
+    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        time_val = u.time if u.time in TIMES_VALIDOS else "Projetos"
         if u.senha:
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE, time=%s WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), time_val, uid))
@@ -373,7 +389,6 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, u.email, time_val, uid))
         conn.commit(); cur.close(); conn.close()
-        # Atualiza sessões ativas deste usuário com o novo time/perfil sem precisar fazer logout
         for s in sessions.values():
             if s.get("id") == uid:
                 s["time"] = time_val
@@ -385,7 +400,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
 @app.post("/api/usuarios/{uid}/reenviar-email")
 def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -404,7 +419,15 @@ def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
 @app.delete("/api/usuarios/{uid}")
 def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
+    if sess["perfil"] == "gestor":
+        conn2 = get_db()
+        if not conn2: raise HTTPException(status_code=500, detail="Banco offline")
+        cur2 = conn2.cursor()
+        cur2.execute("SELECT COALESCE(time,'Projetos'), perfil FROM usuarios WHERE id=%s AND usuario != 'admin'", (uid,))
+        row = cur2.fetchone(); cur2.close(); conn2.close()
+        if not row or row[0] != sess.get("time", "Projetos") or row[1] in ("admin", "gestor"):
+            raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
