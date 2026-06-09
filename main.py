@@ -1530,6 +1530,83 @@ Seja direto e prático."""
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- CARIMBOS ---
+class CarimboModel(BaseModel):
+    titulo: str
+    categoria: str = "Geral"
+    conteudo: str = ""
+
+@app.get("/api/carimbos")
+def listar_carimbos(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS carimbos (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                titulo VARCHAR(200) NOT NULL,
+                categoria VARCHAR(100) DEFAULT 'Geral',
+                conteudo TEXT DEFAULT '',
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+        cur.execute("""SELECT id, titulo, categoria, conteudo, criado_em, atualizado_em
+            FROM carimbos WHERE usuario_id = %s ORDER BY categoria, titulo""",
+            (sess["id"],))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "titulo": r[1], "categoria": r[2], "conteudo": r[3],
+                 "criado_em": str(r[4])[:16], "atualizado_em": str(r[5])[:16]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/carimbos")
+def criar_carimbo(c: CarimboModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO carimbos (usuario_id, titulo, categoria, conteudo) VALUES (%s,%s,%s,%s) RETURNING id",
+                    (sess["id"], c.titulo, c.categoria, c.conteudo))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/carimbos/{cid}")
+def atualizar_carimbo(cid: int, c: CarimboModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE carimbos SET titulo=%s, categoria=%s, conteudo=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
+                    (c.titulo, c.categoria, c.conteudo, cid, sess["id"]))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/carimbos/{cid}")
+def deletar_carimbo(cid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM carimbos WHERE id=%s AND usuario_id=%s", (cid, sess["id"]))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 # --- CLIENTES ---
 @app.get("/api/clientes")
 def listar_clientes(faiston_token: str = Cookie(None)):
