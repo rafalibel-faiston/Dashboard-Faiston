@@ -829,9 +829,7 @@ function gRenderCarimbos() {
             <button onclick="gCopiarCarimbo(${c.id},this)" title="Copiar" class="w-6 h-6 rounded flex items-center justify-center text-slate-300 hover:text-faiston-cyan transition-colors flex-shrink-0">
                 <i class="ph ph-copy text-xs"></i>
             </button>
-            <button onclick="gAbrirModalCarimbo(${c.id})" title="Editar" class="w-6 h-6 rounded flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors flex-shrink-0">
-                <i class="ph ph-pencil-simple text-xs"></i>
-            </button>
+            ${c.meu ? `<button onclick="gAbrirModalCarimbo(${c.id})" title="Editar" class="w-6 h-6 rounded flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors flex-shrink-0"><i class="ph ph-pencil-simple text-xs"></i></button>` : ''}
         </div>`).join('');
 }
 

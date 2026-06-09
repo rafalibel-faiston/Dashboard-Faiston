@@ -1441,7 +1441,7 @@ function renderCarimbos() {
                 <div class="bg-white border border-faiston-border rounded-2xl p-4 hover:border-faiston-cyan/50 hover:shadow-md transition-all flex flex-col">
                     <div class="flex items-start justify-between mb-2 gap-2">
                         <p class="text-sm font-bold text-faiston-dark">${c.titulo}</p>
-                        <button onclick="abrirModalCarimbo(${c.id})" class="text-slate-300 hover:text-faiston-purple transition-colors flex-shrink-0" title="Editar"><i class="ph ph-pencil text-sm"></i></button>
+                        ${c.meu ? `<button onclick="abrirModalCarimbo(${c.id})" class="text-slate-300 hover:text-faiston-purple transition-colors flex-shrink-0" title="Editar"><i class="ph ph-pencil text-sm"></i></button>` : ''}
                     </div>
                     <pre class="text-xs text-slate-500 leading-relaxed mb-4 whitespace-pre-wrap font-sans flex-1" style="min-height:60px;max-height:120px;overflow:hidden">${c.conteudo||''}</pre>
                     <button onclick="copiarCarimbo(${c.id},this)" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border border-faiston-border text-faiston-muted hover:border-faiston-cyan hover:text-faiston-cyan transition-all">
