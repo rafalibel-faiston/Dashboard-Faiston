@@ -26,14 +26,6 @@ app = FastAPI(title="Faiston Ops - API", version="1.0")
 Path("static/css").mkdir(parents=True, exist_ok=True)
 Path("static/js").mkdir(parents=True, exist_ok=True)
 
-sessions = {}  # token -> {id, nome, perfil, last_seen, page}
-
-def _touch_session(token: str, page: str = ""):
-    if token and token in sessions:
-        sessions[token]["last_seen"] = datetime.utcnow()
-        if page:
-            sessions[token]["page"] = page
-
 def get_db():
     try:
         conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
@@ -50,11 +42,34 @@ def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
 def get_session(token: str, page: str = ""):
-    sess = sessions.get(token)
-    if sess:
-        sess["last_seen"] = datetime.utcnow()
-        if page: sess["page"] = page
-    return sess
+    if not token:
+        return None
+    conn = get_db()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM sessoes WHERE expira_em < NOW()")
+        if page:
+            cur.execute("""
+                UPDATE sessoes SET last_seen = NOW(), pagina = %s
+                WHERE token = %s AND expira_em > NOW()
+                RETURNING usuario_id, nome, perfil, time_usuario, pagina
+            """, (page, token))
+        else:
+            cur.execute("""
+                UPDATE sessoes SET last_seen = NOW()
+                WHERE token = %s AND expira_em > NOW()
+                RETURNING usuario_id, nome, perfil, time_usuario, pagina
+            """, (token,))
+        row = cur.fetchone()
+        conn.commit(); cur.close(); conn.close()
+        if not row:
+            return None
+        return {"id": row[0], "nome": row[1], "perfil": row[2], "time": row[3], "page": row[4] or ""}
+    except Exception as e:
+        print(f"Erro get_session: {e}")
+        return None
 
 def setup_banco():
     conn = get_db()
@@ -117,6 +132,18 @@ def setup_banco():
                 chave VARCHAR(100) PRIMARY KEY,
                 valor TEXT NOT NULL,
                 atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sessoes (
+                token VARCHAR(64) PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                nome VARCHAR(100) NOT NULL,
+                perfil VARCHAR(20) NOT NULL,
+                time_usuario VARCHAR(50) DEFAULT 'Projetos',
+                pagina VARCHAR(100) DEFAULT '',
+                last_seen TIMESTAMP DEFAULT NOW(),
+                expira_em TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
             )
         """)
         conn.commit(); cur.close(); conn.close()
@@ -266,10 +293,13 @@ def login(req: LoginRequest, response: Response):
         cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos') FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
                     (req.usuario, hash_senha(req.senha)))
         row = cur.fetchone()
-        cur.close(); conn.close()
         if not row: raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
         token = secrets.token_hex(32)
-        sessions[token] = {"id": row[0], "nome": row[1], "perfil": row[2], "time": row[4], "last_seen": datetime.utcnow(), "page": "dashboard"}
+        cur.execute("""
+            INSERT INTO sessoes (token, usuario_id, nome, perfil, time_usuario, pagina, expira_em)
+            VALUES (%s, %s, %s, %s, %s, 'dashboard', NOW() + INTERVAL '24 hours')
+        """, (token, row[0], row[1], row[2], row[4]))
+        conn.commit(); cur.close(); conn.close()
         response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
         return {"sucesso": True, "perfil": row[2], "nome": row[1], "primeiro_acesso": bool(row[3])}
     except HTTPException: raise
@@ -277,7 +307,14 @@ def login(req: LoginRequest, response: Response):
 
 @app.post("/api/logout")
 def logout(response: Response, faiston_token: str = Cookie(None)):
-    if faiston_token and faiston_token in sessions: del sessions[faiston_token]
+    if faiston_token:
+        conn = get_db()
+        if conn:
+            try:
+                cur = conn.cursor()
+                cur.execute("DELETE FROM sessoes WHERE token = %s", (faiston_token,))
+                conn.commit(); cur.close(); conn.close()
+            except Exception: pass
     response.delete_cookie("faiston_token")
     return {"sucesso": True}
 
@@ -550,19 +587,31 @@ def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
 def usuarios_online(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
-    agora = datetime.utcnow()
-    online = []
-    for token, s in list(sessions.items()):
-        last = s.get("last_seen")
-        if last and (agora - last).total_seconds() < 300:  # ativo nos últimos 5 min
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT nome, perfil, pagina, last_seen
+            FROM sessoes
+            WHERE last_seen >= NOW() - INTERVAL '5 minutes'
+              AND expira_em > NOW()
+            ORDER BY last_seen DESC
+        """)
+        rows = cur.fetchall(); cur.close(); conn.close()
+        agora = datetime.utcnow()
+        online = []
+        for r in rows:
+            last = r[3].replace(tzinfo=None) if r[3].tzinfo else r[3]
             minutos = int((agora - last).total_seconds() / 60)
             online.append({
-                "nome": s["nome"],
-                "perfil": s["perfil"],
-                "page": s.get("page", "—"),
+                "nome": r[0], "perfil": r[1],
+                "page": r[2] or "—",
                 "ultimo_acesso": f"há {minutos} min" if minutos > 0 else "agora"
             })
-    return sorted(online, key=lambda x: x["ultimo_acesso"])
+        return online
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/atividades")
 def atividades_recentes(faiston_token: str = Cookie(None)):
