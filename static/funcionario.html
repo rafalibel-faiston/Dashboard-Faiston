@@ -332,14 +332,48 @@
 
     <!-- VIEW: CARIMBOS -->
     <div id="view-carimbos-func" class="hidden">
-        <div class="mb-6">
-            <h2 class="text-base font-bold text-faiston-dark">Carimbos</h2>
-            <p class="text-xs text-faiston-muted mt-0.5">Modelos prontos para copiar e usar em outros sistemas</p>
+        <div class="mb-6 flex items-center justify-between">
+            <div>
+                <h2 class="text-base font-bold text-faiston-dark">Meus Carimbos</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Modelos prontos para copiar e usar em outros sistemas</p>
+            </div>
+            <button onclick="abrirModalCarimbo(null)" class="btn-grad text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5">
+                <i class="ph ph-plus"></i> Novo Carimbo
+            </button>
         </div>
         <div id="carimbos-view-content">
             <div class="text-center py-24 text-slate-300">
                 <i class="ph ph-stamp text-3xl mb-3 block"></i>
                 <p class="text-sm">Carregando...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CARIMBO (criar/editar) -->
+    <div id="modal-carimbo-func" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden slide-up border border-faiston-border">
+            <div class="grad-bg px-6 py-4 flex items-center justify-between">
+                <span id="modal-carimbo-titulo-header" class="font-bold text-white text-sm">Novo Carimbo</span>
+                <button onclick="fecharModalCarimbo()" class="text-white/70 hover:text-white text-lg leading-none">&times;</button>
+            </div>
+            <div class="p-6 flex flex-col gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Título</label>
+                    <input id="mc-titulo" type="text" placeholder="Ex: Expedição padrão" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white"/>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Categoria</label>
+                    <input id="mc-categoria" type="text" placeholder="Ex: Expedição, Atendimento..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white"/>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Conteúdo</label>
+                    <textarea id="mc-conteudo" rows="6" placeholder="Cole aqui o texto do carimbo..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white resize-none font-mono"></textarea>
+                </div>
+            </div>
+            <div class="flex gap-3 px-6 pb-6">
+                <button id="mc-btn-deletar" onclick="deletarCarimboModal()" class="hidden px-4 py-2.5 rounded-lg border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 transition-colors">Excluir</button>
+                <button onclick="fecharModalCarimbo()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                <button id="mc-btn-salvar" onclick="salvarCarimboModal()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
             </div>
         </div>
     </div>
@@ -1337,17 +1371,62 @@ async function deletarNotaAtual() {
 }
 
 // ── CARIMBOS ─────────────────────────────────────────────────────────
-let carimbos=[];
+let carimbos=[], modalCarimboId=null;
 
 async function carregarCarimbos() {
     const res=await fetch('/api/carimbos'); if(!res.ok) return;
     carimbos=await res.json();
 }
 
+function abrirModalCarimbo(id) {
+    modalCarimboId=id;
+    const c=id ? carimbos.find(x=>x.id===id) : null;
+    document.getElementById('modal-carimbo-titulo-header').textContent = c ? 'Editar Carimbo' : 'Novo Carimbo';
+    document.getElementById('mc-titulo').value = c ? c.titulo : '';
+    document.getElementById('mc-categoria').value = c ? c.categoria : '';
+    document.getElementById('mc-conteudo').value = c ? c.conteudo : '';
+    document.getElementById('mc-btn-deletar').classList.toggle('hidden', !c);
+    document.getElementById('modal-carimbo-func').classList.remove('hidden');
+}
+
+function fecharModalCarimbo() {
+    document.getElementById('modal-carimbo-func').classList.add('hidden');
+    modalCarimboId=null;
+}
+
+async function salvarCarimboModal() {
+    const titulo=document.getElementById('mc-titulo').value.trim();
+    const categoria=document.getElementById('mc-categoria').value.trim()||'Geral';
+    const conteudo=document.getElementById('mc-conteudo').value;
+    if (!titulo) { alert('Informe o título do carimbo.'); return; }
+    const btn=document.getElementById('mc-btn-salvar');
+    btn.disabled=true; btn.textContent='Salvando...';
+    try {
+        const url = modalCarimboId ? `/api/carimbos/${modalCarimboId}` : '/api/carimbos';
+        const method = modalCarimboId ? 'PUT' : 'POST';
+        const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify({titulo,categoria,conteudo})});
+        const data=await res.json();
+        if (!res.ok) { alert(data.detail||'Erro ao salvar'); return; }
+        fecharModalCarimbo();
+        await carregarCarimbos();
+        renderCarimbos();
+    } catch(e){ alert('Erro de conexão'); }
+    finally { btn.disabled=false; btn.textContent='Salvar'; }
+}
+
+async function deletarCarimboModal() {
+    if (!modalCarimboId || !confirm('Excluir este carimbo?')) return;
+    const res=await fetch(`/api/carimbos/${modalCarimboId}`,{method:'DELETE'});
+    if (!res.ok) { const d=await res.json(); alert(d.detail||'Erro'); return; }
+    fecharModalCarimbo();
+    await carregarCarimbos();
+    renderCarimbos();
+}
+
 function renderCarimbos() {
     const cont=document.getElementById('carimbos-view-content'); if(!cont) return;
     if (!carimbos.length) {
-        cont.innerHTML=`<div class="text-center py-24 text-slate-300"><i class="ph ph-stamp text-3xl mb-3 block"></i><p class="text-sm">Nenhum carimbo disponível.<br>O gestor ainda não criou nenhum.</p></div>`;
+        cont.innerHTML=`<div class="text-center py-24 text-slate-300"><i class="ph ph-stamp text-3xl mb-3 block"></i><p class="text-sm">Nenhum carimbo ainda.<br>Clique em "Novo Carimbo" para criar o primeiro.</p></div>`;
         return;
     }
     const byCat={};
@@ -1359,9 +1438,12 @@ function renderCarimbos() {
             </p>
             <div class="grid grid-cols-3 gap-4">
                 ${items.map(c=>`
-                <div class="bg-white border border-faiston-border rounded-2xl p-4 hover:border-faiston-cyan/50 hover:shadow-md transition-all">
-                    <p class="text-sm font-bold text-faiston-dark mb-3">${c.titulo}</p>
-                    <pre class="text-xs text-slate-500 leading-relaxed mb-4 whitespace-pre-wrap font-sans" style="min-height:60px;max-height:120px;overflow:hidden">${c.conteudo||''}</pre>
+                <div class="bg-white border border-faiston-border rounded-2xl p-4 hover:border-faiston-cyan/50 hover:shadow-md transition-all flex flex-col">
+                    <div class="flex items-start justify-between mb-2 gap-2">
+                        <p class="text-sm font-bold text-faiston-dark">${c.titulo}</p>
+                        <button onclick="abrirModalCarimbo(${c.id})" class="text-slate-300 hover:text-faiston-purple transition-colors flex-shrink-0" title="Editar"><i class="ph ph-pencil text-sm"></i></button>
+                    </div>
+                    <pre class="text-xs text-slate-500 leading-relaxed mb-4 whitespace-pre-wrap font-sans flex-1" style="min-height:60px;max-height:120px;overflow:hidden">${c.conteudo||''}</pre>
                     <button onclick="copiarCarimbo(${c.id},this)" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border border-faiston-border text-faiston-muted hover:border-faiston-cyan hover:text-faiston-cyan transition-all">
                         <i class="ph ph-copy text-sm"></i> Copiar
                     </button>
