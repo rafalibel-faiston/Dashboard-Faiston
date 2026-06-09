@@ -100,6 +100,9 @@
             </nav>
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
             <nav class="flex flex-col gap-1">
+                <a href="#" onclick="abrirEquipeGestor(); return false;" id="link-equipe" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-users-three text-lg"></i> Minha Equipe
+                </a>
                 <a href="/dashboard" class="flex items-center gap-2.5 bg-faiston-cyan/10 text-faiston-cyan font-medium text-sm rounded-md p-2.5 border border-faiston-cyan/30">
                     <i class="ph ph-chart-line-up text-lg"></i> Dashboard
                 </a>
@@ -661,6 +664,138 @@ document.addEventListener('click', e => {
         }
     }
 });
+
+// ── MINHA EQUIPE (GESTOR) ────────────────────────────────────────────
+const eqPerfilCfg = {
+    gestor:      { label: 'Gestor',      cls: 'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20' },
+    funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+    demo:        { label: 'Demo',        cls: 'bg-amber-50 text-amber-600 border-amber-200' },
+};
+let eqUsuarios = [], eqModalId = null;
+
+async function abrirEquipeGestor() {
+    document.getElementById('modal-equipe').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    await eqCarregarUsuarios();
+}
+
+function fecharEquipeGestor() {
+    document.getElementById('modal-equipe').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+async function eqCarregarUsuarios() {
+    const res = await fetch('/api/me');
+    if (res.ok) {
+        const me = await res.json();
+        const label = document.getElementById('equipe-time-label');
+        if (label) label.textContent = `· ${me.time || ''}`;
+    }
+    const r = await fetch('/api/usuarios');
+    if (!r.ok) return;
+    eqUsuarios = await r.json();
+    const tb = document.getElementById('equipe-tabela');
+    if (!eqUsuarios.length) {
+        tb.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-slate-400 text-sm">Nenhum membro na equipe</td></tr>`;
+        return;
+    }
+    tb.innerHTML = eqUsuarios.map(u => {
+        const pc = eqPerfilCfg[u.perfil] || eqPerfilCfg.funcionario;
+        const canEdit = u.perfil !== 'admin' && u.perfil !== 'gestor';
+        return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold">${u.nome.charAt(0)}</div>
+                    <span class="font-medium text-faiston-dark">${u.nome}</span>
+                </div>
+            </td>
+            <td class="px-5 py-3 text-slate-500 font-mono text-xs">${u.usuario}</td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md ${u.ativo ? 'bg-faiston-cyan/10 text-faiston-cyan border border-faiston-cyan/30' : 'bg-red-100 text-red-600 border border-red-200'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-1 justify-end">
+                    ${u.email && canEdit ? `<button onclick="eqReenviarEmail(${u.id},'${u.nome}','${u.email}')" title="Reenviar e-mail de acesso" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors"><i class="ph ph-envelope"></i></button>` : ''}
+                    ${canEdit ? `<button onclick="eqOpenModalUser(${u.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function eqOpenModalUser(id) {
+    eqModalId = id;
+    const isEdit = id !== null;
+    document.getElementById('eq-modal-titulo').textContent = isEdit ? 'Editar Membro' : 'Novo Membro';
+    document.getElementById('eq-btn-deletar').classList.toggle('hidden', !isEdit);
+    document.getElementById('eq-wrap-ativo').classList.toggle('hidden', !isEdit);
+    if (isEdit) document.getElementById('eq-wrap-ativo').classList.add('flex');
+    document.getElementById('eq-wrap-usuario').style.opacity = isEdit ? '0.5' : '1';
+    document.getElementById('eq-usuario').disabled = isEdit;
+    document.getElementById('eq-senha-hint').textContent = isEdit ? '(deixe em branco para não alterar)' : '';
+    if (isEdit) {
+        const u = eqUsuarios.find(x => x.id === id); if (!u) return;
+        document.getElementById('eq-nome').value = u.nome;
+        document.getElementById('eq-email').value = u.email || '';
+        document.getElementById('eq-usuario').value = u.usuario;
+        document.getElementById('eq-perfil').value = u.perfil;
+        document.getElementById('eq-ativo').checked = u.ativo;
+    } else {
+        document.getElementById('eq-nome').value = '';
+        document.getElementById('eq-email').value = '';
+        document.getElementById('eq-usuario').value = '';
+        document.getElementById('eq-perfil').value = 'funcionario';
+        document.getElementById('eq-ativo').checked = true;
+    }
+    document.getElementById('eq-senha').value = '';
+    document.getElementById('modal-equipe-user').classList.remove('hidden');
+    setTimeout(() => document.getElementById('eq-nome').focus(), 50);
+}
+
+function eqCloseModalUser() {
+    document.getElementById('modal-equipe-user').classList.add('hidden');
+    eqModalId = null;
+}
+
+async function eqSalvarUsuario() {
+    const nome    = document.getElementById('eq-nome').value.trim();
+    const usuario = document.getElementById('eq-usuario').value.trim();
+    const senha   = document.getElementById('eq-senha').value;
+    const email   = document.getElementById('eq-email').value.trim();
+    const perfil  = document.getElementById('eq-perfil').value;
+    const ativo   = document.getElementById('eq-ativo').checked;
+    if (!nome || (!eqModalId && (!usuario || !senha))) { alert('Preencha todos os campos obrigatórios.'); return; }
+    const btn = document.getElementById('eq-btn-salvar');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    try {
+        let res;
+        if (eqModalId) {
+            res = await fetch(`/api/usuarios/${eqModalId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({nome, perfil, senha, ativo, email, time: ''}) });
+        } else {
+            res = await fetch('/api/usuarios', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({usuario, senha, nome, perfil, email, time: ''}) });
+        }
+        const data = await res.json();
+        if (!res.ok) { alert(data.detail || 'Erro ao salvar'); return; }
+        eqCloseModalUser();
+        await eqCarregarUsuarios();
+        if (!eqModalId && data.email_enviado) mostrarToastFiltro('E-mail de acesso enviado!', '✉️');
+    } catch(e) { alert('Erro de conexão'); }
+    finally { btn.disabled = false; btn.textContent = 'Salvar'; }
+}
+
+async function eqDeletarUsuario() {
+    if (!eqModalId || !confirm('Remover este membro da equipe?')) return;
+    const res = await fetch(`/api/usuarios/${eqModalId}`, { method: 'DELETE' });
+    if (!res.ok) { const d = await res.json(); alert(d.detail || 'Erro'); return; }
+    eqCloseModalUser();
+    await eqCarregarUsuarios();
+}
+
+async function eqReenviarEmail(id, nome, email) {
+    if (!confirm(`Reenviar e-mail de acesso para ${nome} (${email})?`)) return;
+    const res = await fetch(`/api/usuarios/${id}/reenviar-email`, { method: 'POST' });
+    const d = await res.json();
+    mostrarToastFiltro(res.ok ? 'E-mail reenviado!' : (d.detail || 'Erro'), res.ok ? '✉️' : '❌');
+}
 
 // ── CARIMBOS (GESTOR) ────────────────────────────────────────────────
 let gCarimbos=[], gModalCarimboId=null;
@@ -2028,6 +2163,91 @@ setInterval(() => fetch('/api/admin/ping', { method: 'POST', headers: {'Content-
             <button onclick="criarTicket()" class="px-5 py-2.5 rounded-lg btn-grad text-white text-sm font-semibold flex items-center gap-2">
                 <i class="ph ph-plus"></i> Criar ticket
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL MINHA EQUIPE (GESTOR) -->
+<div id="modal-equipe" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(13,15,35,0.65);backdrop-filter:blur(6px)" onclick="if(event.target===this)fecharEquipeGestor()">
+    <div class="bg-white rounded-2xl w-full flex flex-col" style="max-width:760px;max-height:88vh;box-shadow:0 24px 64px rgba(91,46,224,0.2)">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-faiston-border flex-shrink-0" style="background:linear-gradient(135deg,rgba(91,46,224,0.05),rgba(6,215,230,0.03))">
+            <div class="flex items-center gap-2">
+                <i class="ph ph-users-three text-faiston-purple"></i>
+                <span class="text-sm font-bold text-faiston-dark">Minha Equipe</span>
+                <span class="text-xs text-slate-400 font-medium" id="equipe-time-label"></span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="eqOpenModalUser(null)" class="flex items-center gap-1.5 btn-grad text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
+                    <i class="ph ph-plus text-xs"></i> Novo membro
+                </button>
+                <button onclick="fecharEquipeGestor()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
+                    <i class="ph ph-x text-slate-400 text-sm"></i>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto custom-scrollbar">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-white">
+                    <tr class="border-b border-faiston-border bg-slate-50">
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Usuário</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Perfil</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                        <th class="px-5 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody id="equipe-tabela"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL MEMBRO DA EQUIPE (criar/editar) -->
+<div id="modal-equipe-user" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(13,15,35,0.5);backdrop-filter:blur(4px)" onclick="if(event.target===this)eqCloseModalUser()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h3 id="eq-modal-titulo" class="text-base font-bold text-faiston-dark">Novo Membro</h3>
+            <button onclick="eqCloseModalUser()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="eq-uid">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome completo</label>
+                <input type="text" id="eq-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Email <span class="normal-case font-normal text-faiston-faint">(para enviar o acesso)</span></label>
+                <input type="email" id="eq-email" placeholder="nome@empresa.com" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div id="eq-wrap-usuario">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Usuário (login)</label>
+                    <input type="text" id="eq-usuario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Perfil</label>
+                    <select id="eq-perfil" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                        <option value="funcionario">Funcionário</option>
+                        <option value="demo">Demo</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha <span id="eq-senha-hint" class="normal-case font-normal text-faiston-faint"></span></label>
+                <input type="password" id="eq-senha" placeholder="••••••••" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+            </div>
+            <div id="eq-wrap-ativo" class="hidden items-center justify-between p-3 bg-slate-50 rounded-lg">
+                <span class="text-sm font-medium text-slate-700">Usuário ativo</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="eq-ativo" class="sr-only peer" checked>
+                    <div class="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:bg-faiston-purple peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                </label>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button id="eq-btn-deletar" onclick="eqDeletarUsuario()" class="hidden px-4 py-2.5 rounded-lg border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 transition-colors">Remover</button>
+            <button onclick="eqCloseModalUser()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button id="eq-btn-salvar" onclick="eqSalvarUsuario()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
         </div>
     </div>
 </div>
