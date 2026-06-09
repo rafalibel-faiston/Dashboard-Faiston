@@ -1570,7 +1570,7 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
         cur.execute("""
             CREATE TABLE IF NOT EXISTS carimbos (
                 id SERIAL PRIMARY KEY,
-                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                usuario_id INTEGER,
                 titulo VARCHAR(200) NOT NULL,
                 categoria VARCHAR(100) DEFAULT 'Geral',
                 conteudo TEXT DEFAULT '',
@@ -1578,6 +1578,7 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
                 atualizado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        cur.execute("ALTER TABLE carimbos ADD COLUMN IF NOT EXISTS criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
         conn.commit()
         cur.execute("""SELECT id, titulo, categoria, conteudo, criado_em, atualizado_em
             FROM carimbos ORDER BY categoria, titulo""")
