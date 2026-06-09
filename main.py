@@ -698,6 +698,40 @@ def ping_session(page: str = "", faiston_token: str = Cookie(None)):
     get_session(faiston_token, page)
     return {"ok": True}
 
+@app.get("/api/admin/horas-corrompidas")
+def listar_horas_corrompidas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        # Considera corrompido qualquer tarefa com mais de 30 dias contínuos (2592000s)
+        cur.execute("""
+            SELECT t.id, t.descricao, t.cliente, u.nome, t.segundos
+            FROM tarefas t JOIN usuarios u ON u.id = t.usuario_id
+            WHERE t.segundos > 2592000
+            ORDER BY t.segundos DESC
+        """)
+        rows = cur.fetchall(); cur.close(); conn.close()
+        return [{"id": r[0], "descricao": r[1], "cliente": r[2], "funcionario": r[3],
+                 "segundos": r[4], "horas_display": f"{r[4]//3600}h {(r[4]%3600)//60}m"} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/api/admin/corrigir-horas/{tid}")
+def corrigir_horas_tarefa(tid: int, body: AtualizarSegundos, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE tarefas SET segundos=%s WHERE id=%s", (body.segundos, tid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.delete("/api/admin/limpar-tarefas")
 def limpar_todas_tarefas(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
