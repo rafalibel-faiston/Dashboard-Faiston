@@ -85,6 +85,19 @@
                     </div>
                 </div>
             </nav>
+                <div class="flex flex-col">
+                    <a href="#" onclick="toggleCarimbosSb(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
+                        <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-stamp text-lg"></i> Carimbos</div>
+                        <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-carimbos-sb"></i>
+                    </a>
+                    <div id="submenu-carimbos" class="hidden flex-col py-2">
+                        <button onclick="gAbrirModalCarimbo(null)" class="flex items-center gap-1.5 text-[11px] font-bold text-faiston-cyan py-1.5 px-3 rounded-lg hover:bg-faiston-cyan/10 transition-colors w-full text-left mb-1">
+                            <i class="ph ph-plus text-xs"></i> Novo carimbo
+                        </button>
+                        <div id="sb-carimbos-lista" class="flex flex-col gap-1 max-h-52 overflow-y-auto custom-scrollbar"></div>
+                    </div>
+                </div>
+            </nav>
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
             <nav class="flex flex-col gap-1">
                 <a href="/dashboard" class="flex items-center gap-2.5 bg-faiston-cyan/10 text-faiston-cyan font-medium text-sm rounded-md p-2.5 border border-faiston-cyan/30">
@@ -650,50 +663,40 @@ document.addEventListener('click', e => {
 });
 
 // ── CARIMBOS (GESTOR) ────────────────────────────────────────────────
-let gCarimbos=[], gCarimbosAberto=false, gModalCarimboId=null;
+let gCarimbos=[], gModalCarimboId=null;
 
-function gToggleCarimbos() {
-    gCarimbosAberto=!gCarimbosAberto;
-    document.getElementById('g-carimbos-collapsed').classList.toggle('hidden',gCarimbosAberto);
-    const exp=document.getElementById('g-carimbos-expanded');
-    exp.classList.toggle('hidden',!gCarimbosAberto);
-    if (gCarimbosAberto) exp.style.display='flex'; else exp.style.display='';
-    document.getElementById('g-carimbos-caret').className=gCarimbosAberto?'ph ph-caret-down text-faiston-cyan text-sm':'ph ph-caret-up text-slate-400 text-sm';
+function toggleCarimbosSb() {
+    const sub=document.getElementById('submenu-carimbos');
+    const caret=document.getElementById('caret-carimbos-sb');
+    const aberto=!sub.classList.contains('hidden');
+    sub.classList.toggle('hidden', aberto);
+    if (!aberto) sub.style.display='flex'; else sub.style.display='';
+    caret.style.transform=aberto?'':'rotate(180deg)';
 }
 
 async function carregarCarimbos() {
     const res=await fetch('/api/carimbos'); if(!res.ok) return;
     gCarimbos=await res.json(); gRenderCarimbos();
-    const label=document.getElementById('g-carimbos-count-label');
-    if (label) label.textContent=gCarimbos.length>0?`${gCarimbos.length} carimbo${gCarimbos.length>1?'s':''}`:'Nenhum carimbo';
 }
 
 function gRenderCarimbos() {
-    const lista=document.getElementById('g-carimbos-lista');
+    const lista=document.getElementById('sb-carimbos-lista'); if(!lista) return;
     if (!gCarimbos.length) {
-        lista.innerHTML=`<div class="text-center py-8 text-slate-300"><i class="ph ph-stamp text-2xl mb-2 block"></i><p class="text-xs">Nenhum carimbo ainda.<br>Clique em <b>Novo</b> para criar.</p></div>`;
+        lista.innerHTML=`<p class="text-[10px] text-slate-400 px-2 py-1">Nenhum carimbo ainda.</p>`;
         return;
     }
-    const byCat={};
-    gCarimbos.forEach(c=>{ if(!byCat[c.categoria||'Geral']) byCat[c.categoria||'Geral']=[]; byCat[c.categoria||'Geral'].push(c); });
-    lista.innerHTML=Object.entries(byCat).map(([cat,items])=>`
-        <div>
-            <p class="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5 px-1">${cat}</p>
-            <div class="flex flex-col gap-1.5">
-                ${items.map(c=>`
-                <div class="bg-slate-50 border border-faiston-border rounded-xl p-3 hover:border-faiston-cyan/40 transition-all">
-                    <div class="flex items-center justify-between gap-2 mb-1">
-                        <span class="text-xs font-bold text-faiston-dark truncate">${c.titulo}</span>
-                        <button onclick="gAbrirModalCarimbo(${c.id})" class="flex-shrink-0 w-6 h-6 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors" title="Editar">
-                            <i class="ph ph-pencil-simple text-xs"></i>
-                        </button>
-                    </div>
-                    <p class="text-[10px] text-slate-400 leading-relaxed line-clamp-2 mb-2">${(c.conteudo||'').substring(0,80)}${(c.conteudo||'').length>80?'...':''}</p>
-                    <button onclick="gCopiarCarimbo(${c.id},this)" class="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border text-faiston-muted hover:border-faiston-cyan hover:text-faiston-cyan transition-all">
-                        <i class="ph ph-copy text-xs"></i> Copiar
-                    </button>
-                </div>`).join('')}
+    lista.innerHTML=gCarimbos.map(c=>`
+        <div class="flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-slate-50 transition-colors group">
+            <div class="flex-1 min-w-0">
+                <p class="text-[11px] font-semibold text-faiston-dark truncate">${c.titulo}</p>
+                <p class="text-[10px] text-slate-400 truncate">${c.categoria||'Geral'}</p>
             </div>
+            <button onclick="gCopiarCarimbo(${c.id},this)" title="Copiar" class="w-6 h-6 rounded flex items-center justify-center text-slate-300 hover:text-faiston-cyan transition-colors flex-shrink-0">
+                <i class="ph ph-copy text-xs"></i>
+            </button>
+            <button onclick="gAbrirModalCarimbo(${c.id})" title="Editar" class="w-6 h-6 rounded flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors flex-shrink-0">
+                <i class="ph ph-pencil-simple text-xs"></i>
+            </button>
         </div>`).join('');
 }
 
@@ -2067,43 +2070,6 @@ setInterval(() => fetch('/api/admin/ping', { method: 'POST', headers: {'Content-
                 <button onclick="gFecharModalCarimbo()" class="text-xs text-faiston-muted hover:text-faiston-dark px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors">Cancelar</button>
                 <button onclick="gSalvarCarimboModal()" class="text-xs font-bold text-white px-4 py-2 rounded-xl" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)">Salvar Carimbo</button>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- WIDGET CARIMBOS (GESTOR) -->
-<div id="g-carimbos-widget" style="position:fixed;bottom:20px;left:20px;z-index:40;width:320px">
-    <div id="g-carimbos-collapsed" onclick="gToggleCarimbos()"
-        class="cursor-pointer flex items-center gap-3 bg-white border border-faiston-border rounded-2xl px-4 py-3 transition-all"
-        style="box-shadow:0 4px 24px rgba(6,215,230,0.12)">
-        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)">
-            <i class="ph ph-stamp text-white"></i>
-        </div>
-        <div class="flex-1 min-w-0">
-            <p class="text-sm font-bold text-faiston-dark">Carimbos</p>
-            <p class="text-[11px] text-slate-400" id="g-carimbos-count-label">carregando...</p>
-        </div>
-        <i class="ph ph-caret-up text-slate-400 text-sm" id="g-carimbos-caret"></i>
-    </div>
-    <div id="g-carimbos-expanded" class="hidden bg-white border border-faiston-border rounded-2xl overflow-hidden mt-2"
-        style="box-shadow:0 8px 32px rgba(6,215,230,0.15);flex-direction:column">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-faiston-border flex-shrink-0"
-            style="background:linear-gradient(135deg,rgba(6,215,230,0.06),rgba(91,46,224,0.03))">
-            <div class="flex items-center gap-2">
-                <i class="ph ph-stamp text-faiston-cyan text-sm"></i>
-                <span class="text-sm font-bold text-faiston-dark">Carimbos</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <button onclick="gAbrirModalCarimbo(null)" class="flex items-center gap-1 text-white px-3 py-1 rounded-lg text-xs font-semibold" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)">
-                    <i class="ph ph-plus text-xs"></i> Novo
-                </button>
-                <button onclick="gToggleCarimbos()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
-                    <i class="ph ph-caret-down text-slate-400 text-sm"></i>
-                </button>
-            </div>
-        </div>
-        <div id="g-carimbos-lista" class="overflow-y-auto p-3 flex flex-col gap-2" style="max-height:400px">
-            <div class="text-center py-8 text-slate-300"><i class="ph ph-stamp text-2xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
         </div>
     </div>
 </div>
