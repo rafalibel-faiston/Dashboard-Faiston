@@ -92,12 +92,28 @@
 
     <!-- PAINEL TAREFAS -->
     <div id="painel-tarefas" class="hidden">
+        <!-- Horas corrompidas -->
+        <div id="painel-horas-corrompidas" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <i class="ph ph-warning text-amber-500 text-lg"></i>
+                    <p class="text-sm font-bold text-amber-700">Tarefas com horas corrompidas</p>
+                </div>
+                <button onclick="document.getElementById('painel-horas-corrompidas').classList.add('hidden')" class="text-amber-400 hover:text-amber-600 text-lg leading-none">&times;</button>
+            </div>
+            <div id="lista-horas-corrompidas" class="flex flex-col gap-2"></div>
+        </div>
+
         <div class="flex items-center justify-between mb-5">
             <h2 class="text-lg font-bold text-faiston-dark">Tarefas do Time</h2>
             <div class="flex items-center gap-3">
                 <select id="filtro-func" onchange="carregarTarefas()" class="text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-cyan">
                     <option value="">Todos os funcionários</option>
                 </select>
+                <button onclick="verificarHorasCorretas()"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold hover:bg-amber-100 transition-colors">
+                    <i class="ph ph-clock-counter-clockwise text-sm"></i> Corrigir Horas
+                </button>
                 <button onclick="limparSeed()"
                         class="flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-200 bg-orange-50 text-orange-600 text-sm font-semibold hover:bg-orange-100 transition-colors">
                     <i class="ph ph-broom text-sm"></i> Limpar Testes
@@ -122,6 +138,34 @@
                 </thead>
                 <tbody id="tabela-tarefas"></tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- MODAL CORRIGIR HORAS -->
+    <div id="modal-corrigir-horas" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div class="flex items-center justify-between p-5 border-b border-faiston-border">
+                <h3 class="font-bold text-faiston-dark text-sm">Corrigir horas da tarefa</h3>
+                <button onclick="fecharModalCorrigir()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted text-sm"></i></button>
+            </div>
+            <div class="p-5 flex flex-col gap-4">
+                <p id="corrigir-descricao" class="text-sm text-faiston-dark font-medium"></p>
+                <p id="corrigir-atual" class="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg"></p>
+                <div class="flex gap-3">
+                    <div class="flex-1">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Horas corretas</label>
+                        <input id="corrigir-horas" type="number" min="0" max="9999" placeholder="0" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan">
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Minutos</label>
+                        <input id="corrigir-minutos" type="number" min="0" max="59" placeholder="0" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan">
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3 px-5 pb-5">
+                <button onclick="fecharModalCorrigir()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                <button onclick="salvarCorrecaoHoras()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+            </div>
         </div>
     </div>
 
@@ -642,6 +686,52 @@ async function deletarUsuario(id, nome) {
 }
 
 // modal fecha apenas pelo botão X ou Cancelar, não pelo clique no fundo
+
+let corrigirTarefaId = null;
+
+async function verificarHorasCorretas() {
+    const res = await fetch('/api/admin/horas-corrompidas');
+    const lista = await res.json();
+    const painel = document.getElementById('painel-horas-corrompidas');
+    if (!lista.length) { alert('Nenhuma tarefa com horas corrompidas encontrada!'); return; }
+    painel.classList.remove('hidden');
+    document.getElementById('lista-horas-corrompidas').innerHTML = lista.map(t => `
+        <div class="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-amber-200">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-700 truncate">${t.funcionario} — ${t.descricao}</p>
+                <p class="text-[10px] text-amber-600">${t.horas_display} corrompidas · ${t.cliente}</p>
+            </div>
+            <button onclick="abrirModalCorrigir(${t.id},'${t.descricao.replace(/'/g,"\\'")}','${t.horas_display}')" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors">Corrigir</button>
+        </div>`).join('');
+}
+
+function abrirModalCorrigir(id, descricao, horasAtual) {
+    corrigirTarefaId = id;
+    document.getElementById('corrigir-descricao').textContent = descricao;
+    document.getElementById('corrigir-atual').textContent = 'Valor atual corrompido: ' + horasAtual;
+    document.getElementById('corrigir-horas').value = '';
+    document.getElementById('corrigir-minutos').value = '';
+    document.getElementById('modal-corrigir-horas').classList.remove('hidden');
+}
+
+function fecharModalCorrigir() {
+    document.getElementById('modal-corrigir-horas').classList.add('hidden');
+    corrigirTarefaId = null;
+}
+
+async function salvarCorrecaoHoras() {
+    if (!corrigirTarefaId) return;
+    const horas = parseInt(document.getElementById('corrigir-horas').value) || 0;
+    const minutos = parseInt(document.getElementById('corrigir-minutos').value) || 0;
+    const segundos = horas * 3600 + minutos * 60;
+    const res = await fetch(`/api/admin/corrigir-horas/${corrigirTarefaId}`, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({segundos})
+    });
+    if (!res.ok) { const d = await res.json(); alert(d.detail || 'Erro'); return; }
+    fecharModalCorrigir();
+    await verificarHorasCorretas();
+}
 
 init();
 </script>
