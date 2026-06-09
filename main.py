@@ -1624,12 +1624,15 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
         """)
         cur.execute("ALTER TABLE carimbos ADD COLUMN IF NOT EXISTS criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
         conn.commit()
-        cur.execute("""SELECT id, titulo, categoria, conteudo, criado_em, atualizado_em
-            FROM carimbos WHERE criado_por = %s ORDER BY categoria, titulo""", (sess["id"],))
+        cur.execute("""
+            SELECT c.id, c.titulo, c.categoria, c.conteudo, c.criado_em, c.atualizado_em, c.criado_por
+            FROM carimbos c ORDER BY c.categoria, c.titulo
+        """)
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "titulo": r[1], "categoria": r[2], "conteudo": r[3],
-                 "criado_em": str(r[4])[:16], "atualizado_em": str(r[5])[:16]} for r in rows]
+                 "criado_em": str(r[4])[:16], "atualizado_em": str(r[5])[:16],
+                 "meu": r[6] == sess["id"]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/carimbos")
@@ -1640,11 +1643,14 @@ def criar_carimbo(c: CarimboModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("SELECT id FROM carimbos WHERE LOWER(titulo) = LOWER(%s)", (c.titulo,))
+        if cur.fetchone(): raise HTTPException(status_code=400, detail="Já existe um carimbo com este nome")
         cur.execute("INSERT INTO carimbos (criado_por, titulo, categoria, conteudo) VALUES (%s,%s,%s,%s) RETURNING id",
                     (sess["id"], c.titulo, c.categoria, c.conteudo))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/carimbos/{cid}")
@@ -1655,10 +1661,13 @@ def atualizar_carimbo(cid: int, c: CarimboModel, faiston_token: str = Cookie(Non
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("SELECT id FROM carimbos WHERE LOWER(titulo) = LOWER(%s) AND id != %s", (c.titulo, cid))
+        if cur.fetchone(): raise HTTPException(status_code=400, detail="Já existe um carimbo com este nome")
         cur.execute("UPDATE carimbos SET titulo=%s, categoria=%s, conteudo=%s, atualizado_em=NOW() WHERE id=%s AND criado_por=%s",
                     (c.titulo, c.categoria, c.conteudo, cid, sess["id"]))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/carimbos/{cid}")
