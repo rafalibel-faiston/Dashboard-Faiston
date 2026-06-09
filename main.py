@@ -376,8 +376,8 @@ def listar_funcionarios(faiston_token: str = Cookie(None)):
 @app.post("/api/usuarios")
 def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
-    is_gestor = sess["perfil"] == "gestor"
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
+    is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
     if u.perfil not in ("admin", "gestor", "funcionario", "demo"): raise HTTPException(status_code=400, detail="Perfil inválido")
@@ -400,8 +400,8 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
 @app.put("/api/usuarios/{uid}")
 def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
-    is_gestor = sess["perfil"] == "gestor"
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
+    is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor:
         conn2 = get_db()
         if not conn2: raise HTTPException(status_code=500, detail="Banco offline")
@@ -426,18 +426,13 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, u.email, time_val, uid))
         conn.commit(); cur.close(); conn.close()
-        for s in sessions.values():
-            if s.get("id") == uid:
-                s["time"] = time_val
-                s["perfil"] = u.perfil
-                s["nome"] = u.nome
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/usuarios/{uid}/reenviar-email")
 def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -456,8 +451,8 @@ def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
 @app.delete("/api/usuarios/{uid}")
 def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor"): raise HTTPException(status_code=403, detail="Acesso negado")
-    if sess["perfil"] == "gestor":
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
+    if sess["perfil"] in ("gestor", "demo"):
         conn2 = get_db()
         if not conn2: raise HTTPException(status_code=500, detail="Banco offline")
         cur2 = conn2.cursor()
@@ -1641,7 +1636,7 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
 def criar_carimbo(c: CarimboModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    if sess.get("perfil") not in ("gestor", "admin"):
+    if sess.get("perfil") not in ("gestor", "admin", "demo"):
         raise HTTPException(status_code=403, detail="Apenas gestores podem criar carimbos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -1658,7 +1653,7 @@ def criar_carimbo(c: CarimboModel, faiston_token: str = Cookie(None)):
 def atualizar_carimbo(cid: int, c: CarimboModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    if sess.get("perfil") not in ("gestor", "admin"):
+    if sess.get("perfil") not in ("gestor", "admin", "demo"):
         raise HTTPException(status_code=403, detail="Apenas gestores podem editar carimbos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -1674,7 +1669,7 @@ def atualizar_carimbo(cid: int, c: CarimboModel, faiston_token: str = Cookie(Non
 def deletar_carimbo(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    if sess.get("perfil") not in ("gestor", "admin"):
+    if sess.get("perfil") not in ("gestor", "admin", "demo"):
         raise HTTPException(status_code=403, detail="Apenas gestores podem deletar carimbos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
