@@ -1752,11 +1752,20 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
             )
         """)
         cur.execute("ALTER TABLE carimbos ADD COLUMN IF NOT EXISTS criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
+        cur.execute("ALTER TABLE carimbos ADD COLUMN IF NOT EXISTS time_usuario VARCHAR(50) DEFAULT 'Projetos'")
         conn.commit()
-        cur.execute("""
-            SELECT c.id, c.titulo, c.categoria, c.conteudo, c.criado_em, c.atualizado_em, c.criado_por
-            FROM carimbos c ORDER BY c.categoria, c.titulo
-        """)
+        # Admin vê tudo; demais perfis veem apenas os carimbos do próprio time
+        time_sess = sess.get("time") or "Projetos"
+        if sess["perfil"] == "admin":
+            cur.execute("""
+                SELECT c.id, c.titulo, c.categoria, c.conteudo, c.criado_em, c.atualizado_em, c.criado_por
+                FROM carimbos c ORDER BY c.categoria, c.titulo
+            """)
+        else:
+            cur.execute("""
+                SELECT c.id, c.titulo, c.categoria, c.conteudo, c.criado_em, c.atualizado_em, c.criado_por
+                FROM carimbos c WHERE c.time_usuario = %s ORDER BY c.categoria, c.titulo
+            """, (time_sess,))
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "titulo": r[1], "categoria": r[2], "conteudo": r[3],
@@ -1772,10 +1781,12 @@ def criar_carimbo(c: CarimboModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id FROM carimbos WHERE LOWER(titulo) = LOWER(%s)", (c.titulo,))
-        if cur.fetchone(): raise HTTPException(status_code=400, detail="Já existe um carimbo com este nome")
-        cur.execute("INSERT INTO carimbos (criado_por, titulo, categoria, conteudo) VALUES (%s,%s,%s,%s) RETURNING id",
-                    (sess["id"], c.titulo, c.categoria, c.conteudo))
+        time_sess = sess.get("time") or "Projetos"
+        # Nome único por time (não globalmente)
+        cur.execute("SELECT id FROM carimbos WHERE LOWER(titulo) = LOWER(%s) AND time_usuario = %s", (c.titulo, time_sess))
+        if cur.fetchone(): raise HTTPException(status_code=400, detail="Já existe um carimbo com este nome no seu time")
+        cur.execute("INSERT INTO carimbos (criado_por, titulo, categoria, conteudo, time_usuario) VALUES (%s,%s,%s,%s,%s) RETURNING id",
+                    (sess["id"], c.titulo, c.categoria, c.conteudo, time_sess))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -1790,8 +1801,9 @@ def atualizar_carimbo(cid: int, c: CarimboModel, faiston_token: str = Cookie(Non
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id FROM carimbos WHERE LOWER(titulo) = LOWER(%s) AND id != %s", (c.titulo, cid))
-        if cur.fetchone(): raise HTTPException(status_code=400, detail="Já existe um carimbo com este nome")
+        time_sess = sess.get("time") or "Projetos"
+        cur.execute("SELECT id FROM carimbos WHERE LOWER(titulo) = LOWER(%s) AND id != %s AND time_usuario = %s", (c.titulo, cid, time_sess))
+        if cur.fetchone(): raise HTTPException(status_code=400, detail="Já existe um carimbo com este nome no seu time")
         cur.execute("UPDATE carimbos SET titulo=%s, categoria=%s, conteudo=%s, atualizado_em=NOW() WHERE id=%s AND criado_por=%s",
                     (c.titulo, c.categoria, c.conteudo, cid, sess["id"]))
         conn.commit(); cur.close(); conn.close()
