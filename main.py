@@ -10,6 +10,7 @@ from email.mime.text import MIMEText
 from datetime import date, timedelta, datetime
 from calendar import monthrange
 import os, hashlib, secrets, csv, io
+import contextvars
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -23,6 +24,24 @@ load_dotenv()
 
 app = FastAPI(title="Faiston Ops - API", version="1.0")
 
+# Rastreia as conexões de banco abertas durante cada request para garantir que
+# sejam fechadas ao final — mesmo nos caminhos de erro que dão `raise` sem
+# `conn.close()`. Sem isso, cada exceção vazava uma conexão e, acumulando,
+# esgotava o pool do PostgreSQL e derrubava o app ("Banco offline") para todos.
+_request_conns = contextvars.ContextVar("request_conns", default=None)
+
+@app.middleware("http")
+async def fechar_conexoes_db(request, call_next):
+    conns = []
+    token = _request_conns.set(conns)
+    try:
+        return await call_next(request)
+    finally:
+        for c in conns:
+            try: c.close()
+            except Exception: pass
+        _request_conns.reset(token)
+
 Path("static/css").mkdir(parents=True, exist_ok=True)
 Path("static/js").mkdir(parents=True, exist_ok=True)
 
@@ -33,6 +52,12 @@ def get_db():
         cur.execute("SET TIME ZONE 'America/Sao_Paulo'")
         cur.close()
         conn.commit()
+        # Registra a conexão para fechamento garantido ao fim do request (ver
+        # middleware fechar_conexoes_db). Fechar duas vezes é seguro (no-op),
+        # então os conn.close() já existentes continuam válidos.
+        lst = _request_conns.get()
+        if lst is not None:
+            lst.append(conn)
         return conn
     except Exception as e:
         print(f"Erro BD: {e}")
@@ -595,7 +620,9 @@ def usuarios_online(faiston_token: str = Cookie(None)):
             ORDER BY last_seen DESC
         """)
         rows = cur.fetchall(); cur.close(); conn.close()
-        agora = datetime.utcnow()
+        # last_seen é gravado com NOW() do banco, que está em America/Sao_Paulo
+        # (ver SET TIME ZONE em get_db). Usar datetime.now() local evita erro de ~3h.
+        agora = datetime.now()
         online = []
         for r in rows:
             last = r[3].replace(tzinfo=None) if r[3].tzinfo else r[3]
