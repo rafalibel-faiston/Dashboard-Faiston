@@ -710,7 +710,7 @@ function switchTab(tab) {
 
 // ── TAREFAS ──────────────────────────────────────────────────────────
 async function carregarTarefas() {
-    const res = await fetch('/api/tarefas');
+    const res = await fetch('/api/tarefas?view=func');
     if (!res.ok) return;
     tasks = await res.json();
     renderTasks();
