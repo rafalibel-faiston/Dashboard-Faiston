@@ -541,8 +541,9 @@ let nomeCliente = '';
 async function init() {
     try {
         const me = await fetch('/api/me').then(r => r.json());
-        document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
-        document.getElementById('sidebar-nome').textContent = me.nome;
+        const nome = me.nome || me.usuario || 'Usuário';
+        document.getElementById('sidebar-avatar').textContent = nome.charAt(0).toUpperCase();
+        document.getElementById('sidebar-nome').textContent = nome;
         document.getElementById('sidebar-perfil').textContent = me.perfil;
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
         updateThemeIcon();
@@ -604,21 +605,22 @@ async function carregarAnalise() {
 }
 
 function fmtMoedaCompacto(v) {
+    v = Number(v) || 0;
     if (v >= 1000000) return 'R$ ' + (v/1000000).toFixed(1).replace('.',',') + 'M';
     if (v >= 1000) return 'R$ ' + (v/1000).toFixed(1).replace('.',',') + 'k';
-    return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:0});
+    return 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:0});
 }
 
 function fmtMoeda(v) {
-    return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    return 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 function renderProjetos() {
     const lista = document.getElementById('projetos-lista');
     const empty = document.getElementById('empty-state');
 
-    const totalOrc  = projetos.reduce((s, p) => s + p.orcamento, 0);
-    const totalGasto = projetos.reduce((s, p) => s + p.gasto, 0);
+    const totalOrc  = projetos.reduce((s, p) => s + (Number(p.orcamento) || 0), 0);
+    const totalGasto = projetos.reduce((s, p) => s + (Number(p.gasto) || 0), 0);
     const saldo = totalOrc - totalGasto;
 
     document.getElementById('kpi-projetos').textContent  = projetos.length;
@@ -636,10 +638,11 @@ function renderProjetos() {
     empty.classList.add('hidden');
 
     lista.innerHTML = projetos.map(p => {
-        const pct = p.orcamento > 0 ? Math.min(100, (p.gasto / p.orcamento) * 100) : 0;
+        const orc = Number(p.orcamento) || 0, gasto = Number(p.gasto) || 0;
+        const pct = orc > 0 ? Math.min(100, (gasto / orc) * 100) : 0;
         const over = pct >= 100;
         const barColor = over ? '#EC4899' : pct > 75 ? '#f59e0b' : '#5B2EE0';
-        const saldo = p.orcamento - p.gasto;
+        const saldo = orc - gasto;
 
         return `<div class="proj-card bg-white rounded-2xl border border-faiston-border overflow-hidden fade-in" id="proj-${p.id}">
             <!-- Header do projeto -->

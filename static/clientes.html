@@ -151,7 +151,7 @@
             <button onclick="carregar()" class="w-8 h-8 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
                 <i class="ph ph-arrows-clockwise text-faiston-muted text-sm"></i>
             </button>
-            <button class="btn-theme" title="Alternar tema">
+            <button class="btn-theme" title="Alternar tema" onclick="toggleTema()">
                 <i class="ph ph-moon text-faiston-muted text-sm"></i>
             </button>
             <button class="w-8 h-8 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors relative">
@@ -387,8 +387,9 @@ async function init() {
         const me = await res.json();
         if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
         _meIsAdmin = me.perfil === 'admin';
-        document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
-        document.getElementById('sidebar-nome').textContent = me.nome;
+        const nome = me.nome || me.usuario || 'Usuário';
+        document.getElementById('sidebar-avatar').textContent = nome.charAt(0).toUpperCase();
+        document.getElementById('sidebar-nome').textContent = nome;
         document.getElementById('sidebar-perfil').textContent = me.perfil === 'admin' ? 'Administrador' : 'Gestor';
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }

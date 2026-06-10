@@ -1103,16 +1103,6 @@ document.getElementById('modal-comentarios').addEventListener('click',e=>{ if(e.
 document.getElementById('modal').addEventListener('click',e=>{ if(e.target===document.getElementById('modal')) closeModal(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') { closeModal(); fecharComentarios(); } });
 
-window.addEventListener('beforeunload',()=>{
-    if (activeTaskId&&timerStart) {
-        const task=tasks.find(t=>t.id===activeTaskId);
-        if (task) {
-            const secsNow=task.segundos+Math.floor((Date.now()-timerStart)/1000);
-            navigator.sendBeacon(`/api/tarefas/${activeTaskId}/segundos`,new Blob([JSON.stringify({segundos:secsNow})],{type:'application/json'}));
-        }
-    }
-});
-
 // ── AGENDA (Outlook style) ────────────────────────────────────────────
 function agendaPrevMes() { calMes--; if(calMes<0){calMes=11;calAno--;} renderMiniCalendario(); }
 function agendaNextMes() { calMes++; if(calMes>11){calMes=0;calAno++;} renderMiniCalendario(); }
