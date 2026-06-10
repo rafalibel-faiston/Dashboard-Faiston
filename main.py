@@ -1805,7 +1805,7 @@ def listar_carimbos(faiston_token: str = Cookie(None)):
         cur.close(); conn.close()
         return [{"id": r[0], "titulo": r[1], "categoria": r[2], "conteudo": r[3],
                  "criado_em": str(r[4])[:16], "atualizado_em": str(r[5])[:16],
-                 "meu": r[6] == sess["id"]} for r in rows]
+                 "meu": r[6] == sess["id"] or sess["perfil"] == "admin"} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/carimbos")
@@ -1854,7 +1854,10 @@ def deletar_carimbo(cid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM carimbos WHERE id=%s AND criado_por=%s", (cid, sess["id"]))
+        if sess["perfil"] == "admin":
+            cur.execute("DELETE FROM carimbos WHERE id=%s", (cid,))
+        else:
+            cur.execute("DELETE FROM carimbos WHERE id=%s AND criado_por=%s", (cid, sess["id"]))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
