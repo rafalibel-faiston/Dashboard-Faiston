@@ -497,7 +497,7 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
 
 # --- TAREFAS ---
 @app.get("/api/tarefas")
-def listar_tarefas(faiston_token: str = Cookie(None)):
+def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -517,7 +517,11 @@ def listar_tarefas(faiston_token: str = Cookie(None)):
         if sess["perfil"] == "admin":
             cur.execute(base_sel + " ORDER BY t.criado_em DESC")
         elif sess["perfil"] in ("gestor", "demo"):
-            cur.execute(base_sel + " WHERE COALESCE(u.time,'Projetos')=%s ORDER BY t.criado_em DESC", (sess.get("time","Projetos"),))
+            # Demo na visão de funcionário (funcionario.html) vê só as próprias tarefas
+            if sess["perfil"] == "demo" and view == "func":
+                cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
+            else:
+                cur.execute(base_sel + " WHERE COALESCE(u.time,'Projetos')=%s ORDER BY t.criado_em DESC", (sess.get("time","Projetos"),))
         else:
             cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
         rows = cur.fetchall(); cur.close(); conn.close()
