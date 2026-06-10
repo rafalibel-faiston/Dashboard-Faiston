@@ -827,21 +827,25 @@ async function salvarProjeto() {
     const body = { nome, descricao: document.getElementById('proj-descricao').value.trim(),
                    orcamento: parseFloat(document.getElementById('proj-orcamento').value) || 0 };
     try {
+        let res;
         if (editId) {
-            await fetch(`/api/projetos/${editId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            res = await fetch(`/api/projetos/${editId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         } else {
-            await fetch(`/api/clientes/${clienteId}/projetos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            res = await fetch(`/api/clientes/${clienteId}/projetos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         }
+        if (!res.ok) { const e = await res.json(); alert(e.detail || 'Erro ao salvar projeto'); return; }
         fecharModalProjeto();
         await carregarProjetos();
-        // Reabrir projetos que estavam abertos
-        for (const pid of openProjects) { toggleProjeto(pid); }
-    } catch { alert('Erro ao salvar projeto'); }
+        // Copia para array antes de iterar (evita mutação do Set durante o loop)
+        // e await garante que cada toggleProjeto complete antes do próximo
+        for (const pid of [...openProjects]) { await toggleProjeto(pid); }
+    } catch(e) { alert('Erro ao salvar projeto'); }
 }
 
 async function deletarProjeto(pid) {
     if (!confirm('Deseja remover este projeto e todos os seus lançamentos?')) return;
-    await fetch(`/api/projetos/${pid}`, {method:'DELETE'});
+    const res = await fetch(`/api/projetos/${pid}`, {method:'DELETE'});
+    if (!res.ok) { alert('Erro ao remover projeto'); return; }
     openProjects.delete(pid);
     await carregarProjetos();
 }
@@ -868,18 +872,20 @@ async function salvarLancamento() {
     const body = { descricao: desc, categoria: document.getElementById('lanc-categoria').value,
                    valor, data_lancamento: document.getElementById('lanc-data').value };
     try {
-        await fetch(`/api/projetos/${pid}/lancamentos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const res = await fetch(`/api/projetos/${pid}/lancamentos`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        if (!res.ok) { const e = await res.json(); alert(e.detail || 'Erro ao salvar lançamento'); return; }
         fecharModalLancamento();
         await carregarProjetos();
         // Manter o projeto aberto e recarregar lançamentos
         const body2 = document.getElementById(`body-proj-${pid}`);
         if (body2) { body2.style.display = 'block'; document.getElementById(`chevron-${pid}`).style.transform='rotate(180deg)'; await carregarLancamentos(pid); }
-    } catch { alert('Erro ao salvar lançamento'); }
+    } catch(e) { alert('Erro ao salvar lançamento'); }
 }
 
 async function deletarLancamento(lid, pid) {
     if (!confirm('Remover este lançamento?')) return;
-    await fetch(`/api/lancamentos/${lid}`, {method:'DELETE'});
+    const res = await fetch(`/api/lancamentos/${lid}`, {method:'DELETE'});
+    if (!res.ok) { alert('Erro ao remover lançamento'); return; }
     await carregarProjetos();
     const body = document.getElementById(`body-proj-${pid}`);
     if (body) { body.style.display = 'block'; await carregarLancamentos(pid); }
@@ -1282,13 +1288,22 @@ function parseValor(s) {
 
 function parseData(s) {
     if (!s) return '';
-    const str = String(s);
-    // ISO datetime 2024-06-21 00:00:00
+    const str = String(s).trim();
+    // ISO datetime: 2024-06-21 ou 2024-06-21 00:00:00
     const m0 = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m0) return `${m0[1]}-${m0[2]}-${m0[3]}`;
-    // DD/MM/YYYY
+    if (m0) {
+        const [, y, m, d] = m0;
+        if (parseInt(m) < 1 || parseInt(m) > 12 || parseInt(d) < 1 || parseInt(d) > 31) return '';
+        return `${y}-${m}-${d}`;
+    }
+    // DD/MM/YYYY ou DD-MM-YYYY
     const m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-    if (m1) { const y = m1[3].length===2?'20'+m1[3]:m1[3]; return `${y}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`; }
+    if (m1) {
+        const dia = parseInt(m1[1]), mes = parseInt(m1[2]);
+        if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return '';
+        const y = m1[3].length === 2 ? '20' + m1[3] : m1[3];
+        return `${y}-${mes.toString().padStart(2,'0')}-${dia.toString().padStart(2,'0')}`;
+    }
     return '';
 }
 
@@ -1396,10 +1411,11 @@ async function confirmarImportacao() {
     btn.disabled = true;
     btn.innerHTML = '<i class="ph ph-spinner spin mr-1"></i> Importando...';
     try {
-        await fetch(`/api/projetos/${impProjetoId}/importar-lancamentos`, {
+        const res = await fetch(`/api/projetos/${impProjetoId}/importar-lancamentos`, {
             method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({lancamentos: filtered})
         });
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Erro ao importar'); }
         fecharModalImportar();
         await carregarProjetos();
         const bodyEl = document.getElementById(`body-proj-${impProjetoId}`);
