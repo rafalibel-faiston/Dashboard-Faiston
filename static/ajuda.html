@@ -34,6 +34,7 @@
         .kanban-col { flex:1; padding:12px 14px; border-radius:12px; text-align:center; }
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
         .float { animation:float 3s ease-in-out infinite; }
+        .badge-new { display:inline-flex; align-items:center; padding:2px 8px; border-radius:8px; font-size:10px; font-weight:800; background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; letter-spacing:.05em; }
     </style>
 </head>
 <body class="font-sans min-h-screen">
@@ -82,9 +83,10 @@
 
 <!-- TABS -->
 <div class="max-w-5xl mx-auto px-6 -mt-5 relative z-10">
-    <div class="card p-1.5 inline-flex gap-1.5 shadow-xl">
+    <div class="card p-1.5 inline-flex gap-1.5 shadow-xl flex-wrap">
         <button class="tab-btn active" onclick="setTab('func')"><i class="ph ph-user mr-1.5"></i>Funcionário</button>
         <button class="tab-btn" onclick="setTab('gestor')"><i class="ph ph-chart-line-up mr-1.5"></i>Gestor</button>
+        <button class="tab-btn" onclick="setTab('demo')"><i class="ph ph-eye mr-1.5"></i>Demo</button>
         <button class="tab-btn" onclick="setTab('admin')"><i class="ph ph-shield-check mr-1.5"></i>Admin</button>
     </div>
 </div>
@@ -124,33 +126,19 @@
         <div class="section-title"><i class="ph ph-kanban"></i> Aba Kanban — Suas Tarefas</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-            <!-- Criar tarefa -->
             <div class="fcard">
                 <div class="flex items-center gap-3">
                     <div class="ficon" style="background:#5B2EE012"><i class="ph ph-plus-circle text-faiston-purple" style="font-size:22px"></i></div>
                     <h4 class="font-bold text-faiston-dark">Criar uma tarefa</h4>
                 </div>
                 <ol class="space-y-3">
-                    <li class="flex items-start gap-3">
-                        <span class="step-num" style="margin-top:1px">1</span>
-                        <span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Nova Tarefa"</strong></span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <span class="step-num" style="margin-top:1px">2</span>
-                        <span class="text-sm text-faiston-muted leading-relaxed">Selecione o <strong class="text-faiston-dark">Projeto</strong> — o cliente preenche automaticamente</span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <span class="step-num" style="margin-top:1px">3</span>
-                        <span class="text-sm text-faiston-muted leading-relaxed">Defina o <strong class="text-faiston-dark">Prazo</strong> e/ou o <strong class="text-faiston-dark">Agendamento</strong></span>
-                    </li>
-                    <li class="flex items-start gap-3">
-                        <span class="step-num" style="margin-top:1px">4</span>
-                        <span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">Salvar</strong></span>
-                    </li>
+                    <li class="flex items-start gap-3"><span class="step-num" style="margin-top:1px">1</span><span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Nova Tarefa"</strong> no canto superior direito</span></li>
+                    <li class="flex items-start gap-3"><span class="step-num" style="margin-top:1px">2</span><span class="text-sm text-faiston-muted leading-relaxed">Preencha a descrição, selecione o cliente e a prioridade</span></li>
+                    <li class="flex items-start gap-3"><span class="step-num" style="margin-top:1px">3</span><span class="text-sm text-faiston-muted leading-relaxed">Defina <strong class="text-faiston-dark">Prazo</strong> (até quando) e/ou <strong class="text-faiston-dark">Agendamento</strong> (quando vai trabalhar)</span></li>
+                    <li class="flex items-start gap-3"><span class="step-num" style="margin-top:1px">4</span><span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">Salvar</strong></span></li>
                 </ol>
             </div>
 
-            <!-- Controle de tempo -->
             <div class="fcard">
                 <div class="flex items-center gap-3">
                     <div class="ficon" style="background:#06D7E612"><i class="ph ph-timer text-faiston-cyan" style="font-size:22px"></i></div>
@@ -159,22 +147,23 @@
                 <div class="space-y-3">
                     <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E620">
                         <i class="ph ph-play-circle mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:18px"></i>
-                        <div class="text-sm text-faiston-muted leading-relaxed">
-                            Clique no <strong class="text-faiston-dark">▶ play</strong> para iniciar — status muda para <span class="pill" style="background:#06D7E620;color:#06D7E6">Em Andamento</span>
-                        </div>
+                        <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">▶ Iniciar</strong> — o cronômetro começa e a tarefa vai para "Em Andamento"</p>
                     </div>
                     <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489920">
                         <i class="ph ph-stop-circle mt-0.5 flex-shrink-0" style="color:#EC4899;font-size:18px"></i>
-                        <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">■ stop</strong> para pausar e salvar o tempo registrado</p>
+                        <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">■ Parar</strong> para pausar — o tempo é salvo automaticamente</p>
                     </div>
                     <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                        <i class="ph ph-pencil mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
-                        <p class="text-sm text-faiston-muted leading-relaxed">Para horas manuais, abra a tarefa e preencha o campo <strong class="text-faiston-dark">Horas Manuais</strong></p>
+                        <i class="ph ph-floppy-disk mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
+                        <p class="text-sm text-faiston-muted leading-relaxed">O tempo também é salvo automaticamente a cada 30 segundos e ao fechar a página</p>
+                    </div>
+                    <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#f59e0b08;border:1px solid #f59e0b20">
+                        <i class="ph ph-warning mt-0.5 flex-shrink-0" style="color:#f59e0b;font-size:18px"></i>
+                        <p class="text-sm text-faiston-muted leading-relaxed">Só uma tarefa pode estar em andamento por vez — iniciar outra pausa a anterior</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Badges -->
             <div class="fcard">
                 <div class="flex items-center gap-3">
                     <div class="ficon" style="background:#EC489912"><i class="ph ph-calendar-x text-faiston-pink" style="font-size:22px"></i></div>
@@ -188,8 +177,8 @@
                     </div>
                     <div class="flex items-center gap-3 p-3 rounded-xl" style="background:#f59e0b08;border:1px solid #f59e0b35">
                         <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:#f59e0b;box-shadow:0 0 6px #f59e0b60"></span>
-                        <span class="font-bold text-sm" style="color:#f59e0b">Urgente</span>
-                        <span class="text-xs text-faiston-faint ml-auto">menos de 2 dias</span>
+                        <span class="font-bold text-sm" style="color:#f59e0b">Hoje / Amanhã</span>
+                        <span class="text-xs text-faiston-faint ml-auto">urgente</span>
                     </div>
                     <div class="flex items-center gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE035">
                         <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:#5B2EE0;box-shadow:0 0 6px #5B2EE060"></span>
@@ -199,11 +188,10 @@
                 </div>
             </div>
 
-            <!-- Kanban colunas -->
             <div class="fcard">
                 <div class="flex items-center gap-3">
                     <div class="ficon" style="background:#B826C912"><i class="ph ph-arrows-left-right text-faiston-magenta" style="font-size:22px"></i></div>
-                    <h4 class="font-bold text-faiston-dark">Colunas do Kanban</h4>
+                    <h4 class="font-bold text-faiston-dark">Mover entre Colunas</h4>
                 </div>
                 <div class="flex items-stretch gap-2 mt-1">
                     <div class="kanban-col" style="background:#F4F5FA;border:1px solid #E5E8F0">
@@ -221,7 +209,11 @@
                         <p class="text-xs text-faiston-faint mt-1">finalizado</p>
                     </div>
                 </div>
-                <p class="text-sm text-faiston-muted leading-relaxed">Mova abrindo o card e alterando o status, ou pelo botão de conclusão <strong class="text-faiston-dark">✓</strong>.</p>
+                <div class="space-y-2">
+                    <div class="info-row"><i class="ph ph-hand text-faiston-purple"></i><div>Arraste o card para outra coluna (<strong>drag & drop</strong>)</div></div>
+                    <div class="info-row"><i class="ph ph-check-circle text-faiston-cyan"></i><div>Clique no <strong>✓</strong> do card para concluir direto</div></div>
+                    <div class="info-row"><i class="ph ph-pencil text-faiston-faint"></i><div>Clique no <strong>lápis</strong> para editar status, prazo e horas</div></div>
+                </div>
             </div>
         </div>
     </div>
@@ -234,11 +226,11 @@
                 <div>
                     <p class="font-bold text-faiston-dark text-sm mb-4 uppercase tracking-wide">Como funciona</p>
                     <div class="space-y-3">
-                        <div class="info-row"><i class="ph ph-circle-fill" style="color:#5B2EE0;font-size:10px;margin-top:5px"></i> Pontos <strong style="color:#5B2EE0">roxos</strong> no calendário = tarefas agendadas naquele dia</div>
-                        <div class="info-row"><i class="ph ph-circle-fill" style="color:#EC4899;font-size:10px;margin-top:5px"></i> Pontos <strong style="color:#EC4899">rosas</strong> = tarefas com prazo vencendo</div>
-                        <div class="info-row"><i class="ph ph-caret-left text-faiston-faint"></i> Use <strong>‹ ›</strong> para navegar entre meses</div>
-                        <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i> Clique em qualquer dia para ver as tarefas daquele dia</div>
-                        <div class="info-row"><i class="ph ph-warning-circle text-faiston-pink"></i> Seção <strong style="color:#EC4899">Atrasadas</strong> sempre aparece no topo</div>
+                        <div class="info-row"><i class="ph ph-circle-fill" style="color:#5B2EE0;font-size:10px;margin-top:5px"></i>Pontos <strong style="color:#5B2EE0">roxos</strong> = tarefas agendadas naquele dia</div>
+                        <div class="info-row"><i class="ph ph-circle-fill" style="color:#EC4899;font-size:10px;margin-top:5px"></i>Pontos <strong style="color:#EC4899">rosas</strong> = tarefas com prazo naquele dia</div>
+                        <div class="info-row"><i class="ph ph-caret-left text-faiston-faint"></i>Use <strong>‹ ›</strong> para navegar entre meses</div>
+                        <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i>Clique em qualquer dia para ver as tarefas</div>
+                        <div class="info-row"><i class="ph ph-warning-circle text-faiston-pink"></i>Seção <strong style="color:#EC4899">Atrasadas</strong> sempre aparece no topo</div>
                     </div>
                 </div>
                 <div>
@@ -263,12 +255,67 @@
             </div>
         </div>
     </div>
+
+    <!-- Carimbos -->
+    <div>
+        <div class="section-title"><i class="ph ph-stamp"></i> Aba Carimbos</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="fcard">
+                <div class="flex items-center gap-3">
+                    <div class="ficon" style="background:#5B2EE012"><i class="ph ph-stamp text-faiston-purple" style="font-size:22px"></i></div>
+                    <div>
+                        <h4 class="font-bold text-faiston-dark">O que são carimbos?</h4>
+                    </div>
+                </div>
+                <p class="text-sm text-faiston-muted leading-relaxed">Modelos de texto prontos para copiar e colar em outros sistemas — chamados, emails, SAP, etc. Cada equipe tem os próprios carimbos.</p>
+                <div class="space-y-2">
+                    <div class="info-row"><i class="ph ph-copy text-faiston-cyan"></i><div>Clique em <strong>Copiar</strong> no card para copiar o texto para a área de transferência</div></div>
+                    <div class="info-row"><i class="ph ph-tag text-faiston-purple"></i><div>Carimbos são agrupados por <strong>categoria</strong> com cores diferentes</div></div>
+                    <div class="info-row"><i class="ph ph-users text-faiston-magenta"></i><div>Visíveis para <strong>toda a equipe</strong> do seu time</div></div>
+                </div>
+            </div>
+            <div class="fcard">
+                <div class="flex items-center gap-3">
+                    <div class="ficon" style="background:#06D7E612"><i class="ph ph-plus text-faiston-cyan" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Criar / Editar Carimbos</h4>
+                </div>
+                <div class="space-y-2">
+                    <div class="info-row"><i class="ph ph-plus-circle text-faiston-cyan"></i><div>Clique em <strong>"+ Novo Carimbo"</strong> e preencha título, categoria e conteúdo</div></div>
+                    <div class="info-row"><i class="ph ph-pencil text-faiston-purple"></i><div>O ícone de <strong>lápis</strong> aparece nos carimbos que você criou — clique para editar</div></div>
+                    <div class="info-row"><i class="ph ph-trash text-faiston-pink"></i><div>Dentro do modal de edição, clique em <strong>Excluir</strong> para remover</div></div>
+                    <div class="info-row"><i class="ph ph-warning text-faiston-faint"></i><div>Nomes de carimbos são <strong>únicos por time</strong></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notas -->
+    <div>
+        <div class="section-title"><i class="ph ph-note"></i> Minhas Notas</div>
+        <div class="fcard">
+            <p class="text-sm text-faiston-muted leading-relaxed">O widget <strong class="text-faiston-dark">Minhas Notas</strong> fica no canto inferior direito da tela. Clique para expandir.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
+                    <i class="ph ph-plus mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
+                    <div class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">Nova nota</strong> para criar e escolher um título</div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E620">
+                    <i class="ph ph-floppy-disk mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:18px"></i>
+                    <div class="text-sm text-faiston-muted leading-relaxed">Salva automaticamente enquanto você digita</div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489920">
+                    <i class="ph ph-arrows-out mt-0.5 flex-shrink-0" style="color:#EC4899;font-size:18px"></i>
+                    <div class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">expandir</strong> para abrir em tela cheia e usar IA de sugestão</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- ═══════════ GESTOR ═══════════ -->
 <div id="tab-gestor" class="tab-panel space-y-8">
 
-    <!-- Dashboard KPIs -->
     <div>
         <div class="section-title"><i class="ph ph-chart-line-up"></i> Dashboard</div>
         <div class="fcard mb-4">
@@ -300,22 +347,39 @@
                     <h4 class="font-bold text-faiston-dark">Filtros do Dashboard</h4>
                 </div>
                 <div class="space-y-3">
-                    <div class="info-row"><i class="ph ph-buildings text-faiston-cyan"></i> <div><strong>Cliente</strong> — filtra todos os dados pela empresa</div></div>
-                    <div class="info-row"><i class="ph ph-folder text-faiston-purple"></i> <div><strong>Projeto</strong> — lista só os projetos do cliente selecionado</div></div>
-                    <div class="info-row"><i class="ph ph-calendar text-faiston-magenta"></i> <div><strong>Período</strong> — filtro de data no topo direito</div></div>
-                    <div class="info-row"><i class="ph ph-user text-faiston-pink"></i> <div><strong>Funcionário</strong> — no topo ou clicando na sidebar</div></div>
+                    <div class="info-row"><i class="ph ph-buildings text-faiston-cyan"></i><div><strong>Cliente</strong> — filtra todos os dados pela empresa</div></div>
+                    <div class="info-row"><i class="ph ph-folder text-faiston-purple"></i><div><strong>Projeto</strong> — lista só os projetos do cliente selecionado</div></div>
+                    <div class="info-row"><i class="ph ph-calendar text-faiston-magenta"></i><div><strong>Período</strong> — filtro de data no topo direito</div></div>
+                    <div class="info-row"><i class="ph ph-user text-faiston-pink"></i><div><strong>Funcionário</strong> — no topo ou clicando na sidebar</div></div>
                 </div>
             </div>
-
             <div class="fcard">
                 <div class="flex items-center gap-3">
                     <div class="ficon" style="background:#06D7E612"><i class="ph ph-chart-bar text-faiston-cyan" style="font-size:22px"></i></div>
                     <h4 class="font-bold text-faiston-dark">Gráficos Interativos</h4>
                 </div>
                 <div class="space-y-3">
-                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i> <div>Clique nas barras de <strong>Esforço por Cliente</strong> para filtrar</div></div>
-                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i> <div>Clique no donut de <strong>Status</strong> para filtrar por status</div></div>
-                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i> <div>Clique nas barras de <strong>Tarefas / Funcionário</strong> para filtrar</div></div>
+                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i><div>Clique nas barras de <strong>Esforço por Cliente</strong> para filtrar</div></div>
+                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i><div>Clique no donut de <strong>Status</strong> para filtrar por status</div></div>
+                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i><div>Clique nas barras de <strong>Tarefas / Funcionário</strong> para filtrar</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Criar ticket -->
+    <div>
+        <div class="section-title"><i class="ph ph-ticket"></i> Criar Ticket para um Funcionário</div>
+        <div class="fcard">
+            <p class="text-sm text-faiston-muted leading-relaxed">No Dashboard, clique em <strong class="text-faiston-dark">"Nova Tarefa"</strong>. O gestor pode atribuir a tarefa diretamente a um funcionário do time.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
+                    <i class="ph ph-user-plus mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
+                    <p class="text-sm text-faiston-muted leading-relaxed">Selecione o <strong class="text-faiston-dark">Responsável</strong> no campo do modal</p>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E620">
+                    <i class="ph ph-timer mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:18px"></i>
+                    <p class="text-sm text-faiston-muted leading-relaxed">Use o <strong class="text-faiston-dark">cronômetro do modal</strong> para registrar tempo direto na criação, ou preencha horas manualmente</p>
                 </div>
             </div>
         </div>
@@ -329,38 +393,51 @@
                 <div class="ficon grad flex-shrink-0" style="min-width:44px"><i class="ph ph-sparkle text-white text-xl"></i></div>
                 <div class="flex-1">
                     <h4 class="font-bold text-faiston-dark mb-1">Como usar</h4>
-                    <p class="text-sm text-faiston-muted leading-relaxed mb-4">No Dashboard, clique no botão <span class="pill" style="background:#5B2EE015;color:#5B2EE0;border:1px solid #5B2EE030"><i class="ph ph-sparkle"></i> Analisar</span> no topo da página. A IA lê todos os tickets e gera observações automáticas sobre o time.</p>
+                    <p class="text-sm text-faiston-muted leading-relaxed mb-4">No Dashboard, clique no botão <span class="pill" style="background:#5B2EE015;color:#5B2EE0;border:1px solid #5B2EE030"><i class="ph ph-sparkle"></i> Analisar</span>. A IA lê todos os tickets e gera observações automáticas sobre o time.</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489925">
                             <i class="ph ph-warning-circle flex-shrink-0 mt-0.5" style="color:#EC4899;font-size:18px"></i>
                             <div>
                                 <p class="text-sm font-bold text-faiston-dark">Tickets atrasados</p>
-                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Identifica quais tarefas passaram do prazo e precisam de atenção imediata</p>
+                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Identifica quais tarefas passaram do prazo</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#f59e0b08;border:1px solid #f59e0b25">
                             <i class="ph ph-user-circle-gear flex-shrink-0 mt-0.5" style="color:#f59e0b;font-size:18px"></i>
                             <div>
                                 <p class="text-sm font-bold text-faiston-dark">Carga por funcionário</p>
-                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Aponta quem está sobrecarregado e quem tem capacidade disponível</p>
+                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Aponta quem está sobrecarregado</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE025">
                             <i class="ph ph-trend-up flex-shrink-0 mt-0.5" style="color:#5B2EE0;font-size:18px"></i>
                             <div>
                                 <p class="text-sm font-bold text-faiston-dark">Gargalos na fila</p>
-                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Detecta acúmulo de tickets em andamento ou abertos sem movimentação</p>
+                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Detecta acúmulo de tickets parados</p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E625">
                             <i class="ph ph-lightbulb flex-shrink-0 mt-0.5" style="color:#06D7E6;font-size:18px"></i>
                             <div>
                                 <p class="text-sm font-bold text-faiston-dark">Sugestões de ação</p>
-                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Recomendações práticas com base no cenário atual do time e dos clientes</p>
+                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Recomendações práticas com base no cenário atual</p>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Carimbos do gestor -->
+    <div>
+        <div class="section-title"><i class="ph ph-stamp"></i> Carimbos (sidebar)</div>
+        <div class="fcard">
+            <p class="text-sm text-faiston-muted leading-relaxed">O gestor acessa os carimbos do time pela <strong class="text-faiston-dark">sidebar esquerda</strong>. Clique em <strong class="text-faiston-dark">Carimbos</strong> para expandir a lista e copiar ou criar novos.</p>
+            <div class="space-y-2">
+                <div class="info-row"><i class="ph ph-copy text-faiston-cyan"></i><div>Clique no carimbo para copiar o conteúdo</div></div>
+                <div class="info-row"><i class="ph ph-plus text-faiston-purple"></i><div>Botão <strong>"Novo carimbo"</strong> no topo da lista para criar</div></div>
+                <div class="info-row"><i class="ph ph-pencil text-faiston-faint"></i><div>Ícone de lápis nos carimbos que você criou para editar ou excluir</div></div>
             </div>
         </div>
     </div>
@@ -382,7 +459,7 @@
             <div class="fcard">
                 <div class="ficon" style="background:#06D7E612;width:44px;height:44px"><i class="ph ph-upload-simple text-faiston-cyan text-xl"></i></div>
                 <h4 class="font-bold text-faiston-dark">Importar de Planilha</h4>
-                <p class="text-sm text-faiston-muted leading-relaxed">Botão <strong class="text-faiston-dark">"Importar Projetos"</strong> → cole o link OneDrive → mapeie as colunas → confirme. Não duplica projetos já cadastrados.</p>
+                <p class="text-sm text-faiston-muted leading-relaxed">Botão <strong class="text-faiston-dark">"Importar"</strong> → cole o link OneDrive → mapeie as colunas → confirme. Não duplica projetos já cadastrados.</p>
             </div>
         </div>
     </div>
@@ -417,6 +494,62 @@
     </div>
 </div>
 
+<!-- ═══════════ DEMO ═══════════ -->
+<div id="tab-demo" class="tab-panel space-y-8">
+
+    <div class="card p-6" style="border-left:4px solid #B826C9">
+        <div class="flex items-start gap-4">
+            <div class="ficon grad" style="min-width:44px"><i class="ph ph-eye text-white text-xl"></i></div>
+            <div>
+                <h3 class="font-bold text-faiston-dark text-base mb-1.5">O que é o perfil Demo?</h3>
+                <p class="text-sm text-faiston-muted leading-relaxed">O perfil Demo é uma conta de teste que permite visualizar <strong class="text-faiston-dark">duas visões do sistema</strong> sem ser um usuário real de produção. Ideal para apresentações e treinamentos.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="fcard" style="border:1.5px solid #5B2EE030">
+            <div class="flex items-center gap-3">
+                <div class="ficon" style="background:#5B2EE012"><i class="ph ph-user text-faiston-purple" style="font-size:22px"></i></div>
+                <h4 class="font-bold text-faiston-dark">Visão Funcionário</h4>
+            </div>
+            <p class="text-sm text-faiston-muted leading-relaxed">É a visão padrão ao entrar. Mostra <strong class="text-faiston-dark">apenas as tarefas da conta demo</strong> — não vê tarefas de outros usuários. Acesso às abas Kanban, Agenda e Carimbos do time.</p>
+        </div>
+        <div class="fcard" style="border:1.5px solid #B826C930">
+            <div class="flex items-center gap-3">
+                <div class="ficon" style="background:#B826C912"><i class="ph ph-chart-line-up text-faiston-magenta" style="font-size:22px"></i></div>
+                <h4 class="font-bold text-faiston-dark">Visão Gestor</h4>
+            </div>
+            <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Ver Visão Gestor"</strong> no banner roxo do topo. Mostra o Dashboard completo com <strong class="text-faiston-dark">todas as tarefas do time</strong>, filtros e gráficos.</p>
+        </div>
+    </div>
+
+    <div class="fcard">
+        <div class="flex items-center gap-3">
+            <div class="ficon" style="background:#06D7E612"><i class="ph ph-info text-faiston-cyan" style="font-size:22px"></i></div>
+            <h4 class="font-bold text-faiston-dark">Capacidades do perfil Demo</h4>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl flex items-start gap-2" style="background:#06D7E608;border:1px solid #06D7E620">
+                <i class="ph ph-check-circle mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:16px"></i>
+                <span class="text-sm text-faiston-muted">Criar, editar e concluir tarefas</span>
+            </div>
+            <div class="p-3 rounded-xl flex items-start gap-2" style="background:#06D7E608;border:1px solid #06D7E620">
+                <i class="ph ph-check-circle mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:16px"></i>
+                <span class="text-sm text-faiston-muted">Criar e gerenciar usuários do time</span>
+            </div>
+            <div class="p-3 rounded-xl flex items-start gap-2" style="background:#06D7E608;border:1px solid #06D7E620">
+                <i class="ph ph-check-circle mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:16px"></i>
+                <span class="text-sm text-faiston-muted">Criar carimbos para o time</span>
+            </div>
+            <div class="p-3 rounded-xl flex items-start gap-2" style="background:#06D7E608;border:1px solid #06D7E620">
+                <i class="ph ph-check-circle mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:16px"></i>
+                <span class="text-sm text-faiston-muted">Ver Dashboard, clientes e financeiro</span>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ═══════════ ADMIN ═══════════ -->
 <div id="tab-admin" class="tab-panel space-y-8">
 
@@ -425,11 +558,12 @@
             <div class="ficon grad" style="min-width:44px"><i class="ph ph-shield-check text-white text-xl"></i></div>
             <div>
                 <h3 class="font-bold text-faiston-dark text-base mb-1.5">Perfil Admin</h3>
-                <p class="text-sm text-faiston-muted leading-relaxed">O admin tem acesso a tudo: dashboard, clientes, financeiro + gerenciamento de usuários em <strong class="text-faiston-dark">/admin</strong>. Acesse pelo link <strong class="text-faiston-dark">"Admin"</strong> no menu lateral.</p>
+                <p class="text-sm text-faiston-muted leading-relaxed">O admin tem acesso a tudo: dashboard, clientes, financeiro + gerenciamento completo de usuários e ferramentas de manutenção. Acesse o painel exclusivo em <strong class="text-faiston-dark">/admin</strong> pelo link no menu lateral.</p>
             </div>
         </div>
     </div>
 
+    <!-- Usuários -->
     <div>
         <div class="section-title"><i class="ph ph-users"></i> Gerenciar Usuários</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -441,20 +575,17 @@
                 </div>
                 <ol class="space-y-3">
                     <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">1</span><span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Novo Usuário"</strong></span></li>
-                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">2</span><span class="text-sm text-faiston-muted leading-relaxed">Preencha nome, usuário, senha temporária, perfil e <strong class="text-faiston-dark">email</strong></span></li>
-                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">3</span><span class="text-sm text-faiston-muted leading-relaxed">Salve — o sistema envia automaticamente um <strong class="text-faiston-dark">email com as credenciais</strong> de acesso</span></li>
-                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">4</span><span class="text-sm text-faiston-muted leading-relaxed">No primeiro login, o usuário será obrigado a criar uma senha pessoal</span></li>
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">2</span><span class="text-sm text-faiston-muted leading-relaxed">Preencha nome, usuário, senha temporária, <strong class="text-faiston-dark">perfil</strong>, <strong class="text-faiston-dark">time</strong> e email</span></li>
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">3</span><span class="text-sm text-faiston-muted leading-relaxed">Salve — o sistema envia automaticamente um <strong class="text-faiston-dark">email com as credenciais</strong></span></li>
+                    <li class="flex items-start gap-3"><span class="step-num-sm" style="margin-top:2px">4</span><span class="text-sm text-faiston-muted leading-relaxed">No primeiro login, o usuário cria sua senha pessoal</span></li>
                 </ol>
-                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E625">
-                    <i class="ph ph-envelope text-faiston-cyan mt-0.5 flex-shrink-0" style="font-size:18px"></i>
-                    <div class="text-sm text-faiston-muted leading-relaxed">O email contém o link de acesso, usuário e senha temporária. Para reenviar, clique no ícone <i class="ph ph-envelope" style="color:#5B2EE0"></i> na linha do usuário.</div>
-                </div>
                 <div class="p-4 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
                     <p class="text-xs font-bold text-faiston-purple uppercase tracking-wide mb-3">Perfis disponíveis</p>
                     <div class="space-y-2">
-                        <div class="flex items-center gap-2.5"><span class="pill" style="background:#EC489920;color:#EC4899">Admin</span><span class="text-sm text-faiston-muted">acesso total + usuários</span></div>
-                        <div class="flex items-center gap-2.5"><span class="pill" style="background:#5B2EE020;color:#5B2EE0">Gestor</span><span class="text-sm text-faiston-muted">dashboard + clientes + financeiro</span></div>
+                        <div class="flex items-center gap-2.5"><span class="pill" style="background:#EC489920;color:#EC4899">Admin</span><span class="text-sm text-faiston-muted">acesso total + painel admin</span></div>
+                        <div class="flex items-center gap-2.5"><span class="pill" style="background:#5B2EE020;color:#5B2EE0">Gestor</span><span class="text-sm text-faiston-muted">dashboard + clientes + financeiro + time</span></div>
                         <div class="flex items-center gap-2.5"><span class="pill" style="background:#06D7E620;color:#06D7E6">Funcionário</span><span class="text-sm text-faiston-muted">só as próprias tarefas</span></div>
+                        <div class="flex items-center gap-2.5"><span class="pill" style="background:#B826C920;color:#B826C9">Demo</span><span class="text-sm text-faiston-muted">conta de teste — visão funcionário + gestor</span></div>
                     </div>
                 </div>
             </div>
@@ -465,18 +596,72 @@
                     <h4 class="font-bold text-faiston-dark">Editar / Remover Usuários</h4>
                 </div>
                 <div class="space-y-3">
-                    <div class="info-row"><i class="ph ph-pencil-simple" style="color:#5B2EE0"></i><div>Ícone de <strong>lápis</strong> → editar nome, perfil, email ou redefinir senha</div></div>
-                    <div class="info-row"><i class="ph ph-envelope" style="color:#5B2EE0"></i><div>Ícone de <strong>envelope</strong> → reenviar email de acesso (aparece se email estiver cadastrado)</div></div>
-                    <div class="info-row"><i class="ph ph-trash" style="color:#EC4899"></i><div>Ícone de <strong>lixeira</strong> → desativa o usuário (histórico preservado)</div></div>
+                    <div class="info-row"><i class="ph ph-pencil-simple" style="color:#5B2EE0"></i><div>Ícone de <strong>lápis</strong> → editar nome, perfil, time, email ou redefinir senha</div></div>
+                    <div class="info-row"><i class="ph ph-envelope" style="color:#5B2EE0"></i><div>Ícone de <strong>envelope</strong> → reenviar email de acesso</div></div>
+                    <div class="info-row"><i class="ph ph-trash" style="color:#EC4899"></i><div>Ícone de <strong>lixeira</strong> → remove o usuário (histórico preservado)</div></div>
                     <div class="info-row"><i class="ph ph-lock-key text-faiston-faint"></i><div>Ao <strong>redefinir senha</strong>, usuário é obrigado a trocar no próximo login</div></div>
                 </div>
                 <div class="p-3 rounded-xl text-sm text-faiston-muted flex items-center gap-2" style="background:#F4F5FA;border:1px solid #E5E8F0">
                     <i class="ph ph-warning text-faiston-faint text-base flex-shrink-0"></i>
-                    O usuário <strong class="text-faiston-dark">admin</strong> não pode ser desativado.
+                    O usuário <strong class="text-faiston-dark">admin</strong> não pode ser removido.
                 </div>
             </div>
+        </div>
+    </div>
 
-            <div class="fcard md:col-span-2" style="border:1.5px solid #EC489930">
+    <!-- Painel de uso -->
+    <div>
+        <div class="section-title"><i class="ph ph-chart-bar"></i> Painel de Uso do Sistema</div>
+        <div class="fcard">
+            <p class="text-sm text-faiston-muted leading-relaxed">Na aba <strong class="text-faiston-dark">"Atividade"</strong> do painel admin, veja em tempo real como o sistema está sendo usado.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
+                    <i class="ph ph-users mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
+                    <div>
+                        <p class="text-sm font-bold text-faiston-dark">Usuários Online</p>
+                        <p class="text-xs text-faiston-muted mt-0.5">Quem está logado, em qual página e há quanto tempo</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E620">
+                    <i class="ph ph-chart-line mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:18px"></i>
+                    <div>
+                        <p class="text-sm font-bold text-faiston-dark">Atividade Diária</p>
+                        <p class="text-xs text-faiston-muted mt-0.5">Gráfico de uso nos últimos 7 dias</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489920">
+                    <i class="ph ph-pie-chart mt-0.5 flex-shrink-0" style="color:#EC4899;font-size:18px"></i>
+                    <div>
+                        <p class="text-sm font-bold text-faiston-dark">Tipos de Ação</p>
+                        <p class="text-xs text-faiston-muted mt-0.5">Distribuição entre tarefas, notas e carimbos</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ferramentas de manutenção -->
+    <div>
+        <div class="section-title"><i class="ph ph-wrench"></i> Ferramentas de Manutenção</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <div class="fcard" style="border:1.5px solid #f59e0b30">
+                <div class="flex items-center gap-3">
+                    <div class="ficon" style="background:#f59e0b12"><i class="ph ph-clock-counter-clockwise" style="color:#f59e0b;font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Corrigir Horas Corrompidas</h4>
+                </div>
+                <p class="text-sm text-faiston-muted leading-relaxed">O botão <span class="pill" style="background:#f59e0b15;color:#f59e0b">Corrigir Horas</span> varre todas as tarefas e lista as que têm tempo absurdo (mais de 30 dias contínuos). Para cada uma, você insere as horas e minutos corretos e salva.</p>
+            </div>
+
+            <div class="fcard" style="border:1.5px solid #5B2EE030">
+                <div class="flex items-center gap-3">
+                    <div class="ficon" style="background:#5B2EE012"><i class="ph ph-stamp text-faiston-purple" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Times dos Carimbos</h4>
+                </div>
+                <p class="text-sm text-faiston-muted leading-relaxed">O botão <span class="pill" style="background:#5B2EE015;color:#5B2EE0">Times dos Carimbos</span> lista todos os carimbos com o time atual. Use para corrigir carimbos antigos que foram cadastrados antes da separação por equipe.</p>
+            </div>
+
+            <div class="fcard" style="border:1.5px solid #EC489930">
                 <div class="flex items-center gap-3">
                     <div class="ficon" style="background:#EC489912"><i class="ph ph-trash text-faiston-pink" style="font-size:22px"></i></div>
                     <div>
@@ -484,10 +669,19 @@
                         <p class="text-xs font-bold uppercase tracking-wide" style="color:#EC4899">Ação irreversível</p>
                     </div>
                 </div>
-                <p class="text-sm text-faiston-muted leading-relaxed">Na aba <strong class="text-faiston-dark">"Tarefas do Time"</strong>, o botão <span class="pill" style="background:#EC489920;color:#EC4899">🗑 Limpar Todas</span> remove todas as tarefas do sistema de uma vez. Uma confirmação é exibida antes. Use com cuidado.</p>
+                <p class="text-sm text-faiston-muted leading-relaxed">O botão <span class="pill" style="background:#EC489920;color:#EC4899">Limpar Testes</span> remove <strong class="text-faiston-dark">todas</strong> as tarefas do sistema. Use apenas para limpar dados de teste antes do uso real.</p>
+            </div>
+
+            <div class="fcard">
+                <div class="flex items-center gap-3">
+                    <div class="ficon" style="background:#06D7E612"><i class="ph ph-stamp text-faiston-cyan" style="font-size:22px"></i></div>
+                    <h4 class="font-bold text-faiston-dark">Carimbos — Admin</h4>
+                </div>
+                <p class="text-sm text-faiston-muted leading-relaxed">O admin vê o ícone de lápis em <strong class="text-faiston-dark">todos</strong> os carimbos, independente de quem criou. Pode editar e excluir qualquer carimbo de qualquer time.</p>
             </div>
         </div>
     </div>
+
 </div>
 
 <!-- ═══════════ DICAS GERAIS ═══════════ -->
@@ -497,12 +691,12 @@
         <div class="fcard">
             <div class="ficon" style="background:#5B2EE012;width:44px;height:44px"><i class="ph ph-moon text-faiston-purple text-xl"></i></div>
             <h4 class="font-bold text-faiston-dark">Tema Escuro</h4>
-            <p class="text-sm text-faiston-muted leading-relaxed">Clique no ícone 🌙/☀️ no canto superior direito. A preferência fica salva no seu navegador.</p>
+            <p class="text-sm text-faiston-muted leading-relaxed">Clique no ícone 🌙 / ☀️ no canto superior direito. A preferência fica salva no navegador e se aplica a todas as telas.</p>
         </div>
         <div class="fcard">
-            <div class="ficon" style="background:#06D7E612;width:44px;height:44px"><i class="ph ph-arrows-clockwise text-faiston-cyan text-xl"></i></div>
-            <h4 class="font-bold text-faiston-dark">Atualizar Dados</h4>
-            <p class="text-sm text-faiston-muted leading-relaxed">Use o botão 🔄 no topo para recarregar os dados sem precisar atualizar a página inteira.</p>
+            <div class="ficon" style="background:#06D7E612;width:44px;height:44px"><i class="ph ph-shield-check text-faiston-cyan text-xl"></i></div>
+            <h4 class="font-bold text-faiston-dark">Sessão Segura</h4>
+            <p class="text-sm text-faiston-muted leading-relaxed">Sua sessão dura 24 horas e fica salva mesmo que o sistema reinicie. Para sair, clique em <strong class="text-faiston-dark">"Sair"</strong> no canto superior direito.</p>
         </div>
         <div class="fcard">
             <div class="ficon" style="background:#EC489912;width:44px;height:44px"><i class="ph ph-warning text-faiston-pink text-xl"></i></div>
@@ -522,7 +716,7 @@
 <script>
 function setTab(id) {
     document.querySelectorAll('.tab-btn').forEach((b,i) => {
-        b.classList.toggle('active', ['func','gestor','admin'][i] === id);
+        b.classList.toggle('active', ['func','gestor','demo','admin'][i] === id);
     });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('tab-' + id).classList.add('active');
