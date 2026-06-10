@@ -725,6 +725,37 @@ def ping_session(page: str = "", faiston_token: str = Cookie(None)):
     get_session(faiston_token, page)
     return {"ok": True}
 
+@app.get("/api/admin/listar-carimbos-times")
+def listar_carimbos_times(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT c.id, c.titulo, c.categoria, c.time_usuario, u.nome as criador
+            FROM carimbos c LEFT JOIN usuarios u ON u.id = c.criado_por
+            ORDER BY c.time_usuario, c.categoria, c.titulo
+        """)
+        rows = cur.fetchall(); cur.close(); conn.close()
+        return [{"id": r[0], "titulo": r[1], "categoria": r[2],
+                 "time_usuario": r[3], "criador": r[4]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/api/admin/carimbo-time/{cid}")
+def corrigir_time_carimbo(cid: int, body: dict, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE carimbos SET time_usuario=%s WHERE id=%s", (body.get("time_usuario"), cid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/admin/horas-corrompidas")
 def listar_horas_corrompidas(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
