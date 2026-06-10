@@ -104,6 +104,11 @@
         [data-theme="dark"] #carimbos-view-content .bg-white { background-color: #11111E !important; }
         [data-theme="dark"] #carimbos-view-content pre { color: #8B93AE !important; }
         [data-theme="dark"] #carimbos-view-content p.text-sm { color: #E2E4EF !important; }
+        /* Separador de categoria e contador de carimbos */
+        [data-theme="dark"] #carimbos-view-content .text-slate-300 { color: #4A5068 !important; }
+        /* Botão Novo Carimbo já usa btn-grad (ok). Texto muted do subtítulo */
+        [data-theme="dark"] #view-carimbos-func h2 { color: #F1F2F8 !important; }
+        [data-theme="dark"] #view-carimbos-func p  { color: #6A718A !important; }
         /* Modal novo carimbo - dark */
         [data-theme="dark"] #modal-carimbo-func > div { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
         [data-theme="dark"] #mc-titulo,
@@ -1607,6 +1612,11 @@ function toggleTemaFunc() {
     document.documentElement.setAttribute('data-theme',novo?'dark':'light');
     const icon=document.getElementById('icon-tema-f');
     if (icon) icon.className=novo?'ph ph-sun text-faiston-cyan':'ph ph-moon';
+    // Re-renderiza carimbos: os cards usam inline styles calculados na hora do
+    // render, então precisam ser recriados quando o tema muda
+    if (tabAtiva==='carimbos') renderCarimbos();
+    if (tabAtiva==='kanban') renderTasks();
+    if (tabAtiva==='agenda') renderAgenda();
 }
 (function(){ const icon=document.getElementById('icon-tema-f'); if(icon&&localStorage.getItem('faiston_tema')==='dark') icon.className='ph ph-sun text-faiston-cyan'; })();
 
