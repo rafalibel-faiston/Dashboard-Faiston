@@ -326,8 +326,9 @@ async function init() {
         if (!res.ok) { window.location.href = '/'; return; }
         const me = await res.json();
         if (me.perfil !== 'admin') { window.location.href = me.perfil === 'gestor' ? '/dashboard' : '/funcionario'; return; }
-        document.getElementById('user-nome').textContent = me.nome;
-        document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
+        const nome = me.nome || me.usuario || 'Admin';
+        document.getElementById('user-nome').textContent = nome;
+        document.getElementById('user-avatar').textContent = nome.charAt(0).toUpperCase();
     } catch(e) { window.location.href = '/'; }
     carregarUsuarios();
 }
@@ -351,9 +352,11 @@ function setTab(tab) {
     if (tab === 'online') carregarAtividade();
 }
 
+let _usuariosCache = [];
 async function carregarUsuarios() {
     const res = await fetch('/api/usuarios');
     const usuarios = await res.json();
+    _usuariosCache = usuarios;
     const tb = document.getElementById('tabela-usuarios');
     const sel = document.getElementById('filtro-func');
     sel.innerHTML = '<option value="">Todos os funcionários</option>';
@@ -379,9 +382,9 @@ async function carregarUsuarios() {
             </td>
             <td class="px-5 py-3">
                 <div class="flex items-center gap-1 justify-end">
-                    ${u.email ? `<button onclick="reenviarEmail(${u.id},'${u.nome}','${u.email}')" title="Reenviar email de acesso para ${u.email}" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors"><i class="ph ph-envelope"></i></button>` : ''}
-                    <button onclick="editarUsuario(${u.id},'${u.usuario}','${u.nome}','${u.perfil}',${u.ativo},'${u.email || ''}','${u.time || 'Projetos'}')" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>
-                    <button onclick="deletarUsuario(${u.id},'${u.nome}')" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-trash"></i></button>
+                    ${u.email ? `<button onclick="reenviarEmail(${u.id})" title="Reenviar email de acesso" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors"><i class="ph ph-envelope"></i></button>` : ''}
+                    <button onclick="editarUsuario(${u.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>
+                    <button onclick="deletarUsuario(${u.id})" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-trash"></i></button>
                 </div>
             </td>
         </tr>`;
@@ -588,17 +591,19 @@ function openModalUser() {
     document.getElementById('modal-user').classList.remove('hidden');
 }
 
-function editarUsuario(id, usuario, nome, perfil, ativo, email, time) {
+function editarUsuario(id) {
+    const u = _usuariosCache.find(x => x.id === id);
+    if (!u) return;
     document.getElementById('modal-user-title').textContent = 'Editar Usuário';
-    document.getElementById('edit-uid').value = id;
-    document.getElementById('u-nome').value = nome;
-    document.getElementById('u-usuario').value = usuario;
+    document.getElementById('edit-uid').value = u.id;
+    document.getElementById('u-nome').value = u.nome || '';
+    document.getElementById('u-usuario').value = u.usuario;
     document.getElementById('u-usuario').disabled = true;
     document.getElementById('u-senha').value = '';
-    document.getElementById('u-email').value = email || '';
-    document.getElementById('u-perfil').value = perfil;
-    document.getElementById('u-time').value = time || 'Projetos';
-    document.getElementById('u-ativo').checked = ativo;
+    document.getElementById('u-email').value = u.email || '';
+    document.getElementById('u-perfil').value = u.perfil;
+    document.getElementById('u-time').value = u.time || 'Projetos';
+    document.getElementById('u-ativo').checked = u.ativo;
     document.getElementById('senha-hint').textContent = '(deixe em branco para não alterar)';
     document.getElementById('wrap-ativo').classList.remove('hidden');
     document.getElementById('wrap-ativo').classList.add('flex');
@@ -668,18 +673,22 @@ async function salvarUsuario() {
     }
 }
 
-async function reenviarEmail(id, nome, email) {
-    if (!confirm(`Reenviar email de acesso para ${nome} (${email})?`)) return;
+async function reenviarEmail(id) {
+    const u = _usuariosCache.find(x => x.id === id);
+    if (!u) return;
+    if (!confirm(`Reenviar email de acesso para ${u.nome} (${u.email})?`)) return;
     try {
         const res = await fetch(`/api/usuarios/${id}/reenviar-email`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) { alert(data.detail || 'Erro ao reenviar'); return; }
-        alert(`✅ Email enviado para ${email}`);
+        alert(`✅ Email enviado para ${u.email}`);
     } catch(e) { alert('Erro de conexão'); }
 }
 
-async function deletarUsuario(id, nome) {
-    if (!confirm(`Deletar o usuário "${nome}"? Esta ação não pode ser desfeita.`)) return;
+async function deletarUsuario(id) {
+    const u = _usuariosCache.find(x => x.id === id);
+    if (!u) return;
+    if (!confirm(`Deletar o usuário "${u.nome}"? Esta ação não pode ser desfeita.`)) return;
     const res = await fetch(`/api/usuarios/${id}`, { method: 'DELETE' });
     if (res.ok) carregarUsuarios();
     else alert('Erro ao deletar');

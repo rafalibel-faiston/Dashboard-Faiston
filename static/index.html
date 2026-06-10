@@ -1699,14 +1699,23 @@ let clienteSelecionado = '';
 
 function abrirModalTicket() {
     document.getElementById('modal-ticket').classList.remove('hidden');
+    resetTimerModal();
     carregarDadosModal();
+}
+
+function resetTimerModal() {
+    if (timerModalInterval) { clearInterval(timerModalInterval); timerModalInterval = null; }
+    timerModalRunning = false;
+    timerModalSeg = 0;
+    const disp = document.getElementById('nt-timer-display');
+    if (disp) disp.textContent = '00:00:00';
 }
 
 function fecharModalTicket() {
     document.getElementById('modal-ticket').classList.add('hidden');
     document.getElementById('nt-prazo').value = '';
     document.getElementById('nt-agendamento').value = '';
-    if (timerModalInterval) { clearInterval(timerModalInterval); timerModalInterval = null; timerModalRunning = false; }
+    resetTimerModal();
 }
 
 async function carregarDadosModal() {
@@ -1932,7 +1941,7 @@ function renderKanbanGestor() {
         const filtered = todasTarefasKanban.filter(t => {
             if (t.status !== status) return false;
             if (fc && t.cliente !== fc) return false;
-            if (ff && !t.funcionario.toLowerCase().includes(ff)) return false;
+            if (ff && !(t.funcionario || '').toLowerCase().includes(ff)) return false;
             if (fp && t.projeto_nome !== fp) return false;
             return true;
         });
@@ -1953,7 +1962,7 @@ function renderKanbanGestor() {
 
         // Agrupa por funcionário
         const byFunc = {};
-        filtered.forEach(t => { if (!byFunc[t.funcionario]) byFunc[t.funcionario]=[]; byFunc[t.funcionario].push(t); });
+        filtered.forEach(t => { const f = t.funcionario || 'Sem responsável'; if (!byFunc[f]) byFunc[f]=[]; byFunc[f].push(t); });
 
         col.innerHTML = Object.entries(byFunc).map(([func, funcTasks]) => {
             const fColor = gkFuncColor(func);

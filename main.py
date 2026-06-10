@@ -1282,13 +1282,20 @@ def apresentacao_page(): return FileResponse("static/apresentacao.html")
 
 # --- NOTIFICAÇÕES ---
 def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None):
+    # Usa SAVEPOINT para que uma falha ao gravar a notificação NÃO aborte a
+    # transação principal (criação/atualização da tarefa). Sem isso, um erro aqui
+    # deixaria a transação em estado "aborted" e o commit seguinte da tarefa falharia.
+    cur = conn.cursor()
     try:
-        cur = conn.cursor()
+        cur.execute("SAVEPOINT sp_notif")
         cur.execute("INSERT INTO notificacoes (tipo, mensagem, usuario_id) VALUES (%s, %s, %s)", (tipo, mensagem, usuario_id))
         cur.execute("DELETE FROM notificacoes WHERE id NOT IN (SELECT id FROM notificacoes ORDER BY criado_em DESC LIMIT 50)")
+        cur.execute("RELEASE SAVEPOINT sp_notif")
+    except Exception:
+        try: cur.execute("ROLLBACK TO SAVEPOINT sp_notif")
+        except Exception: pass
+    finally:
         cur.close()
-    except:
-        pass
 
 @app.get("/api/notificacoes")
 def get_notificacoes(faiston_token: str = Cookie(None)):
