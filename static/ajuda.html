@@ -9,71 +9,178 @@
     <script>tailwind.config={theme:{extend:{colors:{faiston:{bg:'#F4F5FA',dark:'#0B0D1F',border:'#E5E8F0',muted:'#5E647A',faint:'#9097AC',cyan:'#06D7E6',purple:'#5B2EE0',magenta:'#B826C9',pink:'#EC4899'}}},fontFamily:{sans:['Inter','sans-serif'],display:['Space Grotesk','sans-serif']}}}}</script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
-        * { box-sizing: border-box; }
-        body { background: #F0F1F8; }
-        .grad { background: linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%); }
-        .grad-soft { background: linear-gradient(135deg,#5B2EE015 0%,#B826C910 100%); }
-        .card { background:white; border-radius:20px; border:1px solid #E5E8F0; }
-        .step-num { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0; background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; box-shadow:0 4px 12px rgba(91,46,224,0.35); }
-        .step-num-sm { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; flex-shrink:0; background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; }
-        .tab-btn { padding:10px 22px; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; transition:all .18s; white-space:nowrap; }
-        .tab-btn.active { background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; box-shadow:0 4px 20px rgba(91,46,224,0.35); }
-        .tab-btn:not(.active) { background:white; color:#5E647A; border:1px solid #E5E8F0; }
-        .tab-btn:not(.active):hover { border-color:#5B2EE040; color:#5B2EE0; }
-        .tab-panel { display:none; }
-        .tab-panel.active { display:block; }
-        .fcard { background:white; border-radius:16px; border:1px solid #E5E8F0; padding:24px; display:flex; flex-direction:column; gap:14px; }
-        .fcard:hover { box-shadow:0 4px 24px rgba(0,0,0,0.07); transition:box-shadow .2s; }
-        .ficon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
-        .pill { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
-        .section-title { font-size:18px; font-weight:800; color:#0B0D1F; display:flex; align-items:center; gap:10px; margin-bottom:16px; font-family:'Space Grotesk',sans-serif; }
-        .section-title i { font-size:22px; color:#5B2EE0; }
-        .info-row { display:flex; align-items:flex-start; gap:10px; font-size:14px; color:#5E647A; line-height:1.6; }
-        .info-row i { font-size:17px; flex-shrink:0; margin-top:2px; }
-        .info-row strong { color:#0B0D1F; font-weight:600; }
-        .kanban-col { flex:1; padding:12px 14px; border-radius:12px; text-align:center; }
-        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
-        .float { animation:float 3s ease-in-out infinite; }
-        .badge-new { display:inline-flex; align-items:center; padding:2px 8px; border-radius:8px; font-size:10px; font-weight:800; background:linear-gradient(135deg,#5B2EE0,#B826C9); color:white; letter-spacing:.05em; }
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{background:#EEF0F8;font-family:'Inter',sans-serif;min-height:100vh;overflow-x:hidden}
+
+        /* Scroll progress */
+        #scroll-bar{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,#5B2EE0,#B826C9,#EC4899);z-index:9999;transition:width .1s linear;border-radius:0 2px 2px 0}
+
+        /* Gradient helpers */
+        .grad{background:linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%)}
+        .grad-text{background:linear-gradient(135deg,#5B2EE0,#EC4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+        /* Hero */
+        .hero{background:linear-gradient(135deg,#0B0D1F 0%,#1a1040 50%,#2d0a3e 100%);position:relative;overflow:hidden}
+        .hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(91,46,224,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(91,46,224,.12) 1px,transparent 1px);background-size:40px 40px}
+        .hero-orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none}
+
+        /* Sticky tabs */
+        #tab-nav{position:sticky;top:0;z-index:100;background:rgba(238,240,248,.9);backdrop-filter:blur(16px);border-bottom:1px solid #E5E8F0;transition:box-shadow .2s}
+        #tab-nav.scrolled{box-shadow:0 4px 24px rgba(0,0,0,.08)}
+        .tab-btn{padding:12px 24px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;border-radius:0;border-bottom:3px solid transparent;color:#5E647A;background:transparent;position:relative}
+        .tab-btn.active{color:#5B2EE0;border-bottom-color:#5B2EE0}
+        .tab-btn:hover:not(.active){color:#5B2EE0;background:rgba(91,46,224,.04)}
+        .tab-btn .tab-icon{width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;margin-right:8px;font-size:14px;transition:all .2s}
+        .tab-btn.active .tab-icon{background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white}
+        .tab-btn:not(.active) .tab-icon{background:#F0F1F8;color:#9097AC}
+
+        /* Tab panels */
+        .tab-panel{display:none;animation:fadeUp .35s ease}
+        .tab-panel.active{display:block}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+        /* Section headers */
+        .sec-hd{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+        .sec-hd-num{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:white;flex-shrink:0;background:linear-gradient(135deg,#5B2EE0,#B826C9);box-shadow:0 4px 14px rgba(91,46,224,.35)}
+        .sec-hd-txt{font-size:19px;font-weight:800;color:#0B0D1F;font-family:'Space Grotesk',sans-serif}
+        .sec-hd-sub{font-size:13px;color:#9097AC;font-weight:500;margin-top:1px}
+
+        /* Cards */
+        .card{background:white;border-radius:20px;border:1px solid #E5E8F0}
+        .fcard{background:white;border-radius:16px;border:1px solid #E5E8F0;padding:22px;transition:all .2s}
+        .fcard:hover{box-shadow:0 6px 32px rgba(0,0,0,.08);transform:translateY(-1px)}
+        .fcard-accent{border-left:3px solid transparent}
+
+        /* Accordion */
+        .acc-item{background:white;border-radius:16px;border:1px solid #E5E8F0;overflow:hidden;transition:all .2s}
+        .acc-item:hover{border-color:#5B2EE025}
+        .acc-head{display:flex;align-items:center;gap:14px;padding:18px 22px;cursor:pointer;user-select:none}
+        .acc-head:hover{background:#FAFBFF}
+        .acc-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;transition:all .2s}
+        .acc-arrow{margin-left:auto;color:#9097AC;font-size:16px;transition:transform .25s;flex-shrink:0}
+        .acc-body{max-height:0;overflow:hidden;transition:max-height .35s ease,padding .2s}
+        .acc-body.open{max-height:600px;padding-bottom:20px}
+        .acc-body-inner{padding:0 22px}
+        .acc-item.open .acc-arrow{transform:rotate(180deg)}
+        .acc-item.open{border-color:#5B2EE030;box-shadow:0 4px 24px rgba(91,46,224,.08)}
+
+        /* Steps */
+        .step-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;box-shadow:0 3px 10px rgba(91,46,224,.35)}
+        .step-sm{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white}
+        .step-line{display:flex;align-items:stretch;gap:0}
+        .step-connector{width:2px;background:linear-gradient(#5B2EE040,#B826C940);margin:4px 0 4px 15px;flex-shrink:0}
+
+        /* Info rows */
+        .info-row{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:#5E647A;line-height:1.65}
+        .info-row i{font-size:17px;flex-shrink:0;margin-top:2px}
+        .info-row strong{color:#0B0D1F;font-weight:600}
+
+        /* Pills */
+        .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
+
+        /* Kanban demo */
+        .kdemo-col{flex:1;border-radius:14px;padding:12px;min-height:100px}
+        .kdemo-card{background:white;border-radius:10px;padding:10px 12px;margin-bottom:8px;border:1px solid #E5E8F0;font-size:12px;font-weight:600;color:#0B0D1F;cursor:grab;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+        .kdemo-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.1);transform:scale(1.02)}
+        .kdemo-card.dragging{opacity:.4;cursor:grabbing}
+        .kdemo-col.drag-over{outline:2px dashed #5B2EE0;outline-offset:2px}
+
+        /* Timer demo */
+        #timer-demo{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:800;letter-spacing:.04em;transition:color .3s}
+        .timer-pulse{animation:timerPulse 1s ease-in-out infinite}
+        @keyframes timerPulse{0%,100%{opacity:1}50%{opacity:.6}}
+
+        /* Badge demos */
+        .badge-demo{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;cursor:pointer;transition:all .2s}
+        .badge-demo:hover{transform:translateX(4px)}
+
+        /* Scroll reveal */
+        .reveal{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease}
+        .reveal.visible{opacity:1;transform:translateY(0)}
+
+        /* Float anim */
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        .float{animation:float 3.5s ease-in-out infinite}
+
+        /* Tooltip */
+        .tip{position:relative}
+        .tip:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#0B0D1F;color:white;font-size:11px;font-weight:600;padding:5px 10px;border-radius:8px;white-space:nowrap;pointer-events:none;z-index:50}
+
+        /* Particles */
+        .particle{position:absolute;border-radius:50%;pointer-events:none;animation:particleFly linear infinite}
+        @keyframes particleFly{0%{transform:translateY(0) scale(1);opacity:.5}100%{transform:translateY(-120px) scale(.2);opacity:0}}
+
+        /* Progress dots */
+        .prog-dot{width:8px;height:8px;border-radius:50%;transition:all .3s}
+
+        /* Highlight box */
+        .hbox{border-radius:12px;padding:14px 16px;display:flex;align-items:flex-start;gap:10px}
+
+        @media(max-width:640px){
+            .tab-btn{padding:10px 14px;font-size:12px}
+            .tab-btn span.lbl{display:none}
+            #timer-demo{font-size:24px}
+        }
     </style>
 </head>
-<body class="font-sans min-h-screen">
+<body>
 
-<!-- HERO -->
-<div class="grad relative overflow-hidden">
-    <div class="absolute inset-0 opacity-15" style="background-image:radial-gradient(circle at 30% 50%, rgba(255,255,255,0.2) 0%, transparent 60%), linear-gradient(rgba(255,255,255,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.07) 1px,transparent 1px);background-size:100% 100%, 48px 48px, 48px 48px"></div>
-    <div class="relative max-w-5xl mx-auto px-6 py-14 flex items-center justify-between gap-8">
+<!-- Scroll progress bar -->
+<div id="scroll-bar" style="width:0%"></div>
+
+<!-- ══════════════════ HERO ══════════════════ -->
+<div class="hero" style="min-height:260px">
+    <div class="hero-grid"></div>
+    <div class="hero-orb" style="width:400px;height:400px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(184,38,201,.25),transparent 70%)"></div>
+    <div class="hero-orb" style="width:300px;height:300px;bottom:-80px;left:-60px;background:radial-gradient(circle,rgba(91,46,224,.2),transparent 70%)"></div>
+
+    <div class="relative max-w-5xl mx-auto px-6 py-12 flex items-center justify-between gap-8">
         <div>
-            <div class="flex items-center gap-3 mb-5">
-                <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <i class="ph-fill ph-book-open text-white text-lg"></i>
+            <div class="flex items-center gap-2.5 mb-5">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2)">
+                    <i class="ph-fill ph-book-open text-white" style="font-size:15px"></i>
                 </div>
-                <span class="text-white/75 font-bold tracking-widest text-xs uppercase">Faiston OPS</span>
+                <span style="color:rgba(255,255,255,.6);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">Faiston OPS</span>
             </div>
-            <h1 class="text-5xl font-black text-white leading-tight mb-3" style="font-family:'Space Grotesk',sans-serif">Guia de Uso<br>do Sistema</h1>
-            <p class="text-white/70 text-base max-w-sm leading-relaxed">Tudo que você precisa para usar o Faiston OPS. Selecione seu perfil abaixo.</p>
-            <a href="/dashboard" class="mt-7 inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-sm text-white font-semibold px-5 py-2.5 rounded-xl transition-all text-sm border border-white/25">
+            <h1 style="font-family:'Space Grotesk',sans-serif;font-size:clamp(32px,5vw,52px);font-weight:800;color:white;line-height:1.1;margin-bottom:12px">
+                Guia de Uso<br><span style="background:linear-gradient(135deg,#B826C9,#EC4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">do Sistema</span>
+            </h1>
+            <p style="color:rgba(255,255,255,.55);font-size:15px;max-width:380px;line-height:1.7;margin-bottom:24px">Tudo que você precisa para dominar o Faiston OPS. Selecione seu perfil abaixo.</p>
+            <a href="/dashboard" style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;font-size:13px;font-weight:600;padding:10px 20px;border-radius:12px;text-decoration:none;transition:all .2s;backdrop-filter:blur(10px)"
+               onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">
                 <i class="ph ph-arrow-left"></i> Voltar ao Dashboard
             </a>
         </div>
-        <div class="hidden lg:flex items-center float">
-            <div class="card p-5 shadow-2xl w-52">
-                <div class="flex items-center gap-2 mb-4">
-                    <div class="w-7 h-7 rounded-lg grad flex items-center justify-center"><i class="ph-fill ph-kanban text-white text-sm"></i></div>
-                    <span class="text-sm font-bold text-faiston-dark">Minhas Tarefas</span>
+
+        <!-- Mini app preview -->
+        <div class="hidden lg:block float" style="flex-shrink:0">
+            <div style="background:white;border-radius:20px;padding:20px;width:220px;box-shadow:0 24px 64px rgba(0,0,0,.4)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+                    <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#5B2EE0,#EC4899);display:flex;align-items:center;justify-content:center">
+                        <i class="ph-fill ph-kanban" style="color:white;font-size:13px"></i>
+                    </div>
+                    <span style="font-size:13px;font-weight:700;color:#0B0D1F">Faiston OPS</span>
+                    <div style="margin-left:auto;width:8px;height:8px;border-radius:50%;background:#10B981;box-shadow:0 0 6px #10B98160"></div>
                 </div>
-                <div class="space-y-2.5">
-                    <div class="flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full" style="background:#EC4899"></div>
-                        <div class="h-2 rounded-full flex-1" style="background:#EC489925"><div class="h-2 rounded-full" style="background:#EC4899;width:70%"></div></div>
+                <div style="space-y:8px">
+                    <div style="background:#F4F5FA;border-radius:10px;padding:10px 12px;margin-bottom:8px;border-left:3px solid #EC4899">
+                        <div style="font-size:11px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Relatório mensal</div>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="font-size:10px;color:#9097AC">2h 15m</span>
+                            <span style="margin-left:auto;font-size:9px;font-weight:700;color:#EC4899;background:#EC489915;padding:2px 6px;border-radius:6px">Atrasado</span>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full" style="background:#06D7E6"></div>
-                        <div class="h-2 rounded-full flex-1" style="background:#06D7E625"><div class="h-2 rounded-full" style="background:#06D7E6;width:45%"></div></div>
+                    <div style="background:#06D7E608;border-radius:10px;padding:10px 12px;margin-bottom:8px;border-left:3px solid #06D7E6">
+                        <div style="font-size:11px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Deploy v2.3</div>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="font-size:10px;color:#9097AC;font-weight:600">● Em andamento</span>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full" style="background:#5B2EE0"></div>
-                        <div class="h-2 rounded-full flex-1" style="background:#5B2EE025"><div class="h-2 rounded-full" style="background:#5B2EE0;width:85%"></div></div>
+                    <div style="background:#5B2EE008;border-radius:10px;padding:10px 12px;border-left:3px solid #5B2EE0">
+                        <div style="font-size:11px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Reunião cliente</div>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="font-size:10px;color:#10B981;font-weight:600">✓ Concluído</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -81,38 +188,62 @@
     </div>
 </div>
 
-<!-- TABS -->
-<div class="max-w-5xl mx-auto px-6 -mt-5 relative z-10">
-    <div class="card p-1.5 inline-flex gap-1.5 shadow-xl flex-wrap">
-        <button class="tab-btn active" onclick="setTab('func')"><i class="ph ph-user mr-1.5"></i>Funcionário</button>
-        <button class="tab-btn" onclick="setTab('gestor')"><i class="ph ph-chart-line-up mr-1.5"></i>Gestor</button>
+<!-- ══════════════════ STICKY TABS ══════════════════ -->
+<div id="tab-nav">
+    <div class="max-w-5xl mx-auto px-6">
+        <div style="display:flex;gap:0;overflow-x:auto;scrollbar-width:none">
+            <button class="tab-btn active" onclick="setTab('func')" id="tb-func">
+                <span class="tab-icon"><i class="ph ph-user"></i></span>
+                <span class="lbl">Funcionário</span>
+            </button>
+            <button class="tab-btn" onclick="setTab('gestor')" id="tb-gestor">
+                <span class="tab-icon"><i class="ph ph-chart-line-up"></i></span>
+                <span class="lbl">Gestor</span>
+            </button>
+        </div>
     </div>
 </div>
 
-<div class="max-w-5xl mx-auto px-6 py-10 space-y-10">
+<!-- ══════════════════ CONTENT ══════════════════ -->
+<div class="max-w-5xl mx-auto px-6 py-10">
 
-<!-- ═══════════ FUNCIONÁRIO ═══════════ -->
-<div id="tab-func" class="tab-panel active space-y-8">
+<!-- ════════════ FUNCIONÁRIO ════════════ -->
+<div id="tab-func" class="tab-panel active" style="display:flex;flex-direction:column;gap:32px">
 
-    <!-- Primeiro acesso -->
-    <div class="card p-6" style="border-left:4px solid #5B2EE0">
-        <div class="flex items-start gap-4">
-            <div class="ficon grad" style="min-width:44px"><i class="ph ph-lock-key text-white text-xl"></i></div>
-            <div class="flex-1">
-                <h3 class="font-bold text-faiston-dark text-base mb-1.5">Primeiro Acesso</h3>
-                <p class="text-sm text-faiston-muted leading-relaxed mb-4">Quando o admin criar sua conta, você receberá um <strong class="text-faiston-dark">email automático</strong> com seu usuário e senha temporária. Basta acessar o link no email e entrar.</p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div class="flex items-start gap-2.5 p-3 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
-                        <span class="step-num-sm flex-shrink-0" style="margin-top:1px">1</span>
-                        <span class="text-sm text-faiston-muted leading-relaxed">Abra o email e clique em <strong class="text-faiston-dark">Acessar o Sistema</strong></span>
-                    </div>
-                    <div class="flex items-start gap-2.5 p-3 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
-                        <span class="step-num-sm flex-shrink-0" style="margin-top:1px">2</span>
-                        <span class="text-sm text-faiston-muted leading-relaxed">Entre com o <strong class="text-faiston-dark">usuário e senha</strong> que estão no email</span>
-                    </div>
-                    <div class="flex items-start gap-2.5 p-3 rounded-xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
-                        <span class="step-num-sm flex-shrink-0" style="margin-top:1px">3</span>
-                        <span class="text-sm text-faiston-muted leading-relaxed">Crie sua <strong class="text-faiston-dark">senha pessoal</strong> (mín. 6 caracteres) e pronto</span>
+    <!-- Primeiro Acesso -->
+    <div class="reveal">
+        <div style="background:linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899);border-radius:20px;padding:28px;color:white;position:relative;overflow:hidden">
+            <div style="position:absolute;top:-30px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
+            <div style="position:absolute;bottom:-40px;right:80px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.04)"></div>
+            <div style="display:flex;align-items:flex-start;gap:16px;position:relative">
+                <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;backdrop-filter:blur(10px)">
+                    <i class="ph ph-lock-key" style="font-size:22px;color:white"></i>
+                </div>
+                <div style="flex:1">
+                    <h3 style="font-size:18px;font-weight:800;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Primeiro Acesso</h3>
+                    <p style="font-size:14px;color:rgba(255,255,255,.75);line-height:1.7;margin-bottom:20px">Quando o admin criar sua conta, você receberá um <strong style="color:white">email automático</strong> com usuário e senha temporária.</p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+                        <div style="background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">1</div>
+                                <span style="font-size:12px;font-weight:700">Abra o email</span>
+                            </div>
+                            <p style="font-size:12px;color:rgba(255,255,255,.7)">Clique em <strong style="color:white">Acessar o Sistema</strong></p>
+                        </div>
+                        <div style="background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">2</div>
+                                <span style="font-size:12px;font-weight:700">Entre com as credenciais</span>
+                            </div>
+                            <p style="font-size:12px;color:rgba(255,255,255,.7)">Usuário e senha do email</p>
+                        </div>
+                        <div style="background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">3</div>
+                                <span style="font-size:12px;font-weight:700">Crie sua senha</span>
+                            </div>
+                            <p style="font-size:12px;color:rgba(255,255,255,.7)">Mínimo 6 caracteres</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -120,132 +251,203 @@
     </div>
 
     <!-- Kanban -->
-    <div>
-        <div class="section-title"><i class="ph ph-kanban"></i> Aba Kanban — Suas Tarefas</div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-            <div class="fcard">
-                <div class="flex items-center gap-3">
-                    <div class="ficon" style="background:#5B2EE012"><i class="ph ph-plus-circle text-faiston-purple" style="font-size:22px"></i></div>
-                    <h4 class="font-bold text-faiston-dark">Criar uma tarefa</h4>
-                </div>
-                <ol class="space-y-3">
-                    <li class="flex items-start gap-3"><span class="step-num" style="margin-top:1px">1</span><span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Nova Tarefa"</strong> no canto superior direito</span></li>
-                    <li class="flex items-start gap-3"><span class="step-num" style="margin-top:1px">2</span><span class="text-sm text-faiston-muted leading-relaxed">Preencha a descrição, selecione o cliente e a prioridade</span></li>
-                    <li class="flex items-start gap-3"><span class="step-num" style="margin-top:1px">3</span><span class="text-sm text-faiston-muted leading-relaxed">Defina <strong class="text-faiston-dark">Prazo</strong> (até quando) e/ou <strong class="text-faiston-dark">Agendamento</strong> (quando vai trabalhar)</span></li>
-                    <li class="flex items-start gap-3"><span class="step-num" style="margin-top:1px">4</span><span class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">Salvar</strong></span></li>
-                </ol>
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num"><i class="ph ph-kanban" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Kanban — Suas Tarefas</div>
+                <div class="sec-hd-sub">Organize e acompanhe seu trabalho</div>
             </div>
+        </div>
 
-            <div class="fcard">
-                <div class="flex items-center gap-3">
-                    <div class="ficon" style="background:#06D7E612"><i class="ph ph-timer text-faiston-cyan" style="font-size:22px"></i></div>
-                    <h4 class="font-bold text-faiston-dark">Controle de Tempo</h4>
+        <!-- Mini kanban interativo -->
+        <div class="card" style="padding:20px;margin-bottom:16px;border:1.5px solid #5B2EE020">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+                <p style="font-size:12px;font-weight:700;color:#9097AC;text-transform:uppercase;letter-spacing:.08em">Demonstração — arraste os cards</p>
+                <button onclick="resetKanban()" style="font-size:11px;font-weight:700;color:#5B2EE0;background:#5B2EE010;border:none;padding:4px 10px;border-radius:8px;cursor:pointer;border:1px solid #5B2EE025">
+                    <i class="ph ph-arrow-counter-clockwise"></i> Resetar
+                </button>
+            </div>
+            <div style="display:flex;gap:10px">
+                <div class="kdemo-col" style="background:#F4F5FA;border:1px solid #E5E8F0" id="kd-aberto" ondragover="kDragOver(event)" ondrop="kDrop(event,'aberto')">
+                    <p style="font-size:11px;font-weight:800;color:#5E647A;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Aberto</p>
+                    <div class="kdemo-card" draggable="true" ondragstart="kDragStart(event)" data-id="k1">📋 Relatório semanal</div>
+                    <div class="kdemo-card" draggable="true" ondragstart="kDragStart(event)" data-id="k2">📞 Ligar para cliente</div>
                 </div>
-                <div class="space-y-3">
-                    <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E620">
-                        <i class="ph ph-play-circle mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:18px"></i>
-                        <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">▶ Iniciar</strong> — o cronômetro começa e a tarefa vai para "Em Andamento"</p>
-                    </div>
-                    <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489920">
-                        <i class="ph ph-stop-circle mt-0.5 flex-shrink-0" style="color:#EC4899;font-size:18px"></i>
-                        <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">■ Parar</strong> para pausar — o tempo é salvo automaticamente</p>
-                    </div>
-                    <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                        <i class="ph ph-floppy-disk mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
-                        <p class="text-sm text-faiston-muted leading-relaxed">O tempo também é salvo automaticamente a cada 30 segundos e ao fechar a página</p>
-                    </div>
-                    <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#f59e0b08;border:1px solid #f59e0b20">
-                        <i class="ph ph-warning mt-0.5 flex-shrink-0" style="color:#f59e0b;font-size:18px"></i>
-                        <p class="text-sm text-faiston-muted leading-relaxed">Só uma tarefa pode estar em andamento por vez — iniciar outra pausa a anterior</p>
-                    </div>
+                <div class="kdemo-col" style="background:#06D7E608;border:1px solid #06D7E625" id="kd-andamento" ondragover="kDragOver(event)" ondrop="kDrop(event,'andamento')">
+                    <p style="font-size:11px;font-weight:800;color:#06D7E6;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Em Andamento</p>
+                    <div class="kdemo-card" draggable="true" ondragstart="kDragStart(event)" data-id="k3" style="border-left:3px solid #06D7E6">⚡ Deploy produção</div>
+                </div>
+                <div class="kdemo-col" style="background:#5B2EE008;border:1px solid #5B2EE025" id="kd-concluido" ondragover="kDragOver(event)" ondrop="kDrop(event,'concluido')">
+                    <p style="font-size:11px;font-weight:800;color:#5B2EE0;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Concluído</p>
+                    <div class="kdemo-card" draggable="true" ondragstart="kDragStart(event)" data-id="k4" style="border-left:3px solid #5B2EE0;opacity:.7">✅ Onboarding</div>
                 </div>
             </div>
+        </div>
 
-            <div class="fcard">
-                <div class="flex items-center gap-3">
-                    <div class="ficon" style="background:#EC489912"><i class="ph ph-calendar-x text-faiston-pink" style="font-size:22px"></i></div>
-                    <h4 class="font-bold text-faiston-dark">Badges de Prazo</h4>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+            <!-- Criar tarefa -->
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#5B2EE012"><i class="ph ph-plus-circle" style="color:#5B2EE0;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Criar uma tarefa</p>
+                        <p style="font-size:12px;color:#9097AC">Nova Tarefa no canto superior</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
                 </div>
-                <div class="space-y-2.5">
-                    <div class="flex items-center gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489935">
-                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:#EC4899;box-shadow:0 0 6px #EC489960"></span>
-                        <span class="font-bold text-sm" style="color:#EC4899">Atrasado</span>
-                        <span class="text-xs text-faiston-faint ml-auto">prazo já passou</span>
-                    </div>
-                    <div class="flex items-center gap-3 p-3 rounded-xl" style="background:#f59e0b08;border:1px solid #f59e0b35">
-                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:#f59e0b;box-shadow:0 0 6px #f59e0b60"></span>
-                        <span class="font-bold text-sm" style="color:#f59e0b">Hoje / Amanhã</span>
-                        <span class="text-xs text-faiston-faint ml-auto">urgente</span>
-                    </div>
-                    <div class="flex items-center gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE035">
-                        <span class="w-3 h-3 rounded-full flex-shrink-0" style="background:#5B2EE0;box-shadow:0 0 6px #5B2EE060"></span>
-                        <span class="font-bold text-sm" style="color:#5B2EE0">No prazo</span>
-                        <span class="text-xs text-faiston-faint ml-auto">tudo certo</span>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;align-items:flex-start;gap:10px">
+                            <div class="step-num" style="margin-top:1px;flex-shrink:0">1</div>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Clique em <strong style="color:#0B0D1F">"Nova Tarefa"</strong> no canto superior direito</p>
+                        </div>
+                        <div style="display:flex;align-items:flex-start;gap:10px">
+                            <div class="step-num" style="margin-top:1px;flex-shrink:0">2</div>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Preencha descrição, cliente e prioridade</p>
+                        </div>
+                        <div style="display:flex;align-items:flex-start;gap:10px">
+                            <div class="step-num" style="margin-top:1px;flex-shrink:0">3</div>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Defina <strong style="color:#0B0D1F">Prazo</strong> (até quando entregar) e/ou <strong style="color:#0B0D1F">Agendamento</strong> (quando trabalhar)</p>
+                        </div>
+                        <div style="display:flex;align-items:flex-start;gap:10px">
+                            <div class="step-num" style="margin-top:1px;flex-shrink:0">4</div>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Clique em <strong style="color:#0B0D1F">Salvar</strong></p>
+                        </div>
                     </div>
                 </div>
             </div>
 
+            <!-- Mover colunas -->
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#B826C912"><i class="ph ph-arrows-left-right" style="color:#B826C9;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Mover entre colunas</p>
+                        <p style="font-size:12px;color:#9097AC">Drag & drop ou clique</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-hand" style="color:#5B2EE0"></i><div>Arraste o card para outra coluna (<strong>drag & drop</strong>)</div></div>
+                        <div class="info-row"><i class="ph ph-check-circle" style="color:#06D7E6"></i><div>Clique no <strong>✓</strong> do card para concluir direto</div></div>
+                        <div class="info-row"><i class="ph ph-pencil" style="color:#9097AC"></i><div>Clique no <strong>lápis</strong> para editar status, prazo e horas</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controle de Tempo -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)"><i class="ph ph-timer" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Controle de Tempo</div>
+                <div class="sec-hd-sub">Timer automático por tarefa</div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <!-- Timer demo ao vivo -->
+            <div class="card" style="padding:24px;border:1.5px solid #06D7E625;grid-row:span 2">
+                <p style="font-size:11px;font-weight:700;color:#9097AC;text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px">Timer ao vivo</p>
+                <div style="text-align:center;padding:20px 0">
+                    <div style="display:inline-flex;align-items:center;gap:6px;background:#F4F5FA;border-radius:12px;padding:6px 14px;margin-bottom:16px">
+                        <div id="timer-status-dot" style="width:8px;height:8px;border-radius:50%;background:#E5E8F0"></div>
+                        <span id="timer-status-txt" style="font-size:12px;font-weight:700;color:#9097AC">Parado</span>
+                    </div>
+                    <div id="timer-demo" style="color:#0B0D1F;margin-bottom:20px">00:00:00</div>
+                    <div style="display:flex;gap:8px;justify-content:center">
+                        <button id="timer-play" onclick="timerPlay()" style="display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,#06D7E6,#5B2EE0);color:white;border:none;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;box-shadow:0 4px 14px rgba(6,215,230,.3)">
+                            <i class="ph ph-play"></i> Iniciar
+                        </button>
+                        <button id="timer-stop" onclick="timerStop()" disabled style="display:flex;align-items:center;gap:6px;background:#F4F5FA;color:#9097AC;border:1px solid #E5E8F0;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:700;cursor:not-allowed;transition:all .2s">
+                            <i class="ph ph-stop"></i> Parar
+                        </button>
+                    </div>
+                </div>
+                <div style="border-top:1px solid #F0F1F8;padding-top:14px;display:flex;flex-direction:column;gap:8px">
+                    <div class="info-row"><i class="ph ph-floppy-disk" style="color:#5B2EE0"></i><div>Salvo automaticamente a cada <strong>30 segundos</strong></div></div>
+                    <div class="info-row"><i class="ph ph-warning" style="color:#f59e0b"></i><div>Só <strong>uma tarefa</strong> pode estar em andamento por vez</div></div>
+                </div>
+            </div>
+
+            <!-- Badges de prazo -->
             <div class="fcard">
-                <div class="flex items-center gap-3">
-                    <div class="ficon" style="background:#B826C912"><i class="ph ph-arrows-left-right text-faiston-magenta" style="font-size:22px"></i></div>
-                    <h4 class="font-bold text-faiston-dark">Mover entre Colunas</h4>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+                    <div style="width:36px;height:36px;border-radius:10px;background:#EC489912;display:flex;align-items:center;justify-content:center"><i class="ph ph-calendar-x" style="color:#EC4899;font-size:18px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Badges de Prazo</p>
                 </div>
-                <div class="flex items-stretch gap-2 mt-1">
-                    <div class="kanban-col" style="background:#F4F5FA;border:1px solid #E5E8F0">
-                        <p class="text-sm font-bold text-slate-600">Aberto</p>
-                        <p class="text-xs text-faiston-faint mt-1">aguardando</p>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                    <div class="badge-demo" style="background:#EC489908;border:1px solid #EC489930">
+                        <div style="width:10px;height:10px;border-radius:50%;background:#EC4899;box-shadow:0 0 8px #EC489960;flex-shrink:0"></div>
+                        <span style="font-size:13px;font-weight:700;color:#EC4899">Atrasado</span>
+                        <span style="font-size:11px;color:#9097AC;margin-left:auto">prazo passou</span>
                     </div>
-                    <i class="ph ph-arrow-right text-faiston-faint self-center text-lg"></i>
-                    <div class="kanban-col" style="background:#06D7E608;border:1px solid #06D7E635">
-                        <p class="text-sm font-bold" style="color:#06D7E6">Em Andamento</p>
-                        <p class="text-xs text-faiston-faint mt-1">timer ativo</p>
+                    <div class="badge-demo" style="background:#f59e0b08;border:1px solid #f59e0b30">
+                        <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px #f59e0b60;flex-shrink:0"></div>
+                        <span style="font-size:13px;font-weight:700;color:#f59e0b">Hoje / Amanhã</span>
+                        <span style="font-size:11px;color:#9097AC;margin-left:auto">urgente</span>
                     </div>
-                    <i class="ph ph-arrow-right text-faiston-faint self-center text-lg"></i>
-                    <div class="kanban-col" style="background:#5B2EE008;border:1px solid #5B2EE035">
-                        <p class="text-sm font-bold" style="color:#5B2EE0">Concluído</p>
-                        <p class="text-xs text-faiston-faint mt-1">finalizado</p>
+                    <div class="badge-demo" style="background:#5B2EE008;border:1px solid #5B2EE030">
+                        <div style="width:10px;height:10px;border-radius:50%;background:#5B2EE0;box-shadow:0 0 8px #5B2EE060;flex-shrink:0"></div>
+                        <span style="font-size:13px;font-weight:700;color:#5B2EE0">No prazo</span>
+                        <span style="font-size:11px;color:#9097AC;margin-left:auto">tudo certo</span>
                     </div>
                 </div>
-                <div class="space-y-2">
-                    <div class="info-row"><i class="ph ph-hand text-faiston-purple"></i><div>Arraste o card para outra coluna (<strong>drag & drop</strong>)</div></div>
-                    <div class="info-row"><i class="ph ph-check-circle text-faiston-cyan"></i><div>Clique no <strong>✓</strong> do card para concluir direto</div></div>
-                    <div class="info-row"><i class="ph ph-pencil text-faiston-faint"></i><div>Clique no <strong>lápis</strong> para editar status, prazo e horas</div></div>
+            </div>
+
+            <!-- Dica -->
+            <div style="background:linear-gradient(135deg,#5B2EE010,#B826C908);border-radius:16px;padding:18px;border:1px solid #5B2EE025;display:flex;align-items:flex-start;gap:12px">
+                <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#5B2EE0,#B826C9);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(91,46,224,.3)">
+                    <i class="ph ph-lightbulb" style="color:white;font-size:18px"></i>
+                </div>
+                <div>
+                    <p style="font-size:13px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Ao fechar a aba</p>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">O tempo é salvo automaticamente mesmo que você feche a aba sem parar o timer.</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Agenda -->
-    <div>
-        <div class="section-title"><i class="ph ph-calendar"></i> Aba Agenda — Estilo Outlook</div>
-        <div class="card p-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#B826C9,#EC4899)"><i class="ph ph-calendar" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Agenda — Estilo Outlook</div>
+                <div class="sec-hd-sub">Visualize tarefas por data</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
                 <div>
-                    <p class="font-bold text-faiston-dark text-sm mb-4 uppercase tracking-wide">Como funciona</p>
-                    <div class="space-y-3">
+                    <p style="font-size:11px;font-weight:700;color:#9097AC;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px">Como funciona</p>
+                    <div style="display:flex;flex-direction:column;gap:10px">
                         <div class="info-row"><i class="ph ph-circle-fill" style="color:#5B2EE0;font-size:10px;margin-top:5px"></i>Pontos <strong style="color:#5B2EE0">roxos</strong> = tarefas agendadas naquele dia</div>
                         <div class="info-row"><i class="ph ph-circle-fill" style="color:#EC4899;font-size:10px;margin-top:5px"></i>Pontos <strong style="color:#EC4899">rosas</strong> = tarefas com prazo naquele dia</div>
-                        <div class="info-row"><i class="ph ph-caret-left text-faiston-faint"></i>Use <strong>‹ ›</strong> para navegar entre meses</div>
-                        <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i>Clique em qualquer dia para ver as tarefas</div>
-                        <div class="info-row"><i class="ph ph-warning-circle text-faiston-pink"></i>Seção <strong style="color:#EC4899">Atrasadas</strong> sempre aparece no topo</div>
+                        <div class="info-row"><i class="ph ph-caret-left" style="color:#9097AC"></i>Use <strong>‹ ›</strong> para navegar entre meses</div>
+                        <div class="info-row"><i class="ph ph-cursor-click" style="color:#06D7E6"></i>Clique em qualquer dia para ver as tarefas</div>
+                        <div class="info-row"><i class="ph ph-warning-circle" style="color:#EC4899"></i>Seção <strong style="color:#EC4899">Atrasadas</strong> sempre aparece no topo</div>
                     </div>
                 </div>
                 <div>
-                    <p class="font-bold text-faiston-dark text-sm mb-4 uppercase tracking-wide">Prazo vs. Agendamento</p>
-                    <div class="space-y-3">
-                        <div class="flex items-start gap-3 p-4 bg-white rounded-xl" style="border:1.5px solid #EC489930">
-                            <i class="ph ph-calendar-x mt-0.5 flex-shrink-0 text-xl" style="color:#EC4899"></i>
+                    <p style="font-size:11px;font-weight:700;color:#9097AC;text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px">Prazo vs. Agendamento</p>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:12px;border:1.5px solid #EC489930;background:#EC489908">
+                            <i class="ph ph-calendar-x" style="color:#EC4899;font-size:20px;margin-top:1px;flex-shrink:0"></i>
                             <div>
-                                <p class="font-bold text-faiston-dark text-sm">Prazo <span class="font-normal text-faiston-faint text-xs ml-1">até quando</span></p>
-                                <p class="text-sm text-faiston-muted mt-1 leading-relaxed">Data limite para entregar. Aparece como badge colorido no card.</p>
+                                <p style="font-size:13px;font-weight:700;color:#0B0D1F">Prazo <span style="font-weight:400;color:#9097AC;font-size:12px">— até quando</span></p>
+                                <p style="font-size:12px;color:#5E647A;margin-top:3px;line-height:1.5">Data limite. Aparece como badge colorido no card.</p>
                             </div>
                         </div>
-                        <div class="flex items-start gap-3 p-4 bg-white rounded-xl" style="border:1.5px solid #5B2EE030">
-                            <i class="ph ph-calendar-plus mt-0.5 flex-shrink-0 text-xl" style="color:#5B2EE0"></i>
+                        <div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:12px;border:1.5px solid #5B2EE030;background:#5B2EE008">
+                            <i class="ph ph-calendar-plus" style="color:#5B2EE0;font-size:20px;margin-top:1px;flex-shrink:0"></i>
                             <div>
-                                <p class="font-bold text-faiston-dark text-sm">Agendar para <span class="font-normal text-faiston-faint text-xs ml-1">quando trabalhar</span></p>
-                                <p class="text-sm text-faiston-muted mt-1 leading-relaxed">Dia que você vai trabalhar nisso. Aparece na Agenda naquele dia.</p>
+                                <p style="font-size:13px;font-weight:700;color:#0B0D1F">Agendamento <span style="font-weight:400;color:#9097AC;font-size:12px">— quando trabalhar</span></p>
+                                <p style="font-size:12px;color:#5E647A;margin-top:3px;line-height:1.5">Aparece na Agenda naquele dia específico.</p>
                             </div>
                         </div>
                     </div>
@@ -255,171 +457,234 @@
     </div>
 
     <!-- Carimbos -->
-    <div>
-        <div class="section-title"><i class="ph ph-stamp"></i> Aba Carimbos</div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="fcard">
-                <div class="flex items-center gap-3">
-                    <div class="ficon" style="background:#5B2EE012"><i class="ph ph-stamp text-faiston-purple" style="font-size:22px"></i></div>
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)"><i class="ph ph-stamp" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Aba Carimbos</div>
+                <div class="sec-hd-sub">Modelos de texto por equipe</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#5B2EE012"><i class="ph ph-stamp" style="color:#5B2EE0;font-size:20px"></i></div>
                     <div>
-                        <h4 class="font-bold text-faiston-dark">O que são carimbos?</h4>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">O que são?</p>
+                        <p style="font-size:12px;color:#9097AC">Textos prontos para copiar</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner">
+                        <p style="font-size:13px;color:#5E647A;line-height:1.7;margin-bottom:12px">Modelos prontos para copiar e colar em chamados, emails, SAP, etc. Cada equipe tem os seus próprios.</p>
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            <div class="info-row"><i class="ph ph-copy" style="color:#06D7E6"></i><div>Clique em <strong>Copiar</strong> no card</div></div>
+                            <div class="info-row"><i class="ph ph-tag" style="color:#5B2EE0"></i><div>Agrupados por <strong>categoria</strong> com cores</div></div>
+                            <div class="info-row"><i class="ph ph-users" style="color:#B826C9"></i><div>Visíveis para <strong>toda a equipe</strong> do seu time</div></div>
+                        </div>
                     </div>
                 </div>
-                <p class="text-sm text-faiston-muted leading-relaxed">Modelos de texto prontos para copiar e colar em outros sistemas — chamados, emails, SAP, etc. Cada equipe tem os próprios carimbos.</p>
-                <div class="space-y-2">
-                    <div class="info-row"><i class="ph ph-copy text-faiston-cyan"></i><div>Clique em <strong>Copiar</strong> no card para copiar o texto para a área de transferência</div></div>
-                    <div class="info-row"><i class="ph ph-tag text-faiston-purple"></i><div>Carimbos são agrupados por <strong>categoria</strong> com cores diferentes</div></div>
-                    <div class="info-row"><i class="ph ph-users text-faiston-magenta"></i><div>Visíveis para <strong>toda a equipe</strong> do seu time</div></div>
-                </div>
             </div>
-            <div class="fcard">
-                <div class="flex items-center gap-3">
-                    <div class="ficon" style="background:#06D7E612"><i class="ph ph-plus text-faiston-cyan" style="font-size:22px"></i></div>
-                    <h4 class="font-bold text-faiston-dark">Criar / Editar Carimbos</h4>
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#06D7E612"><i class="ph ph-plus" style="color:#06D7E6;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Criar / Editar</p>
+                        <p style="font-size:12px;color:#9097AC">Gerenciar seus carimbos</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
                 </div>
-                <div class="space-y-2">
-                    <div class="info-row"><i class="ph ph-plus-circle text-faiston-cyan"></i><div>Clique em <strong>"+ Novo Carimbo"</strong> e preencha título, categoria e conteúdo</div></div>
-                    <div class="info-row"><i class="ph ph-pencil text-faiston-purple"></i><div>O ícone de <strong>lápis</strong> aparece nos carimbos que você criou — clique para editar</div></div>
-                    <div class="info-row"><i class="ph ph-trash text-faiston-pink"></i><div>Dentro do modal de edição, clique em <strong>Excluir</strong> para remover</div></div>
-                    <div class="info-row"><i class="ph ph-warning text-faiston-faint"></i><div>Nomes de carimbos são <strong>únicos por time</strong></div></div>
+                <div class="acc-body">
+                    <div class="acc-body-inner">
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            <div class="info-row"><i class="ph ph-plus-circle" style="color:#06D7E6"></i><div>Clique em <strong>"+ Novo Carimbo"</strong> — preencha título, categoria e conteúdo</div></div>
+                            <div class="info-row"><i class="ph ph-pencil" style="color:#5B2EE0"></i><div>Ícone de <strong>lápis</strong> nos carimbos que você criou — clique para editar</div></div>
+                            <div class="info-row"><i class="ph ph-trash" style="color:#EC4899"></i><div>No modal de edição, clique em <strong>Excluir</strong> para remover</div></div>
+                            <div class="info-row"><i class="ph ph-warning" style="color:#9097AC"></i><div>Nomes são <strong>únicos por time</strong></div></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Notas -->
-    <div>
-        <div class="section-title"><i class="ph ph-note"></i> Minhas Notas</div>
-        <div class="fcard">
-            <p class="text-sm text-faiston-muted leading-relaxed">O widget <strong class="text-faiston-dark">Minhas Notas</strong> fica no canto inferior direito da tela. Clique para expandir.</p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                    <i class="ph ph-plus mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
-                    <div class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">Nova nota</strong> para criar e escolher um título</div>
-                </div>
-                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E620">
-                    <i class="ph ph-floppy-disk mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:18px"></i>
-                    <div class="text-sm text-faiston-muted leading-relaxed">Salva automaticamente enquanto você digita</div>
-                </div>
-                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489920">
-                    <i class="ph ph-arrows-out mt-0.5 flex-shrink-0" style="color:#EC4899;font-size:18px"></i>
-                    <div class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">expandir</strong> para abrir em tela cheia e usar IA de sugestão</div>
-                </div>
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#EC4899,#B826C9)"><i class="ph ph-note" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Minhas Notas</div>
+                <div class="sec-hd-sub">Widget no canto inferior direito</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:18px;text-align:center;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 24px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+                <div style="width:44px;height:44px;border-radius:12px;background:#5B2EE012;display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><i class="ph ph-plus" style="color:#5B2EE0;font-size:22px"></i></div>
+                <p style="font-size:13px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Nova Nota</p>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Crie e escolha um título</p>
+            </div>
+            <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:18px;text-align:center;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 24px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+                <div style="width:44px;height:44px;border-radius:12px;background:#06D7E612;display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><i class="ph ph-floppy-disk" style="color:#06D7E6;font-size:22px"></i></div>
+                <p style="font-size:13px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Salva Automático</p>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Enquanto você digita</p>
+            </div>
+            <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:18px;text-align:center;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 24px rgba(0,0,0,.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+                <div style="width:44px;height:44px;border-radius:12px;background:#EC489912;display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><i class="ph ph-arrows-out" style="color:#EC4899;font-size:22px"></i></div>
+                <p style="font-size:13px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Tela Cheia + IA</p>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Clique em expandir</p>
             </div>
         </div>
     </div>
-
 </div>
 
-<!-- ═══════════ GESTOR ═══════════ -->
-<div id="tab-gestor" class="tab-panel space-y-8">
+<!-- ════════════ GESTOR ════════════ -->
+<div id="tab-gestor" class="tab-panel" style="display:none;flex-direction:column;gap:32px">
 
-    <div>
-        <div class="section-title"><i class="ph ph-chart-line-up"></i> Dashboard</div>
-        <div class="fcard mb-4">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div class="p-4 rounded-xl text-center" style="background:#06D7E60A;border:1px solid #06D7E625">
-                    <i class="ph ph-buildings text-faiston-cyan text-3xl"></i>
-                    <p class="text-sm font-bold text-faiston-dark mt-2">Clientes Ativos</p>
-                </div>
-                <div class="p-4 rounded-xl text-center" style="background:#5B2EE00A;border:1px solid #5B2EE025">
-                    <i class="ph ph-ticket text-faiston-purple text-3xl"></i>
-                    <p class="text-sm font-bold text-faiston-dark mt-2">Tickets Abertos</p>
-                </div>
-                <div class="p-4 rounded-xl text-center" style="background:#B826C90A;border:1px solid #B826C925">
-                    <i class="ph ph-clock text-faiston-magenta text-3xl"></i>
-                    <p class="text-sm font-bold text-faiston-dark mt-2">Horas Apontadas</p>
-                </div>
-                <div class="p-4 rounded-xl text-center" style="background:#EC48990A;border:1px solid #EC489925">
-                    <i class="ph ph-chart-bar text-faiston-pink text-3xl"></i>
-                    <p class="text-sm font-bold text-faiston-dark mt-2">Média / Funcionário</p>
-                </div>
+    <!-- Dashboard KPIs -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num"><i class="ph ph-chart-line-up" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Dashboard & KPIs</div>
+                <div class="sec-hd-sub">Visão completa do time</div>
             </div>
-            <p class="text-sm text-faiston-muted text-center">Os KPIs refletem o período e filtros selecionados no topo da tela.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="fcard">
-                <div class="flex items-center gap-3">
-                    <div class="ficon" style="background:#5B2EE012"><i class="ph ph-funnel text-faiston-purple" style="font-size:22px"></i></div>
-                    <h4 class="font-bold text-faiston-dark">Filtros do Dashboard</h4>
+        <!-- KPI cards animados -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+            <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:18px;text-align:center;cursor:default;transition:all .2s" class="kpi-card" data-color="#06D7E6">
+                <div style="width:48px;height:48px;border-radius:14px;background:#06D7E612;display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><i class="ph ph-buildings" style="color:#06D7E6;font-size:24px"></i></div>
+                <p style="font-size:22px;font-weight:800;color:#0B0D1F;font-family:'Space Grotesk',sans-serif" id="kpi-clientes">—</p>
+                <p style="font-size:12px;color:#9097AC;margin-top:2px">Clientes Ativos</p>
+            </div>
+            <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:18px;text-align:center;cursor:default;transition:all .2s" class="kpi-card" data-color="#5B2EE0">
+                <div style="width:48px;height:48px;border-radius:14px;background:#5B2EE012;display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><i class="ph ph-ticket" style="color:#5B2EE0;font-size:24px"></i></div>
+                <p style="font-size:22px;font-weight:800;color:#0B0D1F;font-family:'Space Grotesk',sans-serif" id="kpi-tickets">—</p>
+                <p style="font-size:12px;color:#9097AC;margin-top:2px">Tickets Abertos</p>
+            </div>
+            <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:18px;text-align:center;cursor:default;transition:all .2s" class="kpi-card" data-color="#B826C9">
+                <div style="width:48px;height:48px;border-radius:14px;background:#B826C912;display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><i class="ph ph-clock" style="color:#B826C9;font-size:24px"></i></div>
+                <p style="font-size:22px;font-weight:800;color:#0B0D1F;font-family:'Space Grotesk',sans-serif" id="kpi-horas">—</p>
+                <p style="font-size:12px;color:#9097AC;margin-top:2px">Horas Apontadas</p>
+            </div>
+            <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:18px;text-align:center;cursor:default;transition:all .2s" class="kpi-card" data-color="#EC4899">
+                <div style="width:48px;height:48px;border-radius:14px;background:#EC489912;display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><i class="ph ph-chart-bar" style="color:#EC4899;font-size:24px"></i></div>
+                <p style="font-size:22px;font-weight:800;color:#0B0D1F;font-family:'Space Grotesk',sans-serif" id="kpi-media">—</p>
+                <p style="font-size:12px;color:#9097AC;margin-top:2px">Média / Funcionário</p>
+            </div>
+        </div>
+        <p style="font-size:12px;color:#9097AC;text-align:center;margin-bottom:16px">Os KPIs refletem o período e filtros selecionados no topo da tela.</p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#5B2EE012"><i class="ph ph-funnel" style="color:#5B2EE0;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Filtros do Dashboard</p>
+                        <p style="font-size:12px;color:#9097AC">Cliente, projeto, período, funcionário</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
                 </div>
-                <div class="space-y-3">
-                    <div class="info-row"><i class="ph ph-buildings text-faiston-cyan"></i><div><strong>Cliente</strong> — filtra todos os dados pela empresa</div></div>
-                    <div class="info-row"><i class="ph ph-folder text-faiston-purple"></i><div><strong>Projeto</strong> — lista só os projetos do cliente selecionado</div></div>
-                    <div class="info-row"><i class="ph ph-calendar text-faiston-magenta"></i><div><strong>Período</strong> — filtro de data no topo direito</div></div>
-                    <div class="info-row"><i class="ph ph-user text-faiston-pink"></i><div><strong>Funcionário</strong> — no topo ou clicando na sidebar</div></div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-buildings" style="color:#06D7E6"></i><div><strong>Cliente</strong> — filtra todos os dados pela empresa</div></div>
+                        <div class="info-row"><i class="ph ph-folder" style="color:#5B2EE0"></i><div><strong>Projeto</strong> — lista só os projetos do cliente</div></div>
+                        <div class="info-row"><i class="ph ph-calendar" style="color:#B826C9"></i><div><strong>Período</strong> — filtro de data no topo direito</div></div>
+                        <div class="info-row"><i class="ph ph-user" style="color:#EC4899"></i><div><strong>Funcionário</strong> — no topo ou clicando na sidebar</div></div>
+                    </div>
                 </div>
             </div>
-            <div class="fcard">
-                <div class="flex items-center gap-3">
-                    <div class="ficon" style="background:#06D7E612"><i class="ph ph-chart-bar text-faiston-cyan" style="font-size:22px"></i></div>
-                    <h4 class="font-bold text-faiston-dark">Gráficos Interativos</h4>
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#06D7E612"><i class="ph ph-chart-bar" style="color:#06D7E6;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Gráficos Interativos</p>
+                        <p style="font-size:12px;color:#9097AC">Clique para filtrar</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
                 </div>
-                <div class="space-y-3">
-                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i><div>Clique nas barras de <strong>Esforço por Cliente</strong> para filtrar</div></div>
-                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i><div>Clique no donut de <strong>Status</strong> para filtrar por status</div></div>
-                    <div class="info-row"><i class="ph ph-cursor-click text-faiston-cyan"></i><div>Clique nas barras de <strong>Tarefas / Funcionário</strong> para filtrar</div></div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-cursor-click" style="color:#06D7E6"></i><div>Barras de <strong>Esforço por Cliente</strong> — clique para filtrar</div></div>
+                        <div class="info-row"><i class="ph ph-cursor-click" style="color:#06D7E6"></i><div>Donut de <strong>Status</strong> — clique para filtrar por status</div></div>
+                        <div class="info-row"><i class="ph ph-cursor-click" style="color:#06D7E6"></i><div>Barras de <strong>Tarefas / Funcionário</strong> — clique para filtrar</div></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Criar ticket -->
-    <div>
-        <div class="section-title"><i class="ph ph-ticket"></i> Criar Ticket para um Funcionário</div>
-        <div class="fcard">
-            <p class="text-sm text-faiston-muted leading-relaxed">No Dashboard, clique em <strong class="text-faiston-dark">"Nova Tarefa"</strong>. O gestor pode atribuir a tarefa diretamente a um funcionário do time.</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE020">
-                    <i class="ph ph-user-plus mt-0.5 flex-shrink-0" style="color:#5B2EE0;font-size:18px"></i>
-                    <p class="text-sm text-faiston-muted leading-relaxed">Selecione o <strong class="text-faiston-dark">Responsável</strong> no campo do modal</p>
+    <!-- Criar Ticket -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)"><i class="ph ph-ticket" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Criar Ticket para Funcionário</div>
+                <div class="sec-hd-sub">Atribua tarefas diretamente ao time</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">No Dashboard, clique em <strong style="color:#0B0D1F">"Nova Tarefa"</strong>. O gestor pode atribuir a tarefa diretamente a qualquer funcionário do time.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div style="display:flex;align-items:flex-start;gap:10px;padding:14px;border-radius:12px;background:#5B2EE008;border:1px solid #5B2EE020">
+                    <i class="ph ph-user-plus" style="color:#5B2EE0;font-size:20px;margin-top:1px;flex-shrink:0"></i>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Selecione o <strong style="color:#0B0D1F">Responsável</strong> no campo do modal</p>
                 </div>
-                <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E620">
-                    <i class="ph ph-timer mt-0.5 flex-shrink-0" style="color:#06D7E6;font-size:18px"></i>
-                    <p class="text-sm text-faiston-muted leading-relaxed">Use o <strong class="text-faiston-dark">cronômetro do modal</strong> para registrar tempo direto na criação, ou preencha horas manualmente</p>
+                <div style="display:flex;align-items:flex-start;gap:10px;padding:14px;border-radius:12px;background:#06D7E608;border:1px solid #06D7E620">
+                    <i class="ph ph-timer" style="color:#06D7E6;font-size:20px;margin-top:1px;flex-shrink:0"></i>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Use o <strong style="color:#0B0D1F">cronômetro do modal</strong> ou preencha as horas manualmente</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- IA -->
-    <div>
-        <div class="section-title"><i class="ph ph-sparkle"></i> Análise com Inteligência Artificial</div>
-        <div class="fcard" style="border:1.5px solid #5B2EE030;background:linear-gradient(135deg,#5B2EE005,#B826C905)">
-            <div class="flex items-start gap-4">
-                <div class="ficon grad flex-shrink-0" style="min-width:44px"><i class="ph ph-sparkle text-white text-xl"></i></div>
-                <div class="flex-1">
-                    <h4 class="font-bold text-faiston-dark mb-1">Como usar</h4>
-                    <p class="text-sm text-faiston-muted leading-relaxed mb-4">No Dashboard, clique no botão <span class="pill" style="background:#5B2EE015;color:#5B2EE0;border:1px solid #5B2EE030"><i class="ph ph-sparkle"></i> Analisar</span>. A IA lê todos os tickets e gera observações automáticas sobre o time.</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#EC489908;border:1px solid #EC489925">
-                            <i class="ph ph-warning-circle flex-shrink-0 mt-0.5" style="color:#EC4899;font-size:18px"></i>
-                            <div>
-                                <p class="text-sm font-bold text-faiston-dark">Tickets atrasados</p>
-                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Identifica quais tarefas passaram do prazo</p>
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#B826C9,#EC4899)"><i class="ph ph-sparkle" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Análise com Inteligência Artificial</div>
+                <div class="sec-hd-sub">Insights automáticos sobre o time</div>
+            </div>
+        </div>
+        <div style="background:linear-gradient(135deg,#0B0D1F,#1a1040);border-radius:20px;padding:28px;position:relative;overflow:hidden">
+            <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(184,38,201,.2),transparent 70%)"></div>
+            <div style="display:flex;align-items:flex-start;gap:16px;position:relative">
+                <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#5B2EE0,#B826C9);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 6px 20px rgba(184,38,201,.4)">
+                    <i class="ph ph-sparkle" style="color:white;font-size:22px"></i>
+                </div>
+                <div style="flex:1">
+                    <p style="font-size:16px;font-weight:700;color:white;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Como usar</p>
+                    <p style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.7;margin-bottom:20px">No Dashboard, clique no botão <span style="background:rgba(91,46,224,.4);color:#B8A0FF;font-size:12px;font-weight:700;padding:3px 10px;border-radius:8px;border:1px solid rgba(91,46,224,.5)">✦ Analisar</span>. A IA lê todos os tickets e gera observações automáticas.</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                        <div style="background:rgba(255,255,255,.06);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.08)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <i class="ph ph-warning-circle" style="color:#EC4899;font-size:18px"></i>
+                                <p style="font-size:13px;font-weight:700;color:white">Tickets atrasados</p>
                             </div>
+                            <p style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.5">Identifica quais tarefas passaram do prazo</p>
                         </div>
-                        <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#f59e0b08;border:1px solid #f59e0b25">
-                            <i class="ph ph-user-circle-gear flex-shrink-0 mt-0.5" style="color:#f59e0b;font-size:18px"></i>
-                            <div>
-                                <p class="text-sm font-bold text-faiston-dark">Carga por funcionário</p>
-                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Aponta quem está sobrecarregado</p>
+                        <div style="background:rgba(255,255,255,.06);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.08)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <i class="ph ph-user-circle-gear" style="color:#f59e0b;font-size:18px"></i>
+                                <p style="font-size:13px;font-weight:700;color:white">Carga por funcionário</p>
                             </div>
+                            <p style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.5">Aponta quem está sobrecarregado</p>
                         </div>
-                        <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#5B2EE008;border:1px solid #5B2EE025">
-                            <i class="ph ph-trend-up flex-shrink-0 mt-0.5" style="color:#5B2EE0;font-size:18px"></i>
-                            <div>
-                                <p class="text-sm font-bold text-faiston-dark">Gargalos na fila</p>
-                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Detecta acúmulo de tickets parados</p>
+                        <div style="background:rgba(255,255,255,.06);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.08)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <i class="ph ph-trend-up" style="color:#06D7E6;font-size:18px"></i>
+                                <p style="font-size:13px;font-weight:700;color:white">Gargalos na fila</p>
                             </div>
+                            <p style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.5">Detecta acúmulo de tickets parados</p>
                         </div>
-                        <div class="flex items-start gap-3 p-3 rounded-xl" style="background:#06D7E608;border:1px solid #06D7E625">
-                            <i class="ph ph-lightbulb flex-shrink-0 mt-0.5" style="color:#06D7E6;font-size:18px"></i>
-                            <div>
-                                <p class="text-sm font-bold text-faiston-dark">Sugestões de ação</p>
-                                <p class="text-xs text-faiston-muted mt-0.5 leading-relaxed">Recomendações práticas com base no cenário atual</p>
+                        <div style="background:rgba(255,255,255,.06);border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,.08)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <i class="ph ph-lightbulb" style="color:#B826C9;font-size:18px"></i>
+                                <p style="font-size:13px;font-weight:700;color:white">Sugestões de ação</p>
                             </div>
+                            <p style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.5">Recomendações práticas baseadas no cenário</p>
                         </div>
                     </div>
                 </div>
@@ -427,109 +692,279 @@
         </div>
     </div>
 
-    <!-- Carimbos do gestor -->
-    <div>
-        <div class="section-title"><i class="ph ph-stamp"></i> Carimbos (sidebar)</div>
-        <div class="fcard">
-            <p class="text-sm text-faiston-muted leading-relaxed">O gestor acessa os carimbos do time pela <strong class="text-faiston-dark">sidebar esquerda</strong>. Clique em <strong class="text-faiston-dark">Carimbos</strong> para expandir a lista e copiar ou criar novos.</p>
-            <div class="space-y-2">
-                <div class="info-row"><i class="ph ph-copy text-faiston-cyan"></i><div>Clique no carimbo para copiar o conteúdo</div></div>
-                <div class="info-row"><i class="ph ph-plus text-faiston-purple"></i><div>Botão <strong>"Novo carimbo"</strong> no topo da lista para criar</div></div>
-                <div class="info-row"><i class="ph ph-pencil text-faiston-faint"></i><div>Ícone de lápis nos carimbos que você criou para editar ou excluir</div></div>
+    <!-- Carimbos, Clientes, Financeiro -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#B826C9)"><i class="ph ph-squares-four" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Outras Funcionalidades</div>
+                <div class="sec-hd-sub">Carimbos, Clientes & Financeiro</div>
             </div>
         </div>
-    </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#5B2EE012"><i class="ph ph-stamp" style="color:#5B2EE0;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Carimbos</p>
+                        <p style="font-size:12px;color:#9097AC">Na sidebar esquerda</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:8px">Acesse pela <strong style="color:#0B0D1F">sidebar esquerda</strong>. Clique em Carimbos para expandir a lista.</p>
+                        <div class="info-row"><i class="ph ph-copy" style="color:#06D7E6"></i><div>Clique no carimbo para copiar o conteúdo</div></div>
+                        <div class="info-row"><i class="ph ph-plus" style="color:#5B2EE0"></i><div>Botão <strong>"Novo carimbo"</strong> para criar</div></div>
+                        <div class="info-row"><i class="ph ph-pencil" style="color:#9097AC"></i><div>Lápis nos seus carimbos para editar ou excluir</div></div>
+                    </div>
+                </div>
+            </div>
 
-    <!-- Clientes & Projetos -->
-    <div>
-        <div class="section-title"><i class="ph ph-buildings"></i> Clientes & Projetos</div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="fcard">
-                <div class="ficon grad" style="width:44px;height:44px"><i class="ph ph-plus text-white text-xl"></i></div>
-                <h4 class="font-bold text-faiston-dark">Cadastrar Cliente</h4>
-                <p class="text-sm text-faiston-muted leading-relaxed">Clique em <strong class="text-faiston-dark">"Novo Cliente"</strong>, preencha nome e setor. O cliente aparece no dashboard e nos filtros automaticamente.</p>
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#06D7E612"><i class="ph ph-buildings" style="color:#06D7E6;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Clientes & Projetos</p>
+                        <p style="font-size:12px;color:#9097AC">Cadastro, projetos e importação</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-plus-circle" style="color:#06D7E6"></i><div>Clique em <strong>"Novo Cliente"</strong> — preencha nome e setor</div></div>
+                        <div class="info-row"><i class="ph ph-folder-open" style="color:#5B2EE0"></i><div>Na aba Clientes, clique em <strong>"Projetos"</strong> para gerenciar projetos com orçamento</div></div>
+                        <div class="info-row"><i class="ph ph-upload-simple" style="color:#B826C9"></i><div>Botão <strong>"Importar"</strong> → cole link OneDrive → mapeie colunas → confirme (não duplica)</div></div>
+                    </div>
+                </div>
             </div>
-            <div class="fcard">
-                <div class="ficon" style="background:#5B2EE012;width:44px;height:44px"><i class="ph ph-folder-open text-faiston-purple text-xl"></i></div>
-                <h4 class="font-bold text-faiston-dark">Projetos por Cliente</h4>
-                <p class="text-sm text-faiston-muted leading-relaxed">Na aba <strong class="text-faiston-dark">Clientes</strong>, clique em <strong class="text-faiston-dark">"Projetos"</strong> no card do cliente para ver, adicionar e editar projetos com orçamento.</p>
-            </div>
-            <div class="fcard">
-                <div class="ficon" style="background:#06D7E612;width:44px;height:44px"><i class="ph ph-upload-simple text-faiston-cyan text-xl"></i></div>
-                <h4 class="font-bold text-faiston-dark">Importar de Planilha</h4>
-                <p class="text-sm text-faiston-muted leading-relaxed">Botão <strong class="text-faiston-dark">"Importar"</strong> → cole o link OneDrive → mapeie as colunas → confirme. Não duplica projetos já cadastrados.</p>
-            </div>
-        </div>
-    </div>
 
-    <!-- Financeiro -->
-    <div>
-        <div class="section-title"><i class="ph ph-currency-circle-dollar"></i> Financeiro</div>
-        <div class="card p-6">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div class="flex flex-col items-center text-center gap-3 p-5 rounded-2xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
-                    <span class="step-num">1</span>
-                    <p class="font-bold text-faiston-dark text-sm">Abra o Financeiro</p>
-                    <p class="text-xs text-faiston-muted leading-relaxed">Via sidebar ou pelo link no card do cliente</p>
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#EC489912"><i class="ph ph-currency-circle-dollar" style="color:#EC4899;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Financeiro</p>
+                        <p style="font-size:12px;color:#9097AC">Orçamento, lançamentos e gráficos</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
                 </div>
-                <div class="flex flex-col items-center text-center gap-3 p-5 rounded-2xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
-                    <span class="step-num">2</span>
-                    <p class="font-bold text-faiston-dark text-sm">Selecione o Projeto</p>
-                    <p class="text-xs text-faiston-muted leading-relaxed">Cada projeto tem seu próprio orçamento e lançamentos</p>
-                </div>
-                <div class="flex flex-col items-center text-center gap-3 p-5 rounded-2xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
-                    <span class="step-num">3</span>
-                    <p class="font-bold text-faiston-dark text-sm">Adicione Lançamentos</p>
-                    <p class="text-xs text-faiston-muted leading-relaxed">Manualmente ou importando planilha Excel/CSV</p>
-                </div>
-                <div class="flex flex-col items-center text-center gap-3 p-5 rounded-2xl" style="background:#5B2EE00A;border:1px solid #5B2EE025">
-                    <span class="step-num">4</span>
-                    <p class="font-bold text-faiston-dark text-sm">Analise os Gráficos</p>
-                    <p class="text-xs text-faiston-muted leading-relaxed">Gasto por localidade, técnico e período</p>
+                <div class="acc-body">
+                    <div class="acc-body-inner">
+                        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+                            <div style="background:#5B2EE008;border:1px solid #5B2EE020;border-radius:10px;padding:12px;text-align:center">
+                                <div class="step-sm" style="margin:0 auto 8px">1</div>
+                                <p style="font-size:12px;font-weight:700;color:#0B0D1F;margin-bottom:3px">Abra</p>
+                                <p style="font-size:11px;color:#9097AC">Via sidebar ou card do cliente</p>
+                            </div>
+                            <div style="background:#5B2EE008;border:1px solid #5B2EE020;border-radius:10px;padding:12px;text-align:center">
+                                <div class="step-sm" style="margin:0 auto 8px">2</div>
+                                <p style="font-size:12px;font-weight:700;color:#0B0D1F;margin-bottom:3px">Selecione</p>
+                                <p style="font-size:11px;color:#9097AC">Projeto com orçamento</p>
+                            </div>
+                            <div style="background:#5B2EE008;border:1px solid #5B2EE020;border-radius:10px;padding:12px;text-align:center">
+                                <div class="step-sm" style="margin:0 auto 8px">3</div>
+                                <p style="font-size:12px;font-weight:700;color:#0B0D1F;margin-bottom:3px">Lance</p>
+                                <p style="font-size:11px;color:#9097AC">Manual ou planilha</p>
+                            </div>
+                            <div style="background:#5B2EE008;border:1px solid #5B2EE020;border-radius:10px;padding:12px;text-align:center">
+                                <div class="step-sm" style="margin:0 auto 8px">4</div>
+                                <p style="font-size:12px;font-weight:700;color:#0B0D1F;margin-bottom:3px">Analise</p>
+                                <p style="font-size:11px;color:#9097AC">Gráficos por período</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-
-<!-- ═══════════ DICAS GERAIS ═══════════ -->
-<div>
-    <div class="section-title"><i class="ph ph-lightbulb"></i> Dicas Gerais</div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="fcard">
-            <div class="ficon" style="background:#5B2EE012;width:44px;height:44px"><i class="ph ph-moon text-faiston-purple text-xl"></i></div>
-            <h4 class="font-bold text-faiston-dark">Tema Escuro</h4>
-            <p class="text-sm text-faiston-muted leading-relaxed">Clique no ícone 🌙 / ☀️ no canto superior direito. A preferência fica salva no navegador e se aplica a todas as telas.</p>
+<!-- ════════════ DICAS GERAIS (sempre visível) ════════════ -->
+<div style="margin-top:40px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="height:1px;flex:1;background:linear-gradient(90deg,transparent,#E5E8F0)"></div>
+        <span style="font-size:12px;font-weight:700;color:#9097AC;text-transform:uppercase;letter-spacing:.1em">Dicas Gerais</span>
+        <div style="height:1px;flex:1;background:linear-gradient(90deg,#E5E8F0,transparent)"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:20px;display:flex;gap:14px;align-items:flex-start;transition:all .2s" onmouseover="this.style.boxShadow='0 6px 24px rgba(0,0,0,.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='';this.style.transform=''">
+            <div style="width:40px;height:40px;border-radius:11px;background:#5B2EE012;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ph ph-moon" style="color:#5B2EE0;font-size:20px"></i></div>
+            <div>
+                <p style="font-size:14px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Tema Escuro</p>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">Ícone 🌙 / ☀️ no canto superior direito. Preferência salva no navegador.</p>
+            </div>
         </div>
-        <div class="fcard">
-            <div class="ficon" style="background:#06D7E612;width:44px;height:44px"><i class="ph ph-shield-check text-faiston-cyan text-xl"></i></div>
-            <h4 class="font-bold text-faiston-dark">Sessão Segura</h4>
-            <p class="text-sm text-faiston-muted leading-relaxed">Sua sessão dura 24 horas e fica salva mesmo que o sistema reinicie. Para sair, clique em <strong class="text-faiston-dark">"Sair"</strong> no canto superior direito.</p>
+        <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:20px;display:flex;gap:14px;align-items:flex-start;transition:all .2s" onmouseover="this.style.boxShadow='0 6px 24px rgba(0,0,0,.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='';this.style.transform=''">
+            <div style="width:40px;height:40px;border-radius:11px;background:#06D7E612;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ph ph-shield-check" style="color:#06D7E6;font-size:20px"></i></div>
+            <div>
+                <p style="font-size:14px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Sessão Segura</p>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">Dura 24 horas, sobrevive a reinicializações. Clique em <strong style="color:#0B0D1F">Sair</strong> para encerrar.</p>
+            </div>
         </div>
-        <div class="fcard">
-            <div class="ficon" style="background:#EC489912;width:44px;height:44px"><i class="ph ph-warning text-faiston-pink text-xl"></i></div>
-            <h4 class="font-bold text-faiston-dark">Problemas?</h4>
-            <p class="text-sm text-faiston-muted leading-relaxed">Tire um print e mande para o responsável. Descreva o que você estava fazendo quando o problema aconteceu.</p>
+        <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:20px;display:flex;gap:14px;align-items:flex-start;transition:all .2s" onmouseover="this.style.boxShadow='0 6px 24px rgba(0,0,0,.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='';this.style.transform=''">
+            <div style="width:40px;height:40px;border-radius:11px;background:#EC489912;display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ph ph-warning" style="color:#EC4899;font-size:20px"></i></div>
+            <div>
+                <p style="font-size:14px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Problemas?</p>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">Tire um print e envie para o responsável descrevendo o que aconteceu.</p>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- FOOTER -->
-<div class="text-center py-4 text-sm text-faiston-faint">
+<!-- Footer -->
+<div style="text-align:center;padding:32px 0 16px;font-size:12px;color:#C4C8D8">
     Faiston OPS · Torre de Controle · <span id="ano"></span>
 </div>
 
-</div>
+</div><!-- end max-w -->
 
 <script>
+// ── Tab switch ──────────────────────────────────────────
 function setTab(id) {
-    document.querySelectorAll('.tab-btn').forEach((b,i) => {
-        b.classList.toggle('active', ['func','gestor'][i] === id);
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('active', b.id === 'tb-' + id);
     });
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('tab-' + id).classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => {
+        const show = p.id === 'tab-' + id;
+        p.style.display = show ? 'flex' : 'none';
+        if (show) { p.classList.add('active'); p.classList.remove('active'); void p.offsetWidth; p.classList.add('active'); }
+        else p.classList.remove('active');
+    });
+    // trigger reveals in new tab
+    setTimeout(checkReveals, 50);
 }
+
+// ── Accordion ──────────────────────────────────────────
+function toggleAcc(item) {
+    const body = item.querySelector('.acc-body');
+    const isOpen = item.classList.contains('open');
+    item.classList.toggle('open', !isOpen);
+    body.classList.toggle('open', !isOpen);
+}
+
+// ── Scroll progress + sticky nav ──────────────────────
+window.addEventListener('scroll', () => {
+    const sc = document.documentElement.scrollTop;
+    const sh = document.documentElement.scrollHeight - window.innerHeight;
+    document.getElementById('scroll-bar').style.width = (sc / sh * 100) + '%';
+    document.getElementById('tab-nav').classList.toggle('scrolled', sc > 40);
+});
+
+// ── Scroll reveal ──────────────────────────────────────
+function checkReveals() {
+    document.querySelectorAll('.reveal:not(.visible)').forEach(el => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight - 60) el.classList.add('visible');
+    });
+}
+window.addEventListener('scroll', checkReveals, { passive: true });
+setTimeout(checkReveals, 100);
+
+// ── Timer demo ─────────────────────────────────────────
+let timerInterval = null, timerSec = 0, timerRunning = false;
+function pad(n) { return String(n).padStart(2,'0'); }
+function timerPlay() {
+    if (timerRunning) return;
+    timerRunning = true;
+    document.getElementById('timer-play').disabled = true;
+    document.getElementById('timer-play').style.opacity = '.5';
+    document.getElementById('timer-stop').disabled = false;
+    document.getElementById('timer-stop').style.cursor = 'pointer';
+    document.getElementById('timer-stop').style.background = '#EC489915';
+    document.getElementById('timer-stop').style.color = '#EC4899';
+    document.getElementById('timer-stop').style.borderColor = '#EC489930';
+    document.getElementById('timer-status-dot').style.background = '#10B981';
+    document.getElementById('timer-status-dot').style.boxShadow = '0 0 6px #10B98160';
+    document.getElementById('timer-status-txt').textContent = 'Em andamento';
+    document.getElementById('timer-status-txt').style.color = '#10B981';
+    document.getElementById('timer-demo').style.color = '#06D7E6';
+    timerInterval = setInterval(() => {
+        timerSec++;
+        const h = Math.floor(timerSec/3600), m = Math.floor((timerSec%3600)/60), s = timerSec%60;
+        document.getElementById('timer-demo').textContent = pad(h)+':'+pad(m)+':'+pad(s);
+    }, 1000);
+}
+function timerStop() {
+    if (!timerRunning) return;
+    clearInterval(timerInterval);
+    timerRunning = false;
+    document.getElementById('timer-play').disabled = false;
+    document.getElementById('timer-play').style.opacity = '1';
+    document.getElementById('timer-stop').disabled = true;
+    document.getElementById('timer-stop').style.cursor = 'not-allowed';
+    document.getElementById('timer-stop').style.background = '#F4F5FA';
+    document.getElementById('timer-stop').style.color = '#9097AC';
+    document.getElementById('timer-stop').style.borderColor = '#E5E8F0';
+    document.getElementById('timer-status-dot').style.background = '#E5E8F0';
+    document.getElementById('timer-status-dot').style.boxShadow = 'none';
+    document.getElementById('timer-status-txt').textContent = 'Pausado';
+    document.getElementById('timer-status-txt').style.color = '#9097AC';
+    document.getElementById('timer-demo').style.color = '#0B0D1F';
+}
+
+// ── Mini Kanban drag & drop ─────────────────────────────
+let dragCard = null;
+function kDragStart(e) {
+    dragCard = e.currentTarget;
+    setTimeout(() => dragCard.classList.add('dragging'), 0);
+}
+function kDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+}
+document.addEventListener('dragend', () => {
+    if (dragCard) dragCard.classList.remove('dragging');
+    document.querySelectorAll('.kdemo-col').forEach(c => c.classList.remove('drag-over'));
+});
+function kDrop(e, col) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (dragCard) {
+        e.currentTarget.appendChild(dragCard);
+        const colEl = e.currentTarget;
+        if (col === 'andamento') { dragCard.style.borderLeft = '3px solid #06D7E6'; }
+        else if (col === 'concluido') { dragCard.style.borderLeft = '3px solid #5B2EE0'; dragCard.style.opacity = '.75'; }
+        else { dragCard.style.borderLeft = ''; dragCard.style.opacity = '1'; }
+    }
+}
+const _kInitState = {};
+function resetKanban() {
+    const ab = document.getElementById('kd-aberto');
+    const an = document.getElementById('kd-andamento');
+    const co = document.getElementById('kd-concluido');
+    // Clear all cards
+    document.querySelectorAll('.kdemo-card').forEach(c => c.remove());
+    // Rebuild
+    ab.insertAdjacentHTML('beforeend','<div class="kdemo-card" draggable="true" ondragstart="kDragStart(event)" data-id="k1">📋 Relatório semanal</div><div class="kdemo-card" draggable="true" ondragstart="kDragStart(event)" data-id="k2">📞 Ligar para cliente</div>');
+    an.insertAdjacentHTML('beforeend','<div class="kdemo-card" draggable="true" ondragstart="kDragStart(event)" data-id="k3" style="border-left:3px solid #06D7E6">⚡ Deploy produção</div>');
+    co.insertAdjacentHTML('beforeend','<div class="kdemo-card" draggable="true" ondragstart="kDragStart(event)" data-id="k4" style="border-left:3px solid #5B2EE0;opacity:.7">✅ Onboarding</div>');
+}
+
+// ── KPI counter animation ──────────────────────────────
+function animateKpi(id, val, suffix) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let cur = 0, step = Math.ceil(val / 30);
+    const iv = setInterval(() => {
+        cur = Math.min(cur + step, val);
+        el.textContent = cur + suffix;
+        if (cur >= val) clearInterval(iv);
+    }, 30);
+}
+const kpiObs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+        if (e.isIntersecting) {
+            animateKpi('kpi-clientes', 12, '');
+            animateKpi('kpi-tickets', 47, '');
+            animateKpi('kpi-horas', 318, 'h');
+            animateKpi('kpi-media', 26, 'h');
+            kpiObs.disconnect();
+        }
+    });
+}, { threshold: .3 });
+const kpiTarget = document.getElementById('kpi-clientes');
+if (kpiTarget) kpiObs.observe(kpiTarget);
+
 document.getElementById('ano').textContent = new Date().getFullYear();
 </script>
 </body>
