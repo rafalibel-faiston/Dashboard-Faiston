@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão · Faiston OPS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } }
+            }}
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+    [data-theme='dark'] #modal-proj .bg-white,
+    [data-theme='dark'] #modal-contrato .bg-white,
+    [data-theme='dark'] #modal-comentarios .bg-white { background:#1a1d2e !important; border-color:rgba(255,255,255,0.1) !important; }
+    [data-theme='dark'] #modal-proj input,
+    [data-theme='dark'] #modal-proj select,
+    [data-theme='dark'] #modal-proj textarea,
+    [data-theme='dark'] #modal-contrato input,
+    [data-theme='dark'] #modal-contrato select,
+    [data-theme='dark'] #modal-comentarios input,
+    [data-theme='dark'] #modal-comentarios textarea { background:#0f1120 !important; color:#e2e8f0 !important; border-color:rgba(255,255,255,0.12) !important; }
+    [data-theme='dark'] #modal-proj label,
+    [data-theme='dark'] #modal-contrato label,
+    [data-theme='dark'] #modal-comentarios label { color:#94a3b8 !important; }
+    [data-theme='dark'] #modal-proj h2,
+    [data-theme='dark'] #modal-contrato h2,
+    [data-theme='dark'] #modal-comentarios h2 { color:#e2e8f0 !important; }
+    [data-theme='dark'] .g-row { border-color:rgba(255,255,255,0.06) !important; }
+    [data-theme='dark'] .g-row:hover { background:rgba(255,255,255,0.03) !important; }
+    [data-theme='dark'] .g-comment-bubble { background:#0f1120 !important; border-color:rgba(255,255,255,0.08) !important; }
+    [data-theme='dark'] .g-comment-bubble p { color:#cbd5e1 !important; }
+    .btn-grad { background: linear-gradient(135deg,#5B2EE0,#B826C9); }
+    .btn-grad:hover { opacity:0.9; }
+    </style>
+</head>
+<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
+
+<!-- SIDEBAR -->
+<aside class="w-52 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar flex-shrink-0">
+    <div>
+        <div class="flex items-center gap-2.5 p-5 border-b border-faiston-border mb-4">
+            <div class="w-8 h-8 rounded-[10px] grad-bg flex items-center justify-center glow-soft">
+                <i class="ph-fill ph-play text-white text-sm"></i>
+            </div>
+            <h1 class="text-[14px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
+        </div>
+        <div class="px-3">
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
+            <nav class="flex flex-col gap-1 mb-6">
+                <div class="flex flex-col">
+                    <a href="/dashboard" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
+                        <div class="flex items-center gap-2 font-semibold text-sm text-white"><i class="ph ph-network text-base"></i> Backoffice</div>
+                    </a>
+                </div>
+                <div class="flex flex-col mt-1">
+                    <a href="#" onclick="toggleProjetos(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
+                        <div class="flex items-center gap-2 font-semibold text-sm text-white"><i class="ph ph-folder-open text-base"></i> Projetos</div>
+                        <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-projetos"></i>
+                    </a>
+                    <div id="submenu-projetos" class="flex flex-col pl-8 py-2 gap-2.5 relative">
+                        <div class="absolute left-5 top-1 bottom-3 w-px bg-slate-200"></div>
+                        <a href="/clientes" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-2.5 relative transition-colors">
+                            <div class="absolute -left-[11px] w-1.5 h-1.5 rounded-full bg-slate-300"></div>Clientes
+                        </a>
+                        <a href="/financeiro" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-2.5 relative transition-colors">
+                            <div class="absolute -left-[11px] w-1.5 h-1.5 rounded-full bg-slate-300"></div>Financeiro
+                        </a>
+                    </div>
+                </div>
+            </nav>
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
+            <nav class="flex flex-col gap-1">
+                <a href="/gestao" class="flex items-center gap-2 bg-faiston-purple/10 text-faiston-purple font-semibold text-sm rounded-md p-2.5 border border-faiston-purple/20">
+                    <i class="ph ph-briefcase text-base"></i> Gestão
+                </a>
+                <a href="/dashboard" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-chart-line-up text-base"></i> Dashboard
+                </a>
+                <a href="/historico" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-clock-clockwise text-base"></i> Histórico
+                </a>
+                <a href="/apresentacao" target="_blank" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-presentation-chart text-base"></i> Apresentação
+                </a>
+                <a href="/api/relatorio-mensal/preview" target="_blank" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-file-pdf text-base"></i> Relatório Mensal
+                </a>
+                <a href="/admin" id="link-admin" class="hidden flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-gear text-base"></i> Admin
+                </a>
+            </nav>
+        </div>
+    </div>
+    <div class="p-4 border-t border-faiston-border">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg grad-bg text-white flex items-center justify-center font-bold text-sm glow-soft" id="sidebar-avatar">?</div>
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-faiston-dark leading-tight truncate" id="sidebar-nome">...</p>
+                <p class="text-[11px] text-faiston-muted" id="sidebar-perfil">...</p>
+            </div>
+            <button onclick="logout()" title="Sair" class="text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-sign-out text-base"></i></button>
+        </div>
+    </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div class="flex-1 flex flex-col overflow-hidden">
+    <!-- TOP HEADER -->
+    <header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+        <div>
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-[0.08em] text-faiston-purple" style="background:rgba(91,46,224,0.08);border:1px solid rgba(91,46,224,0.15)">● Operação Ativa</span>
+                <span class="text-xs text-faiston-faint">→ Torre de Controle → Gestão</span>
+            </div>
+            <h2 class="text-xl font-bold text-faiston-dark tracking-tight">Gestão de Projetos e Contratos</h2>
+            <p class="text-xs text-faiston-muted mt-0.5" id="header-sub">Carregando...</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="relative">
+                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-faiston-faint text-sm"></i>
+                <input type="text" id="busca" placeholder="Buscar projeto, cliente..." oninput="filtrar()"
+                    class="pl-8 pr-4 py-2 rounded-lg border border-faiston-border focus:outline-none focus:border-faiston-purple text-xs w-52 transition-all bg-white">
+            </div>
+            <button id="btn-nova-acao" onclick="abrirModalNovo()" class="hidden flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                <i class="ph ph-plus"></i> <span id="btn-nova-label">Novo</span>
+            </button>
+            <button onclick="carregar()" class="w-8 h-8 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
+                <i class="ph ph-arrows-clockwise text-faiston-muted text-sm"></i>
+            </button>
+            <button class="btn-theme" title="Alternar tema" onclick="toggleTema()">
+                <i class="ph ph-moon text-faiston-muted text-sm" id="icon-tema"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto custom-scrollbar p-6">
+
+        <!-- TABS -->
+        <div class="flex items-center gap-1 mb-6 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+            <button onclick="setTab('projetos')" id="tab-projetos"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+                <i class="ph ph-folder-open text-base"></i> Projetos
+                <span id="badge-projetos" class="text-[10px] font-bold bg-faiston-purple/15 text-faiston-purple px-1.5 py-0.5 rounded-full ml-0.5">0</span>
+            </button>
+            <button onclick="setTab('contratos')" id="tab-contratos"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                style="background:transparent;color:#9097AC;box-shadow:none">
+                <i class="ph ph-file-text text-base"></i> Contratos
+                <span id="badge-contratos" class="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full ml-0.5">0</span>
+            </button>
+        </div>
+
+        <!-- PROJETOS -->
+        <div id="view-projetos">
+            <div class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-5 py-3.5 border-b border-faiston-border bg-slate-50/70">
+                    <div class="flex items-center gap-3">
+                        <select id="filtro-status-proj" onchange="filtrar()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                            <option value="">Todos os status</option>
+                            <option>EM ANDAMENTO</option>
+                            <option>AGUARDANDO</option>
+                            <option>PAUSADO</option>
+                            <option>CONCLUÍDO</option>
+                            <option>CANCELADO</option>
+                        </select>
+                        <select id="filtro-cliente-proj" onchange="filtrar()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                            <option value="">Todos os clientes</option>
+                        </select>
+                    </div>
+                    <span class="text-xs text-faiston-faint" id="count-projetos">0 projetos</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-faiston-border">
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Cliente / Projeto</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Responsável</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Início</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Término</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide w-48">Escopo</th>
+                                <th class="px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-projetos">
+                            <tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTRATOS -->
+        <div id="view-contratos" class="hidden">
+            <div class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-5 py-3.5 border-b border-faiston-border bg-slate-50/70">
+                    <div class="flex items-center gap-3">
+                        <select id="filtro-status-ct" onchange="filtrarContratos()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                            <option value="">Todos os status</option>
+                            <option>EM IMPLANTAÇÃO</option>
+                            <option>ATIVO</option>
+                            <option>ENCERRADO</option>
+                            <option>CANCELADO</option>
+                        </select>
+                        <select id="filtro-cliente-ct" onchange="filtrarContratos()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                            <option value="">Todos os clientes</option>
+                        </select>
+                    </div>
+                    <span class="text-xs text-faiston-faint" id="count-contratos">0 contratos</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-faiston-border">
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Cliente / Contrato</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">SDM</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Responsável</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Início</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Término</th>
+                                <th class="px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-contratos">
+                            <tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- MODAL EDITAR PROJETO -->
+<div id="modal-proj" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark" id="modal-proj-title">Editar Projeto</h2>
+                <p class="text-xs text-faiston-muted mt-0.5" id="modal-proj-subtitle"></p>
+            </div>
+            <button onclick="fecharModalProj()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="proj-edit-id">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Responsável</label>
+                    <select id="proj-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">— Sem responsável —</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="proj-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option>EM ANDAMENTO</option>
+                        <option>AGUARDANDO</option>
+                        <option>PAUSADO</option>
+                        <option>CONCLUÍDO</option>
+                        <option>CANCELADO</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data de Início</label>
+                    <input type="date" id="proj-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data de Término</label>
+                    <input type="date" id="proj-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Escopo / Descrição</label>
+                    <textarea id="proj-escopo" rows="3" placeholder="Descreva o escopo do projeto..."
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="fecharModalProj()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="abrirComentarios()" class="flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-faiston-purple/30 text-faiston-purple text-sm font-semibold hover:bg-faiston-purple/5 transition-colors">
+                <i class="ph ph-chat-circle-dots text-sm"></i> Comentários
+            </button>
+            <button onclick="salvarProjeto()" id="btn-salvar-proj" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL COMENTÁRIOS DO PROJETO -->
+<div id="modal-comentarios" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:90vh">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border flex-shrink-0">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark">Comentários</h2>
+                <p class="text-xs text-faiston-muted mt-0.5" id="comment-subtitle"></p>
+            </div>
+            <button onclick="fecharComentarios()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="lista-comentarios" class="flex-1 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-3">
+            <div class="text-center py-8 text-slate-300 text-sm">Carregando...</div>
+        </div>
+        <div class="p-6 pt-0 border-t border-faiston-border flex-shrink-0">
+            <div class="flex gap-2">
+                <textarea id="novo-comentario" rows="2" placeholder="Adicionar comentário..."
+                    class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                <button onclick="enviarComentario()" class="btn-grad text-white px-4 rounded-lg text-sm font-semibold self-end py-2">Enviar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CONTRATO -->
+<div id="modal-contrato" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h2 class="text-lg font-bold text-faiston-dark" id="modal-ct-title">Novo Contrato</h2>
+            <button onclick="fecharModalCt()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="ct-edit-id">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cliente *</label>
+                    <select id="ct-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">Selecionar...</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do Contrato *</label>
+                    <input type="text" id="ct-nome" placeholder="Ex: Contrato de Manutenção 2025..."
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">SDM</label>
+                    <input type="number" id="ct-sdm" placeholder="0" step="0.01" min="0"
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Responsável</label>
+                    <select id="ct-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">— Sem responsável —</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="ct-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option>EM IMPLANTAÇÃO</option>
+                        <option>ATIVO</option>
+                        <option>ENCERRADO</option>
+                        <option>CANCELADO</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data de Início</label>
+                    <input type="date" id="ct-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data de Término</label>
+                    <input type="date" id="ct-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button id="btn-deletar-ct" onclick="deletarContrato()" class="hidden px-4 py-2.5 rounded-lg border border-faiston-pink/30 text-faiston-pink text-sm font-semibold hover:bg-faiston-pink/5 transition-colors">
+                <i class="ph ph-trash text-sm"></i>
+            </button>
+            <button onclick="fecharModalCt()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvarContrato()" id="btn-salvar-ct" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let projetosAberto = true;
+function toggleProjetos() {
+    projetosAberto = !projetosAberto;
+    document.getElementById('submenu-projetos').style.display = projetosAberto ? '' : 'none';
+    document.getElementById('caret-projetos').style.transform = projetosAberto ? '' : 'rotate(-90deg)';
+}
+
+// ── State ──────────────────────────────────────────────────
+let tabAtiva = 'projetos';
+let todosProjetos = [], todosContratos = [], todosUsuarios = [], todosClientes = [];
+let canWrite = false;
+let modalProjId = null, modalCtId = null, comentarioProjId = null;
+
+// ── Status helpers ─────────────────────────────────────────
+const STATUS_PROJ = {
+    'EM ANDAMENTO': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'AGUARDANDO':   'text-amber-600 bg-amber-50 border-amber-200',
+    'PAUSADO':      'text-slate-500 bg-slate-100 border-slate-200',
+    'CONCLUÍDO':    'text-emerald-600 bg-emerald-50 border-emerald-200',
+    'CANCELADO':    'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+};
+const STATUS_CT = {
+    'EM IMPLANTAÇÃO': 'text-faiston-purple bg-faiston-purple/10 border-faiston-purple/20',
+    'ATIVO':          'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'ENCERRADO':      'text-slate-500 bg-slate-100 border-slate-200',
+    'CANCELADO':      'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+};
+
+function statusBadge(label, map) {
+    const cls = map[label] || 'text-slate-500 bg-slate-100 border-slate-200';
+    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}">${label || '—'}</span>`;
+}
+
+function fmtDate(d) {
+    if (!d) return '—';
+    const [y,m,day] = d.split('-');
+    return `${day}/${m}/${y}`;
+}
+
+// ── Tabs ───────────────────────────────────────────────────
+function setTab(tab) {
+    tabAtiva = tab;
+    ['projetos','contratos'].forEach(t => {
+        const btn = document.getElementById(`tab-${t}`);
+        const view = document.getElementById(`view-${t}`);
+        const active = t === tab;
+        btn.style.background = active ? 'white' : 'transparent';
+        btn.style.color = active ? '#0B0D1F' : '#9097AC';
+        btn.style.boxShadow = active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none';
+        view.classList.toggle('hidden', !active);
+    });
+    if (tab === 'projetos') {
+        document.getElementById('btn-nova-label').textContent = 'Novo Projeto (via Clientes)';
+        document.getElementById('btn-nova-acao').classList.add('hidden');
+    } else {
+        document.getElementById('btn-nova-label').textContent = 'Novo Contrato';
+        document.getElementById('btn-nova-acao').classList.toggle('hidden', !canWrite);
+    }
+    filtrar();
+}
+
+// ── Load data ──────────────────────────────────────────────
+async function carregar() {
+    const [rp, rc, ru, rcl] = await Promise.all([
+        fetch('/api/gestao/projetos'),
+        fetch('/api/gestao/contratos'),
+        fetch('/api/gestao/usuarios'),
+        fetch('/api/clientes'),
+    ]);
+    if (rp.ok) todosProjetos = await rp.json();
+    if (rc.ok) todosContratos = await rc.json();
+    if (ru.ok) todosUsuarios = await ru.json();
+    if (rcl.ok) todosClientes = (await rcl.json()).filter(c => c.ativo);
+
+    popularSelectsClientes();
+    popularSelectsUsuarios();
+    filtrar();
+    filtrarContratos();
+
+    const total = todosProjetos.length + todosContratos.length;
+    document.getElementById('header-sub').textContent =
+        `${todosProjetos.length} projetos · ${todosContratos.length} contratos`;
+}
+
+function popularSelectsClientes() {
+    const selCt = document.getElementById('ct-cliente');
+    const selFpj = document.getElementById('filtro-cliente-proj');
+    const selFct = document.getElementById('filtro-cliente-ct');
+    const opts = todosClientes.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    selCt.innerHTML = '<option value="">Selecionar...</option>' + opts;
+    selFpj.innerHTML = '<option value="">Todos os clientes</option>' +
+        todosClientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+    selFct.innerHTML = '<option value="">Todos os clientes</option>' +
+        todosClientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+}
+
+function popularSelectsUsuarios() {
+    const opts = '<option value="">— Sem responsável —</option>' +
+        todosUsuarios.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+    document.getElementById('proj-responsavel').innerHTML = opts;
+    document.getElementById('ct-responsavel').innerHTML = opts;
+}
+
+// ── Render projetos ────────────────────────────────────────
+function filtrar() {
+    if (tabAtiva !== 'projetos') return;
+    const q = (document.getElementById('busca').value || '').toLowerCase();
+    const st = document.getElementById('filtro-status-proj').value;
+    const cl = document.getElementById('filtro-cliente-proj').value;
+    const lista = todosProjetos.filter(p =>
+        (!q || p.nome.toLowerCase().includes(q) || p.cliente.toLowerCase().includes(q)) &&
+        (!st || p.status_gestao === st) &&
+        (!cl || p.cliente === cl)
+    );
+    renderProjetos(lista);
+}
+
+function renderProjetos(lista) {
+    document.getElementById('badge-projetos').textContent = lista.length;
+    document.getElementById('count-projetos').textContent = `${lista.length} projeto${lista.length !== 1 ? 's' : ''}`;
+    const tbody = document.getElementById('tabela-projetos');
+    if (!lista.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">
+            <i class="ph ph-folder-open text-3xl block mb-2 mx-auto"></i>Nenhum projeto encontrado</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = lista.map(p => {
+        const editBtn = canWrite
+            ? `<button onclick="abrirModalProj(${p.id})" title="Editar gestão" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
+            : '';
+        const commentBtn = `<button onclick="abrirComentariosDireto(${p.id},'${escHtml(p.cliente)} · ${escHtml(p.nome)}')" title="Comentários" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-300 hover:text-slate-600 transition-colors"><i class="ph ph-chat-circle-dots text-sm"></i></button>`;
+        return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="text-xs text-faiston-muted font-medium">${escHtml(p.cliente)}</div>
+                <div class="font-semibold text-faiston-dark text-sm">${escHtml(p.nome)}</div>
+            </td>
+            <td class="px-5 py-3 text-sm text-slate-600">${p.responsavel ? escHtml(p.responsavel) : '<span class="text-slate-300 text-xs italic">—</span>'}</td>
+            <td class="px-5 py-3">${statusBadge(p.status_gestao, STATUS_PROJ)}</td>
+            <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_inicio)}</td>
+            <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_termino)}</td>
+            <td class="px-5 py-3 text-xs text-slate-500 max-w-[200px] truncate" title="${escHtml(p.escopo)}">${p.escopo ? escHtml(p.escopo) : '<span class="text-slate-300 italic">—</span>'}</td>
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-1 justify-end">${editBtn}${commentBtn}</div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Render contratos ───────────────────────────────────────
+function filtrarContratos() {
+    const q = (document.getElementById('busca').value || '').toLowerCase();
+    const st = document.getElementById('filtro-status-ct').value;
+    const cl = document.getElementById('filtro-cliente-ct').value;
+    const lista = todosContratos.filter(c =>
+        (!q || c.nome.toLowerCase().includes(q) || c.cliente.toLowerCase().includes(q)) &&
+        (!st || c.status === st) &&
+        (!cl || c.cliente === cl)
+    );
+    renderContratos(lista);
+}
+
+function renderContratos(lista) {
+    document.getElementById('badge-contratos').textContent = lista.length;
+    document.getElementById('count-contratos').textContent = `${lista.length} contrato${lista.length !== 1 ? 's' : ''}`;
+    const tbody = document.getElementById('tabela-contratos');
+    if (!lista.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">
+            <i class="ph ph-file-text text-3xl block mb-2 mx-auto"></i>Nenhum contrato encontrado</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = lista.map(c => {
+        const sdmFmt = c.sdm ? Number(c.sdm).toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:2}) : '—';
+        const editBtn = canWrite
+            ? `<button onclick="abrirModalCt(${c.id})" title="Editar" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
+            : '';
+        return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="text-xs text-faiston-muted font-medium">${escHtml(c.cliente)}</div>
+                <div class="font-semibold text-faiston-dark text-sm">${escHtml(c.nome)}</div>
+            </td>
+            <td class="px-5 py-3 text-sm font-mono text-slate-600">${sdmFmt}</td>
+            <td class="px-5 py-3 text-sm text-slate-600">${c.responsavel ? escHtml(c.responsavel) : '<span class="text-slate-300 text-xs italic">—</span>'}</td>
+            <td class="px-5 py-3">${statusBadge(c.status, STATUS_CT)}</td>
+            <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(c.data_inicio)}</td>
+            <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(c.data_termino)}</td>
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-1 justify-end">${editBtn}</div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Modal Projeto ──────────────────────────────────────────
+function abrirModalProj(pid) {
+    const p = todosProjetos.find(x => x.id === pid);
+    if (!p) return;
+    modalProjId = pid;
+    document.getElementById('proj-edit-id').value = pid;
+    document.getElementById('modal-proj-title').textContent = p.nome;
+    document.getElementById('modal-proj-subtitle').textContent = p.cliente;
+    document.getElementById('proj-responsavel').value = p.responsavel_id || '';
+    document.getElementById('proj-status').value = p.status_gestao || 'EM ANDAMENTO';
+    document.getElementById('proj-inicio').value = p.data_inicio || '';
+    document.getElementById('proj-termino').value = p.data_termino || '';
+    document.getElementById('proj-escopo').value = p.escopo || '';
+    document.getElementById('modal-proj').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function fecharModalProj() {
+    document.getElementById('modal-proj').classList.add('hidden');
+    document.body.style.overflow = '';
+    modalProjId = null;
+}
+
+async function salvarProjeto() {
+    const pid = document.getElementById('proj-edit-id').value;
+    const btn = document.getElementById('btn-salvar-proj');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    const body = {
+        responsavel_id: parseInt(document.getElementById('proj-responsavel').value) || null,
+        status_gestao: document.getElementById('proj-status').value,
+        data_inicio: document.getElementById('proj-inicio').value || null,
+        data_termino: document.getElementById('proj-termino').value || null,
+        escopo: document.getElementById('proj-escopo').value.trim() || null,
+    };
+    try {
+        const r = await fetch(`/api/gestao/projetos/${pid}`, {
+            method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+        });
+        if (!r.ok) { const d = await r.json(); alert(d.detail || 'Erro ao salvar'); return; }
+        fecharModalProj();
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+    finally { btn.disabled = false; btn.textContent = 'Salvar'; }
+}
+
+// ── Modal Comentários ──────────────────────────────────────
+function abrirComentarios() {
+    const pid = parseInt(document.getElementById('proj-edit-id').value);
+    const p = todosProjetos.find(x => x.id === pid);
+    fecharModalProj();
+    setTimeout(() => abrirComentariosDireto(pid, p ? `${p.cliente} · ${p.nome}` : ''), 50);
+}
+
+function abrirComentariosDireto(pid, label) {
+    comentarioProjId = pid;
+    document.getElementById('comment-subtitle').textContent = label;
+    document.getElementById('novo-comentario').value = '';
+    document.getElementById('modal-comentarios').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    carregarComentarios(pid);
+}
+
+function fecharComentarios() {
+    document.getElementById('modal-comentarios').classList.add('hidden');
+    document.body.style.overflow = '';
+    comentarioProjId = null;
+}
+
+async function carregarComentarios(pid) {
+    const lista = document.getElementById('lista-comentarios');
+    lista.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm">Carregando...</div>';
+    try {
+        const r = await fetch(`/api/gestao/projetos/${pid}/comentarios`);
+        if (!r.ok) { lista.innerHTML = '<div class="text-center py-8 text-red-400 text-sm">Erro ao carregar</div>'; return; }
+        const comments = await r.json();
+        if (!comments.length) {
+            lista.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm"><i class="ph ph-chat-circle text-3xl block mb-2 mx-auto"></i>Sem comentários ainda</div>';
+            return;
+        }
+        lista.innerHTML = comments.map(c => {
+            const data = c.criado_em ? new Date(c.criado_em).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+            return `<div class="g-comment-bubble bg-slate-50 border border-faiston-border rounded-xl p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-faiston-purple">${escHtml(c.usuario)}</span>
+                    <span class="text-[10px] text-slate-400 font-mono">${data}</span>
+                </div>
+                <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">${escHtml(c.texto)}</p>
+            </div>`;
+        }).join('');
+    } catch(e) { lista.innerHTML = '<div class="text-center py-8 text-red-400 text-sm">Erro de conexão</div>'; }
+}
+
+async function enviarComentario() {
+    const texto = document.getElementById('novo-comentario').value.trim();
+    if (!texto) return;
+    try {
+        const r = await fetch(`/api/gestao/projetos/${comentarioProjId}/comentarios`, {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({texto})
+        });
+        if (!r.ok) { const d = await r.json(); alert(d.detail || 'Erro'); return; }
+        document.getElementById('novo-comentario').value = '';
+        await carregarComentarios(comentarioProjId);
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+// ── Modal Contrato ─────────────────────────────────────────
+function abrirModalNovo() {
+    if (tabAtiva === 'contratos') abrirModalCt(null);
+}
+
+function abrirModalCt(cid) {
+    modalCtId = cid;
+    const isEdit = cid !== null;
+    document.getElementById('modal-ct-title').textContent = isEdit ? 'Editar Contrato' : 'Novo Contrato';
+    document.getElementById('btn-deletar-ct').classList.toggle('hidden', !isEdit);
+    if (isEdit) {
+        const c = todosContratos.find(x => x.id === cid);
+        if (!c) return;
+        document.getElementById('ct-edit-id').value = cid;
+        document.getElementById('ct-cliente').value = c.cliente_id;
+        document.getElementById('ct-nome').value = c.nome;
+        document.getElementById('ct-sdm').value = c.sdm || '';
+        document.getElementById('ct-responsavel').value = c.responsavel_id || '';
+        document.getElementById('ct-status').value = c.status;
+        document.getElementById('ct-inicio').value = c.data_inicio || '';
+        document.getElementById('ct-termino').value = c.data_termino || '';
+    } else {
+        document.getElementById('ct-edit-id').value = '';
+        document.getElementById('ct-cliente').value = '';
+        document.getElementById('ct-nome').value = '';
+        document.getElementById('ct-sdm').value = '';
+        document.getElementById('ct-responsavel').value = '';
+        document.getElementById('ct-status').value = 'EM IMPLANTAÇÃO';
+        document.getElementById('ct-inicio').value = '';
+        document.getElementById('ct-termino').value = '';
+    }
+    document.getElementById('modal-contrato').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('ct-nome').focus(), 50);
+}
+
+function fecharModalCt() {
+    document.getElementById('modal-contrato').classList.add('hidden');
+    document.body.style.overflow = '';
+    modalCtId = null;
+}
+
+async function salvarContrato() {
+    const clienteId = parseInt(document.getElementById('ct-cliente').value);
+    const nome = document.getElementById('ct-nome').value.trim();
+    if (!clienteId || !nome) { alert('Selecione um cliente e informe o nome do contrato.'); return; }
+    const btn = document.getElementById('btn-salvar-ct');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    const body = {
+        cliente_id: clienteId,
+        nome,
+        sdm: parseFloat(document.getElementById('ct-sdm').value) || 0,
+        responsavel_id: parseInt(document.getElementById('ct-responsavel').value) || null,
+        status: document.getElementById('ct-status').value,
+        data_inicio: document.getElementById('ct-inicio').value || null,
+        data_termino: document.getElementById('ct-termino').value || null,
+    };
+    try {
+        const url = modalCtId ? `/api/gestao/contratos/${modalCtId}` : '/api/gestao/contratos';
+        const method = modalCtId ? 'PUT' : 'POST';
+        const r = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (!r.ok) { const d = await r.json(); alert(d.detail || 'Erro ao salvar'); return; }
+        fecharModalCt();
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+    finally { btn.disabled = false; btn.textContent = 'Salvar'; }
+}
+
+async function deletarContrato() {
+    if (!modalCtId || !confirm('Excluir este contrato permanentemente?')) return;
+    try {
+        const r = await fetch(`/api/gestao/contratos/${modalCtId}`, { method: 'DELETE' });
+        if (!r.ok) { const d = await r.json(); alert(d.detail || 'Erro'); return; }
+        fecharModalCt();
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+// ── Utilities ──────────────────────────────────────────────
+function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleTema() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('faiston_tema', isDark ? 'light' : 'dark');
+}
+
+async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
+}
+
+// ── Keyboard close ──────────────────────────────────────────
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { fecharModalProj(); fecharModalCt(); fecharComentarios(); }
+});
+document.getElementById('modal-proj').addEventListener('click', e => { if (e.target === document.getElementById('modal-proj')) fecharModalProj(); });
+document.getElementById('modal-contrato').addEventListener('click', e => { if (e.target === document.getElementById('modal-contrato')) fecharModalCt(); });
+document.getElementById('modal-comentarios').addEventListener('click', e => { if (e.target === document.getElementById('modal-comentarios')) fecharComentarios(); });
+
+// ── Enter no textarea de comentário ─────────────────────────
+document.getElementById('novo-comentario').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) enviarComentario();
+});
+
+// ── Init ────────────────────────────────────────────────────
+async function init() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
+        if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
+        const nome = me.nome || me.usuario || 'Usuário';
+        document.getElementById('sidebar-avatar').textContent = nome.charAt(0).toUpperCase();
+        document.getElementById('sidebar-nome').textContent = nome;
+        document.getElementById('sidebar-perfil').textContent = me.perfil === 'admin' ? 'Administrador' : 'Gestor';
+        if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
+        canWrite = me.perfil === 'admin' || me.perfil === 'gestor';
+    } catch(e) { window.location.href = '/'; return; }
+    await carregar();
+    setTab('projetos');
+}
+
+init();
+</script>
+</body>
+</html>
