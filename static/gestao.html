@@ -110,10 +110,10 @@
                     </button>
                     <div id="submenu-projetos-sb" class="flex flex-col pl-9 py-3 gap-3 relative">
                         <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
-                        <a href="/clientes" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
-                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div>
+                        <button onclick="setTab('clientes')" id="nav-clientes" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple" id="dot-clientes"></div>
                             Clientes
-                        </a>
+                        </button>
                         <button onclick="setTab('projetos')" id="nav-projetos" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan" id="dot-projetos"></div>
                             Projetos
@@ -241,6 +241,40 @@
                 </div>
                 <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-contratos">—</p>
                 <p class="text-[11px] text-slate-400 mt-1">em implantação</p>
+            </div>
+        </div>
+
+        <!-- CLIENTES -->
+        <div id="view-clientes" class="hidden">
+            <div class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-5 py-3.5 border-b border-faiston-border bg-slate-50/70">
+                    <div class="flex items-center gap-3">
+                        <input type="text" id="busca-cliente" placeholder="Buscar cliente..." oninput="filtrarClientes()"
+                            class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple w-48">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-faiston-faint" id="count-clientes">0 clientes</span>
+                        <a href="/clientes" target="_blank" class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-faiston-purple/30 text-faiston-purple hover:bg-faiston-purple/5 transition-colors flex items-center gap-1">
+                            <i class="ph ph-arrow-square-out text-xs"></i> Gerenciar
+                        </a>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-faiston-border">
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Cliente</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Contato</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">E-mail</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Projetos</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-clientes">
+                            <tr><td colspan="5" class="text-center py-12 text-slate-300 text-sm">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -764,12 +798,13 @@ function setTab(tab) {
     tabAtiva = tab;
 
     const DOT_ACTIVE = {
+        'clientes': { color: '#5B2EE0', shadow: '0 0 8px #5B2EE0' },
         'projetos': { color: '#06D7E6', shadow: '0 0 8px #06D7E6' },
-        'contratos': { color: '#5B2EE0', shadow: '0 0 8px #5B2EE0' },
+        'contratos':{ color: '#5B2EE0', shadow: '0 0 8px #5B2EE0' },
         'pmo':      { color: '#B826C9', shadow: '0 0 8px #B826C9' },
     };
 
-    ['projetos','contratos','pmo'].forEach(t => {
+    ['clientes','projetos','contratos','pmo'].forEach(t => {
         const view   = document.getElementById(`view-${t}`);
         const navBtn = document.getElementById(`nav-${t}`);
         const dot    = document.getElementById(`dot-${t}`);
@@ -780,8 +815,8 @@ function setTab(tab) {
             navBtn.style.fontWeight = active ? '700' : '';
         }
         if (dot) {
-            dot.style.background  = active ? DOT_ACTIVE[t].color : '';
-            dot.style.boxShadow   = active ? DOT_ACTIVE[t].shadow : '';
+            dot.style.background = active ? DOT_ACTIVE[t].color : '';
+            dot.style.boxShadow  = active ? DOT_ACTIVE[t].shadow : '';
         }
     });
 
@@ -795,6 +830,10 @@ function setTab(tab) {
         toggleGrupo.classList.add('hidden');
         document.getElementById('btn-nova-acao').classList.add('hidden');
         renderPMO();
+    } else if (tab === 'clientes') {
+        toggleGrupo.classList.add('hidden');
+        document.getElementById('btn-nova-acao').classList.add('hidden');
+        filtrarClientes();
     } else {
         toggleGrupo.classList.add('hidden');
         document.getElementById('btn-nova-label').textContent = 'Novo Contrato';
@@ -842,6 +881,57 @@ function popularSelectsUsuarios() {
     document.getElementById('proj-responsavel').innerHTML = opts;
     document.getElementById('ct-responsavel').innerHTML = opts;
     document.getElementById('np-responsavel').innerHTML = opts;
+}
+
+// ── Render clientes ────────────────────────────────────────
+function filtrarClientes() {
+    const q = ((document.getElementById('busca-cliente') || {}).value || '').toLowerCase();
+    const lista = todosClientes.filter(c =>
+        !q || c.nome.toLowerCase().includes(q) ||
+              (c.contato||'').toLowerCase().includes(q) ||
+              (c.email||'').toLowerCase().includes(q)
+    );
+    renderClientesTab(lista);
+}
+
+function renderClientesTab(lista) {
+    document.getElementById('count-clientes').textContent = `${lista.length} cliente${lista.length !== 1 ? 's' : ''}`;
+    const tbody = document.getElementById('tabela-clientes');
+    if (!lista.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-slate-300 text-sm">
+            <i class="ph ph-buildings text-3xl block mb-2 mx-auto"></i>Nenhum cliente encontrado</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = lista.map(c => {
+        const projCount = todosProjetos.filter(p => p.cliente_id === c.id || p.cliente === c.nome).length;
+        return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg grad-bg text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        ${escHtml(c.nome.charAt(0).toUpperCase())}
+                    </div>
+                    <div>
+                        <p class="font-semibold text-faiston-dark text-sm">${escHtml(c.nome)}</p>
+                        ${c.cnpj ? `<p class="text-[11px] text-faiston-faint font-mono">${escHtml(c.cnpj)}</p>` : ''}
+                    </div>
+                </div>
+            </td>
+            <td class="px-5 py-3 text-sm text-slate-600">${c.contato ? escHtml(c.contato) : '<span class="text-slate-300 text-xs">—</span>'}</td>
+            <td class="px-5 py-3 text-sm text-slate-500">${c.email ? escHtml(c.email) : '<span class="text-slate-300 text-xs">—</span>'}</td>
+            <td class="px-5 py-3">
+                ${projCount > 0
+                    ? `<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-faiston-purple/10 text-faiston-purple border border-faiston-purple/20 cursor-pointer hover:bg-faiston-purple/15 transition-colors" onclick="setTab('projetos');setTimeout(()=>{document.getElementById('filtro-cliente-proj').value='${escHtml(c.nome)}';filtrar();},100)">${projCount} projeto${projCount !== 1 ? 's' : ''}</span>`
+                    : '<span class="text-xs text-slate-300">—</span>'
+                }
+            </td>
+            <td class="px-5 py-3">
+                ${c.ativo
+                    ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-emerald-600 bg-emerald-50 border border-emerald-200">Ativo</span>'
+                    : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full text-slate-400 bg-slate-100 border border-slate-200">Inativo</span>'
+                }
+            </td>
+        </tr>`;
+    }).join('');
 }
 
 // ── Render projetos ────────────────────────────────────────
@@ -1723,7 +1813,7 @@ async function init() {
     } catch(e) { window.location.href = '/'; return; }
     await carregar();
     // Diretores caem direto na visão PMO
-    setTab(meuPerfil === 'diretor' ? 'pmo' : 'projetos');
+    setTab(meuPerfil === 'diretor' ? 'pmo' : 'clientes');
 }
 
 init();
