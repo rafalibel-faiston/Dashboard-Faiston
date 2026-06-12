@@ -977,6 +977,15 @@ function filtrarCarimbos() {
     }
 }
 
+const CAR_GRADIENTS = [
+    'linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%)',
+    'linear-gradient(135deg,#06D7E6 0%,#5B2EE0 100%)',
+    'linear-gradient(135deg,#B826C9 0%,#5B2EE0 100%)',
+    'linear-gradient(135deg,#5B2EE0 0%,#06D7E6 100%)',
+    'linear-gradient(135deg,#EC4899 0%,#B826C9 100%)',
+    'linear-gradient(135deg,#06D7E6 0%,#B826C9 100%)',
+];
+
 function renderCarimbosGrid(lista) {
     document.getElementById('count-carimbos').textContent = `${lista.length} carimbo${lista.length !== 1 ? 's' : ''}`;
     const grid = document.getElementById('carimbos-grid');
@@ -987,25 +996,27 @@ function renderCarimbosGrid(lista) {
         return;
     }
     empty.classList.add('hidden'); empty.classList.remove('flex');
-    grid.innerHTML = lista.map(c => {
-        const preview = (c.conteudo || '').slice(0, 180);
-        return `<div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col gap-3">
-            <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
-                    <p class="font-bold text-faiston-dark text-sm truncate">${escHtml(c.titulo)}</p>
-                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-faiston-purple/10 text-faiston-purple border border-faiston-purple/15">${escHtml(c.categoria || 'Geral')}</span>
-                </div>
-                <div class="flex items-center gap-1 flex-shrink-0">
-                    ${c.meu ? `<button onclick="gAbrirModalCarimbo(${c.id})" title="Editar" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>` : ''}
-                    <button onclick="gCopiarCarimbo(${c.id}, this)" title="Copiar" class="w-7 h-7 rounded-lg hover:bg-faiston-cyan/10 flex items-center justify-center text-slate-300 hover:text-faiston-cyan transition-colors">
-                        <i class="ph ph-copy text-sm"></i>
-                    </button>
+    grid.innerHTML = lista.map((c, i) => {
+        const grad = CAR_GRADIENTS[i % CAR_GRADIENTS.length];
+        const initials = (c.titulo || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+        const preview = (c.conteudo || '').slice(0, 160);
+        return `<div class="bg-white rounded-2xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_8px_32px_-8px_rgba(91,46,224,0.18)] transition-all duration-300 flex flex-col">
+            <div class="relative h-20 flex items-end px-5 pb-0" style="background:${grad}">
+                <span class="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/20 text-white/90 backdrop-blur-sm">${escHtml(c.categoria || 'Geral')}</span>
+                <div class="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white text-base font-black translate-y-5 shadow-lg">
+                    ${initials}
                 </div>
             </div>
-            <p class="text-xs text-slate-500 font-mono leading-relaxed line-clamp-4 flex-1 whitespace-pre-wrap">${escHtml(preview)}${c.conteudo && c.conteudo.length > 180 ? '<span class="text-slate-300">…</span>' : ''}</p>
-            <button onclick="gCopiarCarimbo(${c.id}, this)" class="w-full py-2 rounded-lg text-xs font-bold transition-all border border-faiston-cyan/30 text-faiston-cyan hover:bg-faiston-cyan/10 flex items-center justify-center gap-1.5" id="copy-btn-${c.id}">
-                <i class="ph ph-copy text-xs"></i> Copiar
-            </button>
+            <div class="pt-8 px-5 pb-4 flex flex-col flex-1 gap-2">
+                <div class="flex items-start justify-between gap-2">
+                    <h3 class="font-bold text-faiston-dark text-sm leading-tight">${escHtml(c.titulo)}</h3>
+                    ${c.meu ? `<button onclick="gAbrirModalCarimbo(${c.id})" title="Editar" class="flex-shrink-0 w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>` : ''}
+                </div>
+                <p class="text-xs text-slate-500 font-mono leading-relaxed line-clamp-4 flex-1 whitespace-pre-wrap">${escHtml(preview)}${(c.conteudo||'').length > 160 ? '<span class="text-slate-300">…</span>' : ''}</p>
+                <button onclick="gCopiarCarimbo(${c.id}, this)" id="copy-btn-${c.id}" class="mt-1 w-full py-2 rounded-xl text-xs font-bold transition-all border border-faiston-cyan/30 text-faiston-cyan hover:bg-faiston-cyan/10 flex items-center justify-center gap-1.5">
+                    <i class="ph ph-copy text-xs"></i> Copiar
+                </button>
+            </div>
         </div>`;
     }).join('');
 }
