@@ -24,27 +24,40 @@
     <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
     <style>
     [data-theme='dark'] #modal-proj .bg-white,
+    [data-theme='dark'] #modal-novo-proj .bg-white,
     [data-theme='dark'] #modal-contrato .bg-white,
     [data-theme='dark'] #modal-comentarios .bg-white { background:#1a1d2e !important; border-color:rgba(255,255,255,0.1) !important; }
     [data-theme='dark'] #modal-proj input,
     [data-theme='dark'] #modal-proj select,
     [data-theme='dark'] #modal-proj textarea,
+    [data-theme='dark'] #modal-novo-proj input,
+    [data-theme='dark'] #modal-novo-proj select,
+    [data-theme='dark'] #modal-novo-proj textarea,
     [data-theme='dark'] #modal-contrato input,
     [data-theme='dark'] #modal-contrato select,
     [data-theme='dark'] #modal-comentarios input,
     [data-theme='dark'] #modal-comentarios textarea { background:#0f1120 !important; color:#e2e8f0 !important; border-color:rgba(255,255,255,0.12) !important; }
     [data-theme='dark'] #modal-proj label,
+    [data-theme='dark'] #modal-novo-proj label,
     [data-theme='dark'] #modal-contrato label,
     [data-theme='dark'] #modal-comentarios label { color:#94a3b8 !important; }
     [data-theme='dark'] #modal-proj h2,
+    [data-theme='dark'] #modal-novo-proj h2,
     [data-theme='dark'] #modal-contrato h2,
     [data-theme='dark'] #modal-comentarios h2 { color:#e2e8f0 !important; }
     [data-theme='dark'] .g-row { border-color:rgba(255,255,255,0.06) !important; }
     [data-theme='dark'] .g-row:hover { background:rgba(255,255,255,0.03) !important; }
     [data-theme='dark'] .g-comment-bubble { background:#0f1120 !important; border-color:rgba(255,255,255,0.08) !important; }
     [data-theme='dark'] .g-comment-bubble p { color:#cbd5e1 !important; }
+    [data-theme='dark'] .kpi-card { background:#1a1d2e !important; border-color:rgba(255,255,255,0.08) !important; }
+    [data-theme='dark'] .kpi-card .kpi-label { color:#94a3b8 !important; }
+    [data-theme='dark'] .kpi-card .kpi-value { color:#e2e8f0 !important; }
+    [data-theme='dark'] .grupo-header { background:rgba(255,255,255,0.02) !important; border-color:rgba(255,255,255,0.06) !important; }
+    [data-theme='dark'] .grupo-header span { color:#94a3b8 !important; }
     .btn-grad { background: linear-gradient(135deg,#5B2EE0,#B826C9); }
     .btn-grad:hover { opacity:0.9; }
+    .kpi-card { transition: box-shadow .2s, transform .2s; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -4px rgba(91,46,224,0.14); }
     </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
@@ -149,20 +162,75 @@
 
     <main class="flex-1 overflow-y-auto custom-scrollbar p-6">
 
+        <!-- KPI CARDS -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="kpi-section">
+            <div class="kpi-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="kpi-label text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Em Andamento</p>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(6,215,230,0.12)">
+                        <i class="ph ph-play text-xs" style="color:#06D7E6"></i>
+                    </div>
+                </div>
+                <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-andamento">—</p>
+                <p class="text-[11px] text-slate-400 mt-1">projetos ativos</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="kpi-label text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Aguardando</p>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(245,158,11,0.12)">
+                        <i class="ph ph-hourglass text-xs text-amber-500"></i>
+                    </div>
+                </div>
+                <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-aguardando">—</p>
+                <p class="text-[11px] text-slate-400 mt-1">aguardando início</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="kpi-label text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Contratos Ativos</p>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(91,46,224,0.12)">
+                        <i class="ph ph-file-text text-xs text-faiston-purple"></i>
+                    </div>
+                </div>
+                <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-contratos">—</p>
+                <p class="text-[11px] text-slate-400 mt-1">contratos vigentes</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="kpi-label text-[11px] font-semibold text-slate-400 uppercase tracking-wider">SDM Total</p>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(184,38,201,0.12)">
+                        <i class="ph ph-currency-circle-dollar text-xs text-faiston-magenta"></i>
+                    </div>
+                </div>
+                <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-sdm">—</p>
+                <p class="text-[11px] text-slate-400 mt-1">contratos ativos</p>
+            </div>
+        </div>
+
         <!-- TABS -->
-        <div class="flex items-center gap-1 mb-6 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
-            <button onclick="setTab('projetos')" id="tab-projetos"
-                class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
-                <i class="ph ph-folder-open text-base"></i> Projetos
-                <span id="badge-projetos" class="text-[10px] font-bold bg-faiston-purple/15 text-faiston-purple px-1.5 py-0.5 rounded-full ml-0.5">0</span>
-            </button>
-            <button onclick="setTab('contratos')" id="tab-contratos"
-                class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                style="background:transparent;color:#9097AC;box-shadow:none">
-                <i class="ph ph-file-text text-base"></i> Contratos
-                <span id="badge-contratos" class="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full ml-0.5">0</span>
-            </button>
+        <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-1 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+                <button onclick="setTab('projetos')" id="tab-projetos"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+                    <i class="ph ph-folder-open text-base"></i> Projetos
+                    <span id="badge-projetos" class="text-[10px] font-bold bg-faiston-purple/15 text-faiston-purple px-1.5 py-0.5 rounded-full ml-0.5">0</span>
+                </button>
+                <button onclick="setTab('contratos')" id="tab-contratos"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    style="background:transparent;color:#9097AC;box-shadow:none">
+                    <i class="ph ph-file-text text-base"></i> Contratos
+                    <span id="badge-contratos" class="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full ml-0.5">0</span>
+                </button>
+            </div>
+            <!-- Agrupamento toggle (só projetos) -->
+            <div id="toggle-grupo" class="hidden flex items-center gap-2">
+                <span class="text-xs text-faiston-faint">Agrupar por cliente</span>
+                <button onclick="toggleAgrupamento()" id="btn-agrupar"
+                    class="relative w-9 h-5 rounded-full transition-colors duration-200 bg-slate-200 focus:outline-none"
+                    style="">
+                    <span id="agrupar-thumb" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"></span>
+                </button>
+            </div>
         </div>
 
         <!-- PROJETOS -->
@@ -185,8 +253,8 @@
                     <span class="text-xs text-faiston-faint" id="count-projetos">0 projetos</span>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
+                    <table class="w-full text-sm" id="tabela-proj-wrap">
+                        <thead id="thead-projetos">
                             <tr class="border-b border-faiston-border">
                                 <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Cliente / Projeto</th>
                                 <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Responsável</th>
@@ -247,7 +315,7 @@
     </main>
 </div>
 
-<!-- MODAL EDITAR PROJETO -->
+<!-- MODAL EDITAR PROJETO (gestão) -->
 <div id="modal-proj" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div class="flex items-center justify-between p-6 border-b border-faiston-border">
@@ -301,6 +369,72 @@
     </div>
 </div>
 
+<!-- MODAL NOVO PROJETO (cria vinculando ao cliente existente) -->
+<div id="modal-novo-proj" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark">Novo Projeto</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Vincule a um cliente existente e configure os detalhes de gestão</p>
+            </div>
+            <button onclick="fecharModalNovoProj()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cliente *</label>
+                    <select id="np-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">Selecionar cliente...</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do Projeto *</label>
+                    <input type="text" id="np-nome" placeholder="Ex: Implantação, Manutenção, Fase 2..."
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Responsável</label>
+                    <select id="np-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">— Sem responsável —</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="np-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option>AGUARDANDO</option>
+                        <option>EM ANDAMENTO</option>
+                        <option>PAUSADO</option>
+                        <option>CONCLUÍDO</option>
+                        <option>CANCELADO</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Orçamento (R$)</label>
+                    <input type="number" id="np-orcamento" placeholder="0,00" step="0.01" min="0"
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Início</label>
+                    <input type="date" id="np-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Término Previsto</label>
+                    <input type="date" id="np-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Escopo</label>
+                    <textarea id="np-escopo" rows="2" placeholder="Descrição ou escopo do projeto..."
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="fecharModalNovoProj()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="criarProjeto()" id="btn-criar-proj" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Criar Projeto</button>
+        </div>
+    </div>
+</div>
+
 <!-- MODAL COMENTÁRIOS DO PROJETO -->
 <div id="modal-comentarios" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:90vh">
@@ -316,7 +450,7 @@
         </div>
         <div class="p-6 pt-0 border-t border-faiston-border flex-shrink-0">
             <div class="flex gap-2">
-                <textarea id="novo-comentario" rows="2" placeholder="Adicionar comentário..."
+                <textarea id="novo-comentario" rows="2" placeholder="Adicionar comentário... (Ctrl+Enter para enviar)"
                     class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 <button onclick="enviarComentario()" class="btn-grad text-white px-4 rounded-lg text-sm font-semibold self-end py-2">Enviar</button>
             </div>
@@ -398,6 +532,7 @@ let tabAtiva = 'projetos';
 let todosProjetos = [], todosContratos = [], todosUsuarios = [], todosClientes = [];
 let canWrite = false;
 let modalProjId = null, modalCtId = null, comentarioProjId = null;
+let agruparPorCliente = false;
 
 // ── Status helpers ─────────────────────────────────────────
 const STATUS_PROJ = {
@@ -425,6 +560,32 @@ function fmtDate(d) {
     return `${day}/${m}/${y}`;
 }
 
+// ── KPI cards ──────────────────────────────────────────────
+function atualizarKPIs() {
+    const andamento = todosProjetos.filter(p => p.status_gestao === 'EM ANDAMENTO').length;
+    const aguardando = todosProjetos.filter(p => p.status_gestao === 'AGUARDANDO').length;
+    const ctAtivos = todosContratos.filter(c => c.status === 'ATIVO' || c.status === 'EM IMPLANTAÇÃO').length;
+    const sdmTotal = todosContratos
+        .filter(c => c.status === 'ATIVO' || c.status === 'EM IMPLANTAÇÃO')
+        .reduce((acc, c) => acc + (Number(c.sdm) || 0), 0);
+    document.getElementById('kpi-andamento').textContent = andamento;
+    document.getElementById('kpi-aguardando').textContent = aguardando;
+    document.getElementById('kpi-contratos').textContent = ctAtivos;
+    document.getElementById('kpi-sdm').textContent = sdmTotal > 0
+        ? sdmTotal.toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:1})
+        : '—';
+}
+
+// ── Agrupamento toggle ─────────────────────────────────────
+function toggleAgrupamento() {
+    agruparPorCliente = !agruparPorCliente;
+    const btn = document.getElementById('btn-agrupar');
+    const thumb = document.getElementById('agrupar-thumb');
+    btn.style.background = agruparPorCliente ? '#5B2EE0' : '';
+    thumb.style.transform = agruparPorCliente ? 'translateX(16px)' : '';
+    filtrar();
+}
+
 // ── Tabs ───────────────────────────────────────────────────
 function setTab(tab) {
     tabAtiva = tab;
@@ -437,14 +598,19 @@ function setTab(tab) {
         btn.style.boxShadow = active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none';
         view.classList.toggle('hidden', !active);
     });
+
+    const toggleGrupo = document.getElementById('toggle-grupo');
     if (tab === 'projetos') {
-        document.getElementById('btn-nova-label').textContent = 'Novo Projeto (via Clientes)';
-        document.getElementById('btn-nova-acao').classList.add('hidden');
+        toggleGrupo.classList.remove('hidden');
+        document.getElementById('btn-nova-label').textContent = 'Novo Projeto';
+        document.getElementById('btn-nova-acao').classList.toggle('hidden', !canWrite);
+        filtrar();
     } else {
+        toggleGrupo.classList.add('hidden');
         document.getElementById('btn-nova-label').textContent = 'Novo Contrato';
         document.getElementById('btn-nova-acao').classList.toggle('hidden', !canWrite);
+        filtrarContratos();
     }
-    filtrar();
 }
 
 // ── Load data ──────────────────────────────────────────────
@@ -462,24 +628,22 @@ async function carregar() {
 
     popularSelectsClientes();
     popularSelectsUsuarios();
+    atualizarKPIs();
     filtrar();
     filtrarContratos();
 
-    const total = todosProjetos.length + todosContratos.length;
     document.getElementById('header-sub').textContent =
-        `${todosProjetos.length} projetos · ${todosContratos.length} contratos`;
+        `${todosProjetos.length} projetos · ${todosContratos.length} contratos · ${todosClientes.length} clientes ativos`;
 }
 
 function popularSelectsClientes() {
-    const selCt = document.getElementById('ct-cliente');
-    const selFpj = document.getElementById('filtro-cliente-proj');
-    const selFct = document.getElementById('filtro-cliente-ct');
     const opts = todosClientes.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
-    selCt.innerHTML = '<option value="">Selecionar...</option>' + opts;
-    selFpj.innerHTML = '<option value="">Todos os clientes</option>' +
-        todosClientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
-    selFct.innerHTML = '<option value="">Todos os clientes</option>' +
-        todosClientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+    document.getElementById('ct-cliente').innerHTML = '<option value="">Selecionar...</option>' + opts;
+    document.getElementById('np-cliente').innerHTML = '<option value="">Selecionar cliente...</option>' + opts;
+
+    const optsNome = todosClientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+    document.getElementById('filtro-cliente-proj').innerHTML = '<option value="">Todos os clientes</option>' + optsNome;
+    document.getElementById('filtro-cliente-ct').innerHTML = '<option value="">Todos os clientes</option>' + optsNome;
 }
 
 function popularSelectsUsuarios() {
@@ -487,6 +651,7 @@ function popularSelectsUsuarios() {
         todosUsuarios.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
     document.getElementById('proj-responsavel').innerHTML = opts;
     document.getElementById('ct-responsavel').innerHTML = opts;
+    document.getElementById('np-responsavel').innerHTML = opts;
 }
 
 // ── Render projetos ────────────────────────────────────────
@@ -500,37 +665,99 @@ function filtrar() {
         (!st || p.status_gestao === st) &&
         (!cl || p.cliente === cl)
     );
-    renderProjetos(lista);
+    agruparPorCliente ? renderProjetosAgrupados(lista) : renderProjetos(lista);
 }
 
 function renderProjetos(lista) {
     document.getElementById('badge-projetos').textContent = lista.length;
     document.getElementById('count-projetos').textContent = `${lista.length} projeto${lista.length !== 1 ? 's' : ''}`;
+    document.getElementById('thead-projetos').style.display = '';
     const tbody = document.getElementById('tabela-projetos');
     if (!lista.length) {
         tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">
             <i class="ph ph-folder-open text-3xl block mb-2 mx-auto"></i>Nenhum projeto encontrado</td></tr>`;
         return;
     }
-    tbody.innerHTML = lista.map(p => {
-        const editBtn = canWrite
-            ? `<button onclick="abrirModalProj(${p.id})" title="Editar gestão" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
-            : '';
-        const commentBtn = `<button onclick="abrirComentariosDireto(${p.id},'${escHtml(p.cliente)} · ${escHtml(p.nome)}')" title="Comentários" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-300 hover:text-slate-600 transition-colors"><i class="ph ph-chat-circle-dots text-sm"></i></button>`;
-        return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
-            <td class="px-5 py-3">
-                <div class="text-xs text-faiston-muted font-medium">${escHtml(p.cliente)}</div>
-                <div class="font-semibold text-faiston-dark text-sm">${escHtml(p.nome)}</div>
-            </td>
-            <td class="px-5 py-3 text-sm text-slate-600">${p.responsavel ? escHtml(p.responsavel) : '<span class="text-slate-300 text-xs italic">—</span>'}</td>
-            <td class="px-5 py-3">${statusBadge(p.status_gestao, STATUS_PROJ)}</td>
-            <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_inicio)}</td>
-            <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_termino)}</td>
-            <td class="px-5 py-3 text-xs text-slate-500 max-w-[200px] truncate" title="${escHtml(p.escopo)}">${p.escopo ? escHtml(p.escopo) : '<span class="text-slate-300 italic">—</span>'}</td>
-            <td class="px-5 py-3">
-                <div class="flex items-center gap-1 justify-end">${editBtn}${commentBtn}</div>
+    tbody.innerHTML = lista.map(p => projetoRow(p)).join('');
+}
+
+function projetoRow(p) {
+    const clienteLink = `<a href="/clientes" title="Ver cliente" class="ml-1 text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-arrow-square-out text-[10px]"></i></a>`;
+    const editBtn = canWrite
+        ? `<button onclick="abrirModalProj(${p.id})" title="Editar gestão" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
+        : '';
+    const commentBtn = `<button onclick="abrirComentariosDireto(${p.id},'${escHtml(p.cliente)} · ${escHtml(p.nome)}')" title="Comentários" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-300 hover:text-slate-600 transition-colors"><i class="ph ph-chat-circle-dots text-sm"></i></button>`;
+    return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
+        <td class="px-5 py-3">
+            <div class="flex items-center gap-1 text-xs text-faiston-muted font-medium">${escHtml(p.cliente)}${clienteLink}</div>
+            <div class="font-semibold text-faiston-dark text-sm">${escHtml(p.nome)}</div>
+        </td>
+        <td class="px-5 py-3 text-sm text-slate-600">${p.responsavel ? escHtml(p.responsavel) : '<span class="text-slate-300 text-xs italic">—</span>'}</td>
+        <td class="px-5 py-3">${statusBadge(p.status_gestao, STATUS_PROJ)}</td>
+        <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_inicio)}</td>
+        <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_termino)}</td>
+        <td class="px-5 py-3 text-xs text-slate-500 max-w-[200px] truncate" title="${escHtml(p.escopo)}">${p.escopo ? escHtml(p.escopo) : '<span class="text-slate-300 italic">—</span>'}</td>
+        <td class="px-5 py-3">
+            <div class="flex items-center gap-1 justify-end">${editBtn}${commentBtn}</div>
+        </td>
+    </tr>`;
+}
+
+function renderProjetosAgrupados(lista) {
+    document.getElementById('badge-projetos').textContent = lista.length;
+    document.getElementById('count-projetos').textContent = `${lista.length} projeto${lista.length !== 1 ? 's' : ''}`;
+    document.getElementById('thead-projetos').style.display = 'none';
+    const tbody = document.getElementById('tabela-projetos');
+    if (!lista.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">
+            <i class="ph ph-folder-open text-3xl block mb-2 mx-auto"></i>Nenhum projeto encontrado</td></tr>`;
+        return;
+    }
+
+    // Agrupar por cliente
+    const grupos = {};
+    lista.forEach(p => {
+        if (!grupos[p.cliente]) grupos[p.cliente] = { cliente_id: p.cliente_id, projetos: [] };
+        grupos[p.cliente].projetos.push(p);
+    });
+
+    tbody.innerHTML = Object.entries(grupos).map(([clienteNome, g]) => {
+        const andamentoCount = g.projetos.filter(p => p.status_gestao === 'EM ANDAMENTO').length;
+        const headerRow = `<tr class="grupo-header border-b border-faiston-border" style="background:rgba(91,46,224,0.04)">
+            <td colspan="7" class="px-5 py-2.5">
+                <div class="flex items-center gap-3">
+                    <div class="w-5 h-5 rounded grad-bg flex items-center justify-center flex-shrink-0">
+                        <i class="ph ph-buildings text-white text-[9px]"></i>
+                    </div>
+                    <span class="text-xs font-bold text-faiston-dark">${escHtml(clienteNome)}</span>
+                    <span class="text-[10px] font-semibold text-faiston-purple bg-faiston-purple/10 px-1.5 py-0.5 rounded-full">${g.projetos.length} projeto${g.projetos.length !== 1 ? 's' : ''}</span>
+                    ${andamentoCount > 0 ? `<span class="text-[10px] text-faiston-cyan font-semibold">${andamentoCount} em andamento</span>` : ''}
+                    <a href="/clientes" class="ml-auto text-[11px] text-faiston-purple hover:text-faiston-magenta flex items-center gap-1 transition-colors font-medium">
+                        Ver cliente <i class="ph ph-arrow-square-out text-[10px]"></i>
+                    </a>
+                </div>
             </td>
         </tr>`;
+        const projRows = g.projetos.map(p => {
+            const editBtn = canWrite
+                ? `<button onclick="abrirModalProj(${p.id})" title="Editar gestão" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
+                : '';
+            const commentBtn = `<button onclick="abrirComentariosDireto(${p.id},'${escHtml(p.cliente)} · ${escHtml(p.nome)}')" title="Comentários" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-300 hover:text-slate-600 transition-colors"><i class="ph ph-chat-circle-dots text-sm"></i></button>`;
+            return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
+                <td class="px-5 py-3 pl-12">
+                    <div class="font-semibold text-faiston-dark text-sm">${escHtml(p.nome)}</div>
+                </td>
+                <td class="px-5 py-3 text-sm text-slate-600">${p.responsavel ? escHtml(p.responsavel) : '<span class="text-slate-300 text-xs italic">—</span>'}</td>
+                <td class="px-5 py-3">${statusBadge(p.status_gestao, STATUS_PROJ)}</td>
+                <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_inicio)}</td>
+                <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_termino)}</td>
+                <td class="px-5 py-3 text-xs text-slate-500 max-w-[200px] truncate" title="${escHtml(p.escopo)}">${p.escopo ? escHtml(p.escopo) : '<span class="text-slate-300 italic">—</span>'}</td>
+                <td class="px-5 py-3">
+                    <div class="flex items-center gap-1 justify-end">${editBtn}${commentBtn}</div>
+                </td>
+            </tr>`;
+        }).join('');
+        return headerRow + projRows;
     }).join('');
 }
 
@@ -558,12 +785,13 @@ function renderContratos(lista) {
     }
     tbody.innerHTML = lista.map(c => {
         const sdmFmt = c.sdm ? Number(c.sdm).toLocaleString('pt-BR', {minimumFractionDigits:0, maximumFractionDigits:2}) : '—';
+        const clienteLink = `<a href="/clientes" title="Ver cliente" class="ml-1 text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-arrow-square-out text-[10px]"></i></a>`;
         const editBtn = canWrite
             ? `<button onclick="abrirModalCt(${c.id})" title="Editar" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
             : '';
         return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
             <td class="px-5 py-3">
-                <div class="text-xs text-faiston-muted font-medium">${escHtml(c.cliente)}</div>
+                <div class="flex items-center gap-1 text-xs text-faiston-muted font-medium">${escHtml(c.cliente)}${clienteLink}</div>
                 <div class="font-semibold text-faiston-dark text-sm">${escHtml(c.nome)}</div>
             </td>
             <td class="px-5 py-3 text-sm font-mono text-slate-600">${sdmFmt}</td>
@@ -578,7 +806,7 @@ function renderContratos(lista) {
     }).join('');
 }
 
-// ── Modal Projeto ──────────────────────────────────────────
+// ── Modal Projeto (editar) ─────────────────────────────────
 function abrirModalProj(pid) {
     const p = todosProjetos.find(x => x.id === pid);
     if (!p) return;
@@ -621,6 +849,67 @@ async function salvarProjeto() {
         await carregar();
     } catch(e) { alert('Erro de conexão'); }
     finally { btn.disabled = false; btn.textContent = 'Salvar'; }
+}
+
+// ── Modal Novo Projeto (criar vinculando ao cliente) ───────
+function abrirModalNovoProj() {
+    document.getElementById('np-cliente').value = '';
+    document.getElementById('np-nome').value = '';
+    document.getElementById('np-responsavel').value = '';
+    document.getElementById('np-status').value = 'AGUARDANDO';
+    document.getElementById('np-orcamento').value = '';
+    document.getElementById('np-inicio').value = '';
+    document.getElementById('np-termino').value = '';
+    document.getElementById('np-escopo').value = '';
+    document.getElementById('modal-novo-proj').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('np-nome').focus(), 80);
+}
+
+function fecharModalNovoProj() {
+    document.getElementById('modal-novo-proj').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+async function criarProjeto() {
+    const clienteId = parseInt(document.getElementById('np-cliente').value);
+    const nome = document.getElementById('np-nome').value.trim();
+    if (!clienteId) { alert('Selecione um cliente.'); return; }
+    if (!nome) { alert('Informe o nome do projeto.'); return; }
+    const btn = document.getElementById('btn-criar-proj');
+    btn.disabled = true; btn.textContent = 'Criando...';
+    try {
+        // 1. Cria o projeto vinculado ao cliente
+        const r1 = await fetch(`/api/clientes/${clienteId}/projetos`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                nome,
+                orcamento: parseFloat(document.getElementById('np-orcamento').value) || 0,
+                descricao: document.getElementById('np-escopo').value.trim() || ''
+            })
+        });
+        if (!r1.ok) { const d = await r1.json(); alert(d.detail || 'Erro ao criar projeto'); return; }
+        const proj = await r1.json();
+
+        // 2. Atualiza os campos de gestão
+        const gestaoBody = {
+            responsavel_id: parseInt(document.getElementById('np-responsavel').value) || null,
+            status_gestao: document.getElementById('np-status').value,
+            data_inicio: document.getElementById('np-inicio').value || null,
+            data_termino: document.getElementById('np-termino').value || null,
+            escopo: document.getElementById('np-escopo').value.trim() || null,
+        };
+        await fetch(`/api/gestao/projetos/${proj.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(gestaoBody)
+        });
+
+        fecharModalNovoProj();
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+    finally { btn.disabled = false; btn.textContent = 'Criar Projeto'; }
 }
 
 // ── Modal Comentários ──────────────────────────────────────
@@ -685,7 +974,8 @@ async function enviarComentario() {
 
 // ── Modal Contrato ─────────────────────────────────────────
 function abrirModalNovo() {
-    if (tabAtiva === 'contratos') abrirModalCt(null);
+    if (tabAtiva === 'projetos') abrirModalNovoProj();
+    else abrirModalCt(null);
 }
 
 function abrirModalCt(cid) {
@@ -777,15 +1067,14 @@ async function logout() {
     window.location.href = '/';
 }
 
-// ── Keyboard close ──────────────────────────────────────────
+// ── Keyboard & backdrop ────────────────────────────────────
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { fecharModalProj(); fecharModalCt(); fecharComentarios(); }
+    if (e.key === 'Escape') { fecharModalProj(); fecharModalCt(); fecharComentarios(); fecharModalNovoProj(); }
 });
 document.getElementById('modal-proj').addEventListener('click', e => { if (e.target === document.getElementById('modal-proj')) fecharModalProj(); });
+document.getElementById('modal-novo-proj').addEventListener('click', e => { if (e.target === document.getElementById('modal-novo-proj')) fecharModalNovoProj(); });
 document.getElementById('modal-contrato').addEventListener('click', e => { if (e.target === document.getElementById('modal-contrato')) fecharModalCt(); });
 document.getElementById('modal-comentarios').addEventListener('click', e => { if (e.target === document.getElementById('modal-comentarios')) fecharComentarios(); });
-
-// ── Enter no textarea de comentário ─────────────────────────
 document.getElementById('novo-comentario').addEventListener('keydown', e => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) enviarComentario();
 });
