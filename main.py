@@ -172,6 +172,48 @@ def setup_banco():
                 expira_em TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
             )
         """)
+        # ── Clientes e Projetos (criados aqui para gestão funcionar sem acessar financeiro) ──
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS clientes (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(100) UNIQUE NOT NULL,
+                contato VARCHAR(100),
+                email VARCHAR(100),
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS telefone VARCHAR(50) DEFAULT ''")
+        cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cnpj VARCHAR(30) DEFAULT ''")
+        cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS observacoes TEXT DEFAULT ''")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS projetos (
+                id SERIAL PRIMARY KEY,
+                cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+                nome VARCHAR(100) NOT NULL,
+                descricao TEXT DEFAULT '',
+                orcamento NUMERIC(14,2) DEFAULT 0,
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_url TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_mapeamento JSONB")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_sync_em TIMESTAMP")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_replace BOOLEAN DEFAULT FALSE")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS lancamentos (
+                id SERIAL PRIMARY KEY,
+                projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+                descricao VARCHAR(200) NOT NULL,
+                categoria VARCHAR(50) DEFAULT 'Outros',
+                valor NUMERIC(14,2) NOT NULL,
+                data_lancamento DATE DEFAULT CURRENT_DATE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS localidade VARCHAR(150) DEFAULT ''")
+        cur.execute("ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS tecnico VARCHAR(150) DEFAULT ''")
         # ── Gestão de Projetos ──────────────────────────────────────────────
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS responsavel_id INTEGER REFERENCES usuarios(id) DEFAULT NULL")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS status_gestao VARCHAR(30) DEFAULT 'EM ANDAMENTO'")

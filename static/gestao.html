@@ -71,6 +71,11 @@
     [data-theme='dark'] .workload-row { border-color:rgba(255,255,255,0.06) !important; }
     [data-theme='dark'] .alerta-row { background:rgba(236,72,153,0.05) !important; }
     [data-theme='dark'] .alerta-row-warn { background:rgba(245,158,11,0.05) !important; }
+    /* Sidebar active nav */
+    [data-theme='dark'] #nav-gestao button[style*="rgba(91,46,224,0.08)"],
+    [data-theme='dark'] #nav-gestao a[style*="rgba(91,46,224,0.08)"] { background:rgba(91,46,224,0.2) !important; }
+    [data-theme='dark'] #nav-pmo { color:#94a3b8 !important; }
+    [data-theme='dark'] #pmo-atencao-list { border-color:rgba(255,255,255,0.06) !important; }
     </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
@@ -78,43 +83,17 @@
 <!-- SIDEBAR -->
 <aside class="w-52 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar flex-shrink-0">
     <div>
-        <div class="flex items-center gap-2.5 p-5 border-b border-faiston-border mb-4">
+        <div class="flex items-center gap-2.5 p-5 border-b border-faiston-border mb-3">
             <div class="w-8 h-8 rounded-[10px] grad-bg flex items-center justify-center glow-soft">
                 <i class="ph-fill ph-play text-white text-sm"></i>
             </div>
             <h1 class="text-[14px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
         </div>
         <div class="px-3">
-            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
-            <nav class="flex flex-col gap-1 mb-6">
-                <div class="flex flex-col">
-                    <a href="/dashboard" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
-                        <div class="flex items-center gap-2 font-semibold text-sm text-white"><i class="ph ph-network text-base"></i> Backoffice</div>
-                    </a>
-                </div>
-                <div class="flex flex-col mt-1">
-                    <a href="#" onclick="toggleProjetos(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
-                        <div class="flex items-center gap-2 font-semibold text-sm text-white"><i class="ph ph-folder-open text-base"></i> Projetos</div>
-                        <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-projetos"></i>
-                    </a>
-                    <div id="submenu-projetos" class="flex flex-col pl-8 py-2 gap-2.5 relative">
-                        <div class="absolute left-5 top-1 bottom-3 w-px bg-slate-200"></div>
-                        <a href="/clientes" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-2.5 relative transition-colors">
-                            <div class="absolute -left-[11px] w-1.5 h-1.5 rounded-full bg-slate-300"></div>Clientes
-                        </a>
-                        <a href="/financeiro" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-2.5 relative transition-colors">
-                            <div class="absolute -left-[11px] w-1.5 h-1.5 rounded-full bg-slate-300"></div>Financeiro
-                        </a>
-                    </div>
-                </div>
-            </nav>
-            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
-            <nav class="flex flex-col gap-1">
-                <a href="/gestao" class="flex items-center gap-2 bg-faiston-purple/10 text-faiston-purple font-semibold text-sm rounded-md p-2.5 border border-faiston-purple/20">
-                    <i class="ph ph-briefcase text-base"></i> Gestão
-                </a>
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Operações</p>
+            <nav class="flex flex-col gap-1 mb-4">
                 <a href="/dashboard" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-chart-line-up text-base"></i> Dashboard
+                    <i class="ph ph-network text-base"></i> Backoffice
                 </a>
                 <a href="/historico" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-base"></i> Histórico
@@ -125,10 +104,32 @@
                 <a href="/api/relatorio-mensal/preview" target="_blank" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-file-pdf text-base"></i> Relatório Mensal
                 </a>
-                <a href="/admin" id="link-admin" class="hidden flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+            </nav>
+
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
+            <nav class="flex flex-col gap-0.5" id="nav-gestao">
+                <a href="/clientes" class="nav-gestao-item flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-buildings text-base"></i> Clientes
+                </a>
+                <button onclick="setTab('projetos')" id="nav-projetos" class="nav-gestao-item flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors w-full text-left">
+                    <i class="ph ph-folder-open text-base"></i> Projetos
+                </button>
+                <button onclick="setTab('contratos')" id="nav-contratos" class="nav-gestao-item flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors w-full text-left">
+                    <i class="ph ph-file-text text-base"></i> Contratos
+                </button>
+                <button onclick="setTab('pmo')" id="nav-pmo" class="hidden nav-gestao-item flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors w-full text-left">
+                    <i class="ph ph-chart-bar text-base"></i> Visão PMO
+                </button>
+            </nav>
+
+            <div class="mt-4 pt-4 border-t border-faiston-border">
+                <a href="/financeiro" class="flex items-center gap-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-currency-circle-dollar text-base"></i> Financeiro
+                </a>
+                <a href="/admin" id="link-admin" class="hidden flex items-center gap-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-gear text-base"></i> Admin
                 </a>
-            </nav>
+            </div>
         </div>
     </div>
     <div class="p-4 border-t border-faiston-border">
@@ -222,38 +223,6 @@
             </div>
         </div>
 
-        <!-- TABS -->
-        <div class="flex items-center justify-between mb-5">
-            <div class="flex items-center gap-1 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
-                <button onclick="setTab('projetos')" id="tab-projetos"
-                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                    style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
-                    <i class="ph ph-folder-open text-base"></i> Projetos
-                    <span id="badge-projetos" class="text-[10px] font-bold bg-faiston-purple/15 text-faiston-purple px-1.5 py-0.5 rounded-full ml-0.5">0</span>
-                </button>
-                <button onclick="setTab('contratos')" id="tab-contratos"
-                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                    style="background:transparent;color:#9097AC;box-shadow:none">
-                    <i class="ph ph-file-text text-base"></i> Contratos
-                    <span id="badge-contratos" class="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full ml-0.5">0</span>
-                </button>
-                <button onclick="setTab('pmo')" id="tab-pmo"
-                    class="hidden flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                    style="background:transparent;color:#9097AC;box-shadow:none">
-                    <i class="ph ph-chart-bar text-base"></i> Visão PMO
-                </button>
-            </div>
-            <!-- Agrupamento toggle (só projetos) -->
-            <div id="toggle-grupo" class="hidden flex items-center gap-2">
-                <span class="text-xs text-faiston-faint">Agrupar por cliente</span>
-                <button onclick="toggleAgrupamento()" id="btn-agrupar"
-                    class="relative w-9 h-5 rounded-full transition-colors duration-200 bg-slate-200 focus:outline-none"
-                    style="">
-                    <span id="agrupar-thumb" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"></span>
-                </button>
-            </div>
-        </div>
-
         <!-- PROJETOS -->
         <div id="view-projetos">
             <div class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
@@ -268,8 +237,19 @@
                         <select id="filtro-cliente-proj" onchange="filtrar()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
                             <option value="">Todos os clientes</option>
                         </select>
+                        <span id="badge-projetos" class="hidden text-[10px] font-bold bg-faiston-purple/15 text-faiston-purple px-1.5 py-0.5 rounded-full">0</span>
                     </div>
-                    <span class="text-xs text-faiston-faint" id="count-projetos">0 projetos</span>
+                    <div class="flex items-center gap-3">
+                        <!-- Agrupamento toggle -->
+                        <div id="toggle-grupo" class="hidden flex items-center gap-2">
+                            <span class="text-xs text-faiston-faint">Agrupar</span>
+                            <button onclick="toggleAgrupamento()" id="btn-agrupar"
+                                class="relative w-9 h-5 rounded-full transition-colors duration-200 bg-slate-200 focus:outline-none">
+                                <span id="agrupar-thumb" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"></span>
+                            </button>
+                        </div>
+                        <span class="text-xs text-faiston-faint" id="count-projetos">0 projetos</span>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm" id="tabela-proj-wrap">
@@ -296,33 +276,139 @@
 
         <!-- PMO -->
         <div id="view-pmo" class="hidden">
-            <!-- Linha 1: Donut + Workload -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-                <!-- Donut: Portfolio de Status -->
-                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm">
-                    <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-4">Portfolio — Status</p>
-                    <div id="chart-donut" style="min-height:200px"></div>
+            <!-- HEADER GRADIENT -->
+            <div class="rounded-2xl mb-5 p-6 relative overflow-hidden" style="background:linear-gradient(135deg,#5B2EE0 0%,#B826C9 60%,#EC4899 100%)">
+                <div class="relative z-10">
+                    <div class="flex items-start justify-between flex-wrap gap-3">
+                        <div>
+                            <p class="text-white/60 text-[10px] font-bold uppercase tracking-[0.15em] mb-1">FAISTON OPS · Painel Executivo</p>
+                            <h2 class="text-white text-2xl font-black tracking-tight">Visão PMO</h2>
+                            <p class="text-white/70 text-sm mt-0.5">Portfólio consolidado de projetos e contratos</p>
+                        </div>
+                        <div class="flex flex-col items-end gap-2">
+                            <span id="pmo-saude-pill" class="px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-white border border-white/30">Calculando...</span>
+                            <p class="text-white/50 text-[11px]" id="pmo-header-date"></p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-6 mt-5 pt-4 border-t border-white/20">
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Total Projetos</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-proj">—</p>
+                        </div>
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Contratos</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-ct">—</p>
+                        </div>
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Clientes Ativos</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-cli">—</p>
+                        </div>
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Atrasados</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-atrasados">—</p>
+                        </div>
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Vencem em 14d</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-em14">—</p>
+                        </div>
+                    </div>
                 </div>
-                <!-- Workload: Responsáveis -->
-                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm lg:col-span-2">
-                    <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-4">Carga por Responsável</p>
-                    <div id="pmo-workload" class="flex flex-col gap-2"></div>
+                <div class="absolute -right-10 -top-10 w-52 h-52 rounded-full opacity-10 bg-white"></div>
+                <div class="absolute right-20 -bottom-16 w-40 h-40 rounded-full opacity-10 bg-white"></div>
+            </div>
+
+            <!-- KPI CARDS -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(6,215,230,0.12)">
+                        <i class="ph ph-play text-sm" style="color:#06D7E6"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-andamento">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Em Andamento</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(245,158,11,0.12)">
+                        <i class="ph ph-flag-checkered text-sm text-amber-500"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-finalizacao">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Finalização</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(148,163,184,0.15)">
+                        <i class="ph ph-snowflake text-sm text-slate-400"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-freezing">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Em Freezing</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(236,72,153,0.1)">
+                        <i class="ph ph-warning text-sm text-faiston-pink"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-atrasados">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Atrasados</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(245,158,11,0.1)">
+                        <i class="ph ph-clock-countdown text-sm text-amber-500"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-em14">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Vencem em 14d</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(91,46,224,0.1)">
+                        <i class="ph ph-file-text text-sm text-faiston-purple"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-contratos">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Contratos Ativos</p>
                 </div>
             </div>
-            <!-- Linha 2: Timeline (Gantt) -->
-            <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm mb-4">
-                <div class="flex items-center justify-between mb-4">
-                    <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Linha do Tempo — Projetos com Datas</p>
-                    <span class="text-[10px] text-faiston-faint" id="gantt-periodo"></span>
+
+            <!-- MAIN ROW: Alertas + Workload | Gantt -->
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-5">
+                <!-- LEFT COL: Alertas críticos + Workload -->
+                <div class="lg:col-span-2 flex flex-col gap-4">
+                    <!-- Alertas críticos (atrasados) -->
+                    <div class="pmo-card bg-white rounded-xl border border-faiston-border shadow-sm overflow-hidden">
+                        <div class="px-5 py-3 border-b flex items-center gap-2" style="background:rgba(236,72,153,0.06);border-color:rgba(236,72,153,0.2)">
+                            <i class="ph ph-warning-octagon text-faiston-pink text-base"></i>
+                            <p class="text-[11px] font-bold text-faiston-pink uppercase tracking-wider">Atenção — Requerem Ação</p>
+                            <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-faiston-pink/10 text-faiston-pink" id="pmo-atencao-count"></span>
+                        </div>
+                        <div id="pmo-atencao-list" class="divide-y divide-faiston-border max-h-72 overflow-y-auto custom-scrollbar">
+                            <div class="text-center py-6 text-slate-300 text-sm">Carregando...</div>
+                        </div>
+                    </div>
+                    <!-- Workload por responsável -->
+                    <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm flex-1">
+                        <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-4">Carga por Responsável</p>
+                        <div id="pmo-workload" class="flex flex-col gap-2.5 max-h-80 overflow-y-auto custom-scrollbar"></div>
+                    </div>
                 </div>
-                <div id="pmo-gantt" class="overflow-x-auto">
-                    <div class="text-center py-8 text-slate-300 text-sm">Carregando...</div>
+
+                <!-- RIGHT COL: Donut + Gantt -->
+                <div class="lg:col-span-3 flex flex-col gap-4">
+                    <!-- Donut: distribuição de status -->
+                    <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm">
+                        <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Distribuição — Status do Portfolio</p>
+                        <div id="chart-donut" style="min-height:200px"></div>
+                    </div>
+                    <!-- Gantt -->
+                    <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm flex-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Linha do Tempo</p>
+                            <span class="text-[10px] text-faiston-faint" id="gantt-periodo"></span>
+                        </div>
+                        <div id="pmo-gantt" class="overflow-x-auto">
+                            <div class="text-center py-8 text-slate-300 text-sm">Carregando...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <!-- Linha 3: Alertas -->
+
+            <!-- Todos os alertas -->
             <div class="pmo-card bg-white rounded-xl border border-faiston-border shadow-sm overflow-hidden">
                 <div class="px-5 py-3.5 border-b border-faiston-border bg-slate-50/70 flex items-center justify-between">
-                    <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Alertas do Portfolio</p>
+                    <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Todos os Alertas do Portfolio</p>
                     <span class="text-xs text-faiston-faint" id="pmo-alerta-count"></span>
                 </div>
                 <div id="pmo-alertas" class="divide-y divide-faiston-border">
@@ -655,15 +741,21 @@ function toggleAgrupamento() {
 function setTab(tab) {
     tabAtiva = tab;
     ['projetos','contratos','pmo'].forEach(t => {
-        const btn = document.getElementById(`tab-${t}`);
         const view = document.getElementById(`view-${t}`);
+        const navBtn = document.getElementById(`nav-${t}`);
         const active = t === tab;
-        if (btn) {
-            btn.style.background = active ? 'white' : 'transparent';
-            btn.style.color = active ? '#0B0D1F' : '#9097AC';
-            btn.style.boxShadow = active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none';
-        }
         if (view) view.classList.toggle('hidden', !active);
+        if (navBtn) {
+            if (active) {
+                navBtn.style.background = 'rgba(91,46,224,0.08)';
+                navBtn.style.color = '#5B2EE0';
+                navBtn.style.fontWeight = '700';
+            } else {
+                navBtn.style.background = '';
+                navBtn.style.color = '';
+                navBtn.style.fontWeight = '';
+            }
+        }
     });
 
     const toggleGrupo = document.getElementById('toggle-grupo');
@@ -743,7 +835,6 @@ function filtrar() {
 }
 
 function renderProjetos(lista) {
-    document.getElementById('badge-projetos').textContent = lista.length;
     document.getElementById('count-projetos').textContent = `${lista.length} projeto${lista.length !== 1 ? 's' : ''}`;
     document.getElementById('thead-projetos').style.display = '';
     const tbody = document.getElementById('tabela-projetos');
@@ -781,7 +872,6 @@ function projetoRow(p) {
 }
 
 function renderProjetosAgrupados(lista) {
-    document.getElementById('badge-projetos').textContent = lista.length;
     document.getElementById('count-projetos').textContent = `${lista.length} projeto${lista.length !== 1 ? 's' : ''}`;
     document.getElementById('thead-projetos').style.display = 'none';
     const tbody = document.getElementById('tabela-projetos');
@@ -855,7 +945,6 @@ function filtrarContratos() {
 }
 
 function renderContratos(lista) {
-    document.getElementById('badge-contratos').textContent = lista.length;
     document.getElementById('count-contratos').textContent = `${lista.length} contrato${lista.length !== 1 ? 's' : ''}`;
     const tbody = document.getElementById('tabela-contratos');
     if (!lista.length) {
@@ -1167,10 +1256,117 @@ document.getElementById('novo-comentario').addEventListener('keydown', e => {
 let _donutChart = null;
 
 function renderPMO() {
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const em14 = new Date(hoje); em14.setDate(em14.getDate() + 14);
+
+    // Header stats
+    document.getElementById('pmo-header-date').textContent =
+        hoje.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+    document.getElementById('pmo-h-proj').textContent = todosProjetos.length;
+    document.getElementById('pmo-h-ct').textContent = todosContratos.length;
+    document.getElementById('pmo-h-cli').textContent = todosClientes.length;
+
+    const atrasados = todosProjetos.filter(p =>
+        p.data_termino && new Date(p.data_termino) < hoje && p.status_gestao !== 'EM FREEZING'
+    ).length;
+    const em14d = todosProjetos.filter(p => {
+        if (!p.data_termino || p.status_gestao === 'EM FREEZING') return false;
+        const t = new Date(p.data_termino);
+        return t >= hoje && t <= em14;
+    }).length;
+
+    document.getElementById('pmo-h-atrasados').textContent = atrasados;
+    document.getElementById('pmo-h-em14').textContent = em14d;
+
+    // Saúde pill
+    const pill = document.getElementById('pmo-saude-pill');
+    if (atrasados === 0) {
+        pill.textContent = '● Portfólio Saudável';
+        pill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/30 text-white border border-emerald-300/50';
+    } else if (atrasados <= 3) {
+        pill.textContent = `⚠ ${atrasados} Atraso${atrasados > 1 ? 's' : ''}`;
+        pill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-400/30 text-white border border-amber-300/50';
+    } else {
+        pill.textContent = `⚠ ${atrasados} Atrasados`;
+        pill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-red-500/30 text-white border border-red-300/50';
+    }
+
+    // KPI cards
+    const andamento = todosProjetos.filter(p => p.status_gestao === 'EM ANDAMENTO').length;
+    const finalizacao = todosProjetos.filter(p => p.status_gestao === 'FINALIZAÇÃO').length;
+    const freezing = todosProjetos.filter(p => p.status_gestao === 'EM FREEZING').length;
+    const ctAtivos = todosContratos.filter(c => c.status === 'EM IMPLANTAÇÃO').length;
+    document.getElementById('pmo-k-andamento').textContent = andamento;
+    document.getElementById('pmo-k-finalizacao').textContent = finalizacao;
+    document.getElementById('pmo-k-freezing').textContent = freezing;
+    document.getElementById('pmo-k-atrasados').textContent = atrasados;
+    document.getElementById('pmo-k-em14').textContent = em14d;
+    document.getElementById('pmo-k-contratos').textContent = ctAtivos;
+
+    renderAtencao();
     renderDonut();
     renderWorkload();
     renderGantt();
     renderAlertas();
+}
+
+function renderAtencao() {
+    const el = document.getElementById('pmo-atencao-list');
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const em14 = new Date(hoje); em14.setDate(em14.getDate() + 14);
+
+    const items = [];
+    todosProjetos.forEach(p => {
+        if (p.status_gestao === 'EM FREEZING') return;
+        if (p.data_termino) {
+            const t = new Date(p.data_termino);
+            if (t < hoje) {
+                const diasAtraso = Math.round((hoje - t) / (1000*60*60*24));
+                items.push({ tipo: 'erro', p, diasAtraso });
+            } else if (t <= em14) {
+                const diasRestam = Math.round((t - hoje) / (1000*60*60*24));
+                items.push({ tipo: 'warn', p, diasRestam });
+            }
+        }
+    });
+
+    document.getElementById('pmo-atencao-count').textContent = items.length || '';
+
+    if (!items.length) {
+        el.innerHTML = `<div class="flex flex-col items-center py-6 gap-2">
+            <i class="ph ph-check-circle text-2xl text-emerald-400"></i>
+            <p class="text-xs text-emerald-600 font-semibold">Nenhum projeto em atraso</p>
+        </div>`;
+        return;
+    }
+
+    el.innerHTML = items.map(item => {
+        const p = item.p;
+        const resp = p.responsavel || p.responsavel_texto || '—';
+        if (item.tipo === 'erro') {
+            return `<div class="px-4 py-3 hover:bg-faiston-pink/5 transition-colors" style="border-left:3px solid #EC4899">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold text-faiston-pink uppercase tracking-wide">⚠ Atrasado ${item.diasAtraso}d</p>
+                        <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(p.nome)}</p>
+                        <p class="text-[11px] text-faiston-muted">${escHtml(p.cliente)} · ${escHtml(resp)}</p>
+                    </div>
+                    ${canWrite ? `<button onclick="setTab('projetos');setTimeout(()=>abrirModalProj(${p.id}),150)" class="flex-shrink-0 text-[10px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors mt-1">Editar</button>` : ''}
+                </div>
+            </div>`;
+        } else {
+            return `<div class="px-4 py-3 hover:bg-amber-50/60 transition-colors" style="border-left:3px solid #f59e0b">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold text-amber-600 uppercase tracking-wide">⏰ Vence em ${item.diasRestam}d</p>
+                        <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(p.nome)}</p>
+                        <p class="text-[11px] text-faiston-muted">${escHtml(p.cliente)} · ${escHtml(resp)}</p>
+                    </div>
+                    ${canWrite ? `<button onclick="setTab('projetos');setTimeout(()=>abrirModalProj(${p.id}),150)" class="flex-shrink-0 text-[10px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors mt-1">Editar</button>` : ''}
+                </div>
+            </div>`;
+        }
+    }).join('');
 }
 
 function renderDonut() {
@@ -1490,12 +1686,12 @@ async function init() {
         }
         canWrite = me.perfil === 'admin' || me.perfil === 'gestor';
 
-        // Aba PMO: visível apenas para diretor e admin
-        const tabPMO = document.getElementById('tab-pmo');
+        // PMO: visível apenas para diretor e admin
+        const navPMO = document.getElementById('nav-pmo');
         if (me.perfil === 'diretor' || me.perfil === 'admin') {
-            tabPMO.classList.remove('hidden');
+            navPMO.classList.remove('hidden');
         } else {
-            tabPMO.classList.add('hidden');
+            navPMO.classList.add('hidden');
         }
     } catch(e) { window.location.href = '/'; return; }
     await carregar();
