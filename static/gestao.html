@@ -81,65 +81,86 @@
 <body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
 
 <!-- SIDEBAR -->
-<aside class="w-52 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar flex-shrink-0">
+<aside class="w-64 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar flex-shrink-0">
     <div>
-        <div class="flex items-center gap-2.5 p-5 border-b border-faiston-border mb-3">
-            <div class="w-8 h-8 rounded-[10px] grad-bg flex items-center justify-center glow-soft">
-                <i class="ph-fill ph-play text-white text-sm"></i>
+        <div class="flex items-center gap-2.5 p-6 border-b border-faiston-border mb-4">
+            <div class="w-9 h-9 rounded-[10px] grad-bg flex items-center justify-center glow-soft">
+                <i class="ph-fill ph-play text-white text-base"></i>
             </div>
-            <h1 class="text-[14px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
+            <h1 class="text-[15px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
         </div>
-        <div class="px-3">
-            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Operações</p>
+        <div class="px-4">
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
             <nav class="flex flex-col gap-1 mb-4">
-                <a href="/dashboard" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-network text-base"></i> Backoffice
-                </a>
-                <a href="/historico" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-clock-clockwise text-base"></i> Histórico
-                </a>
-                <a href="/apresentacao" target="_blank" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-presentation-chart text-base"></i> Apresentação
-                </a>
-                <a href="/api/relatorio-mensal/preview" target="_blank" class="flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-file-pdf text-base"></i> Relatório Mensal
-                </a>
+                <!-- Backoffice -->
+                <div class="flex flex-col">
+                    <a href="/dashboard" class="flex items-center gap-2.5 btn-grad rounded-lg p-2.5">
+                        <i class="ph ph-network text-lg text-white"></i>
+                        <span class="font-semibold text-sm text-white flex-1">Backoffice</span>
+                    </a>
+                </div>
+                <!-- Projetos (expandido — página atual) -->
+                <div class="flex flex-col">
+                    <button onclick="toggleProjetosSb()" class="flex items-center justify-between btn-grad rounded-lg p-2.5 w-full">
+                        <div class="flex items-center gap-2.5">
+                            <i class="ph ph-folder-open text-lg text-white"></i>
+                            <span class="font-semibold text-sm text-white">Projetos</span>
+                        </div>
+                        <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-projetos-sb"></i>
+                    </button>
+                    <div id="submenu-projetos-sb" class="flex flex-col pl-9 py-3 gap-3 relative">
+                        <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
+                        <a href="/clientes" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div>
+                            Clientes
+                        </a>
+                        <button onclick="setTab('projetos')" id="nav-projetos" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan" id="dot-projetos"></div>
+                            Projetos
+                        </button>
+                        <button onclick="setTab('contratos')" id="nav-contratos" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple" id="dot-contratos"></div>
+                            Contratos
+                        </button>
+                        <button onclick="setTab('pmo')" id="nav-pmo" class="hidden text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-magenta" id="dot-pmo"></div>
+                            Visão PMO
+                        </button>
+                    </div>
+                </div>
             </nav>
 
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
-            <nav class="flex flex-col gap-0.5" id="nav-gestao">
-                <a href="/clientes" class="nav-gestao-item flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-buildings text-base"></i> Clientes
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-chart-line-up text-lg"></i> Dashboard
                 </a>
-                <button onclick="setTab('projetos')" id="nav-projetos" class="nav-gestao-item flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors w-full text-left">
-                    <i class="ph ph-folder-open text-base"></i> Projetos
-                </button>
-                <button onclick="setTab('contratos')" id="nav-contratos" class="nav-gestao-item flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors w-full text-left">
-                    <i class="ph ph-file-text text-base"></i> Contratos
-                </button>
-                <button onclick="setTab('pmo')" id="nav-pmo" class="hidden nav-gestao-item flex items-center gap-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors w-full text-left">
-                    <i class="ph ph-chart-bar text-base"></i> Visão PMO
-                </button>
+                <a href="/historico" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-clock-clockwise text-lg"></i> Histórico
+                </a>
+                <a href="/financeiro" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-currency-circle-dollar text-lg"></i> Financeiro
+                </a>
+                <a href="/apresentacao" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-presentation-chart text-lg"></i> Apresentação
+                </a>
+                <a href="/api/relatorio-mensal/preview" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-file-pdf text-lg"></i> Relatório Mensal
+                </a>
+                <a href="/admin" id="link-admin" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-gear text-lg"></i> Admin
+                </a>
             </nav>
-
-            <div class="mt-4 pt-4 border-t border-faiston-border">
-                <a href="/financeiro" class="flex items-center gap-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-currency-circle-dollar text-base"></i> Financeiro
-                </a>
-                <a href="/admin" id="link-admin" class="hidden flex items-center gap-2 text-slate-400 hover:bg-slate-50 hover:text-slate-700 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-gear text-base"></i> Admin
-                </a>
-            </div>
         </div>
     </div>
     <div class="p-4 border-t border-faiston-border">
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg grad-bg text-white flex items-center justify-center font-bold text-sm glow-soft" id="sidebar-avatar">?</div>
+            <div class="w-9 h-9 rounded-lg grad-bg text-white flex items-center justify-center font-bold text-sm glow-soft" id="sidebar-avatar">?</div>
             <div class="flex-1 min-w-0">
-                <p class="text-xs font-semibold text-faiston-dark leading-tight truncate" id="sidebar-nome">...</p>
-                <p class="text-[11px] text-faiston-muted" id="sidebar-perfil">...</p>
+                <p class="text-sm font-semibold text-faiston-dark leading-tight truncate" id="sidebar-nome">...</p>
+                <p class="text-xs text-faiston-muted" id="sidebar-perfil">...</p>
             </div>
-            <button onclick="logout()" title="Sair" class="text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-sign-out text-base"></i></button>
+            <button onclick="logout()" title="Sair" class="text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-sign-out text-lg"></i></button>
         </div>
     </div>
 </aside>
@@ -666,13 +687,6 @@
 </div>
 
 <script>
-let projetosAberto = true;
-function toggleProjetos() {
-    projetosAberto = !projetosAberto;
-    document.getElementById('submenu-projetos').style.display = projetosAberto ? '' : 'none';
-    document.getElementById('caret-projetos').style.transform = projetosAberto ? '' : 'rotate(-90deg)';
-}
-
 // ── State ──────────────────────────────────────────────────
 let tabAtiva = 'projetos';
 let todosProjetos = [], todosContratos = [], todosUsuarios = [], todosClientes = [];
@@ -737,24 +751,37 @@ function toggleAgrupamento() {
     filtrar();
 }
 
+// ── Sidebar accordion ──────────────────────────────────────
+let _projetosSbOpen = true;
+function toggleProjetosSb() {
+    _projetosSbOpen = !_projetosSbOpen;
+    document.getElementById('submenu-projetos-sb').style.display = _projetosSbOpen ? '' : 'none';
+    document.getElementById('caret-projetos-sb').style.transform = _projetosSbOpen ? '' : 'rotate(-90deg)';
+}
+
 // ── Tabs ───────────────────────────────────────────────────
 function setTab(tab) {
     tabAtiva = tab;
+
+    const DOT_ACTIVE = {
+        'projetos': { color: '#06D7E6', shadow: '0 0 8px #06D7E6' },
+        'contratos': { color: '#5B2EE0', shadow: '0 0 8px #5B2EE0' },
+        'pmo':      { color: '#B826C9', shadow: '0 0 8px #B826C9' },
+    };
+
     ['projetos','contratos','pmo'].forEach(t => {
-        const view = document.getElementById(`view-${t}`);
+        const view   = document.getElementById(`view-${t}`);
         const navBtn = document.getElementById(`nav-${t}`);
+        const dot    = document.getElementById(`dot-${t}`);
         const active = t === tab;
         if (view) view.classList.toggle('hidden', !active);
         if (navBtn) {
-            if (active) {
-                navBtn.style.background = 'rgba(91,46,224,0.08)';
-                navBtn.style.color = '#5B2EE0';
-                navBtn.style.fontWeight = '700';
-            } else {
-                navBtn.style.background = '';
-                navBtn.style.color = '';
-                navBtn.style.fontWeight = '';
-            }
+            navBtn.style.color      = active ? DOT_ACTIVE[t].color : '';
+            navBtn.style.fontWeight = active ? '700' : '';
+        }
+        if (dot) {
+            dot.style.background  = active ? DOT_ACTIVE[t].color : '';
+            dot.style.boxShadow   = active ? DOT_ACTIVE[t].shadow : '';
         }
     });
 
