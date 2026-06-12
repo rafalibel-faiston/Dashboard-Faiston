@@ -178,6 +178,8 @@ def setup_banco():
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS data_inicio DATE DEFAULT NULL")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS data_termino DATE DEFAULT NULL")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS escopo TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS codigo VARCHAR(20) DEFAULT ''")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS responsavel_texto VARCHAR(100) DEFAULT ''")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS contratos_gestao (
                 id SERIAL PRIMARY KEY,
@@ -258,6 +260,32 @@ class GestaoProjetoUpdate(BaseModel):
     data_inicio: Optional[str] = None
     data_termino: Optional[str] = None
     escopo: str = ""
+    codigo: str = ""
+    responsavel_texto: str = ""
+
+class SeedProjeto(BaseModel):
+    codigo: str = ""
+    cliente_nome: str
+    nome: str
+    responsavel_texto: str = ""
+    status_gestao: str = "EM ANDAMENTO"
+    data_inicio: Optional[str] = None
+    data_termino: Optional[str] = None
+    escopo: str = ""
+
+class SeedContrato(BaseModel):
+    codigo: str = ""
+    cliente_nome: str
+    nome: str
+    sdm: str = ""
+    responsavel_texto: str = ""
+    status: str = "EM IMPLANTAÇÃO"
+    data_inicio: Optional[str] = None
+    data_termino: Optional[str] = None
+
+class SeedData(BaseModel):
+    projetos: List[SeedProjeto] = []
+    contratos: List[SeedContrato] = []
 
 class ContratoGestao(BaseModel):
     cliente_id: int
@@ -3130,7 +3158,8 @@ def gestao_listar_projetos(faiston_token: str = Cookie(None)):
         cur.execute("""
             SELECT p.id, p.nome, p.cliente_id, c.nome AS cliente_nome,
                    p.responsavel_id, u.nome AS responsavel_nome,
-                   p.status_gestao, p.data_inicio, p.data_termino, p.escopo, p.ativo
+                   p.status_gestao, p.data_inicio, p.data_termino, p.escopo, p.ativo,
+                   COALESCE(p.codigo,''), COALESCE(p.responsavel_texto,'')
             FROM projetos p
             JOIN clientes c ON c.id = p.cliente_id
             LEFT JOIN usuarios u ON u.id = p.responsavel_id
@@ -3140,11 +3169,12 @@ def gestao_listar_projetos(faiston_token: str = Cookie(None)):
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "nome": r[1], "cliente_id": r[2], "cliente": r[3],
-                 "responsavel_id": r[4], "responsavel": r[5] or "",
+                 "responsavel_id": r[4], "responsavel": r[5] or r[12] or "",
                  "status_gestao": r[6] or "EM ANDAMENTO",
                  "data_inicio": r[7].isoformat() if r[7] else "",
                  "data_termino": r[8].isoformat() if r[8] else "",
-                 "escopo": r[9] or "", "ativo": r[10]} for r in rows]
+                 "escopo": r[9] or "", "ativo": r[10],
+                 "codigo": r[11], "responsavel_texto": r[12]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/gestao/projetos/{pid}")
@@ -3159,11 +3189,12 @@ def gestao_atualizar_projeto(pid: int, body: GestaoProjetoUpdate, faiston_token:
         cur.execute("""
             UPDATE projetos SET
                 responsavel_id = %s, status_gestao = %s,
-                data_inicio = %s, data_termino = %s, escopo = %s
+                data_inicio = %s, data_termino = %s, escopo = %s,
+                codigo = %s, responsavel_texto = %s
             WHERE id = %s
         """, (body.responsavel_id, body.status_gestao,
               body.data_inicio or None, body.data_termino or None,
-              body.escopo, pid))
+              body.escopo, body.codigo, body.responsavel_texto, pid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -3283,6 +3314,52 @@ def gestao_deletar_contrato(cid: int, faiston_token: str = Cookie(None)):
         cur.execute("DELETE FROM contratos_gestao WHERE id=%s", (cid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/gestao/importar")
+def gestao_importar(body: SeedData, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Sem permissão — apenas admin")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        criados_proj = 0; ignorados_proj = 0; criados_ct = 0
+        for p in body.projetos:
+            cur.execute("SELECT id FROM clientes WHERE UPPER(nome) = UPPER(%s) AND ativo=TRUE", (p.cliente_nome,))
+            row = cur.fetchone()
+            if row:
+                cliente_id = row[0]
+            else:
+                cur.execute("INSERT INTO clientes (nome, ativo) VALUES (%s, TRUE) RETURNING id", (p.cliente_nome,))
+                cliente_id = cur.fetchone()[0]
+            if p.codigo:
+                cur.execute("SELECT id FROM projetos WHERE codigo = %s", (p.codigo,))
+                if cur.fetchone():
+                    ignorados_proj += 1
+                    continue
+            cur.execute("""
+                INSERT INTO projetos (nome, cliente_id, codigo, responsavel_texto, status_gestao,
+                    data_inicio, data_termino, escopo, ativo)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+            """, (p.nome, cliente_id, p.codigo, p.responsavel_texto, p.status_gestao,
+                  p.data_inicio or None, p.data_termino or None, p.escopo))
+            criados_proj += 1
+        for c in body.contratos:
+            cur.execute("SELECT id FROM clientes WHERE UPPER(nome) = UPPER(%s) AND ativo=TRUE", (c.cliente_nome,))
+            row = cur.fetchone()
+            if row:
+                cliente_id = row[0]
+            else:
+                cur.execute("INSERT INTO clientes (nome, ativo) VALUES (%s, TRUE) RETURNING id", (c.cliente_nome,))
+                cliente_id = cur.fetchone()[0]
+            cur.execute("""
+                INSERT INTO contratos_gestao (cliente_id, nome, sdm, status, data_inicio, data_termino)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (cliente_id, c.nome, c.sdm, c.status, c.data_inicio or None, c.data_termino or None))
+            criados_ct += 1
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "projetos_criados": criados_proj, "projetos_ignorados": ignorados_proj, "contratos_criados": criados_ct}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/gestao/usuarios")
