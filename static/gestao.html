@@ -235,7 +235,7 @@
                     <span id="badge-contratos" class="text-[10px] font-bold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full ml-0.5">0</span>
                 </button>
                 <button onclick="setTab('pmo')" id="tab-pmo"
-                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    class="hidden flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
                     style="background:transparent;color:#9097AC;box-shadow:none">
                     <i class="ph ph-chart-bar text-base"></i> Visão PMO
                 </button>
@@ -586,6 +586,7 @@ function toggleProjetos() {
 let tabAtiva = 'projetos';
 let todosProjetos = [], todosContratos = [], todosUsuarios = [], todosClientes = [];
 let canWrite = false;
+let meuPerfil = '';
 let modalProjId = null, modalCtId = null, comentarioProjId = null;
 let agruparPorCliente = false;
 
@@ -1377,15 +1378,26 @@ async function init() {
         if (!res.ok) { window.location.href = '/'; return; }
         const me = await res.json();
         if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
+        meuPerfil = me.perfil;
         const nome = me.nome || me.usuario || 'Usuário';
         document.getElementById('sidebar-avatar').textContent = nome.charAt(0).toUpperCase();
         document.getElementById('sidebar-nome').textContent = nome;
-        document.getElementById('sidebar-perfil').textContent = me.perfil === 'admin' ? 'Administrador' : 'Gestor';
+        const perfilLabel = { admin: 'Administrador', gestor: 'Gestor', diretor: 'Diretor' };
+        document.getElementById('sidebar-perfil').textContent = perfilLabel[me.perfil] || me.perfil;
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
         canWrite = me.perfil === 'admin' || me.perfil === 'gestor';
+
+        // Aba PMO: visível apenas para diretor e admin
+        const tabPMO = document.getElementById('tab-pmo');
+        if (me.perfil === 'diretor' || me.perfil === 'admin') {
+            tabPMO.classList.remove('hidden');
+        } else {
+            tabPMO.classList.add('hidden');
+        }
     } catch(e) { window.location.href = '/'; return; }
     await carregar();
-    setTab('projetos');
+    // Diretores caem direto na visão PMO
+    setTab(meuPerfil === 'diretor' ? 'pmo' : 'projetos');
 }
 
 init();

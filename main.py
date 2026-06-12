@@ -277,7 +277,7 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
     if not destinatario:
         return False
     try:
-        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário"}
+        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário", "diretor": "Diretor"}
         btn = f"<a href='{system_url}' style='display:block;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:12px'>Acessar o Sistema</a>"
         btn_ajuda = f"<a href='{system_url}/ajuda' style='display:block;background:white;color:#5B2EE0;text-decoration:none;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:24px;border:2px solid #5B2EE0'>📖 Ver Guia de Uso</a>"
         ajuda = f"<a href='{system_url}/ajuda' style='color:#5B2EE0'>Guia de Uso</a>"
@@ -454,7 +454,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
-    if u.perfil not in ("admin", "gestor", "funcionario", "demo"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor"): raise HTTPException(status_code=400, detail="Perfil inválido")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
