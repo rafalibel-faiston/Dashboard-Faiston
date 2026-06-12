@@ -1812,8 +1812,14 @@ async function init() {
         }
     } catch(e) { window.location.href = '/'; return; }
     await carregar();
-    // Diretores caem direto na visão PMO
-    setTab(meuPerfil === 'diretor' ? 'pmo' : 'clientes');
+    // Tab inicial: query param ?tab= > diretor → pmo > default clientes
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    const validTabs = ['clientes','projetos','contratos','pmo'];
+    if (urlTab && validTabs.includes(urlTab) && (urlTab !== 'pmo' || meuPerfil === 'diretor' || meuPerfil === 'admin')) {
+        setTab(urlTab);
+    } else {
+        setTab(meuPerfil === 'diretor' ? 'pmo' : 'clientes');
+    }
 }
 
 init();
