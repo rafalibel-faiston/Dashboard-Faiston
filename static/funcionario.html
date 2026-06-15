@@ -1024,12 +1024,16 @@ async function concluirTarefa(taskId) {
             body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',
                 segundos:Math.min(task.segundos, MAX_SEGUNDOS),
                 data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            const errId = json.error_id ? ` [ID: ${json.error_id}]` : '';
+            throw new Error((json.detail || `HTTP ${res.status}`) + errId);
+        }
     } catch(e) {
         // Reverte o status na tela se a gravação falhou
         task.status = statusAnterior;
         renderTasks(); updateSummary();
-        alert('Erro ao salvar conclusão da tarefa. Verifique a conexão e tente novamente.');
+        mostrarErroGlobal('Erro ao concluir tarefa', e.message, `PUT /api/tarefas/${taskId}`);
     }
 }
 
@@ -1081,11 +1085,15 @@ async function onColDrop(e, newStatus) {
                 status: newStatus, segundos: Math.min(task.segundos, MAX_SEGUNDOS),
                 data_prazo: task.data_prazo || null, data_agendamento: task.data_agendamento || null})
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            const errId = json.error_id ? ` [ID: ${json.error_id}]` : '';
+            throw new Error((json.detail || `HTTP ${res.status}`) + errId);
+        }
     } catch(e) {
         task.status = statusAnteriorDrop;
         renderTasks(); updateSummary();
-        alert('Erro ao mover a tarefa. Verifique a conexão e tente novamente.');
+        mostrarErroGlobal('Erro ao mover tarefa', e.message, `PUT /api/tarefas/${task.id} → ${newStatus}`);
         return;
     }
     if (newStatus === 'em_andamento' && !task._running) startTimer(task.id);
@@ -1655,5 +1663,6 @@ function toggleTemaFunc() {
 init();
 setInterval(() => fetch('/api/admin/ping?page=funcionario', { method: 'POST' }), 60000);
 </script>
+<script src="/static/js/faiston-erros.js"></script>
 </body>
 </html>

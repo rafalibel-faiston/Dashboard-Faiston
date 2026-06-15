@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import psycopg2
@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date, timedelta, datetime
 from calendar import monthrange
-import os, hashlib, secrets, csv, io
+import os, hashlib, secrets, csv, io, logging, traceback, uuid
 import contextvars
 from dotenv import load_dotenv
 from pathlib import Path
@@ -22,7 +22,55 @@ except ImportError:
 
 load_dotenv()
 
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler("errors.log", encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
+logger = logging.getLogger("faiston")
+
 app = FastAPI(title="Faiston Ops - API", version="1.0")
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code >= 500:
+        error_id = uuid.uuid4().hex[:8].upper()
+        # Tenta recuperar o traceback original (preservado em __context__ pelo `raise HTTPException` dentro de `except`)
+        original = getattr(exc, "__context__", None)
+        tb = (
+            "".join(traceback.format_exception(type(original), original, original.__traceback__))
+            if original
+            else "sem traceback"
+        )
+        logger.error(
+            f"[{error_id}] {request.method} {request.url.path}\n"
+            f"Detalhe: {exc.detail}\n"
+            f"{tb}"
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": f"{exc.detail}", "error_id": error_id},
+        )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    error_id = uuid.uuid4().hex[:8].upper()
+    logger.error(
+        f"[{error_id}] Exceção não tratada: {request.method} {request.url.path}\n"
+        f"{traceback.format_exc()}"
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Erro interno inesperado.", "error_id": error_id},
+    )
 
 # Rastreia as conexões de banco abertas durante cada request para garantir que
 # sejam fechadas ao final — mesmo nos caminhos de erro que dão `raise` sem
@@ -60,7 +108,7 @@ def get_db():
             lst.append(conn)
         return conn
     except Exception as e:
-        print(f"Erro BD: {e}")
+        logger.error(f"Falha ao conectar ao banco: {e}\n{traceback.format_exc()}")
         return None
 
 def hash_senha(senha):
