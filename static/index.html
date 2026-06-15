@@ -4505,7 +4505,7 @@ function limparFiltros() {
 async function buscar() {
     const params = new URLSearchParams({
         page: histPagina,
-        por_pagina: document.getElementById('por-histPagina').value,
+        por_pagina: document.getElementById('por-pagina').value,
         busca: document.getElementById('f-busca').value,
         funcionario: document.getElementById('f-funcionario').value,
         data_inicio: document.getElementById('f-inicio').value,
@@ -4591,22 +4591,23 @@ function histRenderLinhas(tarefas) {
 function renderPaginacao(data) {
     const info = document.getElementById('pag-info');
     const btns = document.getElementById('pag-btns');
-    const inicio = (data.histPagina - 1) * data.por_pagina + 1;
-    const fim = Math.min(data.histPagina * data.por_pagina, data.total);
+    const pag = data.pagina;
+    const inicio = (pag - 1) * data.por_pagina + 1;
+    const fim = Math.min(pag * data.por_pagina, data.total);
     info.textContent = `Mostrando ${inicio}–${fim} de ${data.total}`;
 
     const pages = [];
-    pages.push('<button onclick="irPara('+data.histPagina+'-1)" class="w-8 h-8 rounded-lg border border-faiston-border flex items-center justify-center text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-colors" '+(data.histPagina<=1?'disabled':'')+'><i class="ph ph-caret-left text-sm"></i></button>');
+    pages.push('<button onclick="irPara('+(pag-1)+')" class="w-8 h-8 rounded-lg border border-faiston-border flex items-center justify-center text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-colors" '+(pag<=1?'disabled':'')+'><i class="ph ph-caret-left text-sm"></i></button>');
 
-    let start = Math.max(1, data.histPagina - 2);
-    let end = Math.min(data.total_paginas, data.histPagina + 2);
+    let start = Math.max(1, pag - 2);
+    let end = Math.min(data.total_paginas, pag + 2);
     if (start > 1) pages.push('<span class="text-slate-300 text-xs px-1">...</span>');
     for (let i = start; i <= end; i++) {
-        const ativo = i === data.histPagina;
+        const ativo = i === pag;
         pages.push(`<button onclick="irPara(${i})" class="w-8 h-8 rounded-lg border text-xs font-semibold transition-colors ${ativo ? 'bg-faiston-purple border-faiston-purple text-white' : 'border-faiston-border text-slate-600 hover:bg-slate-50'}">${i}</button>`);
     }
     if (end < data.total_paginas) pages.push('<span class="text-slate-300 text-xs px-1">...</span>');
-    pages.push('<button onclick="irPara('+data.histPagina+'+1)" class="w-8 h-8 rounded-lg border border-faiston-border flex items-center justify-center text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-colors" '+(data.histPagina>=data.total_paginas?'disabled':'')+'><i class="ph ph-caret-right text-sm"></i></button>');
+    pages.push('<button onclick="irPara('+(pag+1)+')" class="w-8 h-8 rounded-lg border border-faiston-border flex items-center justify-center text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-colors" '+(pag>=data.total_paginas?'disabled':'')+'><i class="ph ph-caret-right text-sm"></i></button>');
     btns.innerHTML = pages.join('');
 }
 
