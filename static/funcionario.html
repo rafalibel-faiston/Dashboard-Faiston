@@ -617,6 +617,7 @@ let activeTaskId = null;
 let timerInterval = null;
 let timerSeconds = 0;
 let timerStart = null;
+const MAX_SEGUNDOS = 36_000_000; // cap em 10.000h para evitar overflow no banco
 let tabAtiva = 'kanban';
 let calMes = new Date().getMonth();
 let calAno = new Date().getFullYear();
@@ -713,6 +714,8 @@ async function carregarTarefas() {
     const res = await fetch('/api/tarefas?view=func');
     if (!res.ok) return;
     tasks = await res.json();
+    // Sanitiza valores corrompidos de segundos para evitar overflow no banco
+    tasks.forEach(t => { t.segundos = Math.max(0, Math.min(t.segundos || 0, MAX_SEGUNDOS)); });
     renderTasks();
     updateSummary();
     if (tabAtiva === 'agenda') renderAgenda();
@@ -771,7 +774,7 @@ function renderTasks() {
 function renderKanbanCard(task, status) {
     const isRunning = task._running;
     const isDone    = status === 'concluido';
-    const secs = isRunning ? task.segundos + Math.floor((Date.now()-timerStart)/1000) : task.segundos;
+    const secs = isRunning && timerStart ? task.segundos + Math.floor((Date.now()-timerStart)/1000) : task.segundos;
     const pc = PRIO_CFG[task.prioridade] || PRIO_CFG['Media'];
 
     return `<div class="task-card bg-white rounded-xl border ${isRunning ? 'border-faiston-purple timer-running' : 'border-faiston-border'} p-3 relative overflow-hidden ${isDone ? 'opacity-60' : ''}" draggable="true" data-task-id="${task.id}" ondragstart="onTaskDragStart(event,${task.id})" ondragend="onTaskDragEnd(event)">
@@ -833,7 +836,7 @@ function updateSummary() {
     document.getElementById('count-total').textContent = tasks.length;
     document.getElementById('count-done').textContent  = tasks.filter(t=>t.status==='concluido').length;
     document.getElementById('count-progress').textContent = tasks.filter(t=>t.status==='em_andamento').length;
-    const total = tasks.reduce((a,t) => a+(t._running ? t.segundos+Math.floor((Date.now()-timerStart)/1000) : t.segundos), 0);
+    const total = tasks.reduce((a,t) => a+(t._running && timerStart ? t.segundos+Math.floor((Date.now()-timerStart)/1000) : t.segundos), 0);
     document.getElementById('count-hours').textContent = fmtH(total);
 }
 
@@ -851,7 +854,7 @@ async function startTimer(taskId) {
     let saveCounter = 0;
     timerInterval = setInterval(() => {
         if (!timerStart) return;
-        const elapsed = task.segundos + Math.floor((Date.now()-timerStart)/1000);
+        const elapsed = Math.min(task.segundos + Math.floor((Date.now()-timerStart)/1000), MAX_SEGUNDOS);
         const el = document.getElementById(`timer-${taskId}`);
         if (el) el.textContent = fmt(elapsed);
         document.getElementById('global-timer-display').textContent = fmt(elapsed);
@@ -876,7 +879,7 @@ async function stopTimer(taskId, silent=false) {
     if (!task || !task._running) return;
     const capturedStart = timerStart;
     const elapsed = capturedStart ? Math.floor((Date.now()-capturedStart)/1000) : 0;
-    task.segundos += elapsed;
+    task.segundos = Math.min(task.segundos + elapsed, MAX_SEGUNDOS);
     task._running = false;
     activeTaskId = null;
     clearInterval(timerInterval); timerInterval=null; timerStart=null;
@@ -897,7 +900,7 @@ window.addEventListener('beforeunload', () => {
     if (activeTaskId && timerStart) {
         const task = tasks.find(t=>t.id===activeTaskId);
         if (task) {
-            const elapsed = task.segundos + Math.floor((Date.now()-timerStart)/1000);
+            const elapsed = Math.min(task.segundos + Math.floor((Date.now()-timerStart)/1000), MAX_SEGUNDOS);
             const blob = new Blob([JSON.stringify({segundos:elapsed})],{type:'application/json'});
             navigator.sendBeacon(`/api/tarefas/${activeTaskId}/segundos`, blob);
         }
@@ -923,8 +926,12 @@ function editTask(taskId) {
     if (!task.projeto_id) document.getElementById('input-cliente').value = task.cliente;
     document.getElementById('input-prioridade').value = task.prioridade;
     document.getElementById('input-status').value = task.status;
-    document.getElementById('input-horas').value = Math.floor(task.segundos/3600);
-    document.getElementById('input-minutos').value = Math.floor((task.segundos%3600)/60);
+    // Mostra o tempo total, incluindo a sessão em andamento, para que o usuário edite o valor correto
+    const totalSecs = task._running && timerStart
+        ? Math.min(task.segundos + Math.floor((Date.now()-timerStart)/1000), MAX_SEGUNDOS)
+        : task.segundos;
+    document.getElementById('input-horas').value = Math.floor(totalSecs/3600);
+    document.getElementById('input-minutos').value = Math.floor((totalSecs%3600)/60);
     document.getElementById('input-prazo').value = task.data_prazo || '';
     document.getElementById('input-agendamento').value = task.data_agendamento || '';
     document.getElementById('modal').classList.remove('hidden');
@@ -985,6 +992,12 @@ async function saveTask() {
         const task = tasks.find(t=>t.id==editId);
         if (task) {
             if (task._running && body.status!=='em_andamento') await stopTimer(parseInt(editId),true);
+            // Garante que os segundos não ultrapassem o limite e que o tempo acumulado pelo
+            // timer (adicionado pelo stopTimer acima) não seja descartado pelo valor do modal.
+            // Como editTask já pré-preenche o modal com o tempo total (incluindo sessão ativa),
+            // body.segundos reflete o valor que o usuário viu; mas se o timer acumulou mais
+            // tempo enquanto o modal estava aberto, preservamos o maior valor.
+            body.segundos = Math.min(Math.max(body.segundos, task.segundos), MAX_SEGUNDOS);
             await fetch(`/api/tarefas/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
             Object.assign(task,body);
             if (!task._running && body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(parseInt(editId)); return; }
@@ -1003,11 +1016,21 @@ async function concluirTarefa(taskId) {
     if (activeTaskId===taskId) await stopTimer(taskId,true);
     const task = tasks.find(t=>t.id===taskId);
     if (!task) return;
+    const statusAnterior = task.status;
     task.status = 'concluido'; task._running = false;
-    await fetch(`/api/tarefas/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',segundos:task.segundos,
-            data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
     renderTasks(); updateSummary();
+    try {
+        const res = await fetch(`/api/tarefas/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',
+                segundos:Math.min(task.segundos, MAX_SEGUNDOS),
+                data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch(e) {
+        // Reverte o status na tela se a gravação falhou
+        task.status = statusAnterior;
+        renderTasks(); updateSummary();
+        alert('Erro ao salvar conclusão da tarefa. Verifique a conexão e tente novamente.');
+    }
 }
 
 // ── DRAG & DROP ──────────────────────────────────────────────────────
@@ -1047,15 +1070,24 @@ async function onColDrop(e, newStatus) {
     if (!task || task.status === newStatus) return;
 
     if (task._running && newStatus !== 'em_andamento') await stopTimer(task.id, true);
+    const statusAnteriorDrop = task.status;
     task.status = newStatus;
-    await fetch(`/api/tarefas/${task.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({descricao: task.descricao, cliente: task.cliente, prioridade: task.prioridade,
-            status: newStatus, segundos: task.segundos,
-            data_prazo: task.data_prazo || null, data_agendamento: task.data_agendamento || null})
-    });
     renderTasks(); updateSummary();
+    try {
+        const res = await fetch(`/api/tarefas/${task.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({descricao: task.descricao, cliente: task.cliente, prioridade: task.prioridade,
+                status: newStatus, segundos: Math.min(task.segundos, MAX_SEGUNDOS),
+                data_prazo: task.data_prazo || null, data_agendamento: task.data_agendamento || null})
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch(e) {
+        task.status = statusAnteriorDrop;
+        renderTasks(); updateSummary();
+        alert('Erro ao mover a tarefa. Verifique a conexão e tente novamente.');
+        return;
+    }
     if (newStatus === 'em_andamento' && !task._running) startTimer(task.id);
     if (tabAtiva === 'agenda') renderAgenda();
 }
