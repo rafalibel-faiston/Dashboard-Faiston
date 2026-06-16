@@ -2739,181 +2739,165 @@ function toggleTema() {
     if (el) el.textContent = 'Operação consolidada · ' + label;
 })();
 
-// --- MODAL NOVO TICKET ---
-let prioAtiva = 'Media';
-let statusAtivo = 'aberto';
-let timerModalRunning = false;
-let timerModalInterval = null;
-let timerModalSeg = 0;
-let clienteSelecionado = '';
+// --- MODAL NOVA TAREFA (GESTOR) — mesmo layout do funcionário + Responsável ---
+let _ntProjetos = [];
+let _ntUsuarios = [];
+let _ntColabSelecionados = [];
 
 function abrirModalTicket() {
     document.getElementById('modal-ticket').classList.remove('hidden');
-    resetTimerModal();
+    // Reset dos campos
+    document.getElementById('nt-descricao').value = '';
+    document.getElementById('nt-projeto').value = '';
+    document.getElementById('nt-demanda').value = 'Demandas Gerais';
+    document.getElementById('nt-cliente').value = 'Demandas Gerais';
+    document.getElementById('nt-cliente-resolvido').classList.add('hidden');
+    document.getElementById('nt-demanda-wrap').classList.remove('hidden');
+    document.getElementById('nt-prioridade').value = 'Media';
+    document.getElementById('nt-status').value = 'aberto';
+    document.getElementById('nt-horas').value = '';
+    document.getElementById('nt-minutos').value = '';
+    document.getElementById('nt-prazo').value = '';
+    document.getElementById('nt-agendamento').value = '';
+    _ntColabSelecionados = [];
     carregarDadosModal();
-}
-
-function resetTimerModal() {
-    if (timerModalInterval) { clearInterval(timerModalInterval); timerModalInterval = null; }
-    timerModalRunning = false;
-    timerModalSeg = 0;
-    const disp = document.getElementById('nt-timer-display');
-    if (disp) disp.textContent = '00:00:00';
+    setTimeout(() => document.getElementById('nt-descricao').focus(), 100);
 }
 
 function fecharModalTicket() {
     document.getElementById('modal-ticket').classList.add('hidden');
-    document.getElementById('nt-prazo').value = '';
-    document.getElementById('nt-agendamento').value = '';
-    resetTimerModal();
 }
 
 async function carregarDadosModal() {
-    // Clientes
+    // Todos os clientes e projetos (mesma fonte do funcionário)
     try {
-        const res = await fetch('/api/clientes');
+        const res = await fetch('/api/opcoes-tarefa');
         if (res.ok) {
-            const cls = await res.json();
-            const wrap = document.getElementById('nt-clientes-pills');
-            wrap.innerHTML = cls.filter(c => c.ativo).map((c, i) => {
-                const colors = ['faiston-purple','faiston-cyan','faiston-magenta','faiston-cyan','faiston-purple','faiston-pink'];
-                const col = colors[i % colors.length];
-                return `<button onclick="selecionarCliente('${c.nome}', this)" data-nome="${c.nome}"
-                    class="cliente-pill text-xs font-semibold px-3 py-1.5 rounded-full border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all">
-                    ${c.nome}
-                </button>`;
-            }).join('');
+            const { projetos } = await res.json();
+            _ntProjetos = projetos || [];
+            const sel = document.getElementById('nt-projeto');
+            sel.innerHTML = '<option value="">— Sem projeto (demanda avulsa) —</option>' +
+                _ntProjetos.map(p => `<option value="${p.id}" data-cliente="${(p.cliente||'').replace(/"/g,'&quot;')}">${p.nome} · ${p.cliente}</option>`).join('');
         }
     } catch(e) {}
-    // Responsável: todos os usuários ativos, com (Eu) destacado para o usuário logado
+    // Responsável + ajudantes: todos os usuários ativos, com (Eu) destacado
     try {
         const res = await fetch('/api/usuarios');
         if (res.ok) {
-            const users = await res.json();
+            _ntUsuarios = await res.json();
             const sel = document.getElementById('nt-responsavel');
             const meId = window.ME ? String(window.ME.id) : '';
             sel.innerHTML = '<option value="">Selecionar...</option>' +
-                users.map(u => {
+                _ntUsuarios.map(u => {
                     const label = String(u.id) === meId ? `${u.nome} (Eu)` : u.nome;
                     return `<option value="${u.id}">${label}</option>`;
                 }).join('');
             if (meId) sel.value = meId;
         }
     } catch(e) {}
+    ntRenderAjudantes();
+    ntPopularDemandas();
 }
 
-async function selecionarCliente(nome, btn) {
-    clienteSelecionado = nome;
-    document.querySelectorAll('.cliente-pill').forEach(b => {
-        b.className = 'cliente-pill text-xs font-semibold px-3 py-1.5 rounded-full border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all';
-    });
-    btn.className = 'cliente-pill text-xs font-semibold px-3 py-1.5 rounded-full border border-faiston-purple bg-faiston-purple/10 text-faiston-purple transition-all';
-    // Carrega projetos deste cliente
-    const sel = document.getElementById('nt-projeto');
-    sel.innerHTML = '<option value="">Nenhum projeto</option>';
-    try {
-        const projs = await fetch(`/api/projetos-by-cliente?nome=${encodeURIComponent(nome)}`).then(r => r.json());
-        if (projs.length) {
-            sel.innerHTML = '<option value="">Nenhum projeto</option>' +
-                projs.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
-            sel.classList.remove('text-slate-400');
-        } else {
-            sel.innerHTML = '<option value="">Sem projetos cadastrados</option>';
-        }
-    } catch {}
-}
-
-function setPrioridade(prio) {
-    prioAtiva = prio;
-    document.querySelectorAll('.prio-btn').forEach(b => {
-        const isActive = b.dataset.prio === prio;
-        b.className = isActive
-            ? 'prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-purple bg-faiston-purple/10 text-faiston-purple transition-all'
-            : 'prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all';
-        const icon = b.querySelector('i');
-        if (icon) icon.className = isActive ? 'ph-fill ph-flag text-sm' : 'ph ph-flag text-sm';
-    });
-}
-
-function setStatusTicket(status) {
-    statusAtivo = status;
-    document.querySelectorAll('.status-btn').forEach(b => {
-        const isActive = b.dataset.status === status;
-        if (isActive) {
-            b.className = 'status-btn w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-left bg-faiston-purple/5 text-faiston-dark';
-            b.innerHTML = b.innerHTML.replace(/<i.*<\/i>/, '') + ' <i class="ph ph-check text-faiston-purple"></i>';
-        } else {
-            b.className = 'status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors';
-            const checkEl = b.querySelector('i.ph-check');
-            if (checkEl) checkEl.remove();
-        }
-    });
-}
-
-function toggleTimerModal() {
-    timerModalRunning = !timerModalRunning;
-    const icon = document.getElementById('nt-timer-icon');
-    if (timerModalRunning) {
-        icon.className = 'ph-fill ph-stop text-sm';
-        timerModalInterval = setInterval(() => {
-            timerModalSeg++;
-            const h = Math.floor(timerModalSeg/3600), m = Math.floor((timerModalSeg%3600)/60), s = timerModalSeg%60;
-            document.getElementById('nt-timer-display').textContent =
-                `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-        }, 1000);
+function ntSelecionarProjeto(projetoId) {
+    const proj = _ntProjetos.find(p => p.id == projetoId);
+    const clienteHidden = document.getElementById('nt-cliente');
+    const resolvido = document.getElementById('nt-cliente-resolvido');
+    const demandaWrap = document.getElementById('nt-demanda-wrap');
+    const demandaInput = document.getElementById('nt-demanda');
+    if (proj) {
+        clienteHidden.value = proj.cliente;
+        document.getElementById('nt-cliente-resolvido-nome').textContent = proj.cliente;
+        resolvido.classList.remove('hidden');
+        demandaWrap.classList.add('hidden');
     } else {
-        icon.className = 'ph-fill ph-play text-sm';
-        clearInterval(timerModalInterval);
+        resolvido.classList.add('hidden');
+        demandaWrap.classList.remove('hidden');
+        clienteHidden.value = (demandaInput.value || '').trim() || 'Demandas Gerais';
     }
 }
 
-function removerTag(btn) { btn.closest('span').remove(); }
+function ntAtualizarDemanda(valor) {
+    document.getElementById('nt-cliente').value = (valor || '').trim() || 'Demandas Gerais';
+}
 
-function adicionarTag(e) {
-    if (e.key !== 'Enter' && e.key !== ',') return;
-    e.preventDefault();
-    const val = e.target.value.trim().replace(/,/g,'');
-    if (!val) return;
-    const span = document.createElement('span');
-    span.className = 'flex items-center gap-1.5 text-xs font-semibold text-faiston-purple bg-faiston-purple/10 border border-faiston-purple/20 px-2 py-1 rounded-md';
-    span.innerHTML = `<i class="ph ph-tag text-xs"></i> ${val} <button class="hover:text-faiston-pink" onclick="removerTag(this)"><i class="ph ph-x text-[10px]"></i></button>`;
-    e.target.parentNode.insertBefore(span, e.target);
-    e.target.value = '';
+// ── Ajudantes (colaboradores) ─────────────────────────────
+function ntRenderAjudantes() {
+    const respId = parseInt(document.getElementById('nt-responsavel').value) || null;
+    const sel = document.getElementById('nt-ajudante');
+    const disponiveis = _ntUsuarios.filter(f => f.id !== respId && !_ntColabSelecionados.includes(f.id));
+    sel.innerHTML = '<option value="">+ Adicionar pessoa para ajudar...</option>' +
+        disponiveis.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+
+    const wrap = document.getElementById('nt-ajudantes-chips');
+    wrap.innerHTML = _ntColabSelecionados.map(id => {
+        const f = _ntUsuarios.find(x => x.id === id);
+        const nome = f ? f.nome : '?';
+        return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-faiston-purple/10 text-faiston-purple border border-faiston-purple/20">
+            <i class="ph ph-user text-xs"></i>${nome}
+            <button type="button" onclick="ntRemoverAjudante(${id})" class="hover:text-faiston-pink ml-0.5"><i class="ph ph-x text-xs"></i></button>
+        </span>`;
+    }).join('');
+}
+
+function ntAdicionarAjudante(id) {
+    id = parseInt(id);
+    if (id && !_ntColabSelecionados.includes(id)) _ntColabSelecionados.push(id);
+    ntRenderAjudantes();
+}
+
+function ntRemoverAjudante(id) {
+    _ntColabSelecionados = _ntColabSelecionados.filter(x => x !== id);
+    ntRenderAjudantes();
+}
+
+// Sugere demandas avulsas já existentes (a partir dos dados do dashboard, se houver)
+function ntPopularDemandas() {
+    const dl = document.getElementById('nt-lista-demandas');
+    if (!dl) return;
+    const nomes = new Set(['Demandas Gerais']);
+    const fonte = (typeof tarefasGestor !== 'undefined' && Array.isArray(tarefasGestor)) ? tarefasGestor
+                : (typeof todasTarefas !== 'undefined' && Array.isArray(todasTarefas)) ? todasTarefas : [];
+    fonte.forEach(t => { if (!t.projeto_id && t.cliente) nomes.add(t.cliente); });
+    dl.innerHTML = [...nomes].sort().map(n => `<option value="${n.replace(/"/g,'&quot;')}">`).join('');
 }
 
 async function criarTicket() {
-    const titulo = document.getElementById('nt-titulo').value.trim();
-    const descricao = document.getElementById('nt-descricao').value.trim();
-    const responsavelId = document.getElementById('nt-responsavel').value;
+    const descricao  = document.getElementById('nt-descricao').value.trim();
+    const cliente    = document.getElementById('nt-cliente').value;
+    const projeto_id = parseInt(document.getElementById('nt-projeto').value) || null;
+    const responsavelId = parseInt(document.getElementById('nt-responsavel').value) || null;
 
-    if (!titulo) { alert('Informe o título do ticket.'); return; }
-    if (!clienteSelecionado) { alert('Selecione um cliente.'); return; }
+    if (!descricao) { alert('Preencha a descrição da tarefa.'); return; }
+    if (!responsavelId) { alert('Selecione o responsável pela tarefa.'); return; }
 
-    const horasManual = parseInt(document.getElementById('nt-horas-manual').value || '0');
-    const segundos = horasManual * 3600 + timerModalSeg;
+    const horas   = parseInt(document.getElementById('nt-horas').value) || 0;
+    const minutos = parseInt(document.getElementById('nt-minutos').value) || 0;
+    const segundos = (horas*3600) + (minutos*60);
 
     try {
         const res = await fetch('/api/tarefas', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                descricao: titulo + (descricao ? ' — ' + descricao : ''),
-                cliente: clienteSelecionado,
-                prioridade: prioAtiva,
-                status: statusAtivo,
-                funcionario_id: parseInt(responsavelId),
+                descricao,
+                cliente,
+                prioridade: document.getElementById('nt-prioridade').value,
+                status: document.getElementById('nt-status').value,
+                funcionario_id: responsavelId,
                 segundos,
-                projeto_id: parseInt(document.getElementById('nt-projeto').value) || null,
+                projeto_id,
                 data_prazo: document.getElementById('nt-prazo').value || null,
-                data_agendamento: document.getElementById('nt-agendamento').value || null
+                data_agendamento: document.getElementById('nt-agendamento').value || null,
+                colaboradores: _ntColabSelecionados.slice()
             })
         });
         if (res.ok) {
             fecharModalTicket();
             carregarDados(clienteAtivo);
         } else {
-            const err = await res.json();
-            alert(err.detail || 'Erro ao criar ticket');
+            const err = await res.json().catch(() => ({}));
+            alert(err.detail || 'Erro ao criar tarefa');
         }
     } catch(e) {
         alert('Erro de conexão');
@@ -5139,147 +5123,104 @@ async function corrigirTimeCarimbo(id, time_usuario) {
 
 </script>
 <!-- MODAL NOVO TICKET -->
-<div id="modal-ticket" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.5)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-faiston-border" style="max-height:90vh;overflow-y:auto">
+<div id="modal-ticket" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-faiston-border" style="max-height:92vh;overflow-y:auto">
         <!-- Modal header -->
         <div class="grad-bg px-6 py-4 flex items-center gap-3 relative overflow-hidden">
-            <div class="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/10 pointer-events-none"></div>
-            <span class="px-2.5 py-1 rounded-full bg-white/20 text-[10px] font-bold text-white tracking-[0.08em] uppercase">Novo Ticket</span>
-            <span class="text-white/85 text-sm font-medium">Criação de ticket</span>
+            <div class="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/15 pointer-events-none"></div>
+            <span class="px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm text-[10px] font-bold text-white tracking-[0.08em] uppercase">Tarefa</span>
+            <span class="text-white/90 text-sm font-medium">Nova Tarefa</span>
             <button onclick="fecharModalTicket()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors">
                 <i class="ph ph-x"></i>
             </button>
         </div>
         <!-- Modal body -->
-        <div class="grid grid-cols-2 gap-0 divide-x divide-faiston-border">
-            <!-- Left column -->
-            <div class="p-6 flex flex-col gap-5">
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="nt-cliente" value="Demandas Gerais">
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição <span class="text-faiston-pink">*</span></label>
+                <input type="text" id="nt-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/20 transition-all">
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
+                    <i class="ph ph-user-circle text-faiston-purple mr-1"></i>Responsável <span class="text-faiston-pink">*</span>
+                </label>
+                <select id="nt-responsavel" onchange="ntRenderAjudantes()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="">Selecionar...</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
+                <select id="nt-projeto" onchange="ntSelecionarProjeto(this.value)"
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="">— Sem projeto (demanda avulsa) —</option>
+                </select>
+                <p id="nt-cliente-resolvido" class="hidden text-[11px] text-faiston-muted mt-1.5 flex items-center gap-1">
+                    <i class="ph ph-buildings text-xs"></i>
+                    Cliente: <span id="nt-cliente-resolvido-nome" class="font-semibold text-faiston-purple"></span>
+                </p>
+            </div>
+            <div id="nt-demanda-wrap">
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Demanda <span class="text-faiston-pink">*</span></label>
+                <input type="text" id="nt-demanda" list="nt-lista-demandas" oninput="ntAtualizarDemanda(this.value)"
+                    placeholder="Ex: Demandas Gerais, Demandas Logística, Reunião interna..."
+                    class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                <datalist id="nt-lista-demandas"></datalist>
+                <p class="text-[10px] text-faiston-faint mt-1">Não cria cliente nem projeto — só agrupa as tarefas no quadro.</p>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
+                <select id="nt-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="Media">Média</option><option value="Alta">Alta</option><option value="Baixa">Baixa</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
+                    <i class="ph ph-users-three text-faiston-purple mr-1"></i>Ajudantes <span class="text-faiston-faint normal-case font-medium">(opcional)</span>
+                </label>
+                <select id="nt-ajudante" onchange="ntAdicionarAjudante(this.value)"
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="">+ Adicionar pessoa para ajudar...</option>
+                </select>
+                <div id="nt-ajudantes-chips" class="flex flex-wrap gap-1.5 mt-2"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Título <span class="text-faiston-pink">*</span></label>
-                    <input type="text" id="nt-titulo" placeholder="Ex: Migração rota IP — anel sul" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/10 transition-all">
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Status</label>
+                    <select id="nt-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                        <option value="aberto">Aberto</option>
+                        <option value="em_andamento">Em Andamento</option>
+                        <option value="concluido">Concluído</option>
+                    </select>
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição</label>
-                    <textarea id="nt-descricao" placeholder="Descreva a tarefa, contexto, links e critérios de aceite..." rows="4" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/10 transition-all resize-none"></textarea>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Tags</label>
-                    <div class="min-h-10 border border-faiston-border rounded-lg px-3 py-2 flex flex-wrap gap-2 items-center cursor-text" onclick="document.getElementById('nt-tag-input').focus()">
-                        <span class="flex items-center gap-1.5 text-xs font-semibold text-faiston-purple bg-faiston-purple/10 border border-faiston-purple/20 px-2 py-1 rounded-md">
-                            <i class="ph ph-tag text-xs"></i> servidor <button class="hover:text-faiston-pink" onclick="removerTag(this)"><i class="ph ph-x text-[10px]"></i></button>
-                        </span>
-                        <span class="flex items-center gap-1.5 text-xs font-semibold text-faiston-cyan bg-faiston-cyan/10 border border-faiston-cyan/20 px-2 py-1 rounded-md">
-                            <i class="ph ph-tag text-xs"></i> infra <button class="hover:text-faiston-pink" onclick="removerTag(this)"><i class="ph ph-x text-[10px]"></i></button>
-                        </span>
-                        <input type="text" id="nt-tag-input" placeholder="+ adicionar tag" class="text-xs text-faiston-faint outline-none bg-transparent flex-1 min-w-24" onkeydown="adicionarTag(event)">
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Horas Manuais</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="nt-horas" placeholder="0" min="0" max="23" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all text-center">
+                        <input type="number" id="nt-minutos" placeholder="00" min="0" max="59" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all text-center">
                     </div>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Apontamentos</label>
-                    <div class="bg-slate-50 rounded-xl p-4 border border-faiston-border">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center gap-3">
-                                <button id="nt-timer-btn" onclick="toggleTimerModal()" class="w-10 h-10 rounded-full grad-bg flex items-center justify-center text-white shadow-[0_4px_12px_-4px_rgba(91,46,224,0.5)] hover:scale-105 transition-transform">
-                                    <i class="ph-fill ph-play text-sm" id="nt-timer-icon"></i>
-                                </button>
-                                <div>
-                                    <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-wider">Cronômetro</p>
-                                    <p class="font-mono text-xl font-bold text-faiston-dark" id="nt-timer-display">00:00:00</p>
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-wider">Total Apontado</p>
-                                <p class="text-xl font-bold text-faiston-dark">0h</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <input type="number" id="nt-horas-manual" placeholder="0" min="0" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:border-faiston-purple bg-white">
-                            <button class="px-4 py-2 rounded-lg bg-faiston-dark text-white text-sm font-semibold hover:bg-faiston-purple transition-colors">Apontar</button>
-                        </div>
-                    </div>
+                    <p class="text-[10px] text-faiston-faint mt-1">horas / minutos</p>
                 </div>
             </div>
-            <!-- Right column -->
-            <div class="p-6 flex flex-col gap-5">
+            <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Cliente <span class="text-faiston-pink">*</span></label>
-                    <div id="nt-clientes-pills" class="flex flex-wrap gap-2"></div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
+                        <i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Prazo (até quando)
+                    </label>
+                    <input type="date" id="nt-prazo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Responsável</label>
-                    <select id="nt-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                        <option value="">Selecionar...</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Projeto <span class="text-slate-300 font-normal normal-case tracking-normal text-[10px]">opcional</span></label>
-                    <select id="nt-projeto" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white text-slate-400">
-                        <option value="">Selecione um cliente primeiro...</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Prioridade</label>
-                    <div class="flex gap-2">
-                        <button onclick="setPrioridade('Baixa')" data-prio="Baixa" class="prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-border text-slate-500 hover:border-faiston-purple hover:text-faiston-purple transition-all">
-                            <i class="ph ph-flag text-sm"></i> Baixa
-                        </button>
-                        <button onclick="setPrioridade('Media')" data-prio="Media" class="prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-purple bg-faiston-purple/10 text-faiston-purple transition-all">
-                            <i class="ph-fill ph-flag text-sm"></i> Média
-                        </button>
-                        <button onclick="setPrioridade('Alta')" data-prio="Alta" class="prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-border text-slate-500 hover:border-faiston-magenta hover:text-faiston-magenta transition-all">
-                            <i class="ph ph-flag text-sm"></i> Alta
-                        </button>
-                        <button onclick="setPrioridade('Critica')" data-prio="Critica" class="prio-btn flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-lg border border-faiston-border text-slate-500 hover:border-faiston-pink hover:text-faiston-pink transition-all">
-                            <i class="ph ph-flag text-sm"></i> Crítica
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Status</label>
-                    <div class="border border-faiston-border rounded-xl overflow-hidden divide-y divide-faiston-border">
-                        <button onclick="setStatusTicket('aberto')" data-status="aberto" class="status-btn w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-left bg-faiston-purple/5 text-faiston-dark">
-                            <span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-slate-300"></span> Aberto</span>
-                            <i class="ph ph-check text-faiston-purple"></i>
-                        </button>
-                        <button onclick="setStatusTicket('em_andamento')" data-status="em_andamento" class="status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors">
-                            <span class="w-2 h-2 rounded-full bg-faiston-purple"></span> Em andamento
-                        </button>
-                        <button onclick="setStatusTicket('revisao')" data-status="revisao" class="status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors">
-                            <span class="w-2 h-2 rounded-full bg-faiston-pink"></span> Em revisão
-                        </button>
-                        <button onclick="setStatusTicket('concluido')" data-status="concluido" class="status-btn w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-left text-slate-500 hover:bg-slate-50 transition-colors">
-                            <span class="w-2 h-2 rounded-full bg-faiston-cyan"></span> Concluído
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Datas</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-[10px] text-faiston-faint mb-1 block"><i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Prazo (até quando)</label>
-                            <input type="date" id="nt-prazo" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white">
-                        </div>
-                        <div>
-                            <label class="text-[10px] text-faiston-faint mb-1 block"><i class="ph ph-calendar-plus text-faiston-purple mr-1"></i>Agendar para</label>
-                            <input type="date" id="nt-agendamento" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-2 block">Anexos</label>
-                    <div class="border-2 border-dashed border-faiston-border rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-faiston-purple hover:bg-faiston-purple/5 transition-all">
-                        <i class="ph ph-paperclip text-2xl text-slate-300"></i>
-                        <p class="text-xs text-faiston-faint font-medium">Arraste arquivos ou clique para enviar</p>
-                    </div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
+                        <i class="ph ph-calendar-plus text-faiston-purple mr-1"></i>Agendar para
+                    </label>
+                    <input type="date" id="nt-agendamento" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                 </div>
             </div>
         </div>
         <!-- Modal footer -->
-        <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-faiston-border bg-slate-50/50">
-            <button onclick="fecharModalTicket()" class="px-5 py-2.5 rounded-lg border border-faiston-border text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">Cancelar</button>
-            <button onclick="criarTicket()" class="px-5 py-2.5 rounded-lg btn-grad text-white text-sm font-semibold flex items-center gap-2">
-                <i class="ph ph-plus"></i> Criar ticket
-            </button>
+        <div class="flex gap-3 px-6 pb-6">
+            <button onclick="fecharModalTicket()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-faiston-muted hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="criarTicket()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-2"><i class="ph ph-floppy-disk"></i> Salvar</button>
         </div>
     </div>
 </div>
