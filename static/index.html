@@ -3679,36 +3679,34 @@ async function criarProjeto() {
     const btn = document.getElementById('btn-criar-proj');
     btn.disabled = true; btn.textContent = 'Criando...';
     try {
-        // 1. Cria o projeto vinculado ao cliente
-        const r1 = await fetch(`/api/clientes/${clienteId}/projetos`, {
+        // Cria o projeto já completo (status, datas, responsável) numa única chamada
+        const escopo = document.getElementById('np-escopo').value.trim();
+        const res = await fetch(`/api/clientes/${clienteId}/projetos`, {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({
                 nome,
                 orcamento: parseFloat(document.getElementById('np-orcamento').value) || 0,
-                descricao: document.getElementById('np-escopo').value.trim() || ''
+                descricao: escopo,
+                escopo,
+                responsavel_id: parseInt(document.getElementById('np-responsavel').value) || null,
+                status_gestao: document.getElementById('np-status').value,
+                data_inicio: document.getElementById('np-inicio').value || null,
+                data_termino: document.getElementById('np-termino').value || null,
             })
         });
-        if (!r1.ok) { const d = await r1.json(); alert(d.detail || 'Erro ao criar projeto'); return; }
-        const proj = await r1.json();
-
-        // 2. Atualiza os campos de gestão
-        const gestaoBody = {
-            responsavel_id: parseInt(document.getElementById('np-responsavel').value) || null,
-            status_gestao: document.getElementById('np-status').value,
-            data_inicio: document.getElementById('np-inicio').value || null,
-            data_termino: document.getElementById('np-termino').value || null,
-            escopo: document.getElementById('np-escopo').value.trim() || null,
-        };
-        await fetch(`/api/gestao/projetos/${proj.id}`, {
-            method: 'PUT',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(gestaoBody)
-        });
-
+        if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            const errId = d.error_id ? ` [ID: ${d.error_id}]` : '';
+            throw new Error((d.detail || `HTTP ${res.status}`) + errId);
+        }
         fecharModalNovoProj();
         await carregar();
-    } catch(e) { alert('Erro de conexão'); }
+    } catch(e) {
+        if (typeof mostrarErroGlobal === 'function')
+            mostrarErroGlobal('Erro ao criar projeto', e.message, `POST /api/clientes/${clienteId}/projetos`);
+        else alert('Erro ao criar projeto: ' + e.message);
+    }
     finally { btn.disabled = false; btn.textContent = 'Criar Projeto'; }
 }
 

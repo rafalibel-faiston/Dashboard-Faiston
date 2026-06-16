@@ -2210,6 +2210,11 @@ class ProjetoModel(BaseModel):
     nome: str
     descricao: str = ""
     orcamento: float = 0.0
+    responsavel_id: Optional[int] = None
+    status_gestao: str = "EM ANDAMENTO"
+    data_inicio: Optional[str] = None
+    data_termino: Optional[str] = None
+    escopo: str = ""
 
 class LancamentoModel(BaseModel):
     descricao: str
@@ -2586,8 +2591,13 @@ def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         _ensure_financeiro_tables(cur)
-        cur.execute("INSERT INTO projetos (cliente_id, nome, descricao, orcamento) VALUES (%s,%s,%s,%s) RETURNING id",
-                    (cid, p.nome, p.descricao, p.orcamento))
+        status = p.status_gestao if p.status_gestao in ('EM ANDAMENTO', 'FINALIZAÇÃO', 'EM FREEZING') else 'EM ANDAMENTO'
+        cur.execute("""
+            INSERT INTO projetos (cliente_id, nome, descricao, orcamento, escopo,
+                                  responsavel_id, status_gestao, data_inicio, data_termino, ativo)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE) RETURNING id
+        """, (cid, p.nome, p.descricao, p.orcamento, p.escopo or p.descricao,
+              p.responsavel_id, status, p.data_inicio or None, p.data_termino or None))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
