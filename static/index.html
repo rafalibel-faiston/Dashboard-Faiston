@@ -324,6 +324,11 @@
             style="background:transparent;color:#9097AC;box-shadow:none">
             <i class="ph ph-calendar-check text-base"></i> Agenda
         </button>
+        <button onclick="switchView('minhas')" id="btn-view-minhas"
+            class="view-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-user-focus text-base"></i> Minhas Tarefas
+        </button>
     </div>
 
     <div id="view-metricas">
@@ -502,6 +507,12 @@
             <div id="agenda-cal-detalhe" class="mt-4 hidden flex flex-col gap-2"></div>
         </div>
     </div><!-- /view-agenda -->
+
+    <!-- MINHAS TAREFAS (quadro pessoal do gestor — reaproveita o board do funcionário) -->
+    <div id="view-minhas" class="hidden">
+        <iframe id="iframe-minhas" title="Minhas Tarefas" class="w-full rounded-2xl border border-faiston-border bg-white"
+            style="height:calc(100vh - 220px);min-height:560px"></iframe>
+    </div>
 
 </div><!-- /mod-dashboard -->
 
@@ -2929,6 +2940,7 @@ function switchView(view) {
     document.getElementById('view-metricas').classList.toggle('hidden', view !== 'metricas');
     document.getElementById('view-kanban').classList.toggle('hidden', view !== 'kanban');
     document.getElementById('view-agenda').classList.toggle('hidden', view !== 'agenda');
+    document.getElementById('view-minhas').classList.toggle('hidden', view !== 'minhas');
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const ACTIVE  = isDark
@@ -2939,7 +2951,12 @@ function switchView(view) {
     document.getElementById('btn-view-metricas').style.cssText = view==='metricas' ? ACTIVE : INACTIVE;
     document.getElementById('btn-view-kanban').style.cssText   = view==='kanban'   ? ACTIVE : INACTIVE;
     document.getElementById('btn-view-agenda').style.cssText   = view==='agenda'   ? ACTIVE : INACTIVE;
+    document.getElementById('btn-view-minhas').style.cssText   = view==='minhas'   ? ACTIVE : INACTIVE;
 
+    if (view === 'minhas') {
+        const ifr = document.getElementById('iframe-minhas');
+        if (ifr && !ifr.src) ifr.src = '/funcionario?embed=1';
+    }
     if (view === 'kanban') carregarTarefasKanban();
     if (view === 'agenda') {
         _agendaTarefasCache = null;

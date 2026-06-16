@@ -134,13 +134,16 @@
         [data-theme="dark"] #notif-panel { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
         [data-theme="dark"] #notif-lista > div { border-color: rgba(255,255,255,0.05) !important; }
         [data-theme="dark"] #notif-lista p.text-faiston-dark { color: #E2E4EF !important; }
-    </style>
+        /* Modo embed (quadro pessoal dentro do dashboard do gestor) */
+        body.embed [data-embed-hide] { display: none !important; }
+        body.embed header { position: static; padding-top: 12px; padding-bottom: 12px; }
+        body.embed main { padding-top: 16px; }
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
 
 <!-- HEADER -->
 <header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3" data-embed-hide>
         <div class="w-9 h-9 rounded-[10px] grad-bg flex items-center justify-center shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
             <i class="ph-fill ph-play text-white text-base"></i>
         </div>
@@ -167,7 +170,7 @@
             <option value="">Todas as prioridades</option>
             <option>Alta</option><option>Media</option><option>Baixa</option>
         </select>
-        <button onclick="toggleTemaFunc()" id="btn-tema-f" class="btn-theme" title="Alternar tema">
+        <button onclick="toggleTemaFunc()" id="btn-tema-f" class="btn-theme" title="Alternar tema" data-embed-hide>
             <i class="ph ph-moon" id="icon-tema-f"></i>
         </button>
         <!-- Notificações pessoais -->
@@ -186,10 +189,10 @@
                 </div>
             </div>
         </div>
-        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+        <button onclick="logout()" data-embed-hide class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
             <i class="ph ph-sign-out"></i> Sair
         </button>
-        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border" data-embed-hide>
             <div class="w-9 h-9 rounded-full grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-avatar">?</div>
             <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
         </div>
@@ -683,17 +686,24 @@ function fmt(s)  { return `${String(Math.floor(s/3600)).padStart(2,'0')}:${Strin
 function fmtH(s) { return `${Math.floor(s/3600)}h ${String(Math.floor((s%3600)/60)).padStart(2,'0')}m`; }
 
 // ── INIT ────────────────────────────────────────────────────────────
+const _EMBED = new URLSearchParams(location.search).get('embed') === '1';
+if (_EMBED) document.body.classList.add('embed');
+
 async function init() {
     try {
         const res = await fetch('/api/me');
         if (!res.ok) { window.location.href = '/'; return; }
         const me = await res.json();
-        if (me.perfil === 'admin')  { window.location.href = '/admin'; return; }
-        if (me.perfil === 'gestor') { window.location.href = '/dashboard'; return; }
+        // Em modo embed (quadro pessoal do gestor dentro do dashboard) qualquer
+        // perfil pode usar o board. Fora do embed, gestor/admin vão para sua home.
+        if (!_EMBED) {
+            if (me.perfil === 'admin')  { window.location.href = '/admin'; return; }
+            if (me.perfil === 'gestor') { window.location.href = '/dashboard'; return; }
+        }
         MEU_ID = me.id;
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
-        if (me.perfil === 'demo') document.getElementById('demo-back-bar').classList.remove('hidden');
+        if (me.perfil === 'demo' && !_EMBED) document.getElementById('demo-back-bar').classList.remove('hidden');
     } catch(e) { window.location.href = '/'; return; }
 
     await carregarTarefas();

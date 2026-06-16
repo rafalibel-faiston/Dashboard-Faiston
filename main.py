@@ -741,16 +741,16 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
                              t.data_prazo, t.data_agendamento, t.usuario_id
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
-        if sess["perfil"] == "admin":
+        if view == "func":
+            # Quadro pessoal (funcionario.html / embed do gestor): qualquer perfil vê
+            # apenas as próprias tarefas + aquelas em que é colaborador (ajudando).
+            cur.execute(base_sel + """ WHERE t.usuario_id = %s
+                OR t.id IN (SELECT tarefa_id FROM tarefa_colaboradores WHERE usuario_id = %s)
+                ORDER BY t.criado_em DESC""", (sess["id"], sess["id"]))
+        elif sess["perfil"] == "admin":
             cur.execute(base_sel + " ORDER BY t.criado_em DESC")
         elif sess["perfil"] in ("gestor", "demo"):
-            # Demo na visão de funcionário (funcionario.html) vê só as próprias tarefas
-            if sess["perfil"] == "demo" and view == "func":
-                cur.execute(base_sel + """ WHERE t.usuario_id = %s
-                    OR t.id IN (SELECT tarefa_id FROM tarefa_colaboradores WHERE usuario_id = %s)
-                    ORDER BY t.criado_em DESC""", (sess["id"], sess["id"]))
-            else:
-                cur.execute(base_sel + " WHERE COALESCE(u.time,'Projetos')=%s ORDER BY t.criado_em DESC", (sess.get("time","Projetos"),))
+            cur.execute(base_sel + " WHERE COALESCE(u.time,'Projetos')=%s ORDER BY t.criado_em DESC", (sess.get("time","Projetos"),))
         else:
             # Funcionário vê as próprias tarefas + aquelas em que é colaborador (ajudando)
             cur.execute(base_sel + """ WHERE t.usuario_id = %s
