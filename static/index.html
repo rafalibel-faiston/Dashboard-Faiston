@@ -110,6 +110,9 @@
                 <a href="#" onclick="setModule('dashboard'); return false;" id="sidebar-link-dashboard" class="flex items-center gap-2.5 bg-faiston-cyan/10 text-faiston-cyan font-medium text-sm rounded-md p-2.5 border border-faiston-cyan/30">
                     <i class="ph ph-chart-line-up text-lg"></i> Dashboard
                 </a>
+                <a href="#" onclick="setModule('minhas'); return false;" id="sidebar-link-minhas" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-user-focus text-lg"></i> Minhas Tarefas
+                </a>
                 <a href="#" onclick="setModule('financeiro'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-currency-circle-dollar text-lg"></i> Financeiro
                 </a>
@@ -324,11 +327,6 @@
             style="background:transparent;color:#9097AC;box-shadow:none">
             <i class="ph ph-calendar-check text-base"></i> Agenda
         </button>
-        <button onclick="switchView('minhas')" id="btn-view-minhas"
-            class="view-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-            style="background:transparent;color:#9097AC;box-shadow:none">
-            <i class="ph ph-user-focus text-base"></i> Minhas Tarefas
-        </button>
     </div>
 
     <div id="view-metricas">
@@ -508,13 +506,29 @@
         </div>
     </div><!-- /view-agenda -->
 
-    <!-- MINHAS TAREFAS (quadro pessoal do gestor — reaproveita o board do funcionário) -->
-    <div id="view-minhas" class="hidden">
-        <iframe id="iframe-minhas" title="Minhas Tarefas" class="w-full rounded-2xl border border-faiston-border bg-white"
-            style="height:calc(100vh - 220px);min-height:560px"></iframe>
-    </div>
-
 </div><!-- /mod-dashboard -->
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- MODULE: MINHAS TAREFAS (quadro pessoal — board do funcionário)   -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="mod-minhas" class="hidden flex-1 flex flex-col overflow-hidden">
+    <header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+        <div>
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-[0.08em] text-faiston-purple" style="background:rgba(91,46,224,0.08);border:1px solid rgba(91,46,224,0.15)">● Operação Ativa</span>
+                <span class="text-xs text-faiston-faint">→ Torre de Controle → Minhas Tarefas</span>
+            </div>
+            <h2 class="text-xl font-bold text-faiston-dark tracking-tight">Minhas Tarefas</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Seu quadro pessoal — crie, cronometre e mova tarefas atribuídas a você.</p>
+        </div>
+        <button class="btn-theme" title="Alternar tema" onclick="toggleTema()">
+            <i class="ph ph-moon text-faiston-muted text-sm"></i>
+        </button>
+    </header>
+    <main class="flex-1 overflow-hidden p-4">
+        <iframe id="iframe-minhas" title="Minhas Tarefas" class="w-full h-full rounded-2xl border border-faiston-border bg-white"></iframe>
+    </main>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- MODULE: GESTÃO                                                  -->
@@ -2940,7 +2954,6 @@ function switchView(view) {
     document.getElementById('view-metricas').classList.toggle('hidden', view !== 'metricas');
     document.getElementById('view-kanban').classList.toggle('hidden', view !== 'kanban');
     document.getElementById('view-agenda').classList.toggle('hidden', view !== 'agenda');
-    document.getElementById('view-minhas').classList.toggle('hidden', view !== 'minhas');
 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const ACTIVE  = isDark
@@ -2951,15 +2964,7 @@ function switchView(view) {
     document.getElementById('btn-view-metricas').style.cssText = view==='metricas' ? ACTIVE : INACTIVE;
     document.getElementById('btn-view-kanban').style.cssText   = view==='kanban'   ? ACTIVE : INACTIVE;
     document.getElementById('btn-view-agenda').style.cssText   = view==='agenda'   ? ACTIVE : INACTIVE;
-    document.getElementById('btn-view-minhas').style.cssText   = view==='minhas'   ? ACTIVE : INACTIVE;
 
-    if (view === 'minhas') {
-        const ifr = document.getElementById('iframe-minhas');
-        if (ifr && ifr.dataset.loaded !== '1') {
-            ifr.dataset.loaded = '1';
-            ifr.src = '/funcionario?embed=1';
-        }
-    }
     if (view === 'kanban') carregarTarefasKanban();
     if (view === 'agenda') {
         _agendaTarefasCache = null;
@@ -3087,7 +3092,7 @@ let _histCarregado = false;
 let _adminCarregado = false;
 
 function setModule(mod, gestaoTab) {
-    const mods = ['dashboard','gestao','financeiro','historico','admin'];
+    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas'];
     mods.forEach(m => {
         const el = document.getElementById('mod-' + m);
         if (el) el.classList.toggle('hidden', m !== mod);
@@ -3125,6 +3130,12 @@ function setModule(mod, gestaoTab) {
         if (!_histCarregado) { _histCarregado = true; histBuscar(); }
     } else if (mod === 'admin') {
         if (!_adminCarregado) { _adminCarregado = true; adminCarregarUsuarios(); }
+    } else if (mod === 'minhas') {
+        const ifr = document.getElementById('iframe-minhas');
+        if (ifr && ifr.dataset.loaded !== '1') {
+            ifr.dataset.loaded = '1';
+            ifr.src = '/funcionario?embed=1';
+        }
     }
 }
 
