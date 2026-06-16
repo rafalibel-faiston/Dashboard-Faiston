@@ -526,8 +526,8 @@
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-[0.08em] text-faiston-purple" style="background:rgba(91,46,224,0.08);border:1px solid rgba(91,46,224,0.15)">● Operação Ativa</span>
                 <span class="text-xs text-faiston-faint">→ Torre de Controle → Gestão</span>
             </div>
-            <h2 class="text-xl font-bold text-faiston-dark tracking-tight">Gestão de Projetos e Contratos</h2>
-            <p class="text-xs text-faiston-muted mt-0.5" id="header-sub">Carregando...</p>
+            <h2 class="text-xl font-bold text-faiston-dark tracking-tight" id="gestao-header-title">Gestão de Projetos e Contratos</h2>
+            <p class="text-xs text-faiston-muted mt-0.5" id="gestao-header-sub">Carregando...</p>
         </div>
         <div class="flex items-center gap-3">
             <div class="relative">
@@ -3230,6 +3230,20 @@ function setTab(tab) {
         }
     });
 
+    // KPIs de projetos/contratos não fazem sentido na aba Carimbos
+    const kpiSec = document.getElementById('kpi-section');
+    const gTitle = document.getElementById('gestao-header-title');
+    const gSub   = document.getElementById('gestao-header-sub');
+    if (tab === 'carimbos') {
+        if (kpiSec) kpiSec.classList.add('hidden');
+        if (gTitle) gTitle.textContent = 'Carimbos';
+        if (gSub)   gSub.textContent = `${(typeof gCarimbos !== 'undefined' ? gCarimbos.length : 0)} carimbos salvos`;
+    } else {
+        if (kpiSec) kpiSec.classList.remove('hidden');
+        if (gTitle) gTitle.textContent = 'Gestão de Projetos e Contratos';
+        if (gSub)   gSub.textContent = `${todosProjetos.length} projetos · ${todosContratos.length} contratos · ${todosClientes.length} clientes ativos`;
+    }
+
     const toggleGrupo = document.getElementById('toggle-grupo');
     if (tab === 'projetos') {
         toggleGrupo.classList.remove('hidden');
@@ -3277,7 +3291,7 @@ async function carregar() {
     filtrar();
     filtrarContratos();
 
-    document.getElementById('header-sub').textContent =
+    document.getElementById('gestao-header-sub').textContent =
         `${todosProjetos.length} projetos · ${todosContratos.length} contratos · ${todosClientes.length} clientes ativos`;
 }
 
