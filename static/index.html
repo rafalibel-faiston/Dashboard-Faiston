@@ -2955,7 +2955,10 @@ function switchView(view) {
 
     if (view === 'minhas') {
         const ifr = document.getElementById('iframe-minhas');
-        if (ifr && !ifr.src) ifr.src = '/funcionario?embed=1';
+        if (ifr && ifr.dataset.loaded !== '1') {
+            ifr.dataset.loaded = '1';
+            ifr.src = '/funcionario?embed=1';
+        }
     }
     if (view === 'kanban') carregarTarefasKanban();
     if (view === 'agenda') {
