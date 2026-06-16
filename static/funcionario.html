@@ -102,6 +102,8 @@
         [data-theme="dark"] #view-carimbos-func .text-faiston-dark { color: #F1F2F8 !important; }
         [data-theme="dark"] #view-carimbos-func .text-faiston-muted { color: #9097AC !important; }
         [data-theme="dark"] #carimbos-view-content .bg-white { background-color: #11111E !important; }
+        [data-theme="dark"] #carimbos-view-content .border-faiston-border { border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #carimbos-view-content .text-faiston-dark { color: #F1F2F8 !important; }
         [data-theme="dark"] #carimbos-view-content pre { color: #8B93AE !important; }
         [data-theme="dark"] #carimbos-view-content p.text-sm { color: #E2E4EF !important; }
         /* Separador de categoria e contador de carimbos */
@@ -1710,31 +1712,20 @@ async function deletarCarimboModal() {
     renderCarimbos();
 }
 
-const CAT_COLORS_LIGHT = [
-    {border:'#5B2EE0', bg:'#f5f0ff', badge:'#ede5ff', text:'#5B2EE0'},
-    {border:'#06D7E6', bg:'#f0fffe', badge:'#d6feff', text:'#0a9ba6'},
-    {border:'#f59e0b', bg:'#fffbf0', badge:'#fef3c7', text:'#b45309'},
-    {border:'#10b981', bg:'#f0fdf8', badge:'#d1fae5', text:'#047857'},
-    {border:'#ef4444', bg:'#fff5f5', badge:'#fee2e2', text:'#b91c1c'},
-    {border:'#8b5cf6', bg:'#f8f5ff', badge:'#ede9fe', text:'#6d28d9'},
-    {border:'#f97316', bg:'#fff7f0', badge:'#ffedd5', text:'#c2410c'},
-    {border:'#3b82f6', bg:'#f0f6ff', badge:'#dbeafe', text:'#1d4ed8'},
+function escHtmlC(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+// Paleta de gradientes — cada categoria recebe uma cor fixa (todos os cards da
+// mesma categoria ficam com o mesmo gradiente).
+const CAR_GRADIENTS_FUNC = [
+    'linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%)',
+    'linear-gradient(135deg,#06D7E6 0%,#5B2EE0 100%)',
+    'linear-gradient(135deg,#B826C9 0%,#5B2EE0 100%)',
+    'linear-gradient(135deg,#5B2EE0 0%,#06D7E6 100%)',
+    'linear-gradient(135deg,#EC4899 0%,#B826C9 100%)',
+    'linear-gradient(135deg,#06D7E6 0%,#B826C9 100%)',
+    'linear-gradient(135deg,#f59e0b 0%,#EC4899 100%)',
+    'linear-gradient(135deg,#10b981 0%,#06D7E6 100%)',
 ];
-const CAT_COLORS_DARK = [
-    {border:'#7C52F0', bg:'rgba(91,46,224,0.12)', badge:'rgba(91,46,224,0.2)', text:'#A584F5'},
-    {border:'#06D7E6', bg:'rgba(6,215,230,0.08)', badge:'rgba(6,215,230,0.15)', text:'#06D7E6'},
-    {border:'#f59e0b', bg:'rgba(245,158,11,0.08)', badge:'rgba(245,158,11,0.15)', text:'#FCD34D'},
-    {border:'#10b981', bg:'rgba(16,185,129,0.08)', badge:'rgba(16,185,129,0.15)', text:'#34D399'},
-    {border:'#ef4444', bg:'rgba(239,68,68,0.08)', badge:'rgba(239,68,68,0.15)', text:'#FCA5A5'},
-    {border:'#8b5cf6', bg:'rgba(139,92,246,0.08)', badge:'rgba(139,92,246,0.15)', text:'#C4B5FD'},
-    {border:'#f97316', bg:'rgba(249,115,22,0.08)', badge:'rgba(249,115,22,0.15)', text:'#FDBA74'},
-    {border:'#3b82f6', bg:'rgba(59,130,246,0.08)', badge:'rgba(59,130,246,0.15)', text:'#93C5FD'},
-];
-function catColor(idx){
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const pal = dark ? CAT_COLORS_DARK : CAT_COLORS_LIGHT;
-    return pal[idx % pal.length];
-}
 
 function renderCarimbos() {
     const cont=document.getElementById('carimbos-view-content'); if(!cont) return;
@@ -1742,39 +1733,38 @@ function renderCarimbos() {
         cont.innerHTML=`<div class="text-center py-24 text-slate-300"><i class="ph ph-stamp text-3xl mb-3 block"></i><p class="text-sm">Nenhum carimbo ainda.<br>Clique em "Novo Carimbo" para criar o primeiro.</p></div>`;
         return;
     }
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const cardBg    = dark ? '#11111E' : '#ffffff';
-    const cardBord  = dark ? 'rgba(255,255,255,0.07)' : '#e8e8f0';
-    const titleCol  = dark ? '#F1F2F8' : '#0B0D1F';
-    const preCol    = dark ? '#8B93AE' : '#6b7280';
-    const byCat={};
-    carimbos.forEach(c=>{ if(!byCat[c.categoria||'Geral']) byCat[c.categoria||'Geral']=[]; byCat[c.categoria||'Geral'].push(c); });
-    cont.innerHTML=Object.entries(byCat).map(([cat,items],idx)=>{
-        const col=catColor(idx);
-        return `
-        <div class="mb-8">
-            <div class="flex items-center gap-3 mb-4">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider" style="background:${col.badge};color:${col.text}">
-                    <i class="ph ph-stamp text-xs"></i>${cat}
-                </span>
-                <span class="flex-1 h-px" style="background:${col.border};opacity:0.25"></span>
-                <span class="text-[10px]" style="color:${preCol}">${items.length} carimbo${items.length>1?'s':''}</span>
-            </div>
-            <div class="grid grid-cols-3 gap-4">
-                ${items.map(c=>`
-                <div class="rounded-2xl p-4 hover:shadow-lg transition-all flex flex-col" style="background:${cardBg};border-left:4px solid ${col.border};border-top:1px solid ${cardBord};border-right:1px solid ${cardBord};border-bottom:1px solid ${cardBord};">
-                    <div class="flex items-start justify-between mb-2 gap-2">
-                        <p class="text-sm font-bold leading-tight" style="color:${titleCol}">${c.titulo}</p>
-                        ${c.meu ? `<button onclick="abrirModalCarimbo(${c.id})" class="flex-shrink-0 transition-colors" style="color:${dark?'#4A5068':'#ccc'}" onmouseover="this.style.color='${col.border}'" onmouseout="this.style.color='${dark?'#4A5068':'#ccc'}'" title="Editar"><i class="ph ph-pencil text-sm"></i></button>` : ''}
+    // Mapa categoria -> gradiente fixo
+    const cats = [...new Set(carimbos.map(c => c.categoria || 'Geral'))].sort((a,b)=>a.localeCompare(b));
+    const catGrad = {};
+    cats.forEach((cat,i)=>{ catGrad[cat] = CAR_GRADIENTS_FUNC[i % CAR_GRADIENTS_FUNC.length]; });
+    // Ordena por categoria (e título) para agrupar visualmente as mesmas cores
+    const ordenados = [...carimbos].sort((a,b)=>{
+        const ca=a.categoria||'Geral', cb=b.categoria||'Geral';
+        return ca.localeCompare(cb) || (a.titulo||'').localeCompare(b.titulo||'');
+    });
+    cont.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">` +
+        ordenados.map(c=>{
+            const cat = c.categoria || 'Geral';
+            const grad = catGrad[cat];
+            const initials = (c.titulo || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+            const preview = (c.conteudo || '').slice(0, 160);
+            return `<div class="bg-white rounded-2xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_8px_32px_-8px_rgba(91,46,224,0.18)] transition-all duration-300 flex flex-col">
+                <div class="relative h-20 flex items-end px-5 pb-0" style="background:${grad}">
+                    <span class="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/20 text-white/90 backdrop-blur-sm">${escHtmlC(cat)}</span>
+                    <div class="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white text-base font-black translate-y-5 shadow-lg">${initials}</div>
+                </div>
+                <div class="pt-8 px-5 pb-4 flex flex-col flex-1 gap-2">
+                    <div class="flex items-start justify-between gap-2">
+                        <h3 class="font-bold text-faiston-dark text-sm leading-tight">${escHtmlC(c.titulo)}</h3>
+                        ${c.meu ? `<button onclick="abrirModalCarimbo(${c.id})" title="Editar" class="flex-shrink-0 w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>` : ''}
                     </div>
-                    <pre class="text-xs leading-relaxed mb-4 whitespace-pre-wrap font-sans flex-1" style="color:${preCol};min-height:60px;max-height:120px;overflow:hidden">${c.conteudo||''}</pre>
-                    <button onclick="copiarCarimbo(${c.id},this)" class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all" style="border:1px solid ${col.border}40;color:${col.text};background:${col.bg}" onmouseover="this.style.background='${col.badge}'" onmouseout="this.style.background='${col.bg}'">
-                        <i class="ph ph-copy text-sm"></i> Copiar
+                    <p class="text-xs text-slate-500 font-mono leading-relaxed line-clamp-4 flex-1 whitespace-pre-wrap">${escHtmlC(preview)}${(c.conteudo||'').length > 160 ? '<span class="text-slate-300">…</span>' : ''}</p>
+                    <button onclick="copiarCarimbo(${c.id}, this)" class="mt-1 w-full py-2 rounded-xl text-xs font-bold transition-all border border-faiston-cyan/30 text-faiston-cyan hover:bg-faiston-cyan/10 flex items-center justify-center gap-1.5">
+                        <i class="ph ph-copy text-xs"></i> Copiar
                     </button>
-                </div>`).join('')}
-            </div>
-        </div>`;
-    }).join('');
+                </div>
+            </div>`;
+        }).join('') + `</div>`;
 }
 
 async function copiarCarimbo(id, btn) {
