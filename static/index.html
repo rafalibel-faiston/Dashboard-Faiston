@@ -3992,7 +3992,6 @@ function renderDonut() {
     const series = labels.map(l => counts[l]);
     const total = series.reduce((a, b) => a + b, 0);
     const colors  = ['#5B2EE0', '#06D7E6', '#94a3b8'];
-    const gradTo  = ['#B826C9', '#0E9FB8', '#64748b'];
     const icons   = ['ph-play-circle', 'ph-flag-checkered', 'ph-snowflake'];
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const valColor = isDark ? '#e2e8f0' : '#0B0D1F';
@@ -4001,36 +4000,26 @@ function renderDonut() {
     if (_donutChart) { _donutChart.destroy(); _donutChart = null; }
     _donutChart = new ApexCharts(document.getElementById('chart-donut'), {
         chart: { type: 'donut', height: 240, background: 'transparent',
-            animations: { enabled: true, speed: 600, animateGradually: { enabled: true, delay: 120 } } },
+            animations: { enabled: true, speed: 700, animateGradually: { enabled: true, delay: 120 } } },
         series,
         labels,
         colors,
-        fill: {
-            type: 'gradient',
-            gradient: {
-                type: 'horizontal', shadeIntensity: 0.2,
-                gradientToColors: gradTo, inverseColors: false,
-                opacityFrom: 1, opacityTo: 1, stops: [0, 100]
-            }
-        },
-        stroke: { width: 3, colors: [isDark ? '#0B0D1F' : '#ffffff'] },
+        stroke: { width: 2, lineCap: 'round', colors: [isDark ? '#0B0D1F' : '#ffffff'] },
         legend: { show: false },
-        dataLabels: {
-            enabled: true,
-            formatter: (val) => (val >= 9 ? Math.round(val) + '%' : ''),
-            style: { fontSize: '12px', fontWeight: 800, colors: ['#fff'] },
-            dropShadow: { enabled: true, blur: 2, opacity: 0.4 }
-        },
-        plotOptions: { pie: { expandOnClick: false, donut: { size: '70%', labels: {
-            show: true,
-            name: { show: true, offsetY: 20, fontSize: '11px', fontWeight: 600, color: subColor },
-            value: { show: true, offsetY: -12, fontSize: '34px', fontWeight: 900, color: valColor },
-            total: { show: true, showAlways: true, label: 'projetos ativos',
-                fontSize: '11px', fontWeight: 600, color: subColor,
-                formatter: w => w.globals.seriesTotals.reduce((a, b) => a + b, 0)
-            }
-        }}}},
-        states: { hover: { filter: { type: 'lighten', value: 0.06 } } },
+        dataLabels: { enabled: false },
+        plotOptions: { pie: {
+            startAngle: -90, endAngle: 90, offsetY: 30, expandOnClick: false,
+            donut: { size: '72%', background: 'transparent', labels: {
+                show: true,
+                name: { show: true, offsetY: 0, fontSize: '11px', fontWeight: 600, color: subColor },
+                value: { show: true, offsetY: -34, fontSize: '40px', fontWeight: 900, color: valColor },
+                total: { show: true, showAlways: true, label: 'projetos ativos', offsetY: 0,
+                    fontSize: '11px', fontWeight: 600, color: subColor,
+                    formatter: w => w.globals.seriesTotals.reduce((a, b) => a + b, 0)
+                }
+            }}
+        }},
+        states: { hover: { filter: { type: 'lighten', value: 0.08 } } },
         tooltip: { enabled: true, fillSeriesColor: false,
             y: { formatter: (v) => v + ' projeto' + (v !== 1 ? 's' : '') },
             style: { fontSize: '12px' } },
@@ -4056,7 +4045,7 @@ function renderDonut() {
                             <span class="text-[11px] font-bold text-faiston-dark ml-2 flex-shrink-0">${v}<span class="text-slate-400 font-medium"> · ${pct}%</span></span>
                         </div>
                         <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:linear-gradient(90deg,${colors[i]},${gradTo[i]})"></div>
+                            <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${colors[i]}"></div>
                         </div>
                     </div>
                 </div>`;
