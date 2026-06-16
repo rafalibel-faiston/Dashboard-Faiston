@@ -410,6 +410,7 @@
         </div>
         <div class="p-6 flex flex-col gap-4">
             <input type="hidden" id="edit-id">
+            <input type="hidden" id="input-cliente" value="Demandas Gerais">
             <div>
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição <span class="text-faiston-pink">*</span></label>
                 <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/20 transition-all">
@@ -418,22 +419,18 @@
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
                 <select id="input-projeto" onchange="selecionarProjeto(this.value)"
                         class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                    <option value="">— Sem projeto —</option>
+                    <option value="">— Demandas Gerais (sem projeto) —</option>
                 </select>
+                <p id="cliente-resolvido" class="text-[11px] text-faiston-faint mt-1.5 flex items-center gap-1">
+                    <i class="ph ph-buildings text-xs"></i>
+                    <span id="cliente-resolvido-nome">Demandas Gerais</span>
+                </p>
             </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Cliente <span class="text-faiston-pink">*</span></label>
-                    <select id="input-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                        <option value="">Selecionar...</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
-                    <select id="input-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                        <option value="Media">Média</option><option value="Alta">Alta</option><option value="Baixa">Baixa</option>
-                    </select>
-                </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
+                <select id="input-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="Media">Média</option><option value="Alta">Alta</option><option value="Baixa">Baixa</option>
+                </select>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -664,14 +661,15 @@ async function init() {
         const res = await fetch('/api/opcoes-tarefa');
         if (res.ok) {
             const { clientes, projetos } = await res.json();
-            const selCliente  = document.getElementById('input-cliente');
-            const selFiltro   = document.getElementById('filter-cliente');
-            const selProjeto  = document.getElementById('input-projeto');
+            const selFiltro  = document.getElementById('filter-cliente');
+            const selProjeto = document.getElementById('input-projeto');
 
+            // Filtro do kanban: adiciona "Demandas Gerais" + todos os clientes
+            const oDG = document.createElement('option'); oDG.value = 'Demandas Gerais'; oDG.textContent = 'Demandas Gerais';
+            selFiltro.appendChild(oDG);
             clientes.forEach(c => {
-                const o1 = document.createElement('option'); o1.value = c.nome; o1.textContent = c.nome;
-                const o2 = o1.cloneNode(true);
-                selCliente.appendChild(o1); selFiltro.appendChild(o2);
+                const o = document.createElement('option'); o.value = c.nome; o.textContent = c.nome;
+                selFiltro.appendChild(o);
             });
 
             _todosProjetos = projetos;
@@ -919,7 +917,11 @@ function editTask(taskId) {
     document.getElementById('input-descricao').value = task.descricao;
     document.getElementById('input-projeto').value = task.projeto_id || '';
     selecionarProjeto(task.projeto_id || '');
-    if (!task.projeto_id) document.getElementById('input-cliente').value = task.cliente;
+    if (!task.projeto_id) {
+        const clienteNome = task.cliente || 'Demandas Gerais';
+        document.getElementById('input-cliente').value = clienteNome;
+        document.getElementById('cliente-resolvido-nome').textContent = clienteNome;
+    }
     document.getElementById('input-prioridade').value = task.prioridade;
     document.getElementById('input-status').value = task.status;
     // Mostra o tempo total, incluindo a sessão em andamento, para que o usuário edite o valor correto
@@ -938,9 +940,8 @@ function openModal() {
     document.getElementById('edit-id').value = '';
     document.getElementById('input-descricao').value = '';
     document.getElementById('input-projeto').value = '';
-    document.getElementById('input-cliente').value = '';
-    document.getElementById('input-cliente').disabled = false;
-    document.getElementById('input-cliente').style.opacity = '';
+    document.getElementById('input-cliente').value = 'Demandas Gerais';
+    document.getElementById('cliente-resolvido-nome').textContent = 'Demandas Gerais';
     document.getElementById('input-prioridade').value = 'Media';
     document.getElementById('input-status').value = 'aberto';
     document.getElementById('input-horas').value = '';
@@ -955,14 +956,14 @@ function closeModal() { document.getElementById('modal').classList.add('hidden')
 
 function selecionarProjeto(projetoId) {
     const proj = _todosProjetos.find(p => p.id == projetoId);
-    const selCliente = document.getElementById('input-cliente');
+    const clienteHidden = document.getElementById('input-cliente');
+    const nomeEl = document.getElementById('cliente-resolvido-nome');
     if (proj) {
-        selCliente.value = proj.cliente;
-        selCliente.disabled = true;
-        selCliente.style.opacity = '0.6';
+        clienteHidden.value = proj.cliente;
+        nomeEl.textContent = proj.cliente;
     } else {
-        selCliente.disabled = false;
-        selCliente.style.opacity = '';
+        clienteHidden.value = 'Demandas Gerais';
+        nomeEl.textContent = 'Demandas Gerais';
     }
 }
 
@@ -970,7 +971,7 @@ async function saveTask() {
     const descricao  = document.getElementById('input-descricao').value.trim();
     const cliente    = document.getElementById('input-cliente').value;
     const projeto_id = parseInt(document.getElementById('input-projeto').value) || null;
-    if (!descricao || !cliente) { alert('Preencha a descrição e o cliente.'); return; }
+    if (!descricao) { alert('Preencha a descrição da tarefa.'); return; }
     const horas    = parseInt(document.getElementById('input-horas').value) || 0;
     const minutos  = parseInt(document.getElementById('input-minutos').value) || 0;
     const segundos = (horas*3600)+(minutos*60);
