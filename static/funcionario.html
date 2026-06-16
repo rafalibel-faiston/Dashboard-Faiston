@@ -419,12 +419,22 @@
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
                 <select id="input-projeto" onchange="selecionarProjeto(this.value)"
                         class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                    <option value="">— Demandas Gerais (sem projeto) —</option>
+                    <option value="">— Sem projeto (demanda avulsa) —</option>
                 </select>
-                <p id="cliente-resolvido" class="text-[11px] text-faiston-faint mt-1.5 flex items-center gap-1">
+                <!-- Quando HÁ projeto: cliente resolvido automático -->
+                <p id="cliente-resolvido" class="hidden text-[11px] text-faiston-muted mt-1.5 flex items-center gap-1">
                     <i class="ph ph-buildings text-xs"></i>
-                    <span id="cliente-resolvido-nome">Demandas Gerais</span>
+                    Cliente: <span id="cliente-resolvido-nome" class="font-semibold text-faiston-purple"></span>
                 </p>
+            </div>
+            <!-- Quando NÃO há projeto: campo livre de demanda -->
+            <div id="demanda-wrap">
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Demanda <span class="text-faiston-pink">*</span></label>
+                <input type="text" id="input-demanda" list="lista-demandas" oninput="atualizarDemanda(this.value)"
+                    placeholder="Ex: Demandas Gerais, Demandas Logística, Reunião interna..."
+                    class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                <datalist id="lista-demandas"></datalist>
+                <p class="text-[10px] text-faiston-faint mt-1">Não cria cliente nem projeto — só agrupa as tarefas no quadro.</p>
             </div>
             <div>
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
@@ -915,13 +925,14 @@ function editTask(taskId) {
     document.getElementById('modal-title').textContent = 'Editar Tarefa';
     document.getElementById('edit-id').value = taskId;
     document.getElementById('input-descricao').value = task.descricao;
+    popularDemandas();
     document.getElementById('input-projeto').value = task.projeto_id || '';
-    selecionarProjeto(task.projeto_id || '');
     if (!task.projeto_id) {
-        const clienteNome = task.cliente || 'Demandas Gerais';
-        document.getElementById('input-cliente').value = clienteNome;
-        document.getElementById('cliente-resolvido-nome').textContent = clienteNome;
+        const demandaNome = task.cliente || 'Demandas Gerais';
+        document.getElementById('input-demanda').value = demandaNome;
+        document.getElementById('input-cliente').value = demandaNome;
     }
+    selecionarProjeto(task.projeto_id || '');
     document.getElementById('input-prioridade').value = task.prioridade;
     document.getElementById('input-status').value = task.status;
     // Mostra o tempo total, incluindo a sessão em andamento, para que o usuário edite o valor correto
@@ -939,9 +950,11 @@ function openModal() {
     document.getElementById('modal-title').textContent = 'Nova Tarefa';
     document.getElementById('edit-id').value = '';
     document.getElementById('input-descricao').value = '';
+    popularDemandas();
     document.getElementById('input-projeto').value = '';
+    document.getElementById('input-demanda').value = 'Demandas Gerais';
     document.getElementById('input-cliente').value = 'Demandas Gerais';
-    document.getElementById('cliente-resolvido-nome').textContent = 'Demandas Gerais';
+    selecionarProjeto('');
     document.getElementById('input-prioridade').value = 'Media';
     document.getElementById('input-status').value = 'aberto';
     document.getElementById('input-horas').value = '';
@@ -957,14 +970,34 @@ function closeModal() { document.getElementById('modal').classList.add('hidden')
 function selecionarProjeto(projetoId) {
     const proj = _todosProjetos.find(p => p.id == projetoId);
     const clienteHidden = document.getElementById('input-cliente');
-    const nomeEl = document.getElementById('cliente-resolvido-nome');
+    const resolvido = document.getElementById('cliente-resolvido');
+    const demandaWrap = document.getElementById('demanda-wrap');
+    const demandaInput = document.getElementById('input-demanda');
     if (proj) {
+        // Com projeto: cliente vem do projeto, esconde campo de demanda livre
         clienteHidden.value = proj.cliente;
-        nomeEl.textContent = proj.cliente;
+        document.getElementById('cliente-resolvido-nome').textContent = proj.cliente;
+        resolvido.classList.remove('hidden');
+        demandaWrap.classList.add('hidden');
     } else {
-        clienteHidden.value = 'Demandas Gerais';
-        nomeEl.textContent = 'Demandas Gerais';
+        // Sem projeto: demanda avulsa (campo livre)
+        resolvido.classList.add('hidden');
+        demandaWrap.classList.remove('hidden');
+        clienteHidden.value = (demandaInput.value || '').trim() || 'Demandas Gerais';
     }
+}
+
+function atualizarDemanda(valor) {
+    document.getElementById('input-cliente').value = (valor || '').trim() || 'Demandas Gerais';
+}
+
+// Sugere demandas avulsas que já existem (tarefas sem projeto)
+function popularDemandas() {
+    const dl = document.getElementById('lista-demandas');
+    if (!dl) return;
+    const nomes = new Set(['Demandas Gerais']);
+    (tasks || []).forEach(t => { if (!t.projeto_id && t.cliente) nomes.add(t.cliente); });
+    dl.innerHTML = [...nomes].sort().map(n => `<option value="${n.replace(/"/g,'&quot;')}">`).join('');
 }
 
 async function saveTask() {
