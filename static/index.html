@@ -813,8 +813,14 @@
                 <div class="lg:col-span-3 flex flex-col gap-4">
                     <!-- Donut: distribuição de status -->
                     <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm">
-                        <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Distribuição — Status do Portfolio</p>
-                        <div id="chart-donut" style="min-height:200px"></div>
+                        <div class="flex items-center gap-2 mb-3">
+                            <i class="ph ph-chart-donut text-faiston-purple"></i>
+                            <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Distribuição — Status do Portfolio</p>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div id="chart-donut" style="min-height:240px;width:100%"></div>
+                            <div id="donut-legend" class="w-full flex flex-col gap-2.5 mt-3"></div>
+                        </div>
                     </div>
                     <!-- Gantt -->
                     <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm flex-1">
@@ -3986,28 +3992,79 @@ function renderDonut() {
     todosProjetos.forEach(p => { if (counts[p.status_gestao] !== undefined) counts[p.status_gestao]++; });
     const labels = Object.keys(counts);
     const series = labels.map(l => counts[l]);
-    const colors = ['#06D7E6','#f59e0b','#94a3b8'];
+    const total = series.reduce((a, b) => a + b, 0);
+    const colors  = ['#06D7E6', '#f59e0b', '#94a3b8'];
+    const gradTo  = ['#0E9FB8', '#d97706', '#64748b'];
+    const icons   = ['ph-play-circle', 'ph-flag-checkered', 'ph-snowflake'];
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const valColor = isDark ? '#e2e8f0' : '#0B0D1F';
+    const subColor = '#94a3b8';
 
     if (_donutChart) { _donutChart.destroy(); _donutChart = null; }
     _donutChart = new ApexCharts(document.getElementById('chart-donut'), {
-        chart: { type: 'donut', height: 210, background: 'transparent', animations: { enabled: true, speed: 400 } },
+        chart: { type: 'donut', height: 240, background: 'transparent',
+            animations: { enabled: true, speed: 600, animateGradually: { enabled: true, delay: 120 } } },
         series,
         labels,
         colors,
-        legend: { position: 'bottom', fontSize: '11px', labels: { colors: isDark ? '#94a3b8' : '#5E647A' } },
-        dataLabels: { enabled: false },
-        plotOptions: { pie: { donut: { size: '60%', labels: {
+        fill: {
+            type: 'gradient',
+            gradient: {
+                type: 'horizontal', shadeIntensity: 0.2,
+                gradientToColors: gradTo, inverseColors: false,
+                opacityFrom: 1, opacityTo: 1, stops: [0, 100]
+            }
+        },
+        stroke: { width: 3, colors: [isDark ? '#0B0D1F' : '#ffffff'] },
+        legend: { show: false },
+        dataLabels: {
+            enabled: true,
+            formatter: (val) => (val >= 9 ? Math.round(val) + '%' : ''),
+            style: { fontSize: '12px', fontWeight: 800, colors: ['#fff'] },
+            dropShadow: { enabled: true, blur: 2, opacity: 0.4 }
+        },
+        plotOptions: { pie: { expandOnClick: false, donut: { size: '70%', labels: {
             show: true,
-            total: { show: true, label: 'Total', fontSize: '12px', fontWeight: 700,
-                color: isDark ? '#e2e8f0' : '#0B0D1F',
-                formatter: w => w.globals.seriesTotals.reduce((a,b) => a+b, 0)
+            name: { show: true, offsetY: 20, fontSize: '11px', fontWeight: 600, color: subColor },
+            value: { show: true, offsetY: -12, fontSize: '34px', fontWeight: 900, color: valColor },
+            total: { show: true, showAlways: true, label: 'projetos ativos',
+                fontSize: '11px', fontWeight: 600, color: subColor,
+                formatter: w => w.globals.seriesTotals.reduce((a, b) => a + b, 0)
             }
         }}}},
-        theme: { mode: isDark ? 'dark' : 'light' },
-        tooltip: { style: { fontSize: '12px' } },
+        states: { hover: { filter: { type: 'lighten', value: 0.06 } } },
+        tooltip: { enabled: true, fillSeriesColor: false,
+            y: { formatter: (v) => v + ' projeto' + (v !== 1 ? 's' : '') },
+            style: { fontSize: '12px' } },
     });
     _donutChart.render();
+
+    // Legenda customizada: ícone + contagem + percentual + barra
+    const leg = document.getElementById('donut-legend');
+    if (leg) {
+        if (!total) {
+            leg.innerHTML = '<p class="text-xs text-slate-300 text-center py-2">Nenhum projeto no portfolio</p>';
+        } else {
+            leg.innerHTML = labels.map((l, i) => {
+                const v = series[i];
+                const pct = total ? Math.round(v / total * 100) : 0;
+                return `<div class="flex items-center gap-2.5">
+                    <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${colors[i]}1f;color:${colors[i]}">
+                        <i class="ph ${icons[i]} text-sm"></i>
+                    </span>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-[11px] font-semibold text-slate-600 truncate">${l}</span>
+                            <span class="text-[11px] font-bold text-faiston-dark ml-2 flex-shrink-0">${v}<span class="text-slate-400 font-medium"> · ${pct}%</span></span>
+                        </div>
+                        <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:linear-gradient(90deg,${colors[i]},${gradTo[i]})"></div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
 }
 
 function renderWorkload() {
