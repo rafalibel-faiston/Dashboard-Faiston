@@ -195,6 +195,13 @@ def setup_banco():
             )
         """)
         cur.execute("ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tarefa_colaboradores (
+                tarefa_id INTEGER REFERENCES tarefas(id) ON DELETE CASCADE,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                PRIMARY KEY (tarefa_id, usuario_id)
+            )
+        """)
         cur.execute("SELECT id FROM usuarios WHERE usuario = 'admin'")
         if not cur.fetchone():
             cur.execute(
@@ -333,6 +340,7 @@ class TarefaModel(BaseModel):
     projeto_id: Optional[int] = None
     data_prazo: Optional[str] = None
     data_agendamento: Optional[str] = None
+    colaboradores: Optional[List[int]] = None
 
 class AtualizarSegundos(BaseModel):
     segundos: int
@@ -675,9 +683,17 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
         cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_prazo DATE")
         cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_agendamento DATE")
         conn.commit()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tarefa_colaboradores (
+                tarefa_id INTEGER REFERENCES tarefas(id) ON DELETE CASCADE,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                PRIMARY KEY (tarefa_id, usuario_id)
+            )
+        """)
+        conn.commit()
         base_sel = """SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
                              t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome,
-                             t.data_prazo, t.data_agendamento
+                             t.data_prazo, t.data_agendamento, t.usuario_id
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
         if sess["perfil"] == "admin":
@@ -685,18 +701,46 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
         elif sess["perfil"] in ("gestor", "demo"):
             # Demo na visão de funcionário (funcionario.html) vê só as próprias tarefas
             if sess["perfil"] == "demo" and view == "func":
-                cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
+                cur.execute(base_sel + """ WHERE t.usuario_id = %s
+                    OR t.id IN (SELECT tarefa_id FROM tarefa_colaboradores WHERE usuario_id = %s)
+                    ORDER BY t.criado_em DESC""", (sess["id"], sess["id"]))
             else:
                 cur.execute(base_sel + " WHERE COALESCE(u.time,'Projetos')=%s ORDER BY t.criado_em DESC", (sess.get("time","Projetos"),))
         else:
-            cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
-        rows = cur.fetchall(); cur.close(); conn.close()
+            # Funcionário vê as próprias tarefas + aquelas em que é colaborador (ajudando)
+            cur.execute(base_sel + """ WHERE t.usuario_id = %s
+                OR t.id IN (SELECT tarefa_id FROM tarefa_colaboradores WHERE usuario_id = %s)
+                ORDER BY t.criado_em DESC""", (sess["id"], sess["id"]))
+        rows = cur.fetchall()
+
+        # Colaboradores por tarefa
+        ids = [r[0] for r in rows]
+        colab_map = {}
+        if ids:
+            cur.execute("""SELECT tc.tarefa_id, u.id, u.nome
+                           FROM tarefa_colaboradores tc JOIN usuarios u ON u.id = tc.usuario_id
+                           WHERE tc.tarefa_id = ANY(%s) ORDER BY u.nome""", (ids,))
+            for tid_, uid_, unome_ in cur.fetchall():
+                colab_map.setdefault(tid_, []).append({"id": uid_, "nome": unome_})
+        cur.close(); conn.close()
         return [{"id": r[0], "descricao": r[1], "cliente": r[2], "prioridade": r[3],
                  "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7],
                  "projeto_id": r[8], "projeto_nome": r[9],
                  "data_prazo": str(r[10]) if r[10] else None,
-                 "data_agendamento": str(r[11]) if r[11] else None} for r in rows]
+                 "data_agendamento": str(r[11]) if r[11] else None,
+                 "usuario_id": r[12],
+                 "sou_colaborador": (r[12] != sess["id"]) and any(c["id"] == sess["id"] for c in colab_map.get(r[0], [])),
+                 "colaboradores": colab_map.get(r[0], [])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+def _sync_colaboradores(cur, tarefa_id: int, owner_id: int, colaboradores):
+    """Substitui a lista de colaboradores de uma tarefa (ignora o próprio dono)."""
+    cur.execute("DELETE FROM tarefa_colaboradores WHERE tarefa_id = %s", (tarefa_id,))
+    ids = [int(c) for c in (colaboradores or []) if int(c) != owner_id]
+    for uid in dict.fromkeys(ids):  # remove duplicados preservando ordem
+        cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (uid,))
+        if cur.fetchone():
+            cur.execute("INSERT INTO tarefa_colaboradores (tarefa_id, usuario_id) VALUES (%s,%s) ON CONFLICT DO NOTHING", (tarefa_id, uid))
 
 @app.post("/api/tarefas")
 def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
@@ -718,6 +762,7 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
              t.data_prazo or None, t.data_agendamento or None)
         )
         new_id = cur.fetchone()[0]
+        _sync_colaboradores(cur, new_id, uid, t.colaboradores or [])
         criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -736,6 +781,9 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
             (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
              t.data_prazo or None, t.data_agendamento or None, tid, sess["id"])
         )
+        # Só o dono atualiza colaboradores, e apenas quando a lista é enviada explicitamente
+        if cur.rowcount and t.colaboradores is not None:
+            _sync_colaboradores(cur, tid, sess["id"], t.colaboradores)
         if t.status == "concluido":
             criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         elif t.status == "em_andamento":
