@@ -405,55 +405,99 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
         return False
     try:
         perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário", "diretor": "Diretor"}
-        btn = f"<a href='{system_url}' style='display:block;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:12px'>Acessar o Sistema</a>"
-        btn_ajuda = f"<a href='{system_url}/ajuda' style='display:block;background:white;color:#5B2EE0;text-decoration:none;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:24px;border:2px solid #5B2EE0'>📖 Ver Guia de Uso</a>"
-        ajuda = f"<a href='{system_url}/ajuda' style='color:#5B2EE0'>Guia de Uso</a>"
+        # Botões em tabela (renderizam bem no Outlook/Gmail). bgcolor garante cor sólida onde gradiente não funciona.
+        btn = f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px">
+          <tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <a href="{system_url}" style="display:block;color:#ffffff;text-decoration:none;padding:15px 24px;font-weight:700;font-size:15px;border-radius:12px">Acessar o Sistema &nbsp;&rarr;</a>
+          </td></tr>
+        </table>"""
+        btn_ajuda = f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 4px">
+          <tr><td align="center" bgcolor="#ffffff" style="border-radius:12px;border:2px solid #E5E8F0">
+            <a href="{system_url}/ajuda" style="display:block;color:#5B2EE0;text-decoration:none;padding:13px 24px;font-weight:700;font-size:14px;border-radius:12px">📖 Ver Guia de Uso</a>
+          </td></tr>
+        </table>"""
+        ajuda = f"<a href='{system_url}/ajuda' style='color:#5B2EE0;font-weight:600'>Guia de Uso</a>"
         if senha is None:
-            bloco_senha = """<div style="background:#FFF8E6;border:1px solid #FFD166;border-radius:10px;padding:14px;margin-bottom:24px">
-              <p style="color:#B8860B;font-size:13px;font-weight:700;margin:0 0 4px">🔑 Senha não alterada</p>
-              <p style="color:#7A6020;font-size:13px;margin:0;line-height:1.5">Use a senha que você já cadastrou no sistema. Caso não lembre, entre em contato com o administrador para redefinir.</p>
-            </div>"""
-        else:
-            bloco_senha = f"""<table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5FA;border-radius:12px;margin-bottom:24px">
-              <tr><td style="padding:16px 20px 8px">
-                <p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0 0 4px">Usuário</p>
-                <p style="color:#0B0D1F;font-size:16px;font-weight:700;font-family:monospace;margin:0">{usuario}</p>
+            bloco_senha = """<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px">
+              <tr><td style="background:#FFF8E6;border:1px solid #FFD166;border-radius:12px;padding:16px 18px">
+                <p style="color:#B8860B;font-size:13px;font-weight:700;margin:0 0 5px">🔑 Senha não alterada</p>
+                <p style="color:#7A6020;font-size:13px;margin:0;line-height:1.6">Use a senha que você já cadastrou no sistema. Caso não lembre, entre em contato com o administrador para redefinir.</p>
               </td></tr>
-              <tr><td style="padding:0 20px"><div style="height:1px;background:#E5E8F0"></div></td></tr>
-              <tr><td style="padding:8px 20px 16px">
-                <p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin:0 0 4px">Senha temporária</p>
-                <p style="color:#5B2EE0;font-size:20px;font-weight:900;font-family:monospace;letter-spacing:2px;margin:0">{senha}</p>
+            </table>"""
+        else:
+            bloco_senha = f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px">
+              <tr><td style="background:#F7F8FC;border:1px solid #ECEEF6;border-radius:14px;padding:4px 0">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr><td style="padding:16px 22px 10px">
+                    <p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 5px">👤 Usuário</p>
+                    <p style="color:#0B0D1F;font-size:17px;font-weight:700;font-family:'Courier New',monospace;margin:0">{usuario}</p>
+                  </td></tr>
+                  <tr><td style="padding:0 22px"><div style="height:1px;background:#E5E8F0"></div></td></tr>
+                  <tr><td style="padding:12px 22px 18px">
+                    <p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 6px">🔑 Senha temporária</p>
+                    <p style="color:#5B2EE0;font-size:22px;font-weight:900;font-family:'Courier New',monospace;letter-spacing:3px;margin:0">{senha}</p>
+                  </td></tr>
+                </table>
               </td></tr>
             </table>
-            <div style="background:#FFF8E6;border:1px solid #FFD166;border-radius:10px;padding:14px;margin-bottom:24px">
-              <p style="color:#B8860B;font-size:13px;font-weight:700;margin:0 0 4px">⚠️ Troca de senha obrigatória</p>
-              <p style="color:#7A6020;font-size:13px;margin:0;line-height:1.5">No primeiro acesso, o sistema pedirá que você crie uma senha pessoal.</p>
-            </div>"""
-        html = f"""
-        <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#F4F5FA;padding:32px 16px">
-          <div style="background:linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px">
-            <h1 style="color:white;margin:0;font-size:26px;font-weight:900;letter-spacing:-0.5px">Faiston OPS</h1>
-            <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">Torre de Controle</p>
-          </div>
-          <div style="background:white;border-radius:16px;border:1px solid #E5E8F0;padding:28px;margin-bottom:16px">
-            <p style="color:#0B0D1F;font-size:17px;font-weight:700;margin:0 0 8px">Olá, {nome}!</p>
-            <p style="color:#5E647A;font-size:14px;margin:0 0 24px;line-height:1.6">Seu acesso ao <strong>Faiston OPS</strong> foi criado. Abaixo estão suas credenciais de entrada:</p>
-            {bloco_senha}
-            {btn}
-            {btn_ajuda}
-            <div style="border-top:1px solid #E5E8F0;padding-top:20px">
-              <p style="color:#9097AC;font-size:11px;margin:0 0 10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Primeiros passos</p>
-              <ol style="color:#5E647A;font-size:13px;margin:0;padding-left:20px;line-height:2.2">
-                <li>Acesse o sistema com o usuário e senha acima</li>
-                <li>Crie sua senha pessoal (mín. 6 caracteres)</li>
-                <li>Explore o <strong>Guia de Uso</strong> em {ajuda} para conhecer o sistema</li>
-              </ol>
-            </div>
-          </div>
-          <p style="color:#9097AC;font-size:11px;text-align:center;margin:0">Faiston OPS · Este é um email automático, não responda.</p>
-        </div>
-        """
-        subject = "Seu acesso ao Faiston OPS"
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px">
+              <tr><td style="background:#FFF8E6;border:1px solid #FFD166;border-radius:12px;padding:14px 18px">
+                <p style="color:#B8860B;font-size:13px;font-weight:700;margin:0 0 4px">⚠️ Troca de senha obrigatória</p>
+                <p style="color:#7A6020;font-size:13px;margin:0;line-height:1.6">No primeiro acesso, o sistema pedirá que você crie uma senha pessoal.</p>
+              </td></tr>
+            </table>"""
+        html = f"""<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head>
+<body style="margin:0;padding:0;background:#EEF0F8;-webkit-font-smoothing:antialiased">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF0F8;padding:32px 12px">
+    <tr><td align="center">
+      <table role="presentation" width="540" cellpadding="0" cellspacing="0" style="max-width:540px;width:100%;font-family:'Segoe UI',Arial,sans-serif">
+
+        <!-- Header -->
+        <tr><td bgcolor="#5B2EE0" style="border-radius:18px 18px 0 0;background:linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%);padding:38px 32px;text-align:center">
+          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px">
+            <tr><td style="width:52px;height:52px;background:rgba(255,255,255,0.18);border-radius:14px;text-align:center;vertical-align:middle;font-size:26px">🛰️</td></tr>
+          </table>
+          <h1 style="color:#ffffff;margin:0;font-size:27px;font-weight:800;letter-spacing:-0.5px">Faiston OPS</h1>
+          <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px;letter-spacing:0.5px">TORRE DE CONTROLE</p>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td bgcolor="#ffffff" style="background:#ffffff;padding:32px 32px 28px;border-left:1px solid #E5E8F0;border-right:1px solid #E5E8F0">
+          <p style="color:#0B0D1F;font-size:19px;font-weight:700;margin:0 0 8px">Olá, {nome}! 👋</p>
+          <p style="color:#5E647A;font-size:14px;margin:0 0 24px;line-height:1.65">Seu acesso ao <strong style="color:#0B0D1F">Faiston OPS</strong> foi criado com sucesso. Abaixo estão suas credenciais de entrada:</p>
+          {bloco_senha}
+          {btn}
+          {btn_ajuda}
+        </td></tr>
+
+        <!-- Primeiros passos -->
+        <tr><td bgcolor="#ffffff" style="background:#ffffff;padding:0 32px 32px;border-left:1px solid #E5E8F0;border-right:1px solid #E5E8F0">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #EEF0F6;padding-top:8px">
+            <tr><td style="padding-top:20px">
+              <p style="color:#9097AC;font-size:11px;margin:0 0 14px;font-weight:700;text-transform:uppercase;letter-spacing:1px">✨ Primeiros passos</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr><td style="padding-bottom:12px;vertical-align:top;width:30px"><span style="display:inline-block;width:24px;height:24px;background:#5B2EE0;color:#fff;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:800">1</span></td>
+                    <td style="padding-bottom:12px;color:#5E647A;font-size:13px;line-height:1.5">Acesse o sistema com o usuário e senha acima</td></tr>
+                <tr><td style="padding-bottom:12px;vertical-align:top"><span style="display:inline-block;width:24px;height:24px;background:#5B2EE0;color:#fff;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:800">2</span></td>
+                    <td style="padding-bottom:12px;color:#5E647A;font-size:13px;line-height:1.5">Crie sua senha pessoal (mínimo 6 caracteres)</td></tr>
+                <tr><td style="vertical-align:top"><span style="display:inline-block;width:24px;height:24px;background:#5B2EE0;color:#fff;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:800">3</span></td>
+                    <td style="color:#5E647A;font-size:13px;line-height:1.5">Explore o {ajuda} para conhecer todas as funcionalidades</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td bgcolor="#ffffff" style="background:#ffffff;border-radius:0 0 18px 18px;border:1px solid #E5E8F0;border-top:none;padding:20px 32px;text-align:center">
+          <p style="color:#9097AC;font-size:11px;margin:0;line-height:1.6">Faiston OPS · Torre de Controle<br>Este é um email automático, por favor não responda.</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body></html>"""
+        subject = "🛰️ Seu acesso ao Faiston OPS"
 
         import urllib.request, json as _json
 

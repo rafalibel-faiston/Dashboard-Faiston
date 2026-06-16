@@ -304,15 +304,23 @@
                         </div>
                         <div style="display:flex;align-items:flex-start;gap:10px">
                             <div class="step-num" style="margin-top:1px;flex-shrink:0">2</div>
-                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Preencha descrição, cliente e prioridade</p>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Escolha um <strong style="color:#0B0D1F">Projeto</strong> — o cliente é preenchido automaticamente. Sem projeto? Digite o nome da <strong style="color:#0B0D1F">Demanda</strong> no campo livre</p>
                         </div>
                         <div style="display:flex;align-items:flex-start;gap:10px">
                             <div class="step-num" style="margin-top:1px;flex-shrink:0">3</div>
-                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Defina <strong style="color:#0B0D1F">Prazo</strong> (até quando entregar) e/ou <strong style="color:#0B0D1F">Agendamento</strong> (quando trabalhar)</p>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Preencha descrição e prioridade</p>
                         </div>
                         <div style="display:flex;align-items:flex-start;gap:10px">
                             <div class="step-num" style="margin-top:1px;flex-shrink:0">4</div>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Defina <strong style="color:#0B0D1F">Prazo</strong> (até quando entregar) e/ou <strong style="color:#0B0D1F">Agendamento</strong> (quando trabalhar)</p>
+                        </div>
+                        <div style="display:flex;align-items:flex-start;gap:10px">
+                            <div class="step-num" style="margin-top:1px;flex-shrink:0">5</div>
                             <p style="font-size:13px;color:#5E647A;line-height:1.6">Clique em <strong style="color:#0B0D1F">Salvar</strong></p>
+                        </div>
+                        <div class="hbox" style="background:#06D7E608;border:1px solid #06D7E625;margin-top:4px">
+                            <i class="ph ph-lightbulb" style="color:#06D7E6;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                            <p style="font-size:12px;color:#5E647A;line-height:1.55"><strong style="color:#0B0D1F">Demanda</strong> é uma atividade sem projeto formal (ex.: "Reunião interna", "Suporte avulso"). Ela aparece no quadro sem precisar de cliente ou projeto cadastrado.</p>
                         </div>
                     </div>
                 </div>
@@ -335,6 +343,53 @@
                         <div class="info-row"><i class="ph ph-pencil" style="color:#9097AC"></i><div>Clique no <strong>lápis</strong> para editar status, prazo e horas</div></div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ajudantes & Notificações -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#EC4899)"><i class="ph ph-handshake" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Ajudantes & Notificações <span style="font-size:10px;font-weight:800;color:#fff;background:linear-gradient(135deg,#5B2EE0,#EC4899);padding:2px 8px;border-radius:20px;vertical-align:middle;margin-left:6px">NOVO</span></div>
+                <div class="sec-hd-sub">Trabalhe em equipe nas tarefas</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <!-- Adicionar ajudantes -->
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#5B2EE012;display:flex;align-items:center;justify-content:center"><i class="ph ph-user-plus" style="color:#5B2EE0;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Adicionar quem ajuda</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    <div class="info-row"><i class="ph ph-plus-circle" style="color:#5B2EE0"></i><div>No modal da tarefa, use <strong>"+ Adicionar pessoa para ajudar"</strong></div></div>
+                    <div class="info-row"><i class="ph ph-users-three" style="color:#06D7E6"></i><div>Escolha um ou mais colegas — viram <strong>ajudantes</strong> daquela tarefa</div></div>
+                    <div class="info-row"><i class="ph ph-bell-ringing" style="color:#EC4899"></i><div>Cada ajudante recebe uma <strong>notificação</strong> avisando que foi incluído</div></div>
+                </div>
+            </div>
+            <!-- Ver tarefa de outro -->
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#06D7E612;display:flex;align-items:center;justify-content:center"><i class="ph ph-eye" style="color:#06D7E6;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Quando te adicionam</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    <div class="info-row"><i class="ph ph-kanban" style="color:#06D7E6"></i><div>A tarefa aparece no <strong>seu quadro</strong> com a marca <strong style="color:#06D7E6">🤝 Ajudando</strong></div></div>
+                    <div class="info-row"><i class="ph ph-lock-simple" style="color:#9097AC"></i><div>É <strong>somente leitura</strong>: você acompanha, mas só o dono edita</div></div>
+                    <div class="info-row"><i class="ph ph-calculator" style="color:#B826C9"></i><div>Tarefas em que você ajuda <strong>não entram</strong> nos seus contadores de horas</div></div>
+                </div>
+            </div>
+        </div>
+        <!-- Sino de notificações -->
+        <div style="background:linear-gradient(135deg,#5B2EE010,#EC489908);border-radius:16px;padding:18px;border:1px solid #5B2EE025;display:flex;align-items:flex-start;gap:12px;margin-top:12px">
+            <div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#5B2EE0,#EC4899);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(91,46,224,.3)">
+                <i class="ph ph-bell" style="color:white;font-size:18px"></i>
+            </div>
+            <div>
+                <p style="font-size:13px;font-weight:700;color:#0B0D1F;margin-bottom:4px">Sino de Notificações</p>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">No topo da tela, o <strong style="color:#0B0D1F">sino 🔔</strong> mostra um número quando há novidades. Clique para ver as notificações — elas são marcadas como lidas automaticamente.</p>
             </div>
         </div>
     </div>
@@ -692,6 +747,43 @@
         </div>
     </div>
 
+    <!-- Visão PMO + Projetos -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)"><i class="ph ph-gauge" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Visão PMO & Projetos <span style="font-size:10px;font-weight:800;color:#fff;background:linear-gradient(135deg,#5B2EE0,#EC4899);padding:2px 8px;border-radius:20px;vertical-align:middle;margin-left:6px">ATUALIZADO</span></div>
+                <div class="sec-hd-sub">Portfólio do time de projetos</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#B826C912;display:flex;align-items:center;justify-content:center"><i class="ph ph-chart-donut" style="color:#B826C9;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Distribuição do Portfólio</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    <div class="info-row"><i class="ph ph-gauge" style="color:#5B2EE0"></i><div>Gráfico mostra projetos por status: <strong>Em Andamento</strong>, <strong>Finalização</strong> e <strong>Em Freezing</strong></div></div>
+                    <div class="info-row"><i class="ph ph-eye" style="color:#06D7E6"></i><div>Acesse em <strong>Gestão de Projetos → Visão PMO</strong> na sidebar</div></div>
+                </div>
+            </div>
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#5B2EE012;display:flex;align-items:center;justify-content:center"><i class="ph ph-folder-plus" style="color:#5B2EE0;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Cadastro de Projetos</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    <div class="info-row"><i class="ph ph-list-checks" style="color:#5B2EE0"></i><div>Cadastre com <strong>status, datas, responsável e orçamento</strong> de uma vez só</div></div>
+                    <div class="info-row"><i class="ph ph-link" style="color:#06D7E6"></i><div>Novos clientes e projetos aparecem <strong>na hora</strong> na Visão PMO e nas tarefas</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="hbox" style="background:#06D7E608;border:1px solid #06D7E625">
+            <i class="ph ph-info" style="color:#06D7E6;font-size:18px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:13px;color:#5E647A;line-height:1.6">Todos os clientes e projetos cadastrados ficam <strong style="color:#0B0D1F">disponíveis para o time abrir tarefas</strong> — basta escolher o projeto e o cliente é preenchido automaticamente.</p>
+        </div>
+    </div>
+
     <!-- Carimbos, Clientes, Financeiro -->
     <div class="reveal">
         <div class="sec-hd">
@@ -713,9 +805,10 @@
                 </div>
                 <div class="acc-body">
                     <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
-                        <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:8px">Acesse pela <strong style="color:#0B0D1F">sidebar esquerda</strong>. Clique em Carimbos para expandir a lista.</p>
-                        <div class="info-row"><i class="ph ph-copy" style="color:#06D7E6"></i><div>Clique no carimbo para copiar o conteúdo</div></div>
-                        <div class="info-row"><i class="ph ph-plus" style="color:#5B2EE0"></i><div>Botão <strong>"Novo carimbo"</strong> para criar</div></div>
+                        <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:8px">Clique em <strong style="color:#0B0D1F">Carimbos</strong> na sidebar esquerda — agora abre a <strong style="color:#5B2EE0">tela completa</strong> de carimbos, igual à do funcionário, com busca e filtro por categoria.</p>
+                        <div class="info-row"><i class="ph ph-copy" style="color:#06D7E6"></i><div>Clique em <strong>Copiar</strong> no card para usar o conteúdo</div></div>
+                        <div class="info-row"><i class="ph ph-magnifying-glass" style="color:#B826C9"></i><div>Busque por título ou filtre por <strong>categoria</strong></div></div>
+                        <div class="info-row"><i class="ph ph-plus" style="color:#5B2EE0"></i><div>Botão <strong>"Novo Carimbo"</strong> para criar</div></div>
                         <div class="info-row"><i class="ph ph-pencil" style="color:#9097AC"></i><div>Lápis nos seus carimbos para editar ou excluir</div></div>
                     </div>
                 </div>
