@@ -661,30 +661,26 @@ async function init() {
     await carregarCarimbos();
 
     try {
-        const resC = await fetch('/api/clientes');
-        if (resC.ok) {
-            const cls = await resC.json();
-            const sel  = document.getElementById('input-cliente');
-            const selF = document.getElementById('filter-cliente');
-            cls.forEach(c => {
+        const res = await fetch('/api/opcoes-tarefa');
+        if (res.ok) {
+            const { clientes, projetos } = await res.json();
+            const selCliente  = document.getElementById('input-cliente');
+            const selFiltro   = document.getElementById('filter-cliente');
+            const selProjeto  = document.getElementById('input-projeto');
+
+            clientes.forEach(c => {
                 const o1 = document.createElement('option'); o1.value = c.nome; o1.textContent = c.nome;
                 const o2 = o1.cloneNode(true);
-                sel.appendChild(o1); selF.appendChild(o2);
+                selCliente.appendChild(o1); selFiltro.appendChild(o2);
             });
-        }
-    } catch(e) {}
 
-    try {
-        const resP = await fetch('/api/todos-projetos');
-        if (resP.ok) {
-            _todosProjetos = await resP.json();
-            const sel = document.getElementById('input-projeto');
-            _todosProjetos.forEach(p => {
+            _todosProjetos = projetos;
+            projetos.forEach(p => {
                 const o = document.createElement('option');
                 o.value = p.id;
                 o.textContent = `${p.nome} · ${p.cliente}`;
                 o.dataset.cliente = p.cliente;
-                sel.appendChild(o);
+                selProjeto.appendChild(o);
             });
         }
     } catch(e) {}
