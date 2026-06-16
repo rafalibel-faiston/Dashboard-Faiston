@@ -3991,7 +3991,9 @@ function renderDonut() {
     const labels = Object.keys(counts);
     const series = labels.map(l => counts[l]);
     const total = series.reduce((a, b) => a + b, 0);
+    // Gradientes alinhados aos gráficos do dashboard (roxo → rosa / ciano / cinza)
     const colors  = ['#5B2EE0', '#06D7E6', '#94a3b8'];
+    const gradTo  = ['#EC4899', '#0E9FB8', '#cbd5e1'];
     const icons   = ['ph-play-circle', 'ph-flag-checkered', 'ph-snowflake'];
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const valColor = isDark ? '#e2e8f0' : '#0B0D1F';
@@ -4004,6 +4006,12 @@ function renderDonut() {
         series,
         labels,
         colors,
+        fill: {
+            type: 'gradient',
+            gradient: { shade: 'light', type: 'horizontal', shadeIntensity: 0.15,
+                gradientToColors: gradTo, inverseColors: false,
+                opacityFrom: 1, opacityTo: 0.92, stops: [0, 100] }
+        },
         stroke: { width: 2, lineCap: 'round', colors: [isDark ? '#0B0D1F' : '#ffffff'] },
         legend: { show: false },
         dataLabels: { enabled: false },
@@ -4045,7 +4053,7 @@ function renderDonut() {
                             <span class="text-[11px] font-bold text-faiston-dark ml-2 flex-shrink-0">${v}<span class="text-slate-400 font-medium"> · ${pct}%</span></span>
                         </div>
                         <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:${colors[i]}"></div>
+                            <div class="h-full rounded-full transition-all duration-500" style="width:${pct}%;background:linear-gradient(90deg,${colors[i]},${gradTo[i]})"></div>
                         </div>
                     </div>
                 </div>`;
