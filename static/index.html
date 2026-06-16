@@ -744,15 +744,15 @@
             <!-- KPI CARDS -->
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
                 <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(6,215,230,0.12)">
-                        <i class="ph ph-play text-sm" style="color:#06D7E6"></i>
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(91,46,224,0.12)">
+                        <i class="ph ph-play text-sm" style="color:#5B2EE0"></i>
                     </div>
                     <p class="text-2xl font-black text-faiston-dark" id="pmo-k-andamento">—</p>
                     <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Em Andamento</p>
                 </div>
                 <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(245,158,11,0.12)">
-                        <i class="ph ph-flag-checkered text-sm text-amber-500"></i>
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(6,215,230,0.12)">
+                        <i class="ph ph-flag-checkered text-sm" style="color:#06D7E6"></i>
                     </div>
                     <p class="text-2xl font-black text-faiston-dark" id="pmo-k-finalizacao">—</p>
                     <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Finalização</p>
@@ -3993,8 +3993,8 @@ function renderDonut() {
     const labels = Object.keys(counts);
     const series = labels.map(l => counts[l]);
     const total = series.reduce((a, b) => a + b, 0);
-    const colors  = ['#06D7E6', '#f59e0b', '#94a3b8'];
-    const gradTo  = ['#0E9FB8', '#d97706', '#64748b'];
+    const colors  = ['#5B2EE0', '#06D7E6', '#94a3b8'];
+    const gradTo  = ['#B826C9', '#0E9FB8', '#64748b'];
     const icons   = ['ph-play-circle', 'ph-flag-checkered', 'ph-snowflake'];
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const valColor = isDark ? '#e2e8f0' : '#0B0D1F';
