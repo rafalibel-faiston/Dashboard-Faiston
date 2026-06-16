@@ -97,16 +97,9 @@
                 </div>
             </nav>
                 <div class="flex flex-col">
-                    <a href="#" onclick="toggleCarimbosSb(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
+                    <a href="#" onclick="setModule('gestao','carimbos'); return false;" class="flex items-center gap-2.5 btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-stamp text-lg"></i> Carimbos</div>
-                        <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-carimbos-sb"></i>
                     </a>
-                    <div id="submenu-carimbos" class="hidden flex-col py-2">
-                        <button onclick="gAbrirModalCarimbo(null)" class="flex items-center gap-1.5 text-[11px] font-bold text-faiston-cyan py-1.5 px-3 rounded-lg hover:bg-faiston-cyan/10 transition-colors w-full text-left mb-1">
-                            <i class="ph ph-plus text-xs"></i> Novo carimbo
-                        </button>
-                        <div id="sb-carimbos-lista" class="flex flex-col gap-1 max-h-52 overflow-y-auto custom-scrollbar"></div>
-                    </div>
                 </div>
             </nav>
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>

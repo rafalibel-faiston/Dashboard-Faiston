@@ -131,6 +131,9 @@
         [data-theme="dark"] .mini-cal-card { background: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
         [data-theme="dark"] .mini-cal-day:not(.cal-today):not(.cal-empty) { color: #9097AC; }
         [data-theme="dark"] .mini-cal-day:not(.cal-today):not(.cal-empty):hover { background: rgba(255,255,255,0.06) !important; }
+        [data-theme="dark"] #notif-panel { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #notif-lista > div { border-color: rgba(255,255,255,0.05) !important; }
+        [data-theme="dark"] #notif-lista p.text-faiston-dark { color: #E2E4EF !important; }
     </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
@@ -167,6 +170,22 @@
         <button onclick="toggleTemaFunc()" id="btn-tema-f" class="btn-theme" title="Alternar tema">
             <i class="ph ph-moon" id="icon-tema-f"></i>
         </button>
+        <!-- Notificações pessoais -->
+        <div class="relative" id="notif-wrap">
+            <button onclick="toggleNotifPanel()" class="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple">
+                <i class="ph ph-bell text-lg"></i>
+                <span id="notif-badge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[9px] font-black text-white flex items-center justify-center" style="background:linear-gradient(135deg,#5B2EE0,#EC4899)"></span>
+            </button>
+            <div id="notif-panel" class="hidden absolute right-0 top-11 w-80 bg-white rounded-2xl border border-faiston-border shadow-xl z-50 overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-faiston-border">
+                    <span class="text-sm font-bold text-faiston-dark">Notificações</span>
+                    <button onclick="marcarNotifLidas()" class="text-[11px] text-faiston-purple font-semibold hover:text-faiston-magenta transition-colors">Marcar lidas</button>
+                </div>
+                <div id="notif-lista" class="flex flex-col max-h-72 overflow-y-auto custom-scrollbar">
+                    <p class="text-xs text-faiston-faint text-center py-6">Nenhuma notificação</p>
+                </div>
+            </div>
+        </div>
         <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
             <i class="ph ph-sign-out"></i> Sair
         </button>
@@ -711,9 +730,89 @@ async function init() {
         const res = await fetch('/api/funcionarios');
         if (res.ok) _funcionarios = await res.json();
     } catch(e) {}
+
+    await carregarNotificacoes();
+    setInterval(atualizarBadgeNotif, 30000);
 }
 
 async function logout() { await fetch('/api/logout',{method:'POST'}); window.location.href='/'; }
+
+// ── Notificações ──────────────────────────────────────────
+async function carregarNotificacoes() {
+    try {
+        const res = await fetch('/api/minhas-notificacoes');
+        if (!res.ok) return;
+        const lista = await res.json();
+        renderNotifPanel(lista);
+        const naoLidas = lista.filter(n => !n.lida).length;
+        atualizarBadgeNotifCount(naoLidas);
+    } catch(e) {}
+}
+
+async function atualizarBadgeNotif() {
+    try {
+        const res = await fetch('/api/minhas-notificacoes/nao-lidas');
+        if (!res.ok) return;
+        const { count } = await res.json();
+        atualizarBadgeNotifCount(count);
+    } catch(e) {}
+}
+
+function atualizarBadgeNotifCount(count) {
+    const badge = document.getElementById('notif-badge');
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = count > 9 ? '9+' : count;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+function renderNotifPanel(lista) {
+    const el = document.getElementById('notif-lista');
+    if (!el) return;
+    if (!lista.length) {
+        el.innerHTML = '<p class="text-xs text-faiston-faint text-center py-6">Nenhuma notificação</p>';
+        return;
+    }
+    el.innerHTML = lista.map(n => {
+        const dt = new Date(n.criado_em).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+        return `<div class="flex items-start gap-3 px-4 py-3 border-b border-faiston-border/50 ${n.lida ? 'opacity-60' : 'bg-faiston-purple/3'}">
+            <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${n.lida ? 'bg-slate-200' : 'bg-faiston-purple'}"></div>
+            <div class="flex-1 min-w-0">
+                <p class="text-xs text-faiston-dark leading-relaxed">${n.mensagem}</p>
+                <p class="text-[10px] text-faiston-faint mt-0.5">${dt}</p>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+let _notifAberto = false;
+async function toggleNotifPanel() {
+    const panel = document.getElementById('notif-panel');
+    _notifAberto = !_notifAberto;
+    panel.classList.toggle('hidden', !_notifAberto);
+    if (_notifAberto) {
+        await carregarNotificacoes();
+        await marcarNotifLidas();
+    }
+}
+
+async function marcarNotifLidas() {
+    try {
+        await fetch('/api/minhas-notificacoes/marcar-lidas', {method:'POST'});
+        atualizarBadgeNotifCount(0);
+    } catch(e) {}
+}
+
+document.addEventListener('click', e => {
+    const wrap = document.getElementById('notif-wrap');
+    if (wrap && !wrap.contains(e.target) && _notifAberto) {
+        _notifAberto = false;
+        document.getElementById('notif-panel').classList.add('hidden');
+    }
+});
 
 function switchTab(tab) {
     tabAtiva = tab;

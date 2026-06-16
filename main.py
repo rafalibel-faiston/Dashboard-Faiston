@@ -195,6 +195,7 @@ def setup_banco():
             )
         """)
         cur.execute("ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
+        cur.execute("ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS destinatario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tarefa_colaboradores (
                 tarefa_id INTEGER REFERENCES tarefas(id) ON DELETE CASCADE,
@@ -733,14 +734,20 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
                  "colaboradores": colab_map.get(r[0], [])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-def _sync_colaboradores(cur, tarefa_id: int, owner_id: int, colaboradores):
-    """Substitui a lista de colaboradores de uma tarefa (ignora o próprio dono)."""
+def _sync_colaboradores(cur, tarefa_id: int, owner_id: int, colaboradores) -> list:
+    """Substitui a lista de colaboradores. Retorna IDs dos novos colaboradores adicionados."""
+    cur.execute("SELECT usuario_id FROM tarefa_colaboradores WHERE tarefa_id = %s", (tarefa_id,))
+    existing = {r[0] for r in cur.fetchall()}
     cur.execute("DELETE FROM tarefa_colaboradores WHERE tarefa_id = %s", (tarefa_id,))
     ids = [int(c) for c in (colaboradores or []) if int(c) != owner_id]
+    novos = []
     for uid in dict.fromkeys(ids):  # remove duplicados preservando ordem
         cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (uid,))
         if cur.fetchone():
             cur.execute("INSERT INTO tarefa_colaboradores (tarefa_id, usuario_id) VALUES (%s,%s) ON CONFLICT DO NOTHING", (tarefa_id, uid))
+            if uid not in existing:
+                novos.append(uid)
+    return novos
 
 @app.post("/api/tarefas")
 def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
@@ -762,8 +769,12 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
              t.data_prazo or None, t.data_agendamento or None)
         )
         new_id = cur.fetchone()[0]
-        _sync_colaboradores(cur, new_id, uid, t.colaboradores or [])
+        novos_helpers = _sync_colaboradores(cur, new_id, uid, t.colaboradores or [])
         criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]", sess["id"])
+        for hid in novos_helpers:
+            criar_notificacao(conn, "ajudante_adicionado",
+                f"🤝 {sess['nome']} adicionou você para ajudar em: {t.descricao[:50]} [{t.cliente}]",
+                sess["id"], destinatario_id=hid)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -782,12 +793,17 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
              t.data_prazo or None, t.data_agendamento or None, tid, sess["id"])
         )
         # Só o dono atualiza colaboradores, e apenas quando a lista é enviada explicitamente
+        novos_helpers = []
         if cur.rowcount and t.colaboradores is not None:
-            _sync_colaboradores(cur, tid, sess["id"], t.colaboradores)
+            novos_helpers = _sync_colaboradores(cur, tid, sess["id"], t.colaboradores)
         if t.status == "concluido":
             criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         elif t.status == "em_andamento":
             criar_notificacao(conn, "tarefa_iniciada", f"▶️ {sess['nome']} iniciou: {t.descricao[:50]} [{t.cliente}]", sess["id"])
+        for hid in novos_helpers:
+            criar_notificacao(conn, "ajudante_adicionado",
+                f"🤝 {sess['nome']} adicionou você para ajudar em: {t.descricao[:50]} [{t.cliente}]",
+                sess["id"], destinatario_id=hid)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1557,15 +1573,17 @@ def relatorio_page(cliente: str): return FileResponse("static/relatorio.html")
 def apresentacao_page(): return FileResponse("static/apresentacao.html")
 
 # --- NOTIFICAÇÕES ---
-def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None):
+def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None, destinatario_id: int = None):
     # Usa SAVEPOINT para que uma falha ao gravar a notificação NÃO aborte a
-    # transação principal (criação/atualização da tarefa). Sem isso, um erro aqui
-    # deixaria a transação em estado "aborted" e o commit seguinte da tarefa falharia.
+    # transação principal. destinatario_id=None → notificação global (gestores).
     cur = conn.cursor()
     try:
         cur.execute("SAVEPOINT sp_notif")
-        cur.execute("INSERT INTO notificacoes (tipo, mensagem, usuario_id) VALUES (%s, %s, %s)", (tipo, mensagem, usuario_id))
-        cur.execute("DELETE FROM notificacoes WHERE id NOT IN (SELECT id FROM notificacoes ORDER BY criado_em DESC LIMIT 50)")
+        cur.execute(
+            "INSERT INTO notificacoes (tipo, mensagem, usuario_id, destinatario_id) VALUES (%s, %s, %s, %s)",
+            (tipo, mensagem, usuario_id, destinatario_id)
+        )
+        cur.execute("DELETE FROM notificacoes WHERE id NOT IN (SELECT id FROM notificacoes ORDER BY criado_em DESC LIMIT 200)")
         cur.execute("RELEASE SAVEPOINT sp_notif")
     except Exception:
         try: cur.execute("ROLLBACK TO SAVEPOINT sp_notif")
@@ -1582,7 +1600,7 @@ def get_notificacoes(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, tipo, mensagem, lida, criado_em FROM notificacoes ORDER BY criado_em DESC LIMIT 20")
+        cur.execute("SELECT id, tipo, mensagem, lida, criado_em FROM notificacoes WHERE destinatario_id IS NULL ORDER BY criado_em DESC LIMIT 20")
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "tipo": r[1], "mensagem": r[2], "lida": r[3], "criado_em": str(r[4])} for r in rows]
@@ -1596,7 +1614,7 @@ def marcar_lidas(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE notificacoes SET lida = TRUE WHERE lida = FALSE")
+        cur.execute("UPDATE notificacoes SET lida = TRUE WHERE lida = FALSE AND destinatario_id IS NULL")
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1610,7 +1628,51 @@ def count_nao_lidas(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM notificacoes WHERE lida = FALSE")
+        cur.execute("SELECT COUNT(*) FROM notificacoes WHERE lida = FALSE AND destinatario_id IS NULL")
+        count = cur.fetchone()[0]
+        cur.close(); conn.close()
+        return {"count": count}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/minhas-notificacoes")
+def get_minhas_notificacoes(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, tipo, mensagem, lida, criado_em FROM notificacoes WHERE destinatario_id = %s ORDER BY criado_em DESC LIMIT 20",
+            (sess["id"],)
+        )
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "tipo": r[1], "mensagem": r[2], "lida": r[3], "criado_em": str(r[4])} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/minhas-notificacoes/marcar-lidas")
+def marcar_minhas_lidas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE notificacoes SET lida = TRUE WHERE destinatario_id = %s AND lida = FALSE", (sess["id"],))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/minhas-notificacoes/nao-lidas")
+def count_minhas_nao_lidas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM notificacoes WHERE destinatario_id = %s AND lida = FALSE", (sess["id"],))
         count = cur.fetchone()[0]
         cur.close(); conn.close()
         return {"count": count}
