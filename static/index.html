@@ -2780,6 +2780,7 @@ function abrirModalTicket() {
     document.getElementById('nt-horas').value = '';
     document.getElementById('nt-minutos').value = '';
     document.getElementById('nt-prazo').value = '';
+    document.getElementById('nt-hora-prazo').value = '';
     document.getElementById('nt-agendamento').value = '';
     _ntColabSelecionados = [];
     carregarDadosModal();
@@ -2910,6 +2911,7 @@ async function criarTicket() {
                 segundos,
                 projeto_id,
                 data_prazo: document.getElementById('nt-prazo').value || null,
+                hora_prazo: document.getElementById('nt-hora-prazo').value || null,
                 data_agendamento: document.getElementById('nt-agendamento').value || null,
                 colaboradores: _ntColabSelecionados.slice()
             })
@@ -5249,7 +5251,10 @@ async function corrigirTimeCarimbo(id, time_usuario) {
                     <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
                         <i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Prazo (até quando)
                     </label>
-                    <input type="date" id="nt-prazo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white">
+                    <div class="flex gap-2">
+                        <input type="date" id="nt-prazo" class="flex-1 border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white">
+                        <input type="time" id="nt-hora-prazo" title="Horário limite" class="w-28 border border-faiston-border rounded-lg px-2 py-2.5 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white text-faiston-muted">
+                    </div>
                 </div>
                 <div>
                     <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">

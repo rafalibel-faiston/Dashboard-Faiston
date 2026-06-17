@@ -510,8 +510,12 @@
                     <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
                         <i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Prazo (até quando)
                     </label>
-                    <input type="date" id="input-prazo"
-                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white">
+                    <div class="flex gap-2">
+                        <input type="date" id="input-prazo"
+                            class="flex-1 border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white">
+                        <input type="time" id="input-hora-prazo" title="Horário limite"
+                            class="w-28 border border-faiston-border rounded-lg px-2 py-2.5 text-sm focus:outline-none focus:border-faiston-pink transition-all bg-white text-faiston-muted">
+                    </div>
                 </div>
                 <div>
                     <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
@@ -964,9 +968,10 @@ function renderKanbanCard(task, status) {
     const icon  = isPrazo ? 'ph-calendar-x' : 'ph-calendar-check';
     const color = diff < 0 ? '#EC4899' : diff <= 2 ? '#f59e0b' : '#5B2EE0';
     const dateLabel = diff === 0 ? 'hoje' : diff === 1 ? 'amanhã' : diff < 0 ? `${Math.abs(diff)}d atraso` : d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    const hourLabel = isPrazo && task.hora_prazo ? ` · ${task.hora_prazo}` : '';
     return `<div class="flex items-center gap-1 mb-2">
         <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:${color}18;color:${color};border:1px solid ${color}30;display:inline-flex;align-items:center;gap:4px">
-            <i class="ph ${icon}" style="font-size:11px"></i> ${label}: ${dateLabel}
+            <i class="ph ${icon}" style="font-size:11px"></i> ${label}: ${dateLabel}${hourLabel}
         </span>
     </div>`;
 })() : ''}
@@ -1100,6 +1105,7 @@ function editTask(taskId) {
     document.getElementById('input-horas').value = Math.floor(totalSecs/3600);
     document.getElementById('input-minutos').value = Math.floor((totalSecs%3600)/60);
     document.getElementById('input-prazo').value = task.data_prazo || '';
+    document.getElementById('input-hora-prazo').value = task.hora_prazo || '';
     document.getElementById('input-agendamento').value = task.data_agendamento || '';
     document.getElementById('modal').classList.remove('hidden');
 }
@@ -1120,6 +1126,7 @@ function openModal() {
     document.getElementById('input-horas').value = '';
     document.getElementById('input-minutos').value = '';
     document.getElementById('input-prazo').value = '';
+    document.getElementById('input-hora-prazo').value = '';
     document.getElementById('input-agendamento').value = '';
     document.getElementById('modal').classList.remove('hidden');
     setTimeout(()=>document.getElementById('input-descricao').focus(),100);
@@ -1206,6 +1213,7 @@ async function saveTask() {
         status: document.getElementById('input-status').value,
         segundos,
         data_prazo: document.getElementById('input-prazo').value || null,
+        hora_prazo: document.getElementById('input-hora-prazo').value || null,
         data_agendamento: document.getElementById('input-agendamento').value || null,
         colaboradores: _colabSelecionados.slice()
     };
@@ -1467,8 +1475,9 @@ function renderAgenda() {
             const dd  = Math.round((dp-hoje)/(86400000));
             const c   = dd<0?'#EC4899':dd<=2?'#f59e0b':'#9097AC';
             const lbl = dd===0?'Hoje':dd===1?'Amanhã':dd<0?`${Math.abs(dd)}d atraso`:dp.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+            const hl  = t.hora_prazo ? ` · ${t.hora_prazo}` : '';
             badges += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${c}20;color:${c};border:1px solid ${c}35;display:inline-flex;align-items:center;gap:3px">
-                <i class="ph ph-flag" style="font-size:10px"></i>${lbl}</span>`;
+                <i class="ph ph-flag" style="font-size:10px"></i>${lbl}${hl}</span>`;
         }
         if (t.data_agendamento) {
             badges += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:#5B2EE018;color:#5B2EE0;border:1px solid #5B2EE030;display:inline-flex;align-items:center;gap:3px">

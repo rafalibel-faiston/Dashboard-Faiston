@@ -341,6 +341,7 @@ class TarefaModel(BaseModel):
     projeto_id: Optional[int] = None
     data_prazo: Optional[str] = None
     data_agendamento: Optional[str] = None
+    hora_prazo: Optional[str] = None
     colaboradores: Optional[List[int]] = None
 
 class AtualizarSegundos(BaseModel):
@@ -727,6 +728,7 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
         cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS projeto_id INTEGER REFERENCES projetos(id)")
         cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_prazo DATE")
         cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_agendamento DATE")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS hora_prazo TIME")
         conn.commit()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tarefa_colaboradores (
@@ -738,7 +740,7 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
         conn.commit()
         base_sel = """SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
                              t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome,
-                             t.data_prazo, t.data_agendamento, t.usuario_id
+                             t.data_prazo, t.data_agendamento, t.usuario_id, t.hora_prazo
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
         if view == "func":
@@ -774,6 +776,7 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
                  "data_prazo": str(r[10]) if r[10] else None,
                  "data_agendamento": str(r[11]) if r[11] else None,
                  "usuario_id": r[12],
+                 "hora_prazo": str(r[13])[:5] if r[13] else None,
                  "sou_colaborador": (r[12] != sess["id"]) and any(c["id"] == sess["id"] for c in colab_map.get(r[0], [])),
                  "colaboradores": colab_map.get(r[0], [])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -808,9 +811,9 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
             if cur.fetchone():
                 uid = t.funcionario_id
         cur.execute(
-            "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id, data_prazo, data_agendamento) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+            "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id, data_prazo, data_agendamento, hora_prazo) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
-             t.data_prazo or None, t.data_agendamento or None)
+             t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None)
         )
         new_id = cur.fetchone()[0]
         novos_helpers = _sync_colaboradores(cur, new_id, uid, t.colaboradores or [])
@@ -832,9 +835,9 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
     try:
         cur = conn.cursor()
         cur.execute(
-            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
+            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, hora_prazo=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
             (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
-             t.data_prazo or None, t.data_agendamento or None, tid, sess["id"])
+             t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None, tid, sess["id"])
         )
         # Só o dono atualiza colaboradores, e apenas quando a lista é enviada explicitamente
         novos_helpers = []
