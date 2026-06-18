@@ -197,6 +197,7 @@
                 </div>
                 <span id="resumo-count" class="text-xs text-slate-400"></span>
             </div>
+            <div id="saude-bar" class="flex items-center gap-2 flex-wrap mb-3"></div>
             <div class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-card">
                 <div id="resumo-wrap" class="overflow-x-auto custom-scrollbar" style="max-height:calc(100vh - 360px)"></div>
             </div>
@@ -309,18 +310,6 @@ async function carregar() {
         if (r.ok) data = await r.json();
     } catch (e) { console.error(e); }
     RESUMO = data.projetos || [];
-    const t = data.totais || {};
-
-    document.getElementById('kpi-total').textContent = fmtComp(t.total);
-    document.getElementById('kpi-net').textContent   = fmtComp(t.net_revenue);
-    document.getElementById('kpi-custo').textContent = fmtComp(t.acum_custo);
-    const dmEl = document.getElementById('kpi-dm');
-    dmEl.textContent = fmtComp(t.valor_dm);
-    dmEl.style.color = (t.valor_dm||0) >= 0 ? '#06D7E6' : '#EC4899';
-    const mgEl = document.getElementById('kpi-margem');
-    mgEl.textContent = fmtPct(t.margem_pct);
-    mgEl.style.color = (t.margem_pct||0) >= 0 ? '#06D7E6' : '#EC4899';
-
     document.getElementById('atualizado').textContent = data.atualizado_em ? ('· atualizado ' + data.atualizado_em.replace('T',' ')) : '';
 
     const vazio = RESUMO.length === 0;
@@ -333,9 +322,32 @@ async function carregar() {
     await carregarPeriodos();
 }
 
-let MODO = 'geral';
+let MODO = 'geral', FILTRO_SAUDE = '';
 function fmtDt(d) { if(!d) return '—'; const [y,m,day]=d.slice(0,10).split('-'); return `${day}/${m}/${y}`; }
 function esc(s){ return (s||'').replace(/"/g,'&quot;'); }
+function health(pct) {
+    if (pct < 0)    return { key:'prejuizo', cor:'#EC4899', bg:'rgba(236,72,153,0.12)' };
+    if (pct < 0.15) return { key:'atencao',  cor:'#F59E0B', bg:'rgba(245,158,11,0.14)' };
+    return                 { key:'saudavel', cor:'#10B981', bg:'rgba(16,185,129,0.14)' };
+}
+function updateKpis(lista) {
+    const s = (f) => lista.reduce((a,p)=>a+(Number(p[f])||0),0);
+    const total=s('total'), net=s('net_revenue'), custo=s('acum_custo'), dm=s('valor_dm'), margem=net?dm/net:0;
+    document.getElementById('kpi-total').textContent = fmtComp(total);
+    document.getElementById('kpi-net').textContent   = fmtComp(net);
+    document.getElementById('kpi-custo').textContent = fmtComp(custo);
+    const dmEl=document.getElementById('kpi-dm'); dmEl.textContent=fmtComp(dm); dmEl.style.color = dm>=0?'#06D7E6':'#EC4899';
+    const mgEl=document.getElementById('kpi-margem'); mgEl.textContent=fmtPct(margem); mgEl.style.color = margem>=0?'#06D7E6':'#EC4899';
+}
+function filtrarSaude(key) { FILTRO_SAUDE = (FILTRO_SAUDE===key)?'':key; renderResumo(); }
+function renderSaudeBar(total, cont) {
+    const chip=(key,label,cor,n)=>{
+        const a=FILTRO_SAUDE===key, dot=cor?`<span class="w-2 h-2 rounded-full" style="background:${cor}"></span>`:'';
+        return `<button onclick="filtrarSaude('${key}')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${a?'text-white border-transparent':'bg-white text-slate-600 border-faiston-border hover:border-faiston-purple'}" style="${a?`background:${cor||'#5B2EE0'}`:''}">${dot}${label} <span class="font-black">${n}</span></button>`;
+    };
+    document.getElementById('saude-bar').innerHTML =
+        chip('','Todos','',total)+chip('saudavel','Saudáveis','#10B981',cont.saudavel)+chip('atencao','Atenção','#F59E0B',cont.atencao)+chip('prejuizo','Prejuízo','#EC4899',cont.prejuizo);
+}
 function setModo(modo) {
     MODO = modo;
     const on='px-3 py-1.5 rounded-md text-xs font-bold bg-faiston-purple text-white transition-colors';
@@ -346,17 +358,22 @@ function setModo(modo) {
 }
 function renderResumo() {
     const q = (document.getElementById('busca').value || '').toLowerCase();
-    const lista = RESUMO.filter(p => !q ||
+    const buscados = RESUMO.filter(p => !q ||
         (p.codigo||'').toLowerCase().includes(q) ||
         (p.cliente||'').toLowerCase().includes(q) ||
         (p.cliente_final||'').toLowerCase().includes(q) ||
         (p.projeto||'').toLowerCase().includes(q));
+    const cont = { saudavel:0, atencao:0, prejuizo:0 };
+    buscados.forEach(p => cont[health(p.pct_margem).key]++);
+    renderSaudeBar(buscados.length, cont);
+    const lista = FILTRO_SAUDE ? buscados.filter(p => health(p.pct_margem).key === FILTRO_SAUDE) : buscados;
     document.getElementById('resumo-count').textContent = `${lista.length} projeto${lista.length!==1?'s':''}`;
+    updateKpis(lista);
     let headers, rowFn;
     if (MODO === 'detalhado') {
         headers = [['ID','l'],['Cliente','l'],['Cliente Final','l'],['Projeto','l'],['Início','l'],['Fim','l'],['Status','l'],['Acum. Fat','r'],['% Fat','r'],['Pend. Fat','r'],['Total','r'],['Gross Rev.','r'],['Tax','r'],['Imp','r'],['Net Rev.','r'],['Acum. Custo','r'],['Valor DM','r'],['% Margem','r'],['Pend. Custo','r'],['Obs','l']];
-        rowFn = p => `<tr class="hover:bg-slate-50 transition-colors">
-            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple">${p.codigo||''}</td>
+        rowFn = p => { const h = health(p.pct_margem); return `<tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple" style="border-left:3px solid ${h.cor}">${p.codigo||''}</td>
             <td class="px-3 py-2 text-slate-600">${p.cliente||''}</td>
             <td class="px-3 py-2 text-slate-500">${p.cliente_final||''}</td>
             <td class="px-3 py-2 text-faiston-dark font-medium max-w-[220px] truncate" title="${esc(p.projeto)}">${p.projeto||''}</td>
@@ -373,14 +390,14 @@ function renderResumo() {
             <td class="num px-3 py-2 text-faiston-purple font-semibold">${fmtComp(p.net_revenue)}</td>
             <td class="num px-3 py-2 text-faiston-pink">${fmtComp(p.acum_custo)}</td>
             <td class="num px-3 py-2 font-bold" style="color:${corMargem(p.valor_dm)}">${fmtComp(p.valor_dm)}</td>
-            <td class="num px-3 py-2 font-semibold" style="color:${corMargem(p.pct_margem)}">${fmtPct(p.pct_margem)}</td>
+            <td class="num px-3 py-2"><span class="px-1.5 py-0.5 rounded-full font-bold" style="color:${h.cor};background:${h.bg}">${fmtPct(p.pct_margem)}</span></td>
             <td class="num px-3 py-2 text-slate-500">${fmtComp(p.pend_custo)}</td>
             <td class="px-3 py-2 text-slate-400 max-w-[220px] truncate" title="${esc(p.obs)}">${p.obs||''}</td>
-        </tr>`;
+        </tr>`; };
     } else {
         headers = [['ID','l'],['Cliente','l'],['Projeto','l'],['Status','l'],['Total','r'],['Acum. Fat','r'],['% Fat','r'],['Net Rev.','r'],['Acum. Custo','r'],['Margem (DM)','r'],['%','r']];
-        rowFn = p => `<tr class="hover:bg-slate-50 transition-colors">
-            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple">${p.codigo||''}</td>
+        rowFn = p => { const h = health(p.pct_margem); return `<tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple" style="border-left:3px solid ${h.cor}">${p.codigo||''}</td>
             <td class="px-3 py-2 text-slate-600">${p.cliente||''}${p.cliente_final && p.cliente_final!==p.cliente ? `<span class="text-slate-400"> · ${p.cliente_final}</span>`:''}</td>
             <td class="px-3 py-2 text-faiston-dark font-medium max-w-[280px] truncate" title="${esc(p.projeto)}">${p.projeto||''}</td>
             <td class="px-3 py-2">${statusBadge(p.status)}</td>
@@ -390,8 +407,8 @@ function renderResumo() {
             <td class="num px-3 py-2 text-faiston-purple font-semibold">${fmtComp(p.net_revenue)}</td>
             <td class="num px-3 py-2 text-faiston-pink">${fmtComp(p.acum_custo)}</td>
             <td class="num px-3 py-2 font-bold" style="color:${corMargem(p.valor_dm)}">${fmtComp(p.valor_dm)}</td>
-            <td class="num px-3 py-2 font-semibold" style="color:${corMargem(p.pct_margem)}">${fmtPct(p.pct_margem)}</td>
-        </tr>`;
+            <td class="num px-3 py-2"><span class="px-1.5 py-0.5 rounded-full font-bold" style="color:${h.cor};background:${h.bg}">${fmtPct(p.pct_margem)}</span></td>
+        </tr>`; };
     }
     const thead = `<thead class="fc-head text-[10px] uppercase tracking-wider text-slate-400"><tr>${headers.map(h=>`<th class="${h[1]==='r'?'num':'text-left'} px-3 py-2.5">${h[0]}</th>`).join('')}</tr></thead>`;
     const body = lista.length ? lista.map(rowFn).join('') : `<tr><td colspan="${headers.length}" class="text-center py-10 text-slate-300">Nenhum projeto encontrado</td></tr>`;

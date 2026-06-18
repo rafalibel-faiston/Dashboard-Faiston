@@ -983,6 +983,9 @@
                 </div>
             </div>
 
+            <!-- Filtros de saúde -->
+            <div id="fc-saude-bar" class="flex items-center gap-2 flex-wrap mb-4"></div>
+
             <!-- Sub-view: Resumo -->
             <div id="fc-view-resumo" class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
                 <div id="fc-resumo-wrap" class="overflow-x-auto custom-scrollbar">
@@ -3586,7 +3589,43 @@ function setTab(tab) {
 // ══════════════════════════════════════════════════════════════════
 // FORECAST / P&L (dentro da Gestão)
 // ══════════════════════════════════════════════════════════════════
-let fcResumo = [], fcPeriodos = [], fcPeriodoAtual = '', fcSubtabAtiva = 'resumo', fcCarregado = false, fcModo = 'geral';
+let fcResumo = [], fcPeriodos = [], fcPeriodoAtual = '', fcSubtabAtiva = 'resumo', fcCarregado = false, fcModo = 'geral', fcFiltroSaude = '';
+
+// Classifica a saúde do projeto pela margem %
+function fcHealth(pct) {
+    if (pct < 0)    return { key:'prejuizo', cor:'#EC4899', bg:'rgba(236,72,153,0.12)', label:'Prejuízo' };
+    if (pct < 0.15) return { key:'atencao',  cor:'#F59E0B', bg:'rgba(245,158,11,0.14)', label:'Atenção' };
+    return                 { key:'saudavel', cor:'#10B981', bg:'rgba(16,185,129,0.14)', label:'Saudável' };
+}
+// Recalcula os KPIs do topo a partir de uma lista (acompanha o filtro)
+function fcUpdateKpis(lista) {
+    const s = (f) => lista.reduce((a, p) => a + (Number(p[f]) || 0), 0);
+    const total = s('total'), net = s('net_revenue'), custo = s('acum_custo'), dm = s('valor_dm');
+    const margem = net ? dm / net : 0;
+    document.getElementById('fc-kpi-total').textContent = fcMoeda(total);
+    document.getElementById('fc-kpi-net').textContent   = fcMoeda(net);
+    document.getElementById('fc-kpi-custo').textContent = fcMoeda(custo);
+    const dmEl = document.getElementById('fc-kpi-dm'); dmEl.textContent = fcMoeda(dm); dmEl.style.color = dm >= 0 ? '#06D7E6' : '#EC4899';
+    const mgEl = document.getElementById('fc-kpi-margem'); mgEl.textContent = fcPct(margem); mgEl.style.color = margem >= 0 ? '#06D7E6' : '#EC4899';
+}
+function fcFiltrarSaude(key) {
+    fcFiltroSaude = (fcFiltroSaude === key) ? '' : key;
+    fcRenderResumo();
+}
+function fcRenderSaudeBar(total, cont) {
+    const chip = (key, label, cor, n) => {
+        const ativo = fcFiltroSaude === key;
+        const dot = cor ? `<span class="w-2 h-2 rounded-full" style="background:${cor}"></span>` : '';
+        return `<button onclick="fcFiltrarSaude('${key}')"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${ativo ? 'text-white border-transparent' : 'bg-white text-slate-600 border-faiston-border hover:border-faiston-purple'}"
+            style="${ativo ? `background:${cor || '#5B2EE0'}` : ''}">${dot}${label} <span class="font-black">${n}</span></button>`;
+    };
+    document.getElementById('fc-saude-bar').innerHTML =
+        chip('', 'Todos', '', total) +
+        chip('saudavel', 'Saudáveis', '#10B981', cont.saudavel) +
+        chip('atencao', 'Atenção', '#F59E0B', cont.atencao) +
+        chip('prejuizo', 'Prejuízo', '#EC4899', cont.prejuizo);
+}
 
 function fcMoeda(v) {
     v = Number(v||0); const s = v < 0 ? '-' : ''; const a = Math.abs(v);
@@ -3618,17 +3657,9 @@ async function fcRender() {
         if (r.ok) data = await r.json();
     } catch (e) { console.error(e); }
     fcResumo = data.projetos || [];
-    const t = data.totais || {};
-    document.getElementById('fc-kpi-total').textContent = fcMoeda(t.total);
-    document.getElementById('fc-kpi-net').textContent   = fcMoeda(t.net_revenue);
-    document.getElementById('fc-kpi-custo').textContent = fcMoeda(t.acum_custo);
-    const dm = document.getElementById('fc-kpi-dm');
-    dm.textContent = fcMoeda(t.valor_dm); dm.style.color = (t.valor_dm||0) >= 0 ? '#06D7E6' : '#EC4899';
-    const mg = document.getElementById('fc-kpi-margem');
-    mg.textContent = fcPct(t.margem_pct); mg.style.color = (t.margem_pct||0) >= 0 ? '#06D7E6' : '#EC4899';
     document.getElementById('fc-atualizado').textContent = data.atualizado_em ? ('atualizado ' + data.atualizado_em.replace('T',' ')) : '';
     fcCarregado = true;
-    fcSetModo(fcModo);
+    fcSetModo(fcModo);   // renderiza tabela + KPIs (já acompanha o filtro)
     fcCarregarPeriodos();
 }
 
@@ -3641,6 +3672,7 @@ function fcSubtab(sub) {
     document.getElementById('fc-view-resumo').classList.toggle('hidden', sub !== 'resumo');
     document.getElementById('fc-view-mensal').classList.toggle('hidden', sub !== 'mensal');
     document.getElementById('fc-modo-wrap').classList.toggle('hidden', sub !== 'resumo');
+    document.getElementById('fc-saude-bar').classList.toggle('hidden', sub !== 'resumo');
 }
 
 function fcSetModo(modo) {
@@ -3654,11 +3686,20 @@ function fcSetModo(modo) {
 
 function fcRenderResumo() {
     const q = (document.getElementById('fc-busca').value || '').toLowerCase();
-    const lista = fcResumo.filter(p => !q ||
+    // 1) filtra por busca
+    const buscados = fcResumo.filter(p => !q ||
         (p.codigo||'').toLowerCase().includes(q) || (p.cliente||'').toLowerCase().includes(q) ||
         (p.cliente_final||'').toLowerCase().includes(q) || (p.projeto||'').toLowerCase().includes(q));
+    // 2) contagens de saúde (dentro da busca atual) para a barra de filtros
+    const cont = { saudavel:0, atencao:0, prejuizo:0 };
+    buscados.forEach(p => cont[fcHealth(p.pct_margem).key]++);
+    fcRenderSaudeBar(buscados.length, cont);
+    // 3) aplica filtro de saúde
+    const lista = fcFiltroSaude ? buscados.filter(p => fcHealth(p.pct_margem).key === fcFiltroSaude) : buscados;
     document.getElementById('fc-count').textContent = `${lista.length} projeto${lista.length!==1?'s':''}`;
     document.getElementById('fc-empty').classList.toggle('hidden', fcResumo.length !== 0);
+    // 4) KPIs acompanham a seleção filtrada
+    fcUpdateKpis(lista);
 
     const thR = 'text-right px-3 py-2.5', thL = 'text-left px-3 py-2.5';
     const tdR = 'px-3 py-2 text-right font-mono', acoes = p => canWrite ? `<button onclick="fcAbrirModal(${p.id})" class="text-[11px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors">Editar</button>` : '';
@@ -3666,8 +3707,8 @@ function fcRenderResumo() {
     let headers, rowFn;
     if (fcModo === 'detalhado') {
         headers = [['ID','l'],['Cliente','l'],['Cliente Final','l'],['Projeto','l'],['Início','l'],['Fim','l'],['Status','l'],['Acum. Fat','r'],['% Fat','r'],['Pend. Fat','r'],['Total','r'],['Gross Rev.','r'],['Tax','r'],['Imp','r'],['Net Rev.','r'],['Acum. Custo','r'],['Valor DM','r'],['% Margem','r'],['Pend. Custo','r'],['Obs','l'],['Ações','r']];
-        rowFn = p => `<tr class="hover:bg-slate-50 transition-colors">
-            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple">${p.codigo||''}</td>
+        rowFn = p => { const h = fcHealth(p.pct_margem); return `<tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple" style="border-left:3px solid ${h.cor}">${p.codigo||''}</td>
             <td class="px-3 py-2 text-slate-600">${p.cliente||''}</td>
             <td class="px-3 py-2 text-slate-500">${p.cliente_final||''}</td>
             <td class="px-3 py-2 text-faiston-dark font-medium max-w-[220px] truncate" title="${escHtml(p.projeto||'')}">${p.projeto||''}</td>
@@ -3684,15 +3725,15 @@ function fcRenderResumo() {
             <td class="${tdR} text-faiston-purple font-semibold">${fcMoeda(p.net_revenue)}</td>
             <td class="${tdR} text-faiston-pink">${fcMoeda(p.acum_custo)}</td>
             <td class="${tdR} font-bold" style="color:${fcCor(p.valor_dm)}">${fcMoeda(p.valor_dm)}</td>
-            <td class="${tdR} font-semibold" style="color:${fcCor(p.pct_margem)}">${fcPct(p.pct_margem)}</td>
+            <td class="${tdR}"><span class="px-1.5 py-0.5 rounded-full font-bold" style="color:${h.cor};background:${h.bg}">${fcPct(p.pct_margem)}</span></td>
             <td class="${tdR} text-slate-500">${fcMoeda(p.pend_custo)}</td>
             <td class="px-3 py-2 text-slate-400 max-w-[220px] truncate" title="${escHtml(p.obs||'')}">${p.obs||''}</td>
             <td class="px-3 py-2 text-right">${acoes(p)}</td>
-        </tr>`;
+        </tr>`; };
     } else {
         headers = [['ID','l'],['Cliente','l'],['Projeto','l'],['Status','l'],['Total','r'],['Acum. Fat','r'],['% Fat','r'],['Net Rev.','r'],['Acum. Custo','r'],['Margem','r'],['%','r'],['Ações','r']];
-        rowFn = p => `<tr class="hover:bg-slate-50 transition-colors">
-            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple">${p.codigo||''}</td>
+        rowFn = p => { const h = fcHealth(p.pct_margem); return `<tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple" style="border-left:3px solid ${h.cor}">${p.codigo||''}</td>
             <td class="px-3 py-2 text-slate-600">${p.cliente||''}${p.cliente_final && p.cliente_final!==p.cliente ? `<span class="text-slate-400"> · ${p.cliente_final}</span>`:''}</td>
             <td class="px-3 py-2 text-faiston-dark font-medium max-w-[260px] truncate" title="${escHtml(p.projeto||'')}">${p.projeto||''}</td>
             <td class="px-3 py-2">${fcStatusBadge(p.status)}</td>
@@ -3702,9 +3743,9 @@ function fcRenderResumo() {
             <td class="${tdR} text-faiston-purple font-semibold">${fcMoeda(p.net_revenue)}</td>
             <td class="${tdR} text-faiston-pink">${fcMoeda(p.acum_custo)}</td>
             <td class="${tdR} font-bold" style="color:${fcCor(p.valor_dm)}">${fcMoeda(p.valor_dm)}</td>
-            <td class="${tdR} font-semibold" style="color:${fcCor(p.pct_margem)}">${fcPct(p.pct_margem)}</td>
+            <td class="${tdR}"><span class="px-1.5 py-0.5 rounded-full font-bold" style="color:${h.cor};background:${h.bg}">${fcPct(p.pct_margem)}</span></td>
             <td class="px-3 py-2 text-right">${acoes(p)}</td>
-        </tr>`;
+        </tr>`; };
     }
     const thead = `<tr class="border-b border-faiston-border bg-slate-50/70 text-[10px] uppercase tracking-wider text-slate-400">${headers.map(h=>`<th class="${h[1]==='r'?thR:thL}">${h[0]}</th>`).join('')}</tr>`;
     const body = lista.length ? lista.map(rowFn).join('') : `<tr><td colspan="${headers.length}" class="text-center py-12 text-slate-300">Nenhum projeto encontrado</td></tr>`;
