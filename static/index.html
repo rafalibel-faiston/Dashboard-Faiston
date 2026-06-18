@@ -93,6 +93,10 @@
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-magenta"></div>
                             Visão PMO
                         </a>
+                        <a href="#" onclick="setModule('gestao','forecast'); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-pink" id="dot-forecast"></div>
+                            Forecast / P&L
+                        </a>
                     </div>
                 </div>
             </nav>
@@ -112,9 +116,6 @@
                 </a>
                 <a href="#" onclick="setModule('financeiro'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-currency-circle-dollar text-lg"></i> Financeiro
-                </a>
-                <a href="/forecast" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-chart-pie-slice text-lg"></i> Forecast / P&L
                 </a>
                 <a href="#" onclick="setModule('historico'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-lg"></i> Histórico
@@ -930,7 +931,236 @@
             </div>
         </div>
 
+        <!-- FORECAST / P&L -->
+        <div id="view-forecast" class="hidden">
+            <!-- KPIs -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-5">
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Contrato (Total)</p>
+                    <p class="text-xl font-black text-faiston-dark" id="fc-kpi-total">—</p>
+                </div>
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Net Revenue</p>
+                    <p class="text-xl font-black text-faiston-purple" id="fc-kpi-net">—</p>
+                </div>
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Custo Acum.</p>
+                    <p class="text-xl font-black text-faiston-pink" id="fc-kpi-custo">—</p>
+                </div>
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Margem (DM)</p>
+                    <p class="text-xl font-black" id="fc-kpi-dm">—</p>
+                </div>
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Margem %</p>
+                    <p class="text-xl font-black" id="fc-kpi-margem">—</p>
+                </div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="flex items-center gap-3 flex-wrap mb-4">
+                <div class="flex items-center gap-1 bg-white border border-faiston-border rounded-lg p-1">
+                    <button id="fc-subtab-resumo" onclick="fcSubtab('resumo')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors">Resumo por Projeto</button>
+                    <button id="fc-subtab-mensal" onclick="fcSubtab('mensal')" class="px-3 py-1.5 rounded-md text-xs font-bold text-slate-400 transition-colors">P&L Mensal</button>
+                </div>
+                <div class="relative">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                    <input id="fc-busca" oninput="fcRenderResumo()" placeholder="Buscar ID, cliente ou projeto..." class="pl-9 pr-3 py-2 border border-faiston-border rounded-lg text-xs w-60 focus:outline-none focus:border-faiston-purple bg-white">
+                </div>
+                <span id="fc-count" class="text-xs text-faiston-faint"></span>
+                <div class="ml-auto flex items-center gap-2">
+                    <span id="fc-atualizado" class="text-[11px] text-faiston-faint"></span>
+                    <button id="fc-btn-importar" onclick="fcAbrirImport()" class="hidden text-xs font-semibold px-3 py-2 rounded-lg border border-faiston-purple/30 text-faiston-purple hover:bg-faiston-purple/5 transition-colors">
+                        <i class="ph ph-upload-simple text-sm"></i> Importar planilha
+                    </button>
+                    <button id="fc-btn-novo" onclick="fcAbrirModal(null)" class="hidden flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                        <i class="ph ph-plus"></i> Novo lançamento
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sub-view: Resumo -->
+            <div id="fc-view-resumo" class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-xs">
+                        <thead>
+                            <tr class="border-b border-faiston-border bg-slate-50/70 text-[10px] uppercase tracking-wider text-slate-400">
+                                <th class="text-left px-3 py-2.5">ID</th>
+                                <th class="text-left px-3 py-2.5">Cliente</th>
+                                <th class="text-left px-3 py-2.5">Projeto</th>
+                                <th class="text-left px-3 py-2.5">Status</th>
+                                <th class="text-right px-3 py-2.5">Total</th>
+                                <th class="text-right px-3 py-2.5">Acum. Fat</th>
+                                <th class="text-right px-3 py-2.5">% Fat</th>
+                                <th class="text-right px-3 py-2.5">Net Rev.</th>
+                                <th class="text-right px-3 py-2.5">Acum. Custo</th>
+                                <th class="text-right px-3 py-2.5">Margem</th>
+                                <th class="text-right px-3 py-2.5">%</th>
+                                <th class="px-3 py-2.5 text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fc-tabela-resumo" class="divide-y divide-faiston-border">
+                            <tr><td colspan="12" class="text-center py-12 text-slate-300">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Sub-view: Mensal -->
+            <div id="fc-view-mensal" class="hidden">
+                <div class="flex items-center gap-2 flex-wrap mb-3" id="fc-periodo-chips"></div>
+                <div class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="border-b border-faiston-border bg-slate-50/70 text-[10px] uppercase tracking-wider text-slate-400">
+                                    <th class="text-left px-3 py-2.5">ID</th>
+                                    <th class="text-left px-3 py-2.5">Cliente</th>
+                                    <th class="text-left px-3 py-2.5">Projeto</th>
+                                    <th class="text-right px-3 py-2.5">Net Rev.</th>
+                                    <th class="text-right px-3 py-2.5">Folha</th>
+                                    <th class="text-right px-3 py-2.5">Logística</th>
+                                    <th class="text-right px-3 py-2.5">Material</th>
+                                    <th class="text-right px-3 py-2.5">Parceiros</th>
+                                    <th class="text-right px-3 py-2.5">Spare</th>
+                                    <th class="text-right px-3 py-2.5">Outros</th>
+                                    <th class="text-right px-3 py-2.5">Total Custo</th>
+                                    <th class="text-right px-3 py-2.5">Margem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fc-tabela-mensal" class="divide-y divide-faiston-border"></tbody>
+                            <tfoot id="fc-foot-mensal" class="font-bold text-faiston-dark"></tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="fc-empty" class="hidden flex-col items-center justify-center py-16 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4 mx-auto">
+                    <i class="ph ph-chart-pie-slice text-3xl text-faiston-faint"></i>
+                </div>
+                <p class="font-semibold text-slate-600 mb-1">Nenhum lançamento de forecast</p>
+                <p class="text-sm text-slate-400 mb-4">Crie um lançamento manualmente ou importe a planilha FORECAST</p>
+            </div>
+        </div>
+
     </main>
+</div>
+
+<!-- MODAL FORECAST (novo/editar lançamento) -->
+<div id="fc-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div class="flex items-center justify-between p-5 border-b border-faiston-border sticky top-0 bg-white">
+            <h2 class="text-lg font-bold text-faiston-dark" id="fc-modal-title">Novo lançamento</h2>
+            <button onclick="fcFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-5 flex flex-col gap-4">
+            <input type="hidden" id="fc-f-id">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">ID do projeto *</label>
+                    <input id="fc-f-codigo" placeholder="Ex: F260160" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple font-mono">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="fc-f-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option>ANDAMENTO</option>
+                        <option>NÃO INICIADO</option>
+                        <option>CONCLUÍDO</option>
+                        <option>EM FREEZING</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Imposto (%)</label>
+                    <input id="fc-f-tax" type="number" step="0.01" placeholder="11.25" oninput="fcPreview()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cliente</label>
+                    <input id="fc-f-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cliente final</label>
+                    <input id="fc-f-cliente-final" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Projeto</label>
+                <input id="fc-f-projeto" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Total contrato (R$)</label>
+                    <input id="fc-f-total" type="number" step="0.01" oninput="fcPreview()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Faturado acum. (R$)</label>
+                    <input id="fc-f-acum-fat" type="number" step="0.01" oninput="fcPreview()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Custo acum. (R$)</label>
+                    <input id="fc-f-acum-custo" type="number" step="0.01" oninput="fcPreview()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Custo pendente (R$)</label>
+                    <input id="fc-f-pend-custo" type="number" step="0.01" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Início</label>
+                    <input id="fc-f-inicio" type="date" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Fim</label>
+                    <input id="fc-f-fim" type="date" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Observações</label>
+                <textarea id="fc-f-obs" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple"></textarea>
+            </div>
+            <!-- Preview calculado -->
+            <div class="grid grid-cols-3 gap-3 rounded-xl bg-slate-50 p-3 border border-faiston-border">
+                <div><p class="text-[10px] text-slate-400 uppercase tracking-wide">Impostos</p><p class="text-sm font-bold text-faiston-dark" id="fc-prev-imp">R$ 0,00</p></div>
+                <div><p class="text-[10px] text-slate-400 uppercase tracking-wide">Net Revenue</p><p class="text-sm font-bold text-faiston-purple" id="fc-prev-net">R$ 0,00</p></div>
+                <div><p class="text-[10px] text-slate-400 uppercase tracking-wide">Margem (DM)</p><p class="text-sm font-bold" id="fc-prev-dm">R$ 0,00</p></div>
+            </div>
+        </div>
+        <div class="flex items-center justify-between gap-2 p-5 border-t border-faiston-border sticky bottom-0 bg-white">
+            <button id="fc-btn-excluir" onclick="fcExcluir()" class="hidden text-sm font-semibold text-faiston-pink hover:bg-faiston-pink/10 rounded-lg px-3 py-2 transition-colors"><i class="ph ph-trash"></i> Excluir</button>
+            <div class="ml-auto flex items-center gap-2">
+                <button onclick="fcFecharModal()" class="border border-faiston-border rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+                <button onclick="fcSalvar()" class="btn-grad text-white rounded-lg px-4 py-2 text-sm font-semibold"><i class="ph ph-check mr-1"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL IMPORTAR FORECAST -->
+<div id="fc-modal-import" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(7,7,15,0.6);backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <span class="text-white font-bold flex items-center gap-2"><i class="ph ph-upload-simple"></i> Importar Forecast / P&L</span>
+            <button onclick="fcFecharImport()" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors"><i class="ph ph-x"></i></button>
+        </div>
+        <div class="p-5">
+            <p class="text-sm text-slate-500 mb-4">Selecione a planilha no formato <b>FORECAST</b> (aba <b>RESUMO</b> + abas mensais como <b>JAN26</b>, <b>2025</b>). A importação <b>substitui</b> toda a base do forecast.</p>
+            <label class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-faiston-border rounded-xl py-8 cursor-pointer hover:border-faiston-purple transition-colors">
+                <i class="ph ph-microsoft-excel-logo text-3xl text-faiston-purple"></i>
+                <span class="text-sm font-semibold text-slate-600" id="fc-file-label">Clique para escolher o arquivo .xlsx</span>
+                <input id="fc-file-input" type="file" accept=".xlsx,.xls" class="hidden" onchange="fcArquivoSel()">
+            </label>
+            <div id="fc-import-result" class="hidden mt-4 text-sm rounded-lg p-3"></div>
+        </div>
+        <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-faiston-border">
+            <button onclick="fcFecharImport()" class="border border-faiston-border rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button id="fc-btn-import-go" onclick="fcEnviarImport()" disabled class="btn-grad text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
+                <i class="ph ph-check mr-1"></i> <span id="fc-import-label">Importar</span>
+            </button>
+        </div>
+    </div>
 </div>
 <!-- MODAL EDITAR PROJETO (gestão) -->
 <div id="modal-proj" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
@@ -3302,9 +3532,10 @@ function setTab(tab) {
         'contratos':{ color: '#5B2EE0', shadow: '0 0 8px #5B2EE0' },
         'carimbos': { color: '#06D7E6', shadow: '0 0 8px #06D7E6' },
         'pmo':      { color: '#B826C9', shadow: '0 0 8px #B826C9' },
+        'forecast': { color: '#EC4899', shadow: '0 0 8px #EC4899' },
     };
 
-    ['clientes','projetos','contratos','carimbos','pmo'].forEach(t => {
+    ['clientes','projetos','contratos','carimbos','pmo','forecast'].forEach(t => {
         const view   = document.getElementById(`view-${t}`);
         const navBtn = document.getElementById(`nav-${t}`);
         const dot    = document.getElementById(`dot-${t}`);
@@ -3328,6 +3559,10 @@ function setTab(tab) {
         if (kpiSec) kpiSec.classList.add('hidden');
         if (gTitle) gTitle.textContent = 'Carimbos';
         if (gSub)   gSub.textContent = `${(typeof gCarimbos !== 'undefined' ? gCarimbos.length : 0)} carimbos salvos`;
+    } else if (tab === 'forecast') {
+        if (kpiSec) kpiSec.classList.add('hidden');
+        if (gTitle) gTitle.textContent = 'Forecast / P&L';
+        if (gSub)   gSub.textContent = 'Controle de margem por projeto e P&L mensal';
     } else {
         if (kpiSec) kpiSec.classList.remove('hidden');
         if (gTitle) gTitle.textContent = 'Gestão de Projetos e Contratos';
@@ -3352,11 +3587,258 @@ function setTab(tab) {
         toggleGrupo.classList.add('hidden');
         document.getElementById('btn-nova-acao').classList.add('hidden');
         filtrarCarimbos();
+    } else if (tab === 'forecast') {
+        toggleGrupo.classList.add('hidden');
+        document.getElementById('btn-nova-acao').classList.add('hidden');
+        fcRender();
     } else {
         toggleGrupo.classList.add('hidden');
         document.getElementById('btn-nova-label').textContent = 'Novo Contrato';
         document.getElementById('btn-nova-acao').classList.toggle('hidden', !canWrite);
         filtrarContratos();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FORECAST / P&L (dentro da Gestão)
+// ══════════════════════════════════════════════════════════════════
+let fcResumo = [], fcPeriodos = [], fcPeriodoAtual = '', fcSubtabAtiva = 'resumo', fcCarregado = false;
+
+function fcMoeda(v) {
+    v = Number(v||0); const s = v < 0 ? '-' : ''; const a = Math.abs(v);
+    if (a >= 1000000) return s + 'R$ ' + (a/1000000).toFixed(1).replace('.',',') + 'M';
+    if (a >= 1000) return s + 'R$ ' + (a/1000).toFixed(0) + 'k';
+    return s + 'R$ ' + a.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+function fcMoedaFull(v) { return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fcPct(v) { return (Number(v||0)*100).toFixed(1).replace('.',',') + '%'; }
+function fcCor(v) { return v < 0 ? '#EC4899' : v === 0 ? '#9097AC' : '#0B0D1F'; }
+function fcStatusBadge(s) {
+    s = (s||'').toUpperCase(); if (!s.trim()) return '';
+    let cls = 'bg-slate-100 text-slate-500';
+    if (s.includes('ANDAMENTO')) cls = 'bg-faiston-purple/10 text-faiston-purple';
+    else if (s.includes('CONCLU')) cls = 'bg-emerald-100 text-emerald-600';
+    else if (s.includes('NÃO') || s.includes('NAO')) cls = 'bg-amber-100 text-amber-600';
+    else if (s.includes('FREEZ')) cls = 'bg-sky-100 text-sky-600';
+    return `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full ${cls}">${s}</span>`;
+}
+
+async function fcRender() {
+    // botões conforme permissão
+    document.getElementById('fc-btn-novo').classList.toggle('hidden', !canWrite);
+    document.getElementById('fc-btn-importar').classList.toggle('hidden', !(meuPerfil === 'admin' || meuPerfil === 'gestor'));
+    fcSubtab(fcSubtabAtiva);
+    let data = { projetos: [], totais: {} };
+    try {
+        const r = await fetch('/api/forecast/resumo');
+        if (r.ok) data = await r.json();
+    } catch (e) { console.error(e); }
+    fcResumo = data.projetos || [];
+    const t = data.totais || {};
+    document.getElementById('fc-kpi-total').textContent = fcMoeda(t.total);
+    document.getElementById('fc-kpi-net').textContent   = fcMoeda(t.net_revenue);
+    document.getElementById('fc-kpi-custo').textContent = fcMoeda(t.acum_custo);
+    const dm = document.getElementById('fc-kpi-dm');
+    dm.textContent = fcMoeda(t.valor_dm); dm.style.color = (t.valor_dm||0) >= 0 ? '#06D7E6' : '#EC4899';
+    const mg = document.getElementById('fc-kpi-margem');
+    mg.textContent = fcPct(t.margem_pct); mg.style.color = (t.margem_pct||0) >= 0 ? '#06D7E6' : '#EC4899';
+    document.getElementById('fc-atualizado').textContent = data.atualizado_em ? ('atualizado ' + data.atualizado_em.replace('T',' ')) : '';
+    fcCarregado = true;
+    fcRenderResumo();
+    fcCarregarPeriodos();
+}
+
+function fcSubtab(sub) {
+    fcSubtabAtiva = sub;
+    const onCls = 'px-3 py-1.5 rounded-md text-xs font-bold bg-faiston-purple text-white transition-colors';
+    const offCls = 'px-3 py-1.5 rounded-md text-xs font-bold text-slate-400 transition-colors';
+    document.getElementById('fc-subtab-resumo').className = sub === 'resumo' ? onCls : offCls;
+    document.getElementById('fc-subtab-mensal').className = sub === 'mensal' ? onCls : offCls;
+    document.getElementById('fc-view-resumo').classList.toggle('hidden', sub !== 'resumo');
+    document.getElementById('fc-view-mensal').classList.toggle('hidden', sub !== 'mensal');
+}
+
+function fcRenderResumo() {
+    const q = (document.getElementById('fc-busca').value || '').toLowerCase();
+    const lista = fcResumo.filter(p => !q ||
+        (p.codigo||'').toLowerCase().includes(q) || (p.cliente||'').toLowerCase().includes(q) ||
+        (p.cliente_final||'').toLowerCase().includes(q) || (p.projeto||'').toLowerCase().includes(q));
+    document.getElementById('fc-count').textContent = `${lista.length} projeto${lista.length!==1?'s':''}`;
+    const empty = document.getElementById('fc-empty');
+    empty.classList.toggle('hidden', fcResumo.length !== 0);
+    document.getElementById('fc-tabela-resumo').innerHTML = lista.map(p => `
+        <tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple">${p.codigo||''}</td>
+            <td class="px-3 py-2 text-slate-600">${p.cliente||''}${p.cliente_final && p.cliente_final!==p.cliente ? `<span class="text-slate-400"> · ${p.cliente_final}</span>`:''}</td>
+            <td class="px-3 py-2 text-faiston-dark font-medium max-w-[260px] truncate" title="${escHtml(p.projeto||'')}">${p.projeto||''}</td>
+            <td class="px-3 py-2">${fcStatusBadge(p.status)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-700">${fcMoeda(p.total)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcMoeda(p.acum_fat)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcPct(p.pct_fat)}</td>
+            <td class="px-3 py-2 text-right font-mono text-faiston-purple font-semibold">${fcMoeda(p.net_revenue)}</td>
+            <td class="px-3 py-2 text-right font-mono text-faiston-pink">${fcMoeda(p.acum_custo)}</td>
+            <td class="px-3 py-2 text-right font-mono font-bold" style="color:${fcCor(p.valor_dm)}">${fcMoeda(p.valor_dm)}</td>
+            <td class="px-3 py-2 text-right font-mono font-semibold" style="color:${fcCor(p.pct_margem)}">${fcPct(p.pct_margem)}</td>
+            <td class="px-3 py-2 text-right">${canWrite ? `<button onclick="fcAbrirModal(${p.id})" class="text-[11px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors">Editar</button>` : ''}</td>
+        </tr>`).join('') || `<tr><td colspan="12" class="text-center py-12 text-slate-300">Nenhum projeto encontrado</td></tr>`;
+}
+
+async function fcCarregarPeriodos() {
+    try { fcPeriodos = await fetch('/api/forecast/periodos').then(r => r.json()); } catch { fcPeriodos = []; }
+    if (!fcPeriodos.length) { document.getElementById('fc-periodo-chips').innerHTML = '<span class="text-xs text-slate-400">Sem dados mensais. Importe a planilha para ver o P&L mensal.</span>'; document.getElementById('fc-tabela-mensal').innerHTML=''; document.getElementById('fc-foot-mensal').innerHTML=''; return; }
+    if (!fcPeriodoAtual || !fcPeriodos.find(p => p.periodo_key === fcPeriodoAtual)) fcPeriodoAtual = fcPeriodos[fcPeriodos.length-1].periodo_key;
+    document.getElementById('fc-periodo-chips').innerHTML = fcPeriodos.map(p => `
+        <button onclick="fcSelPeriodo('${p.periodo_key}')" data-pk="${p.periodo_key}"
+            class="fc-chip px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${p.periodo_key===fcPeriodoAtual ? 'bg-faiston-purple text-white border-faiston-purple' : 'bg-white text-slate-500 border-faiston-border hover:border-faiston-purple'}">${p.periodo}</button>`).join('');
+    fcRenderMensal();
+}
+function fcSelPeriodo(pk) {
+    fcPeriodoAtual = pk;
+    document.querySelectorAll('.fc-chip').forEach(b => {
+        const on = b.dataset.pk === pk;
+        b.className = `fc-chip px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${on ? 'bg-faiston-purple text-white border-faiston-purple' : 'bg-white text-slate-500 border-faiston-border hover:border-faiston-purple'}`;
+    });
+    fcRenderMensal();
+}
+async function fcRenderMensal() {
+    let data = { linhas: [], totais: {} };
+    try { data = await fetch('/api/forecast/mensal?periodo=' + encodeURIComponent(fcPeriodoAtual)).then(r => r.json()); } catch (e) { console.error(e); }
+    const linhas = data.linhas || [];
+    document.getElementById('fc-tabela-mensal').innerHTML = linhas.map(l => `
+        <tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple">${l.codigo||''}</td>
+            <td class="px-3 py-2 text-slate-600">${l.cliente||''}</td>
+            <td class="px-3 py-2 text-faiston-dark font-medium max-w-[240px] truncate" title="${escHtml(l.projeto||'')}">${l.projeto||''}</td>
+            <td class="px-3 py-2 text-right font-mono text-faiston-purple font-semibold">${fcMoeda(l.net_revenue)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcMoeda(l.custo_folha)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcMoeda(l.logistica)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcMoeda(l.material)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcMoeda(l.vlr_parceiros)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcMoeda(l.spare_parts)}</td>
+            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcMoeda(l.outros)}</td>
+            <td class="px-3 py-2 text-right font-mono text-faiston-pink">${fcMoeda(l.total_custo)}</td>
+            <td class="px-3 py-2 text-right font-mono font-bold" style="color:${fcCor(l.margem)}">${fcMoeda(l.margem)}</td>
+        </tr>`).join('') || `<tr><td colspan="12" class="text-center py-8 text-slate-400">Sem lançamentos neste período</td></tr>`;
+    const t = data.totais || {};
+    document.getElementById('fc-foot-mensal').innerHTML = linhas.length ? `
+        <tr class="bg-slate-50 border-t-2 border-faiston-border">
+            <td class="px-3 py-2.5" colspan="3">TOTAL · ${linhas.length} projeto${linhas.length!==1?'s':''} · Margem ${fcPct(t.margem_pct)}</td>
+            <td class="px-3 py-2.5 text-right font-mono text-faiston-purple">${fcMoeda(t.net_revenue)}</td>
+            <td class="px-3 py-2.5 text-right font-mono">${fcMoeda(t.custo_folha)}</td>
+            <td class="px-3 py-2.5 text-right font-mono">${fcMoeda(t.logistica)}</td>
+            <td class="px-3 py-2.5 text-right font-mono">${fcMoeda(t.material)}</td>
+            <td class="px-3 py-2.5 text-right font-mono">${fcMoeda(t.vlr_parceiros)}</td>
+            <td class="px-3 py-2.5 text-right font-mono">${fcMoeda(t.spare_parts)}</td>
+            <td class="px-3 py-2.5 text-right font-mono">${fcMoeda(t.outros)}</td>
+            <td class="px-3 py-2.5 text-right font-mono text-faiston-pink">${fcMoeda(t.total_custo)}</td>
+            <td class="px-3 py-2.5 text-right font-mono" style="color:${fcCor(t.margem)}">${fcMoeda(t.margem)}</td>
+        </tr>` : '';
+}
+
+// ── Modal novo/editar ──
+function fcAbrirModal(id) {
+    const p = id ? fcResumo.find(x => x.id === id) : null;
+    document.getElementById('fc-modal-title').textContent = p ? 'Editar lançamento' : 'Novo lançamento';
+    document.getElementById('fc-f-id').value = p ? p.id : '';
+    document.getElementById('fc-f-codigo').value = p ? (p.codigo||'') : '';
+    document.getElementById('fc-f-status').value = p ? (p.status||'ANDAMENTO') : 'ANDAMENTO';
+    document.getElementById('fc-f-tax').value = p ? (p.tax*100).toFixed(2) : '11.25';
+    document.getElementById('fc-f-cliente').value = p ? (p.cliente||'') : '';
+    document.getElementById('fc-f-cliente-final').value = p ? (p.cliente_final||'') : '';
+    document.getElementById('fc-f-projeto').value = p ? (p.projeto||'') : '';
+    document.getElementById('fc-f-total').value = p ? (p.total||0) : '';
+    document.getElementById('fc-f-acum-fat').value = p ? (p.acum_fat||0) : '';
+    document.getElementById('fc-f-acum-custo').value = p ? (p.acum_custo||0) : '';
+    document.getElementById('fc-f-pend-custo').value = p ? (p.pend_custo||0) : '';
+    document.getElementById('fc-f-inicio').value = p && p.data_inicio ? p.data_inicio.slice(0,10) : '';
+    document.getElementById('fc-f-fim').value = p && p.data_fim ? p.data_fim.slice(0,10) : '';
+    document.getElementById('fc-f-obs').value = p ? (p.obs||'') : '';
+    document.getElementById('fc-btn-excluir').classList.toggle('hidden', !p);
+    fcPreview();
+    document.getElementById('fc-modal').classList.remove('hidden');
+}
+function fcFecharModal() { document.getElementById('fc-modal').classList.add('hidden'); }
+function fcPreview() {
+    const total = parseFloat(document.getElementById('fc-f-total').value) || 0;
+    const tax = (parseFloat(document.getElementById('fc-f-tax').value) || 0) / 100;
+    const acumCusto = parseFloat(document.getElementById('fc-f-acum-custo').value) || 0;
+    const imp = total * tax, net = total - imp, dm = net - acumCusto;
+    document.getElementById('fc-prev-imp').textContent = fcMoedaFull(imp);
+    document.getElementById('fc-prev-net').textContent = fcMoedaFull(net);
+    const dmEl = document.getElementById('fc-prev-dm');
+    dmEl.textContent = fcMoedaFull(dm); dmEl.style.color = dm >= 0 ? '#0B0D1F' : '#EC4899';
+}
+async function fcSalvar() {
+    const codigo = document.getElementById('fc-f-codigo').value.trim();
+    if (!codigo) { alert('Informe o ID do projeto.'); return; }
+    const id = document.getElementById('fc-f-id').value;
+    const body = {
+        codigo, status: document.getElementById('fc-f-status').value,
+        tax: (parseFloat(document.getElementById('fc-f-tax').value) || 0) / 100,
+        cliente: document.getElementById('fc-f-cliente').value.trim(),
+        cliente_final: document.getElementById('fc-f-cliente-final').value.trim(),
+        projeto: document.getElementById('fc-f-projeto').value.trim(),
+        total: parseFloat(document.getElementById('fc-f-total').value) || 0,
+        acum_fat: parseFloat(document.getElementById('fc-f-acum-fat').value) || 0,
+        acum_custo: parseFloat(document.getElementById('fc-f-acum-custo').value) || 0,
+        pend_custo: parseFloat(document.getElementById('fc-f-pend-custo').value) || 0,
+        data_inicio: document.getElementById('fc-f-inicio').value || null,
+        data_fim: document.getElementById('fc-f-fim').value || null,
+        obs: document.getElementById('fc-f-obs').value,
+    };
+    try {
+        const url = id ? `/api/forecast/projeto/${id}` : '/api/forecast/projeto';
+        const r = await fetch(url, { method: id ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.detail || 'Erro ao salvar'); }
+        fcFecharModal(); fcRender();
+    } catch (e) { alert(e.message); }
+}
+async function fcExcluir() {
+    const id = document.getElementById('fc-f-id').value;
+    if (!id || !confirm('Excluir este lançamento do forecast?')) return;
+    try {
+        const r = await fetch(`/api/forecast/projeto/${id}`, { method: 'DELETE' });
+        if (!r.ok) throw new Error('Erro ao excluir');
+        fcFecharModal(); fcRender();
+    } catch (e) { alert(e.message); }
+}
+
+// ── Importar planilha ──
+function fcAbrirImport() {
+    document.getElementById('fc-file-input').value = '';
+    document.getElementById('fc-file-label').textContent = 'Clique para escolher o arquivo .xlsx';
+    document.getElementById('fc-btn-import-go').disabled = true;
+    document.getElementById('fc-import-result').classList.add('hidden');
+    document.getElementById('fc-modal-import').classList.remove('hidden');
+}
+function fcFecharImport() { document.getElementById('fc-modal-import').classList.add('hidden'); }
+function fcArquivoSel() {
+    const f = document.getElementById('fc-file-input').files[0];
+    document.getElementById('fc-file-label').textContent = f ? f.name : 'Clique para escolher o arquivo .xlsx';
+    document.getElementById('fc-btn-import-go').disabled = !f;
+}
+async function fcEnviarImport() {
+    const f = document.getElementById('fc-file-input').files[0];
+    if (!f) return;
+    const btn = document.getElementById('fc-btn-import-go');
+    btn.disabled = true; document.getElementById('fc-import-label').textContent = 'Importando...';
+    const fd = new FormData(); fd.append('file', f);
+    const res = document.getElementById('fc-import-result');
+    try {
+        const r = await fetch('/api/forecast/importar', { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.detail || 'Erro');
+        res.className = 'mt-4 text-sm rounded-lg p-3 bg-emerald-50 text-emerald-700';
+        res.innerHTML = `<i class="ph ph-check-circle"></i> Importado: <b>${j.resumo}</b> projetos, <b>${j.mensal}</b> linhas mensais (${(j.periodos||[]).length} períodos).`;
+        res.classList.remove('hidden');
+        fcPeriodoAtual = '';
+        setTimeout(() => { fcFecharImport(); fcRender(); }, 1200);
+    } catch (e) {
+        res.className = 'mt-4 text-sm rounded-lg p-3 bg-faiston-pink/10 text-faiston-pink';
+        res.innerHTML = `<i class="ph ph-warning-circle"></i> ${e.message}`;
+        res.classList.remove('hidden');
+    } finally {
+        btn.disabled = false; document.getElementById('fc-import-label').textContent = 'Importar';
     }
 }
 

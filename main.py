@@ -3512,7 +3512,7 @@ def forecast_get_resumo(faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         _ensure_forecast_tables(cur); conn.commit()
         cur.execute("""
-            SELECT codigo, cliente, cliente_final, projeto, data_inicio, data_fim, status,
+            SELECT id, codigo, cliente, cliente_final, projeto, data_inicio, data_fim, status,
                    acum_fat, pct_fat, pend_fat, total, gross_revenue, tax, imp, net_revenue,
                    acum_custo, valor_dm, pct_margem, pend_custo, obs
             FROM forecast_projetos
@@ -3523,13 +3523,13 @@ def forecast_get_resumo(faiston_token: str = Cookie(None)):
         atualizado = cur.fetchone()[0]
         cur.close(); conn.close()
         projetos = [{
-            "codigo": r[0], "cliente": r[1], "cliente_final": r[2], "projeto": r[3],
-            "data_inicio": str(r[4]) if r[4] else None, "data_fim": str(r[5]) if r[5] else None,
-            "status": r[6], "acum_fat": _fc_to_float(r[7]), "pct_fat": _fc_to_float(r[8]),
-            "pend_fat": _fc_to_float(r[9]), "total": _fc_to_float(r[10]), "gross_revenue": _fc_to_float(r[11]),
-            "tax": _fc_to_float(r[12]), "imp": _fc_to_float(r[13]), "net_revenue": _fc_to_float(r[14]),
-            "acum_custo": _fc_to_float(r[15]), "valor_dm": _fc_to_float(r[16]), "pct_margem": _fc_to_float(r[17]),
-            "pend_custo": _fc_to_float(r[18]), "obs": r[19] or "",
+            "id": r[0], "codigo": r[1], "cliente": r[2], "cliente_final": r[3], "projeto": r[4],
+            "data_inicio": str(r[5]) if r[5] else None, "data_fim": str(r[6]) if r[6] else None,
+            "status": r[7], "acum_fat": _fc_to_float(r[8]), "pct_fat": _fc_to_float(r[9]),
+            "pend_fat": _fc_to_float(r[10]), "total": _fc_to_float(r[11]), "gross_revenue": _fc_to_float(r[12]),
+            "tax": _fc_to_float(r[13]), "imp": _fc_to_float(r[14]), "net_revenue": _fc_to_float(r[15]),
+            "acum_custo": _fc_to_float(r[16]), "valor_dm": _fc_to_float(r[17]), "pct_margem": _fc_to_float(r[18]),
+            "pend_custo": _fc_to_float(r[19]), "obs": r[20] or "",
         } for r in rows]
         tot = {
             "total": sum(p["total"] for p in projetos),
@@ -3603,6 +3603,108 @@ def forecast_mensal(periodo: str = "", faiston_token: str = Cookie(None)):
         tot["margem"] = tot["net_revenue"] - tot["total_custo"]
         tot["margem_pct"] = (tot["margem"] / tot["net_revenue"]) if tot["net_revenue"] else 0.0
         return {"periodo": periodo, "linhas": linhas, "totais": tot}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+
+class ForecastProjetoModel(BaseModel):
+    codigo: str
+    cliente: str = ""
+    cliente_final: str = ""
+    projeto: str = ""
+    data_inicio: Optional[str] = None
+    data_fim: Optional[str] = None
+    status: str = "ANDAMENTO"
+    total: float = 0.0          # valor de contrato (= gross revenue)
+    tax: float = 0.1125         # alíquota de imposto (fração)
+    acum_fat: float = 0.0       # faturamento acumulado
+    acum_custo: float = 0.0     # custo acumulado
+    pend_custo: float = 0.0     # custo pendente (previsto)
+    obs: str = ""
+
+def _fc_calcular(m: "ForecastProjetoModel"):
+    """Deriva impostos, net revenue e margem a partir dos campos informados,
+    seguindo a mesma lógica da planilha FORECAST."""
+    total = m.total or 0.0
+    gross = total
+    tax = m.tax or 0.0
+    imp = gross * tax
+    net = gross - imp
+    acum_custo = m.acum_custo or 0.0
+    valor_dm = net - acum_custo
+    pct_margem = (valor_dm / net) if net else 0.0
+    acum_fat = m.acum_fat or 0.0
+    pct_fat = (acum_fat / total) if total else 0.0
+    pend_fat = total - acum_fat
+    return {
+        "gross_revenue": gross, "imp": imp, "net_revenue": net,
+        "valor_dm": valor_dm, "pct_margem": pct_margem,
+        "pct_fat": pct_fat, "pend_fat": pend_fat,
+    }
+
+@app.post("/api/forecast/projeto")
+def forecast_criar_projeto(m: ForecastProjetoModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not (m.codigo or "").strip(): raise HTTPException(status_code=400, detail="Informe o ID do projeto.")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_forecast_tables(cur)
+        d = _fc_calcular(m)
+        cur.execute("""
+            INSERT INTO forecast_projetos
+                (codigo, cliente, cliente_final, projeto, data_inicio, data_fim, status,
+                 acum_fat, pct_fat, pend_fat, total, gross_revenue, tax, imp, net_revenue,
+                 acum_custo, valor_dm, pct_margem, pend_custo, obs, atualizado_em)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+            RETURNING id
+        """, (m.codigo.strip(), m.cliente, m.cliente_final, m.projeto, m.data_inicio or None,
+              m.data_fim or None, m.status, m.acum_fat, d["pct_fat"], d["pend_fat"], m.total,
+              d["gross_revenue"], m.tax, d["imp"], d["net_revenue"], m.acum_custo, d["valor_dm"],
+              d["pct_margem"], m.pend_custo, m.obs))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/forecast/projeto/{fid}")
+def forecast_atualizar_projeto(fid: int, m: ForecastProjetoModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not (m.codigo or "").strip(): raise HTTPException(status_code=400, detail="Informe o ID do projeto.")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _ensure_forecast_tables(cur)
+        d = _fc_calcular(m)
+        cur.execute("""
+            UPDATE forecast_projetos SET
+                codigo=%s, cliente=%s, cliente_final=%s, projeto=%s, data_inicio=%s, data_fim=%s,
+                status=%s, acum_fat=%s, pct_fat=%s, pend_fat=%s, total=%s, gross_revenue=%s, tax=%s,
+                imp=%s, net_revenue=%s, acum_custo=%s, valor_dm=%s, pct_margem=%s, pend_custo=%s,
+                obs=%s, atualizado_em=NOW()
+            WHERE id=%s
+        """, (m.codigo.strip(), m.cliente, m.cliente_final, m.projeto, m.data_inicio or None,
+              m.data_fim or None, m.status, m.acum_fat, d["pct_fat"], d["pend_fat"], m.total,
+              d["gross_revenue"], m.tax, d["imp"], d["net_revenue"], m.acum_custo, d["valor_dm"],
+              d["pct_margem"], m.pend_custo, m.obs, fid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/forecast/projeto/{fid}")
+def forecast_deletar_projeto(fid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM forecast_projetos WHERE id=%s", (fid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 
