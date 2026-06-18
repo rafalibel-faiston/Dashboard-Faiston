@@ -203,6 +203,27 @@ def setup_banco():
                 PRIMARY KEY (tarefa_id, usuario_id)
             )
         """)
+        # ── Histórico de alterações das tarefas (resumo diário) ──
+        # Guarda snapshots (nome do autor, tarefa, projeto) para sobreviver a
+        # exclusões e mudanças de cadastro. Cada linha = uma alteração de campo.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tarefa_historico (
+                id SERIAL PRIMARY KEY,
+                tarefa_id INTEGER,
+                tarefa_desc TEXT,
+                autor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                autor_nome VARCHAR(100),
+                acao VARCHAR(20),
+                campo VARCHAR(40),
+                valor_antigo TEXT,
+                valor_novo TEXT,
+                projeto_id INTEGER,
+                projeto_nome VARCHAR(120),
+                time_tarefa VARCHAR(50) DEFAULT 'Projetos',
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_hist_criado ON tarefa_historico(criado_em)")
         cur.execute("SELECT id FROM usuarios WHERE usuario = 'admin'")
         if not cur.fetchone():
             cur.execute(
@@ -529,6 +550,173 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
         print(f"[email-acesso] Falha ao enviar para {destinatario}: {e}")
         return False
 
+
+def _brevo_send(destinatario: str, subject: str, html: str) -> bool:
+    """Envia um e-mail HTML via API do Brevo. Reaproveitado pelo resumo diário."""
+    if not destinatario:
+        return False
+    import urllib.request, json as _json
+    brevo_key = os.environ.get("BREVO_API_KEY", "")
+    email_user = os.environ.get("EMAIL_USER", "")
+    if not (brevo_key and email_user):
+        print("[email] BREVO_API_KEY/EMAIL_USER não configurados")
+        return False
+    try:
+        payload = _json.dumps({
+            "sender": {"name": "Faiston OPS", "email": email_user},
+            "to": [{"email": destinatario}],
+            "subject": subject,
+            "htmlContent": html,
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=payload,
+            headers={"api-key": brevo_key, "Content-Type": "application/json"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = _json.loads(resp.read())
+        print(f"[email] Brevo OK — id {result.get('messageId')} → {destinatario}")
+        return True
+    except Exception as e:
+        print(f"[email] Falha ao enviar para {destinatario}: {e}")
+        return False
+
+
+# ── Resumo diário de alterações nas tarefas ───────────────────────────────────
+def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
+    """Monta (html, total) com as alterações do período, agrupadas por projeto.
+    `inicio`/`fim` são timestamps; `time_filter` restringe ao time do dono da tarefa."""
+    q = """SELECT COALESCE(NULLIF(projeto_nome,''),'Sem projeto') AS proj,
+                  tarefa_id, tarefa_desc, autor_nome, acao, campo,
+                  valor_antigo, valor_novo, criado_em
+           FROM tarefa_historico
+           WHERE criado_em >= %s AND criado_em < %s"""
+    params = [inicio, fim]
+    if time_filter:
+        q += " AND time_tarefa = %s"
+        params.append(time_filter)
+    q += " ORDER BY proj, tarefa_id, criado_em"
+    cur.execute(q, params)
+    rows = cur.fetchall()
+
+    # Agrupa: projeto → tarefa → lista de eventos
+    projetos = {}
+    for proj, tid, desc, autor, acao, campo, antigo, novo, quando in rows:
+        p = projetos.setdefault(proj, {})
+        t = p.setdefault(tid, {"desc": desc, "eventos": []})
+        if desc:
+            t["desc"] = desc  # mantém a descrição mais recente
+        t["eventos"].append((autor, acao, campo, antigo, novo, quando))
+
+    total = len(rows)
+
+    def label_campo(campo):
+        return dict(HIST_CAMPOS).get(campo, campo.replace("_", " ").capitalize())
+
+    blocos = []
+    for proj, tarefas in projetos.items():
+        linhas_tarefa = []
+        for tid, info in tarefas.items():
+            eventos_html = []
+            for autor, acao, campo, antigo, novo, quando in info["eventos"]:
+                hora = str(quando)[11:16] if quando else ""
+                if acao == "criou":
+                    detalhe = '<span style="color:#06A77D;font-weight:700">criou esta tarefa</span>'
+                elif acao == "excluiu":
+                    detalhe = '<span style="color:#E03B57;font-weight:700">excluiu esta tarefa</span>'
+                else:
+                    de = _hist_fmt(campo, antigo)
+                    para = _hist_fmt(campo, novo)
+                    detalhe = (f'alterou <strong style="color:#0B0D1F">{label_campo(campo)}</strong>: '
+                               f'<span style="color:#9097AC;text-decoration:line-through">{de}</span> '
+                               f'<span style="color:#5B2EE0">&rarr;</span> '
+                               f'<strong style="color:#5B2EE0">{para}</strong>')
+                eventos_html.append(
+                    f'<tr><td style="padding:6px 0;border-bottom:1px solid #F1F2F8;font-size:13px;color:#5E647A;line-height:1.5">'
+                    f'<span style="color:#0B0D1F;font-weight:600">{autor or "—"}</span> {detalhe} '
+                    f'<span style="color:#B6BBCB;font-size:11px">· {hora}</span></td></tr>')
+            linhas_tarefa.append(
+                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px">'
+                f'<tr><td style="padding:10px 14px 6px"><span style="font-family:monospace;font-size:11px;font-weight:700;color:#9097AC">#{tid}</span> '
+                f'<span style="font-size:14px;font-weight:700;color:#0B0D1F">{(info["desc"] or "(sem descrição)")}</span></td></tr>'
+                f'<tr><td style="padding:0 14px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(eventos_html)}</table></td></tr>'
+                f'</table>')
+        blocos.append(
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;background:#F7F8FC;border:1px solid #ECEEF6;border-radius:14px">'
+            f'<tr><td style="padding:12px 16px 4px"><span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#5B2EE0">📁 {proj}</span> '
+            f'<span style="font-size:11px;color:#9097AC">· {len(tarefas)} tarefa(s)</span></td></tr>'
+            f'<tr><td style="padding:4px 6px 10px">{"".join(linhas_tarefa)}</td></tr></table>')
+
+    corpo = "".join(blocos) if blocos else (
+        '<p style="color:#9097AC;font-size:14px;text-align:center;padding:24px 0">'
+        'Nenhuma alteração registrada neste período. 😴</p>')
+    return corpo, total
+
+
+def _shell_email(titulo: str, subtitulo: str, corpo_html: str) -> str:
+    """Envelope visual padrão (header roxo + footer) para e-mails do OPS."""
+    return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head>
+<body style="margin:0;padding:0;background:#EEF0F8;-webkit-font-smoothing:antialiased">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF0F8;padding:32px 12px"><tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;font-family:'Segoe UI',Arial,sans-serif">
+      <tr><td bgcolor="#5B2EE0" style="border-radius:18px 18px 0 0;background:linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%);padding:32px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px">{titulo}</h1>
+        <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px">{subtitulo}</p></td></tr>
+      <tr><td bgcolor="#ffffff" style="background:#fff;padding:28px 28px 24px;border-left:1px solid #E5E8F0;border-right:1px solid #E5E8F0">{corpo_html}</td></tr>
+      <tr><td bgcolor="#ffffff" style="background:#fff;border-radius:0 0 18px 18px;border:1px solid #E5E8F0;border-top:none;padding:18px 28px;text-align:center">
+        <p style="color:#9097AC;font-size:11px;margin:0;line-height:1.6">Faiston OPS · Torre de Controle<br>Resumo automático de fim de expediente — por favor não responda.</p></td></tr>
+    </table></td></tr></table></body></html>"""
+
+
+def _hoje_sp():
+    """Data atual no fuso America/Sao_Paulo (mesmo usado pelo NOW() do banco)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    except Exception:
+        return date.today()
+
+def enviar_resumo_diario(dia=None) -> dict:
+    """Gera e envia o resumo do dia. Gestores recebem o resumo do seu time;
+    admins/diretores recebem o consolidado de todos os times."""
+    from datetime import datetime, timedelta
+    conn = get_db()
+    if not conn:
+        return {"sucesso": False, "erro": "Banco offline"}
+    try:
+        cur = conn.cursor()
+        d = dia or _hoje_sp()
+        inicio = datetime(d.year, d.month, d.day)
+        fim = inicio + timedelta(days=1)
+        data_label = inicio.strftime("%d/%m/%Y")
+
+        cur.execute("""SELECT email, COALESCE(time,'Projetos'), perfil, nome FROM usuarios
+                       WHERE ativo=TRUE AND perfil IN ('gestor','admin','diretor')
+                       AND COALESCE(email,'') <> ''""")
+        destinatarios = cur.fetchall()
+
+        enviados, cache = 0, {}
+        for email, time_u, perfil, nome in destinatarios:
+            chave = "__all__" if perfil in ("admin", "diretor") else time_u
+            if chave not in cache:
+                cache[chave] = montar_resumo_diario(
+                    cur, inicio, fim, None if chave == "__all__" else time_u)
+            corpo, total = cache[chave]
+            if total == 0:
+                continue  # nada a reportar → não envia
+            escopo = "todos os times" if chave == "__all__" else f"time {time_u}"
+            html = _shell_email("🛰️ Resumo do dia",
+                                f"{data_label} · {total} alteração(ões) · {escopo}", corpo)
+            if _brevo_send(email, f"🛰️ Faiston OPS — Resumo de {data_label}", html):
+                enviados += 1
+        cur.close(); conn.close()
+        print(f"[resumo-diario] {data_label}: {enviados} e-mail(s) enviado(s)")
+        return {"sucesso": True, "enviados": enviados, "dia": data_label}
+    except Exception as e:
+        print(f"[resumo-diario] erro: {e}")
+        return {"sucesso": False, "erro": str(e)}
+
 # --- AUTH ---
 @app.post("/api/login")
 def login(req: LoginRequest, response: Response):
@@ -715,6 +903,78 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+# --- HISTÓRICO DE TAREFAS (resumo diário) ---
+HIST_STATUS_LABEL = {"aberto": "Aberto", "em_andamento": "Em andamento",
+                     "concluido": "Concluído", "revisao": "Em revisão"}
+# Campos rastreados: (atributo, rótulo amigável). Ordem define exibição.
+HIST_CAMPOS = [
+    ("descricao",         "Descrição"),
+    ("cliente",           "Cliente"),
+    ("status",            "Status"),
+    ("prioridade",        "Prioridade"),
+    ("projeto_nome",      "Projeto"),
+    ("data_prazo",        "Prazo"),
+    ("hora_prazo",        "Horário do prazo"),
+    ("data_agendamento",  "Agendamento"),
+]
+
+def _hist_fmt(campo: str, valor) -> str:
+    """Formata um valor para exibição amigável no resumo."""
+    if valor is None or valor == "":
+        return "—"
+    v = str(valor)
+    if campo == "status":
+        return HIST_STATUS_LABEL.get(v, v)
+    if campo in ("data_prazo", "data_agendamento") and len(v) >= 10:
+        d = v[:10]
+        return f"{d[8:10]}/{d[5:7]}/{d[0:4]}"
+    if campo == "hora_prazo":
+        return v[:5]
+    return v
+
+def _snapshot_tarefa(cur, tid: int) -> dict:
+    """Lê o estado atual de uma tarefa + nome do projeto/time do dono."""
+    cur.execute("""SELECT t.descricao, t.cliente, t.status, t.prioridade,
+                          COALESCE(p.nome,''), t.data_prazo, t.hora_prazo, t.data_agendamento,
+                          t.projeto_id, COALESCE(u.time,'Projetos')
+                   FROM tarefas t
+                   LEFT JOIN projetos p ON p.id = t.projeto_id
+                   LEFT JOIN usuarios u ON u.id = t.usuario_id
+                   WHERE t.id = %s""", (tid,))
+    r = cur.fetchone()
+    if not r:
+        return {}
+    return {"descricao": r[0], "cliente": r[1], "status": r[2], "prioridade": r[3],
+            "projeto_nome": r[4], "data_prazo": str(r[5]) if r[5] else "",
+            "hora_prazo": str(r[6])[:5] if r[6] else "", "data_agendamento": str(r[7]) if r[7] else "",
+            "projeto_id": r[8], "time": r[9]}
+
+def registrar_historico(conn, sess, tid: int, acao: str, mudancas: list, snap: dict):
+    """Grava no histórico. `mudancas` = lista de (campo, antigo, novo).
+    Usa SAVEPOINT para nunca abortar a transação principal."""
+    if not mudancas:
+        return
+    cur = conn.cursor()
+    try:
+        cur.execute("SAVEPOINT sp_hist")
+        for campo, antigo, novo in mudancas:
+            cur.execute("""INSERT INTO tarefa_historico
+                (tarefa_id, tarefa_desc, autor_id, autor_nome, acao, campo,
+                 valor_antigo, valor_novo, projeto_id, projeto_nome, time_tarefa)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (tid, snap.get("descricao", ""), sess["id"], sess["nome"], acao, campo,
+                 (str(antigo) if antigo not in (None, "") else None),
+                 (str(novo) if novo not in (None, "") else None),
+                 snap.get("projeto_id"), snap.get("projeto_nome", ""),
+                 snap.get("time", "Projetos")))
+        cur.execute("RELEASE SAVEPOINT sp_hist")
+    except Exception as e:
+        try: cur.execute("ROLLBACK TO SAVEPOINT sp_hist")
+        except Exception: pass
+        print(f"[historico] falha ao registrar: {e}")
+    finally:
+        cur.close()
+
 # --- TAREFAS ---
 @app.get("/api/tarefas")
 def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
@@ -817,6 +1077,9 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
         )
         new_id = cur.fetchone()[0]
         novos_helpers = _sync_colaboradores(cur, new_id, uid, t.colaboradores or [])
+        snap_new = _snapshot_tarefa(cur, new_id)
+        registrar_historico(conn, sess, new_id, "criou",
+                            [("tarefa", None, t.descricao)], snap_new)
         criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         for hid in novos_helpers:
             criar_notificacao(conn, "ajudante_adicionado",
@@ -834,11 +1097,21 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        snap_old = _snapshot_tarefa(cur, tid)
         cur.execute(
             "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, hora_prazo=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
             (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
              t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None, tid, sess["id"])
         )
+        # Registra no histórico cada campo que mudou (compara antes × depois)
+        if cur.rowcount and snap_old:
+            snap_new = _snapshot_tarefa(cur, tid)
+            mudancas = []
+            for campo, _label in HIST_CAMPOS:
+                antes, depois = snap_old.get(campo, ""), snap_new.get(campo, "")
+                if str(antes or "") != str(depois or ""):
+                    mudancas.append((campo, antes, depois))
+            registrar_historico(conn, sess, tid, "editou", mudancas, snap_new)
         # Só o dono atualiza colaboradores, e apenas quando a lista é enviada explicitamente
         novos_helpers = []
         if cur.rowcount and t.colaboradores is not None:
@@ -877,13 +1150,50 @@ def deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        snap = _snapshot_tarefa(cur, tid)
         if sess["perfil"] in ("admin", "gestor", "demo"):
             cur.execute("DELETE FROM tarefas WHERE id=%s", (tid,))
         else:
             cur.execute("DELETE FROM tarefas WHERE id=%s AND usuario_id=%s", (tid, sess["id"]))
+        if cur.rowcount and snap:
+            registrar_historico(conn, sess, tid, "excluiu",
+                                [("tarefa", snap.get("descricao"), None)], snap)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/admin/resumo-diario")
+def preview_resumo_diario(enviar: int = 0, dia: str = "", faiston_token: str = Cookie(None)):
+    """Pré-visualiza (HTML) ou dispara manualmente o resumo do dia. Admin/gestor.
+    ?enviar=1 envia os e-mails · ?dia=YYYY-MM-DD escolhe a data (default hoje)."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor", "demo"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    from datetime import datetime, timedelta
+    try:
+        d = datetime.strptime(dia, "%Y-%m-%d").date() if dia else _hoje_sp()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida (use YYYY-MM-DD)")
+    if enviar == 1:
+        if sess["perfil"] not in ("admin", "diretor"):
+            raise HTTPException(status_code=403, detail="Apenas admin/diretor pode disparar o envio")
+        return enviar_resumo_diario(d)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        inicio = datetime(d.year, d.month, d.day)
+        fim = inicio + timedelta(days=1)
+        # Gestor vê apenas o próprio time; admin/diretor vê tudo.
+        tf = None if sess["perfil"] in ("admin", "diretor") else sess.get("time", "Projetos")
+        corpo, total = montar_resumo_diario(cur, inicio, fim, tf)
+        cur.close(); conn.close()
+        escopo = "todos os times" if tf is None else f"time {tf}"
+        html = _shell_email("🛰️ Resumo do dia",
+                            f"{d.strftime('%d/%m/%Y')} · {total} alteração(ões) · {escopo}", corpo)
+        return HTMLResponse(content=html)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/online")
 def usuarios_online(faiston_token: str = Cookie(None)):
@@ -3366,6 +3676,14 @@ try:
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
     _scheduler.add_job(_job_relatorio_mensal, "cron", day=1, hour=8, minute=0)
+    # Resumo diário de alterações nas tarefas (seg-sex no fim do expediente).
+    # Configurável: RESUMO_DIARIO_ENABLED (default "1"), RESUMO_DIARIO_HORA (default 18).
+    if os.environ.get("RESUMO_DIARIO_ENABLED", "1") == "1":
+        _resumo_hora = int(os.environ.get("RESUMO_DIARIO_HORA", "18"))
+        _scheduler.add_job(enviar_resumo_diario, "cron",
+                           day_of_week="mon-fri", hour=_resumo_hora, minute=0,
+                           id="resumo_diario", replace_existing=True)
+        print(f"APScheduler — resumo diário agendado seg-sex às {_resumo_hora}h")
     _scheduler.start()
     print("APScheduler iniciado — relatório agendado para dia 1 de cada mês às 08h")
 except ImportError:

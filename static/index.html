@@ -420,6 +420,22 @@
 
     <!-- KANBAN GESTOR -->
     <div id="view-kanban" class="hidden">
+        <!-- Toggle de agrupamento -->
+        <div class="flex items-center gap-2 mb-4">
+            <span class="text-xs font-semibold text-faiston-faint">Agrupar por</span>
+            <div class="flex items-center gap-1 p-1 rounded-lg" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+                <button onclick="setGkAgrupamento('responsavel')" id="gk-agr-responsavel"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                    style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+                    <i class="ph ph-user"></i> Responsável
+                </button>
+                <button onclick="setGkAgrupamento('projeto')" id="gk-agr-projeto"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                    style="background:transparent;color:#9097AC;box-shadow:none">
+                    <i class="ph ph-folder-simple"></i> Projeto
+                </button>
+            </div>
+        </div>
         <div class="grid grid-cols-3 gap-5">
 
             <!-- ABERTO -->
@@ -1591,6 +1607,7 @@ let projetoFiltro = '';
 let charts = {};
 let vistaAtiva = 'metricas';
 let todasTarefasKanban = [];
+let gkAgrupamento = localStorage.getItem('gkAgrupamento') || 'responsavel';
 const GK_CLIENT_PALETTE = ['#5B2EE0','#06D7E6','#B826C9','#EC4899','#a78bfa','#34d399','#f59e0b','#3b82f6'];
 const GK_FUNC_PALETTE   = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#f59e0b','#34d399'];
 const gkClientColors = {}, gkFuncColors = {};
@@ -2981,7 +2998,7 @@ async function carregarTarefasKanban() {
         if (!res.ok) return;
         todasTarefasKanban = await res.json();
         popularDropdownProjetos();
-        renderKanbanGestor();
+        setGkAgrupamento(gkAgrupamento);  // sincroniza toggle + renderiza
     } catch(e) { console.error(e); }
 }
 
@@ -3018,13 +3035,20 @@ function renderKanbanGestor() {
             return;
         }
 
-        // Agrupa por funcionário
+        // Agrupa por responsável ou por projeto (toggle gkAgrupamento)
+        const porProjeto = gkAgrupamento === 'projeto';
         const byFunc = {};
-        filtered.forEach(t => { const f = t.funcionario || 'Sem responsável'; if (!byFunc[f]) byFunc[f]=[]; byFunc[f].push(t); });
+        filtered.forEach(t => {
+            const f = porProjeto ? (t.projeto_nome || 'Sem projeto') : (t.funcionario || 'Sem responsável');
+            if (!byFunc[f]) byFunc[f]=[]; byFunc[f].push(t);
+        });
 
         col.innerHTML = Object.entries(byFunc).map(([func, funcTasks]) => {
             const fColor = gkFuncColor(func);
             const initial = func.charAt(0).toUpperCase();
+            const avatarInner = porProjeto
+                ? '<i class="ph ph-folder-simple" style="font-size:15px"></i>'
+                : initial;
             const isDone  = status === 'concluido';
             const groupId = `gk-group-${status}-${func.replace(/\s+/g,'_')}`;
 
@@ -3039,7 +3063,11 @@ function renderKanbanGestor() {
                 const timeLabel = t.segundos > 0 ? `${h}h${String(m).padStart(2,'0')}m` : '—';
                 const striked = isDone ? 'text-decoration:line-through;opacity:0.5' : '';
 
-                const projBadge = t.projeto_nome ? `<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#5B2EE015;color:#5B2EE0;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.projeto_nome}</span>` : '';
+                // Fora do modo "por projeto", mostra o projeto na etiqueta.
+                // No modo "por projeto" (já agrupado), mostra o responsável.
+                const projBadge = porProjeto
+                    ? `<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#06D7E615;color:#0891a3;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">👤 ${t.funcionario || 'Sem responsável'}</span>`
+                    : (t.projeto_nome ? `<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#5B2EE015;color:#5B2EE0;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.projeto_nome}</span>` : '');
 
                 return `<div class="gestor-card bg-white rounded-xl border border-faiston-border overflow-hidden ${isDone?'opacity-60':''}"
                     style="border-left:3px solid ${pColor};transition:transform .15s ease,box-shadow .15s ease">
@@ -3067,9 +3095,9 @@ function renderKanbanGestor() {
                 <div onclick="(function(el){const body=document.getElementById('${groupId}');const open=body.style.display!=='none';body.style.display=open?'none':'flex';el.querySelector('.gk-chevron').style.transform=open?'rotate(0deg)':'rotate(180deg)';})(this)"
                     class="gk-func-header"
                     style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:white;border-radius:12px;border:1px solid #E5E8F0;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05);cursor:pointer;user-select:none">
-                    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,${fColor},${fColor}99);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700;flex-shrink:0">${initial}</div>
+                    <div style="width:32px;height:32px;border-radius:${porProjeto?'10px':'50%'};background:linear-gradient(135deg,${fColor},${fColor}99);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700;flex-shrink:0">${avatarInner}</div>
                     <div style="flex:1;min-width:0">
-                        <p style="font-size:12px;font-weight:700;color:#0B0D1F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${func.split(' ').slice(0,2).join(' ')}</p>
+                        <p style="font-size:12px;font-weight:700;color:#0B0D1F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${porProjeto ? func : func.split(' ').slice(0,2).join(' ')}</p>
                         <p style="font-size:10px;color:#9097AC;margin-top:1px">${horasLabel} &middot; ${funcTasks.length} tarefa${funcTasks.length>1?'s':''}</p>
                     </div>
                     <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${fColor}15;color:${fColor}">${funcTasks.length}</span>
@@ -3079,6 +3107,18 @@ function renderKanbanGestor() {
             </div>`;
         }).join('');
     });
+}
+
+function setGkAgrupamento(modo) {
+    gkAgrupamento = modo;
+    localStorage.setItem('gkAgrupamento', modo);
+    const ACTIVE = 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+    const INACTIVE = 'background:transparent;color:#9097AC;box-shadow:none';
+    const br = document.getElementById('gk-agr-responsavel');
+    const bp = document.getElementById('gk-agr-projeto');
+    if (br) br.style.cssText = (modo==='responsavel'?ACTIVE:INACTIVE);
+    if (bp) bp.style.cssText = (modo==='projeto'?ACTIVE:INACTIVE);
+    renderKanbanGestor();
 }
 
 // ══════════════════════════════════════════════════════════════════
