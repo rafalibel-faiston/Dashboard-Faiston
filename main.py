@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import psycopg2
@@ -2641,18 +2641,21 @@ def deletar_cliente(cid: int, faiston_token: str = Cookie(None)):
 @app.get("/ajuda")
 def ajuda_page(): return FileResponse("static/ajuda.html")
 
+# Rotas antigas (páginas standalone duplicadas) → redirecionam para a SPA,
+# abrindo o módulo correto via ?go=. As páginas antigas foram removidas.
 @app.get("/gestao")
-def gestao_page(): return FileResponse("static/gestao.html")
+def gestao_page(): return RedirectResponse("/dashboard?go=gestao")
 
 @app.get("/clientes")
-def clientes_page(): return FileResponse("static/clientes.html")
+def clientes_page(): return RedirectResponse("/dashboard?go=clientes")
 
 @app.get("/financeiro")
-def financeiro_geral_page(): return FileResponse("static/financeiro-geral.html")
+def financeiro_geral_page(): return RedirectResponse("/dashboard?go=financeiro")
 
 @app.get("/forecast")
-def forecast_page(): return FileResponse("static/forecast.html")
+def forecast_page(): return RedirectResponse("/dashboard?go=forecast")
 
+# Detalhe financeiro por cliente — página própria (mantida)
 @app.get("/financeiro/{cid}")
 def financeiro_page(cid: int): return FileResponse("static/financeiro.html")
 
