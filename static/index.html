@@ -4370,6 +4370,11 @@ function abrirComentarios() {
     setTimeout(() => abrirComentariosDireto(pid, p ? `${p.cliente} · ${p.nome}` : ''), 50);
 }
 
+function abrirComentariosPorId(pid) {
+    const p = todosProjetos.find(x => x.id === pid);
+    abrirComentariosDireto(pid, p ? `${p.cliente} · ${p.nome}` : '');
+}
+
 function abrirComentariosDireto(pid, label) {
     comentarioProjId = pid;
     document.getElementById('comment-subtitle').textContent = label;
@@ -4609,29 +4614,29 @@ function renderAtencao() {
     el.innerHTML = items.map(item => {
         const p = item.p;
         const resp = p.responsavel || p.responsavel_texto || '—';
-        if (item.tipo === 'erro') {
-            return `<div class="px-4 py-3 hover:bg-faiston-pink/5 transition-colors" style="border-left:3px solid #EC4899">
-                <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                        <p class="text-xs font-bold text-faiston-pink uppercase tracking-wide">⚠ Atrasado ${item.diasAtraso}d</p>
-                        <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(p.nome)}</p>
-                        <p class="text-[11px] text-faiston-muted">${escHtml(p.cliente)} · ${escHtml(resp)}</p>
-                    </div>
-                    ${canWrite ? `<button onclick="setTab('projetos');setTimeout(()=>abrirModalProj(${p.id}),150)" class="flex-shrink-0 text-[10px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors mt-1">Editar</button>` : ''}
+        const erro = item.tipo === 'erro';
+        const cor = erro ? '#EC4899' : '#f59e0b';
+        const hover = erro ? 'hover:bg-faiston-pink/5' : 'hover:bg-amber-50/60';
+        const titulo = erro
+            ? `<p class="text-xs font-bold text-faiston-pink uppercase tracking-wide">⚠ Atrasado ${item.diasAtraso}d</p>`
+            : `<p class="text-xs font-bold text-amber-600 uppercase tracking-wide">⏰ Vence em ${item.diasRestam}d</p>`;
+        const editar = canWrite
+            ? `<button onclick="event.stopPropagation();setTab('projetos');setTimeout(()=>abrirModalProj(${p.id}),150)" class="flex-shrink-0 text-[10px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors">Editar</button>`
+            : '';
+        return `<div onclick="abrirComentariosPorId(${p.id})" title="Ver comentários / status do projeto"
+                class="px-4 py-3 ${hover} transition-colors cursor-pointer" style="border-left:3px solid ${cor}">
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                    ${titulo}
+                    <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(p.nome)}</p>
+                    <p class="text-[11px] text-faiston-muted">${escHtml(p.cliente)} · ${escHtml(resp)}</p>
                 </div>
-            </div>`;
-        } else {
-            return `<div class="px-4 py-3 hover:bg-amber-50/60 transition-colors" style="border-left:3px solid #f59e0b">
-                <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                        <p class="text-xs font-bold text-amber-600 uppercase tracking-wide">⏰ Vence em ${item.diasRestam}d</p>
-                        <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(p.nome)}</p>
-                        <p class="text-[11px] text-faiston-muted">${escHtml(p.cliente)} · ${escHtml(resp)}</p>
-                    </div>
-                    ${canWrite ? `<button onclick="setTab('projetos');setTimeout(()=>abrirModalProj(${p.id}),150)" class="flex-shrink-0 text-[10px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors mt-1">Editar</button>` : ''}
+                <div class="flex items-center gap-2 flex-shrink-0 mt-1">
+                    ${editar}
+                    <i class="ph ph-chat-circle-dots text-slate-300 group-hover:text-faiston-purple"></i>
                 </div>
-            </div>`;
-        }
+            </div>
+        </div>`;
     }).join('');
 }
 
