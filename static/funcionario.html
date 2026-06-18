@@ -410,6 +410,7 @@
         </div>
         <div class="p-6 flex flex-col gap-4">
             <input type="hidden" id="edit-id">
+            <input type="hidden" id="input-cliente" value="Demandas Gerais">
             <div>
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição <span class="text-faiston-pink">*</span></label>
                 <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/20 transition-all">
@@ -418,22 +419,38 @@
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
                 <select id="input-projeto" onchange="selecionarProjeto(this.value)"
                         class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                    <option value="">— Sem projeto —</option>
+                    <option value="">— Sem projeto (demanda avulsa) —</option>
+                </select>
+                <!-- Quando HÁ projeto: cliente resolvido automático -->
+                <p id="cliente-resolvido" class="hidden text-[11px] text-faiston-muted mt-1.5 flex items-center gap-1">
+                    <i class="ph ph-buildings text-xs"></i>
+                    Cliente: <span id="cliente-resolvido-nome" class="font-semibold text-faiston-purple"></span>
+                </p>
+            </div>
+            <!-- Quando NÃO há projeto: campo livre de demanda -->
+            <div id="demanda-wrap">
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Demanda <span class="text-faiston-pink">*</span></label>
+                <input type="text" id="input-demanda" list="lista-demandas" oninput="atualizarDemanda(this.value)"
+                    placeholder="Ex: Demandas Gerais, Demandas Logística, Reunião interna..."
+                    class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                <datalist id="lista-demandas"></datalist>
+                <p class="text-[10px] text-faiston-faint mt-1">Não cria cliente nem projeto — só agrupa as tarefas no quadro.</p>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
+                <select id="input-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="Media">Média</option><option value="Alta">Alta</option><option value="Baixa">Baixa</option>
                 </select>
             </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Cliente <span class="text-faiston-pink">*</span></label>
-                    <select id="input-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                        <option value="">Selecionar...</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
-                    <select id="input-prioridade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
-                        <option value="Media">Média</option><option value="Alta">Alta</option><option value="Baixa">Baixa</option>
-                    </select>
-                </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
+                    <i class="ph ph-users-three text-faiston-purple mr-1"></i>Ajudantes <span class="text-faiston-faint normal-case font-medium">(opcional)</span>
+                </label>
+                <select id="input-ajudante" onchange="adicionarAjudante(this.value)"
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="">+ Adicionar pessoa para ajudar...</option>
+                </select>
+                <div id="ajudantes-chips" class="flex flex-wrap gap-1.5 mt-2"></div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -613,10 +630,14 @@
 <script>
 let tasks = [];
 let _todosProjetos = [];
+let _funcionarios = [];      // lista para atribuir ajudantes
+let _colabSelecionados = []; // ids dos ajudantes no modal atual
+let MEU_ID = null;
 let activeTaskId = null;
 let timerInterval = null;
 let timerSeconds = 0;
 let timerStart = null;
+const MAX_SEGUNDOS = 36_000_000; // cap em 10.000h para evitar overflow no banco
 let tabAtiva = 'kanban';
 let calMes = new Date().getMonth();
 let calAno = new Date().getFullYear();
@@ -650,6 +671,7 @@ async function init() {
         const me = await res.json();
         if (me.perfil === 'admin')  { window.location.href = '/admin'; return; }
         if (me.perfil === 'gestor') { window.location.href = '/dashboard'; return; }
+        MEU_ID = me.id;
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'demo') document.getElementById('demo-back-bar').classList.remove('hidden');
@@ -660,32 +682,34 @@ async function init() {
     await carregarCarimbos();
 
     try {
-        const resC = await fetch('/api/clientes');
-        if (resC.ok) {
-            const cls = await resC.json();
-            const sel  = document.getElementById('input-cliente');
-            const selF = document.getElementById('filter-cliente');
-            cls.forEach(c => {
-                const o1 = document.createElement('option'); o1.value = c.nome; o1.textContent = c.nome;
-                const o2 = o1.cloneNode(true);
-                sel.appendChild(o1); selF.appendChild(o2);
+        const res = await fetch('/api/opcoes-tarefa');
+        if (res.ok) {
+            const { clientes, projetos } = await res.json();
+            const selFiltro  = document.getElementById('filter-cliente');
+            const selProjeto = document.getElementById('input-projeto');
+
+            // Filtro do kanban: adiciona "Demandas Gerais" + todos os clientes
+            const oDG = document.createElement('option'); oDG.value = 'Demandas Gerais'; oDG.textContent = 'Demandas Gerais';
+            selFiltro.appendChild(oDG);
+            clientes.forEach(c => {
+                const o = document.createElement('option'); o.value = c.nome; o.textContent = c.nome;
+                selFiltro.appendChild(o);
+            });
+
+            _todosProjetos = projetos;
+            projetos.forEach(p => {
+                const o = document.createElement('option');
+                o.value = p.id;
+                o.textContent = `${p.nome} · ${p.cliente}`;
+                o.dataset.cliente = p.cliente;
+                selProjeto.appendChild(o);
             });
         }
     } catch(e) {}
 
     try {
-        const resP = await fetch('/api/todos-projetos');
-        if (resP.ok) {
-            _todosProjetos = await resP.json();
-            const sel = document.getElementById('input-projeto');
-            _todosProjetos.forEach(p => {
-                const o = document.createElement('option');
-                o.value = p.id;
-                o.textContent = `${p.nome} · ${p.cliente}`;
-                o.dataset.cliente = p.cliente;
-                sel.appendChild(o);
-            });
-        }
+        const res = await fetch('/api/funcionarios');
+        if (res.ok) _funcionarios = await res.json();
     } catch(e) {}
 }
 
@@ -713,6 +737,8 @@ async function carregarTarefas() {
     const res = await fetch('/api/tarefas?view=func');
     if (!res.ok) return;
     tasks = await res.json();
+    // Sanitiza valores corrompidos de segundos para evitar overflow no banco
+    tasks.forEach(t => { t.segundos = Math.max(0, Math.min(t.segundos || 0, MAX_SEGUNDOS)); });
     renderTasks();
     updateSummary();
     if (tabAtiva === 'agenda') renderAgenda();
@@ -771,10 +797,19 @@ function renderTasks() {
 function renderKanbanCard(task, status) {
     const isRunning = task._running;
     const isDone    = status === 'concluido';
-    const secs = isRunning ? task.segundos + Math.floor((Date.now()-timerStart)/1000) : task.segundos;
+    const souColab  = !!task.sou_colaborador;   // eu sou ajudante (somente leitura)
+    const secs = isRunning && timerStart ? task.segundos + Math.floor((Date.now()-timerStart)/1000) : task.segundos;
     const pc = PRIO_CFG[task.prioridade] || PRIO_CFG['Media'];
 
-    return `<div class="task-card bg-white rounded-xl border ${isRunning ? 'border-faiston-purple timer-running' : 'border-faiston-border'} p-3 relative overflow-hidden ${isDone ? 'opacity-60' : ''}" draggable="true" data-task-id="${task.id}" ondragstart="onTaskDragStart(event,${task.id})" ondragend="onTaskDragEnd(event)">
+    // Avatares dos ajudantes
+    const colabs = task.colaboradores || [];
+    const avatares = colabs.length ? `<div class="flex items-center gap-1 mb-2" title="Ajudantes: ${colabs.map(c=>c.nome).join(', ')}">
+        <i class="ph ph-users-three text-xs text-faiston-purple"></i>
+        ${colabs.slice(0,4).map(c => `<span class="w-5 h-5 rounded-full grad-bg text-white text-[9px] font-bold flex items-center justify-center" title="${c.nome}">${c.nome.charAt(0).toUpperCase()}</span>`).join('')}
+        ${colabs.length > 4 ? `<span class="text-[10px] text-faiston-faint font-semibold">+${colabs.length-4}</span>` : ''}
+    </div>` : '';
+
+    return `<div class="task-card bg-white rounded-xl border ${isRunning ? 'border-faiston-purple timer-running' : souColab ? 'border-faiston-cyan/40' : 'border-faiston-border'} p-3 relative overflow-hidden ${isDone ? 'opacity-60' : ''}" ${souColab ? '' : `draggable="true" ondragstart="onTaskDragStart(event,${task.id})" ondragend="onTaskDragEnd(event)"`} data-task-id="${task.id}">
         ${isRunning ? '<div class="absolute top-0 left-0 right-0 h-[3px] grad-bg"></div>' : ''}
         <div class="flex items-start justify-between gap-2 mb-2">
             <div class="flex items-center gap-1.5">
@@ -785,15 +820,17 @@ function renderKanbanCard(task, status) {
                 <button onclick="abrirComentarios(${task.id},'${task.descricao.replace(/'/g,"\\'")}')" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors" title="Comentários">
                     <i class="ph ph-chat-circle-dots text-sm"></i>
                 </button>
-                <button onclick="editTask(${task.id})" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-faiston-faint hover:text-faiston-dark transition-colors">
+                ${souColab ? '' : `<button onclick="editTask(${task.id})" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-faiston-faint hover:text-faiston-dark transition-colors">
                     <i class="ph ph-pencil-simple text-sm"></i>
                 </button>
                 <button onclick="deleteTask(${task.id})" class="w-7 h-7 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors">
                     <i class="ph ph-trash text-sm"></i>
-                </button>
+                </button>`}
             </div>
         </div>
+        ${souColab ? `<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mb-2 bg-faiston-cyan/10 text-faiston-cyan border border-faiston-cyan/20"><i class="ph ph-handshake"></i> Ajudando · ${task.funcionario}</span>` : ''}
         <p class="text-sm font-semibold text-faiston-dark leading-snug mb-2 ${isDone ? 'line-through text-faiston-faint' : ''}">${task.descricao}</p>
+        ${avatares}
         ${task.projeto_nome ? `<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded mb-2" style="background:#5B2EE015;color:#5B2EE0">${task.projeto_nome}</span>` : ''}
         ${(task.data_prazo || task.data_agendamento) ? (() => {
     const today = new Date(); today.setHours(0,0,0,0);
@@ -813,7 +850,9 @@ function renderKanbanCard(task, status) {
 })() : ''}
         <div class="flex items-center justify-between">
             <span id="timer-${task.id}" class="font-mono text-xs font-bold ${isRunning ? 'text-faiston-purple' : isDone ? 'text-faiston-faint' : 'text-faiston-muted'}">${fmt(secs)}</span>
-            ${isDone
+            ${souColab
+                ? `<span class="text-[10px] font-semibold text-faiston-faint flex items-center gap-1"><i class="ph ph-eye"></i> Apenas leitura</span>`
+                : isDone
                 ? `<span class="text-[10px] font-semibold text-faiston-cyan flex items-center gap-1"><i class="ph ph-check-circle"></i> Concluída</span>`
                 : `<div class="flex items-center gap-1">
                     <button onclick="concluirTarefa(${task.id})" class="text-[10px] font-bold px-2 py-1 rounded-lg border border-faiston-border text-faiston-muted hover:border-faiston-cyan hover:text-faiston-cyan transition-all flex items-center gap-1">
@@ -830,10 +869,12 @@ function renderKanbanCard(task, status) {
 }
 
 function updateSummary() {
-    document.getElementById('count-total').textContent = tasks.length;
-    document.getElementById('count-done').textContent  = tasks.filter(t=>t.status==='concluido').length;
-    document.getElementById('count-progress').textContent = tasks.filter(t=>t.status==='em_andamento').length;
-    const total = tasks.reduce((a,t) => a+(t._running ? t.segundos+Math.floor((Date.now()-timerStart)/1000) : t.segundos), 0);
+    // Contadores/horas consideram só as MINHAS tarefas (exclui as que estou ajudando)
+    const minhas = tasks.filter(t => !t.sou_colaborador);
+    document.getElementById('count-total').textContent = minhas.length;
+    document.getElementById('count-done').textContent  = minhas.filter(t=>t.status==='concluido').length;
+    document.getElementById('count-progress').textContent = minhas.filter(t=>t.status==='em_andamento').length;
+    const total = minhas.reduce((a,t) => a+(t._running && timerStart ? t.segundos+Math.floor((Date.now()-timerStart)/1000) : t.segundos), 0);
     document.getElementById('count-hours').textContent = fmtH(total);
 }
 
@@ -851,7 +892,7 @@ async function startTimer(taskId) {
     let saveCounter = 0;
     timerInterval = setInterval(() => {
         if (!timerStart) return;
-        const elapsed = task.segundos + Math.floor((Date.now()-timerStart)/1000);
+        const elapsed = Math.min(task.segundos + Math.floor((Date.now()-timerStart)/1000), MAX_SEGUNDOS);
         const el = document.getElementById(`timer-${taskId}`);
         if (el) el.textContent = fmt(elapsed);
         document.getElementById('global-timer-display').textContent = fmt(elapsed);
@@ -876,7 +917,7 @@ async function stopTimer(taskId, silent=false) {
     if (!task || !task._running) return;
     const capturedStart = timerStart;
     const elapsed = capturedStart ? Math.floor((Date.now()-capturedStart)/1000) : 0;
-    task.segundos += elapsed;
+    task.segundos = Math.min(task.segundos + elapsed, MAX_SEGUNDOS);
     task._running = false;
     activeTaskId = null;
     clearInterval(timerInterval); timerInterval=null; timerStart=null;
@@ -897,7 +938,7 @@ window.addEventListener('beforeunload', () => {
     if (activeTaskId && timerStart) {
         const task = tasks.find(t=>t.id===activeTaskId);
         if (task) {
-            const elapsed = task.segundos + Math.floor((Date.now()-timerStart)/1000);
+            const elapsed = Math.min(task.segundos + Math.floor((Date.now()-timerStart)/1000), MAX_SEGUNDOS);
             const blob = new Blob([JSON.stringify({segundos:elapsed})],{type:'application/json'});
             navigator.sendBeacon(`/api/tarefas/${activeTaskId}/segundos`, blob);
         }
@@ -918,13 +959,24 @@ function editTask(taskId) {
     document.getElementById('modal-title').textContent = 'Editar Tarefa';
     document.getElementById('edit-id').value = taskId;
     document.getElementById('input-descricao').value = task.descricao;
+    popularDemandas();
+    _colabSelecionados = (task.colaboradores || []).map(c => c.id);
+    renderAjudantes();
     document.getElementById('input-projeto').value = task.projeto_id || '';
+    if (!task.projeto_id) {
+        const demandaNome = task.cliente || 'Demandas Gerais';
+        document.getElementById('input-demanda').value = demandaNome;
+        document.getElementById('input-cliente').value = demandaNome;
+    }
     selecionarProjeto(task.projeto_id || '');
-    if (!task.projeto_id) document.getElementById('input-cliente').value = task.cliente;
     document.getElementById('input-prioridade').value = task.prioridade;
     document.getElementById('input-status').value = task.status;
-    document.getElementById('input-horas').value = Math.floor(task.segundos/3600);
-    document.getElementById('input-minutos').value = Math.floor((task.segundos%3600)/60);
+    // Mostra o tempo total, incluindo a sessão em andamento, para que o usuário edite o valor correto
+    const totalSecs = task._running && timerStart
+        ? Math.min(task.segundos + Math.floor((Date.now()-timerStart)/1000), MAX_SEGUNDOS)
+        : task.segundos;
+    document.getElementById('input-horas').value = Math.floor(totalSecs/3600);
+    document.getElementById('input-minutos').value = Math.floor((totalSecs%3600)/60);
     document.getElementById('input-prazo').value = task.data_prazo || '';
     document.getElementById('input-agendamento').value = task.data_agendamento || '';
     document.getElementById('modal').classList.remove('hidden');
@@ -934,10 +986,13 @@ function openModal() {
     document.getElementById('modal-title').textContent = 'Nova Tarefa';
     document.getElementById('edit-id').value = '';
     document.getElementById('input-descricao').value = '';
+    popularDemandas();
+    _colabSelecionados = [];
+    renderAjudantes();
     document.getElementById('input-projeto').value = '';
-    document.getElementById('input-cliente').value = '';
-    document.getElementById('input-cliente').disabled = false;
-    document.getElementById('input-cliente').style.opacity = '';
+    document.getElementById('input-demanda').value = 'Demandas Gerais';
+    document.getElementById('input-cliente').value = 'Demandas Gerais';
+    selecionarProjeto('');
     document.getElementById('input-prioridade').value = 'Media';
     document.getElementById('input-status').value = 'aberto';
     document.getElementById('input-horas').value = '';
@@ -952,22 +1007,73 @@ function closeModal() { document.getElementById('modal').classList.add('hidden')
 
 function selecionarProjeto(projetoId) {
     const proj = _todosProjetos.find(p => p.id == projetoId);
-    const selCliente = document.getElementById('input-cliente');
+    const clienteHidden = document.getElementById('input-cliente');
+    const resolvido = document.getElementById('cliente-resolvido');
+    const demandaWrap = document.getElementById('demanda-wrap');
+    const demandaInput = document.getElementById('input-demanda');
     if (proj) {
-        selCliente.value = proj.cliente;
-        selCliente.disabled = true;
-        selCliente.style.opacity = '0.6';
+        // Com projeto: cliente vem do projeto, esconde campo de demanda livre
+        clienteHidden.value = proj.cliente;
+        document.getElementById('cliente-resolvido-nome').textContent = proj.cliente;
+        resolvido.classList.remove('hidden');
+        demandaWrap.classList.add('hidden');
     } else {
-        selCliente.disabled = false;
-        selCliente.style.opacity = '';
+        // Sem projeto: demanda avulsa (campo livre)
+        resolvido.classList.add('hidden');
+        demandaWrap.classList.remove('hidden');
+        clienteHidden.value = (demandaInput.value || '').trim() || 'Demandas Gerais';
     }
+}
+
+function atualizarDemanda(valor) {
+    document.getElementById('input-cliente').value = (valor || '').trim() || 'Demandas Gerais';
+}
+
+// ── Ajudantes (colaboradores) ─────────────────────────────
+function renderAjudantes() {
+    // Popula o select com quem ainda não foi escolhido (exceto eu mesmo)
+    const sel = document.getElementById('input-ajudante');
+    const disponiveis = _funcionarios.filter(f => f.id !== MEU_ID && !_colabSelecionados.includes(f.id));
+    sel.innerHTML = '<option value="">+ Adicionar pessoa para ajudar...</option>' +
+        disponiveis.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+
+    // Renderiza os chips dos selecionados
+    const wrap = document.getElementById('ajudantes-chips');
+    wrap.innerHTML = _colabSelecionados.map(id => {
+        const f = _funcionarios.find(x => x.id === id);
+        const nome = f ? f.nome : '?';
+        return `<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-faiston-purple/10 text-faiston-purple border border-faiston-purple/20">
+            <i class="ph ph-user text-xs"></i>${nome}
+            <button type="button" onclick="removerAjudante(${id})" class="hover:text-faiston-pink ml-0.5"><i class="ph ph-x text-xs"></i></button>
+        </span>`;
+    }).join('');
+}
+
+function adicionarAjudante(id) {
+    id = parseInt(id);
+    if (id && !_colabSelecionados.includes(id)) _colabSelecionados.push(id);
+    renderAjudantes();
+}
+
+function removerAjudante(id) {
+    _colabSelecionados = _colabSelecionados.filter(x => x !== id);
+    renderAjudantes();
+}
+
+// Sugere demandas avulsas que já existem (tarefas sem projeto)
+function popularDemandas() {
+    const dl = document.getElementById('lista-demandas');
+    if (!dl) return;
+    const nomes = new Set(['Demandas Gerais']);
+    (tasks || []).forEach(t => { if (!t.projeto_id && t.cliente) nomes.add(t.cliente); });
+    dl.innerHTML = [...nomes].sort().map(n => `<option value="${n.replace(/"/g,'&quot;')}">`).join('');
 }
 
 async function saveTask() {
     const descricao  = document.getElementById('input-descricao').value.trim();
     const cliente    = document.getElementById('input-cliente').value;
     const projeto_id = parseInt(document.getElementById('input-projeto').value) || null;
-    if (!descricao || !cliente) { alert('Preencha a descrição e o cliente.'); return; }
+    if (!descricao) { alert('Preencha a descrição da tarefa.'); return; }
     const horas    = parseInt(document.getElementById('input-horas').value) || 0;
     const minutos  = parseInt(document.getElementById('input-minutos').value) || 0;
     const segundos = (horas*3600)+(minutos*60);
@@ -978,13 +1084,20 @@ async function saveTask() {
         status: document.getElementById('input-status').value,
         segundos,
         data_prazo: document.getElementById('input-prazo').value || null,
-        data_agendamento: document.getElementById('input-agendamento').value || null
+        data_agendamento: document.getElementById('input-agendamento').value || null,
+        colaboradores: _colabSelecionados.slice()
     };
 
     if (editId) {
         const task = tasks.find(t=>t.id==editId);
         if (task) {
             if (task._running && body.status!=='em_andamento') await stopTimer(parseInt(editId),true);
+            // Garante que os segundos não ultrapassem o limite e que o tempo acumulado pelo
+            // timer (adicionado pelo stopTimer acima) não seja descartado pelo valor do modal.
+            // Como editTask já pré-preenche o modal com o tempo total (incluindo sessão ativa),
+            // body.segundos reflete o valor que o usuário viu; mas se o timer acumulou mais
+            // tempo enquanto o modal estava aberto, preservamos o maior valor.
+            body.segundos = Math.min(Math.max(body.segundos, task.segundos), MAX_SEGUNDOS);
             await fetch(`/api/tarefas/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
             Object.assign(task,body);
             if (!task._running && body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(parseInt(editId)); return; }
@@ -1003,11 +1116,25 @@ async function concluirTarefa(taskId) {
     if (activeTaskId===taskId) await stopTimer(taskId,true);
     const task = tasks.find(t=>t.id===taskId);
     if (!task) return;
+    const statusAnterior = task.status;
     task.status = 'concluido'; task._running = false;
-    await fetch(`/api/tarefas/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',segundos:task.segundos,
-            data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
     renderTasks(); updateSummary();
+    try {
+        const res = await fetch(`/api/tarefas/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',
+                segundos:Math.min(task.segundos, MAX_SEGUNDOS),
+                data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            const errId = json.error_id ? ` [ID: ${json.error_id}]` : '';
+            throw new Error((json.detail || `HTTP ${res.status}`) + errId);
+        }
+    } catch(e) {
+        // Reverte o status na tela se a gravação falhou
+        task.status = statusAnterior;
+        renderTasks(); updateSummary();
+        mostrarErroGlobal('Erro ao concluir tarefa', e.message, `PUT /api/tarefas/${taskId}`);
+    }
 }
 
 // ── DRAG & DROP ──────────────────────────────────────────────────────
@@ -1047,15 +1174,28 @@ async function onColDrop(e, newStatus) {
     if (!task || task.status === newStatus) return;
 
     if (task._running && newStatus !== 'em_andamento') await stopTimer(task.id, true);
+    const statusAnteriorDrop = task.status;
     task.status = newStatus;
-    await fetch(`/api/tarefas/${task.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({descricao: task.descricao, cliente: task.cliente, prioridade: task.prioridade,
-            status: newStatus, segundos: task.segundos,
-            data_prazo: task.data_prazo || null, data_agendamento: task.data_agendamento || null})
-    });
     renderTasks(); updateSummary();
+    try {
+        const res = await fetch(`/api/tarefas/${task.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({descricao: task.descricao, cliente: task.cliente, prioridade: task.prioridade,
+                status: newStatus, segundos: Math.min(task.segundos, MAX_SEGUNDOS),
+                data_prazo: task.data_prazo || null, data_agendamento: task.data_agendamento || null})
+        });
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            const errId = json.error_id ? ` [ID: ${json.error_id}]` : '';
+            throw new Error((json.detail || `HTTP ${res.status}`) + errId);
+        }
+    } catch(e) {
+        task.status = statusAnteriorDrop;
+        renderTasks(); updateSummary();
+        mostrarErroGlobal('Erro ao mover tarefa', e.message, `PUT /api/tarefas/${task.id} → ${newStatus}`);
+        return;
+    }
     if (newStatus === 'em_andamento' && !task._running) startTimer(task.id);
     if (tabAtiva === 'agenda') renderAgenda();
 }
@@ -1623,5 +1763,6 @@ function toggleTemaFunc() {
 init();
 setInterval(() => fetch('/api/admin/ping?page=funcionario', { method: 'POST' }), 60000);
 </script>
+<script src="/static/js/faiston-erros.js"></script>
 </body>
 </html>

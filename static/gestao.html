@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão · Faiston OPS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } }
+            }}
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+    [data-theme='dark'] #modal-proj .bg-white,
+    [data-theme='dark'] #modal-novo-proj .bg-white,
+    [data-theme='dark'] #modal-contrato .bg-white,
+    [data-theme='dark'] #modal-comentarios .bg-white { background:#1a1d2e !important; border-color:rgba(255,255,255,0.1) !important; }
+    [data-theme='dark'] #modal-proj input,
+    [data-theme='dark'] #modal-proj select,
+    [data-theme='dark'] #modal-proj textarea,
+    [data-theme='dark'] #modal-novo-proj input,
+    [data-theme='dark'] #modal-novo-proj select,
+    [data-theme='dark'] #modal-novo-proj textarea,
+    [data-theme='dark'] #modal-contrato input,
+    [data-theme='dark'] #modal-contrato select,
+    [data-theme='dark'] #modal-comentarios input,
+    [data-theme='dark'] #modal-comentarios textarea { background:#0f1120 !important; color:#e2e8f0 !important; border-color:rgba(255,255,255,0.12) !important; }
+    [data-theme='dark'] #modal-proj label,
+    [data-theme='dark'] #modal-novo-proj label,
+    [data-theme='dark'] #modal-contrato label,
+    [data-theme='dark'] #modal-comentarios label { color:#94a3b8 !important; }
+    [data-theme='dark'] #modal-proj h2,
+    [data-theme='dark'] #modal-novo-proj h2,
+    [data-theme='dark'] #modal-contrato h2,
+    [data-theme='dark'] #modal-comentarios h2 { color:#e2e8f0 !important; }
+    [data-theme='dark'] .g-row { border-color:rgba(255,255,255,0.06) !important; }
+    [data-theme='dark'] .g-row:hover { background:rgba(255,255,255,0.03) !important; }
+    [data-theme='dark'] .g-comment-bubble { background:#0f1120 !important; border-color:rgba(255,255,255,0.08) !important; }
+    [data-theme='dark'] .g-comment-bubble p { color:#cbd5e1 !important; }
+    [data-theme='dark'] .kpi-card { background:#1a1d2e !important; border-color:rgba(255,255,255,0.08) !important; }
+    [data-theme='dark'] .kpi-card .kpi-label { color:#94a3b8 !important; }
+    [data-theme='dark'] .kpi-card .kpi-value { color:#e2e8f0 !important; }
+    [data-theme='dark'] .grupo-header { background:rgba(255,255,255,0.02) !important; border-color:rgba(255,255,255,0.06) !important; }
+    [data-theme='dark'] .grupo-header span { color:#94a3b8 !important; }
+    .btn-grad { background: linear-gradient(135deg,#5B2EE0,#B826C9); }
+    .btn-grad:hover { opacity:0.9; }
+    .kpi-card { transition: box-shadow .2s, transform .2s; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -4px rgba(91,46,224,0.14); }
+    /* PMO */
+    .gantt-bar { transition: opacity .15s; }
+    .gantt-bar:hover { opacity: 0.85; }
+    .alerta-row { border-left: 3px solid #EC4899; }
+    .alerta-row-warn { border-left: 3px solid #f59e0b; }
+    [data-theme='dark'] .pmo-card { background:#1a1d2e !important; border-color:rgba(255,255,255,0.08) !important; }
+    [data-theme='dark'] .pmo-section-title { color:#94a3b8 !important; }
+    [data-theme='dark'] .gantt-label { color:#94a3b8 !important; }
+    [data-theme='dark'] .gantt-track { background:rgba(255,255,255,0.04) !important; }
+    [data-theme='dark'] .workload-row { border-color:rgba(255,255,255,0.06) !important; }
+    [data-theme='dark'] .alerta-row { background:rgba(236,72,153,0.05) !important; }
+    [data-theme='dark'] .alerta-row-warn { background:rgba(245,158,11,0.05) !important; }
+    /* Sidebar active nav */
+    [data-theme='dark'] #nav-gestao button[style*="rgba(91,46,224,0.08)"],
+    [data-theme='dark'] #nav-gestao a[style*="rgba(91,46,224,0.08)"] { background:rgba(91,46,224,0.2) !important; }
+    [data-theme='dark'] #nav-pmo { color:#94a3b8 !important; }
+    [data-theme='dark'] #pmo-atencao-list { border-color:rgba(255,255,255,0.06) !important; }
+    </style>
+</head>
+<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
+
+<!-- SIDEBAR -->
+<aside class="w-64 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar flex-shrink-0">
+    <div>
+        <div class="flex items-center gap-2.5 p-6 border-b border-faiston-border mb-4">
+            <div class="w-9 h-9 rounded-[10px] grad-bg flex items-center justify-center glow-soft">
+                <i class="ph-fill ph-play text-white text-base"></i>
+            </div>
+            <h1 class="text-[15px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
+        </div>
+        <div class="px-4">
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
+            <nav class="flex flex-col gap-1 mb-4">
+                <!-- Backoffice -->
+                <div class="flex flex-col">
+                    <a href="/dashboard" class="flex items-center gap-2.5 btn-grad rounded-lg p-2.5">
+                        <i class="ph ph-network text-lg text-white"></i>
+                        <span class="font-semibold text-sm text-white flex-1">Backoffice</span>
+                    </a>
+                </div>
+                <!-- Projetos (expandido — página atual) -->
+                <div class="flex flex-col">
+                    <button onclick="toggleProjetosSb()" class="flex items-center justify-between btn-grad rounded-lg p-2.5 w-full">
+                        <div class="flex items-center gap-2.5">
+                            <i class="ph ph-folder-open text-lg text-white"></i>
+                            <span class="font-semibold text-sm text-white">Gestão de Projetos</span>
+                        </div>
+                        <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-projetos-sb"></i>
+                    </button>
+                    <div id="submenu-projetos-sb" class="flex flex-col pl-9 py-3 gap-3 relative">
+                        <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
+                        <button onclick="setTab('clientes')" id="nav-clientes" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple" id="dot-clientes"></div>
+                            Clientes
+                        </button>
+                        <button onclick="setTab('projetos')" id="nav-projetos" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan" id="dot-projetos"></div>
+                            Projetos
+                        </button>
+                        <button onclick="setTab('contratos')" id="nav-contratos" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple" id="dot-contratos"></div>
+                            Contratos
+                        </button>
+                        <button onclick="setTab('carimbos')" id="nav-carimbos" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan" id="dot-carimbos"></div>
+                            Carimbos
+                        </button>
+                        <button onclick="setTab('pmo')" id="nav-pmo" class="hidden text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors text-left w-full">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-magenta" id="dot-pmo"></div>
+                            Visão PMO
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
+            <nav class="flex flex-col gap-1">
+                <a href="/dashboard" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-chart-line-up text-lg"></i> Dashboard
+                </a>
+                <a href="/historico" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-clock-clockwise text-lg"></i> Histórico
+                </a>
+                <a href="/financeiro" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-currency-circle-dollar text-lg"></i> Financeiro
+                </a>
+                <a href="/apresentacao" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-presentation-chart text-lg"></i> Apresentação
+                </a>
+                <a href="/api/relatorio-mensal/preview" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-file-pdf text-lg"></i> Relatório Mensal
+                </a>
+                <a href="/admin" id="link-admin" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-gear text-lg"></i> Admin
+                </a>
+            </nav>
+        </div>
+    </div>
+    <div class="p-4 border-t border-faiston-border">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg grad-bg text-white flex items-center justify-center font-bold text-sm glow-soft" id="sidebar-avatar">?</div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-faiston-dark leading-tight truncate" id="sidebar-nome">...</p>
+                <p class="text-xs text-faiston-muted" id="sidebar-perfil">...</p>
+            </div>
+            <button onclick="logout()" title="Sair" class="text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-sign-out text-lg"></i></button>
+        </div>
+    </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div class="flex-1 flex flex-col overflow-hidden">
+    <!-- TOP HEADER -->
+    <header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+        <div>
+            <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-[0.08em] text-faiston-purple" style="background:rgba(91,46,224,0.08);border:1px solid rgba(91,46,224,0.15)">● Operação Ativa</span>
+                <span class="text-xs text-faiston-faint">→ Torre de Controle → Gestão</span>
+            </div>
+            <h2 class="text-xl font-bold text-faiston-dark tracking-tight">Gestão de Projetos e Contratos</h2>
+            <p class="text-xs text-faiston-muted mt-0.5" id="header-sub">Carregando...</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="relative">
+                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-faiston-faint text-sm"></i>
+                <input type="text" id="busca" placeholder="Buscar projeto, cliente..." oninput="filtrar()"
+                    class="pl-8 pr-4 py-2 rounded-lg border border-faiston-border focus:outline-none focus:border-faiston-purple text-xs w-52 transition-all bg-white">
+            </div>
+            <button id="btn-nova-acao" onclick="abrirModalNovo()" class="hidden flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                <i class="ph ph-plus"></i> <span id="btn-nova-label">Novo</span>
+            </button>
+            <button id="btn-importar" onclick="importarDadosReferencia()" class="hidden text-xs font-semibold px-3 py-1.5 rounded-lg border border-faiston-purple/30 text-faiston-purple hover:bg-faiston-purple/5 transition-colors">
+                <i class="ph ph-upload-simple text-sm"></i> Importar Referência
+            </button>
+            <button onclick="carregar()" class="w-8 h-8 rounded-md border border-faiston-border bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
+                <i class="ph ph-arrows-clockwise text-faiston-muted text-sm"></i>
+            </button>
+            <button class="btn-theme" title="Alternar tema" onclick="toggleTema()">
+                <i class="ph ph-moon text-faiston-muted text-sm" id="icon-tema"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto custom-scrollbar p-6">
+
+        <!-- KPI CARDS -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="kpi-section">
+            <div class="kpi-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="kpi-label text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Em Andamento</p>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(6,215,230,0.12)">
+                        <i class="ph ph-play text-xs" style="color:#06D7E6"></i>
+                    </div>
+                </div>
+                <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-andamento">—</p>
+                <p class="text-[11px] text-slate-400 mt-1">projetos ativos</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="kpi-label text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Finalização</p>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(245,158,11,0.12)">
+                        <i class="ph ph-flag-checkered text-xs text-amber-500"></i>
+                    </div>
+                </div>
+                <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-finalizacao">—</p>
+                <p class="text-[11px] text-slate-400 mt-1">em fase final</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="kpi-label text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Em Freezing</p>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(148,163,184,0.15)">
+                        <i class="ph ph-snowflake text-xs text-slate-500"></i>
+                    </div>
+                </div>
+                <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-freezing">—</p>
+                <p class="text-[11px] text-slate-400 mt-1">projetos pausados</p>
+            </div>
+            <div class="kpi-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="kpi-label text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Contratos Ativos</p>
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(91,46,224,0.12)">
+                        <i class="ph ph-file-text text-xs text-faiston-purple"></i>
+                    </div>
+                </div>
+                <p class="kpi-value text-2xl font-black text-faiston-dark" id="kpi-contratos">—</p>
+                <p class="text-[11px] text-slate-400 mt-1">em implantação</p>
+            </div>
+        </div>
+
+        <!-- CARIMBOS -->
+        <div id="view-carimbos" class="hidden">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="relative">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                    <input type="text" id="busca-carimbo" placeholder="Buscar carimbo..." oninput="filtrarCarimbos()"
+                        class="pl-9 pr-4 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white w-56">
+                </div>
+                <select id="filtro-cat-carimbo" onchange="filtrarCarimbos()" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                    <option value="">Todas as categorias</option>
+                </select>
+                <div class="ml-auto flex items-center gap-2">
+                    <span class="text-xs text-faiston-faint" id="count-carimbos">—</span>
+                    <button onclick="gAbrirModalCarimbo(null)" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                        <i class="ph ph-plus"></i> Novo Carimbo
+                    </button>
+                </div>
+            </div>
+            <div id="carimbos-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            <div id="carimbos-empty" class="hidden flex-col items-center justify-center py-16 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                    <i class="ph ph-stamp text-3xl text-faiston-faint"></i>
+                </div>
+                <p class="font-semibold text-slate-600">Nenhum carimbo ainda</p>
+                <p class="text-sm text-faiston-faint mt-1">Crie carimbos para copiar textos rápidos</p>
+            </div>
+        </div>
+
+        <!-- CLIENTES -->
+        <div id="view-clientes" class="hidden">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="relative">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                    <input type="text" id="busca-cliente" placeholder="Buscar cliente..." oninput="filtrarClientes()"
+                        class="pl-9 pr-4 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white w-56">
+                </div>
+                <div class="ml-auto flex items-center gap-2">
+                    <span class="text-xs text-faiston-faint" id="count-clientes">—</span>
+                    <a href="/clientes" target="_blank" class="flex items-center gap-2 px-3 py-2 rounded-lg border border-faiston-border bg-white text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+                        <i class="ph ph-arrow-square-out text-slate-400 text-sm"></i> Gerenciar
+                    </a>
+                    <button onclick="abrirModalNovoCliente()" id="btn-novo-cliente" class="hidden flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white btn-grad">
+                        <i class="ph ph-plus"></i> Novo Cliente
+                    </button>
+                </div>
+            </div>
+            <div id="clientes-grid-gestao" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            <div id="clientes-empty" class="hidden flex-col items-center justify-center py-16 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                    <i class="ph ph-buildings text-3xl text-faiston-faint"></i>
+                </div>
+                <p class="font-semibold text-slate-600">Nenhum cliente encontrado</p>
+            </div>
+        </div>
+
+        <!-- PROJETOS -->
+        <div id="view-projetos">
+            <div class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-5 py-3.5 border-b border-faiston-border bg-slate-50/70">
+                    <div class="flex items-center gap-3">
+                        <select id="filtro-status-proj" onchange="filtrar()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                            <option value="">Todos os status</option>
+                            <option>EM ANDAMENTO</option>
+                            <option>FINALIZAÇÃO</option>
+                            <option>EM FREEZING</option>
+                        </select>
+                        <select id="filtro-cliente-proj" onchange="filtrar()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                            <option value="">Todos os clientes</option>
+                        </select>
+                        <span id="badge-projetos" class="hidden text-[10px] font-bold bg-faiston-purple/15 text-faiston-purple px-1.5 py-0.5 rounded-full">0</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <!-- Agrupamento toggle -->
+                        <div id="toggle-grupo" class="hidden flex items-center gap-2">
+                            <span class="text-xs text-faiston-faint">Agrupar</span>
+                            <button onclick="toggleAgrupamento()" id="btn-agrupar"
+                                class="relative w-9 h-5 rounded-full transition-colors duration-200 bg-slate-200 focus:outline-none">
+                                <span id="agrupar-thumb" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"></span>
+                            </button>
+                        </div>
+                        <span class="text-xs text-faiston-faint" id="count-projetos">0 projetos</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm" id="tabela-proj-wrap">
+                        <thead id="thead-projetos">
+                            <tr class="border-b border-faiston-border">
+                                <th class="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide w-20">ID</th>
+                                <th class="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Cliente / Projeto</th>
+                                <th class="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Responsável</th>
+                                <th class="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
+                                <th class="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Início</th>
+                                <th class="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Término</th>
+                                <th class="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide w-16">Dias</th>
+                                <th class="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Escopo</th>
+                                <th class="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-projetos">
+                            <tr><td colspan="9" class="text-center py-12 text-slate-300 text-sm">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- PMO -->
+        <div id="view-pmo" class="hidden">
+            <!-- HEADER GRADIENT -->
+            <div class="rounded-2xl mb-5 p-6 relative overflow-hidden" style="background:linear-gradient(135deg,#5B2EE0 0%,#B826C9 60%,#EC4899 100%)">
+                <div class="relative z-10">
+                    <div class="flex items-start justify-between flex-wrap gap-3">
+                        <div>
+                            <p class="text-white/60 text-[10px] font-bold uppercase tracking-[0.15em] mb-1">FAISTON OPS · Painel Executivo</p>
+                            <h2 class="text-white text-2xl font-black tracking-tight">Visão PMO</h2>
+                            <p class="text-white/70 text-sm mt-0.5">Portfólio consolidado de projetos e contratos</p>
+                        </div>
+                        <div class="flex flex-col items-end gap-2">
+                            <span id="pmo-saude-pill" class="px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-white border border-white/30">Calculando...</span>
+                            <p class="text-white/50 text-[11px]" id="pmo-header-date"></p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-6 mt-5 pt-4 border-t border-white/20">
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Total Projetos</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-proj">—</p>
+                        </div>
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Contratos</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-ct">—</p>
+                        </div>
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Clientes Ativos</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-cli">—</p>
+                        </div>
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Atrasados</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-atrasados">—</p>
+                        </div>
+                        <div>
+                            <p class="text-white/60 text-[10px] uppercase tracking-wide font-semibold">Vencem em 14d</p>
+                            <p class="text-white text-2xl font-black leading-tight" id="pmo-h-em14">—</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute -right-10 -top-10 w-52 h-52 rounded-full opacity-10 bg-white"></div>
+                <div class="absolute right-20 -bottom-16 w-40 h-40 rounded-full opacity-10 bg-white"></div>
+            </div>
+
+            <!-- KPI CARDS -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(6,215,230,0.12)">
+                        <i class="ph ph-play text-sm" style="color:#06D7E6"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-andamento">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Em Andamento</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(245,158,11,0.12)">
+                        <i class="ph ph-flag-checkered text-sm text-amber-500"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-finalizacao">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Finalização</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(148,163,184,0.15)">
+                        <i class="ph ph-snowflake text-sm text-slate-400"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-freezing">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Em Freezing</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(236,72,153,0.1)">
+                        <i class="ph ph-warning text-sm text-faiston-pink"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-atrasados">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Atrasados</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(245,158,11,0.1)">
+                        <i class="ph ph-clock-countdown text-sm text-amber-500"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-em14">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Vencem em 14d</p>
+                </div>
+                <div class="pmo-card bg-white rounded-xl border border-faiston-border p-4 shadow-sm text-center">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto mb-2" style="background:rgba(91,46,224,0.1)">
+                        <i class="ph ph-file-text text-sm text-faiston-purple"></i>
+                    </div>
+                    <p class="text-2xl font-black text-faiston-dark" id="pmo-k-contratos">—</p>
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-0.5">Contratos Ativos</p>
+                </div>
+            </div>
+
+            <!-- MAIN ROW: Alertas + Workload | Gantt -->
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-5">
+                <!-- LEFT COL: Alertas críticos + Workload -->
+                <div class="lg:col-span-2 flex flex-col gap-4">
+                    <!-- Alertas críticos (atrasados) -->
+                    <div class="pmo-card bg-white rounded-xl border border-faiston-border shadow-sm overflow-hidden">
+                        <div class="px-5 py-3 border-b flex items-center gap-2" style="background:rgba(236,72,153,0.06);border-color:rgba(236,72,153,0.2)">
+                            <i class="ph ph-warning-octagon text-faiston-pink text-base"></i>
+                            <p class="text-[11px] font-bold text-faiston-pink uppercase tracking-wider">Atenção — Requerem Ação</p>
+                            <span class="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-faiston-pink/10 text-faiston-pink" id="pmo-atencao-count"></span>
+                        </div>
+                        <div id="pmo-atencao-list" class="divide-y divide-faiston-border max-h-72 overflow-y-auto custom-scrollbar">
+                            <div class="text-center py-6 text-slate-300 text-sm">Carregando...</div>
+                        </div>
+                    </div>
+                    <!-- Workload por responsável -->
+                    <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm flex-1">
+                        <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-4">Carga por Responsável</p>
+                        <div id="pmo-workload" class="flex flex-col gap-2.5 max-h-80 overflow-y-auto custom-scrollbar"></div>
+                    </div>
+                </div>
+
+                <!-- RIGHT COL: Donut + Gantt -->
+                <div class="lg:col-span-3 flex flex-col gap-4">
+                    <!-- Donut: distribuição de status -->
+                    <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm">
+                        <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Distribuição — Status do Portfolio</p>
+                        <div id="chart-donut" style="min-height:200px"></div>
+                    </div>
+                    <!-- Gantt -->
+                    <div class="pmo-card bg-white rounded-xl border border-faiston-border p-5 shadow-sm flex-1">
+                        <div class="flex items-center justify-between mb-4">
+                            <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Linha do Tempo</p>
+                            <span class="text-[10px] text-faiston-faint" id="gantt-periodo"></span>
+                        </div>
+                        <div id="pmo-gantt" class="overflow-x-auto">
+                            <div class="text-center py-8 text-slate-300 text-sm">Carregando...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Todos os alertas -->
+            <div class="pmo-card bg-white rounded-xl border border-faiston-border shadow-sm overflow-hidden">
+                <div class="px-5 py-3.5 border-b border-faiston-border bg-slate-50/70 flex items-center justify-between">
+                    <p class="pmo-section-title text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Todos os Alertas do Portfolio</p>
+                    <span class="text-xs text-faiston-faint" id="pmo-alerta-count"></span>
+                </div>
+                <div id="pmo-alertas" class="divide-y divide-faiston-border">
+                    <div class="text-center py-8 text-slate-300 text-sm">Carregando...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTRATOS -->
+        <div id="view-contratos" class="hidden">
+            <div class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
+                <div class="flex items-center justify-between px-5 py-3.5 border-b border-faiston-border bg-slate-50/70">
+                    <div class="flex items-center gap-3">
+                        <select id="filtro-status-ct" onchange="filtrarContratos()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                            <option value="">Todos os status</option>
+                            <option>EM IMPLANTAÇÃO</option>
+                            <option>EM FREEZING</option>
+                            <option>DEBOOKING</option>
+                        </select>
+                        <select id="filtro-cliente-ct" onchange="filtrarContratos()" class="text-xs border border-faiston-border rounded-lg px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple">
+                            <option value="">Todos os clientes</option>
+                        </select>
+                    </div>
+                    <span class="text-xs text-faiston-faint" id="count-contratos">0 contratos</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-faiston-border">
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Cliente / Contrato</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">SDM</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Responsável</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Início</th>
+                                <th class="text-left px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Término</th>
+                                <th class="px-5 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-contratos">
+                            <tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- MODAL EDITAR PROJETO (gestão) -->
+<div id="modal-proj" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark" id="modal-proj-title">Editar Projeto</h2>
+                <p class="text-xs text-faiston-muted mt-0.5" id="modal-proj-subtitle"></p>
+            </div>
+            <button onclick="fecharModalProj()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="proj-edit-id">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Código (ID externo)</label>
+                    <input type="text" id="proj-codigo" placeholder="Ex: F260160" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple font-mono">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="proj-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option>EM ANDAMENTO</option>
+                        <option>FINALIZAÇÃO</option>
+                        <option>EM FREEZING</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Responsável (nome)</label>
+                    <input type="text" id="proj-responsavel-texto" placeholder="Ex: GIULIA" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Responsável (usuário)</label>
+                    <select id="proj-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">— Sem vínculo —</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data de Início</label>
+                    <input type="date" id="proj-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data de Término</label>
+                    <input type="date" id="proj-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Escopo / Descrição</label>
+                    <textarea id="proj-escopo" rows="3" placeholder="Descreva o escopo do projeto..."
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="fecharModalProj()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="abrirComentarios()" class="flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-faiston-purple/30 text-faiston-purple text-sm font-semibold hover:bg-faiston-purple/5 transition-colors">
+                <i class="ph ph-chat-circle-dots text-sm"></i> Comentários
+            </button>
+            <button onclick="salvarProjeto()" id="btn-salvar-proj" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NOVO PROJETO (cria vinculando ao cliente existente) -->
+<div id="modal-novo-proj" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark">Novo Projeto</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Vincule a um cliente existente e configure os detalhes de gestão</p>
+            </div>
+            <button onclick="fecharModalNovoProj()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cliente *</label>
+                    <select id="np-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">Selecionar cliente...</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do Projeto *</label>
+                    <input type="text" id="np-nome" placeholder="Ex: Implantação, Manutenção, Fase 2..."
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Responsável</label>
+                    <select id="np-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">— Sem responsável —</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="np-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option>EM ANDAMENTO</option>
+                        <option>FINALIZAÇÃO</option>
+                        <option>EM FREEZING</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Orçamento (R$)</label>
+                    <input type="number" id="np-orcamento" placeholder="0,00" step="0.01" min="0"
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Início</label>
+                    <input type="date" id="np-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Término Previsto</label>
+                    <input type="date" id="np-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Escopo</label>
+                    <textarea id="np-escopo" rows="2" placeholder="Descrição ou escopo do projeto..."
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="fecharModalNovoProj()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="criarProjeto()" id="btn-criar-proj" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Criar Projeto</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CARIMBO -->
+<div id="g-modal-carimbo" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(13,15,35,0.65);backdrop-filter:blur(6px)" onclick="if(event.target===this)gFecharModalCarimbo()">
+    <div class="bg-white rounded-2xl w-full max-w-lg flex flex-col" style="box-shadow:0 24px 64px rgba(6,215,230,0.18)">
+        <div class="flex items-center gap-3 px-6 py-4 border-b border-faiston-border flex-shrink-0" style="background:linear-gradient(135deg,rgba(6,215,230,0.06),rgba(91,46,224,0.04))">
+            <i class="ph ph-stamp text-faiston-cyan flex-shrink-0"></i>
+            <span id="g-modal-carimbo-label" class="text-sm font-bold text-faiston-dark flex-1">Novo Carimbo</span>
+            <button onclick="gFecharModalCarimbo()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors">
+                <i class="ph ph-x text-slate-400 text-sm"></i>
+            </button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div class="flex gap-3">
+                <div class="flex-1">
+                    <label class="text-[10px] font-bold text-faiston-muted uppercase tracking-wider mb-1 block">Título *</label>
+                    <input type="text" id="g-carimbo-titulo" placeholder="Ex: Carimbo Expedição"
+                        class="w-full text-sm border border-faiston-border rounded-xl px-3 py-2 outline-none focus:border-faiston-cyan transition-colors">
+                </div>
+                <div class="w-36">
+                    <label class="text-[10px] font-bold text-faiston-muted uppercase tracking-wider mb-1 block">Categoria</label>
+                    <input type="text" id="g-carimbo-categoria" placeholder="Ex: Suporte"
+                        class="w-full text-sm border border-faiston-border rounded-xl px-3 py-2 outline-none focus:border-faiston-cyan transition-colors">
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-muted uppercase tracking-wider mb-1 block">Conteúdo</label>
+                <textarea id="g-carimbo-conteudo" placeholder="Cole ou escreva o conteúdo do carimbo..."
+                    class="w-full text-sm border border-faiston-border rounded-xl px-3 py-3 outline-none focus:border-faiston-cyan transition-colors resize-none font-mono"
+                    style="min-height:160px"></textarea>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-faiston-border flex items-center justify-between rounded-b-2xl bg-slate-50/80">
+            <button id="g-btn-deletar-carimbo" onclick="gDeletarCarimboModal()" class="hidden text-xs text-faiston-pink hover:text-red-600 transition-colors flex items-center gap-1">
+                <i class="ph ph-trash text-xs"></i> Deletar
+            </button>
+            <div class="flex items-center gap-2 ml-auto">
+                <button onclick="gFecharModalCarimbo()" class="text-xs text-faiston-muted hover:text-faiston-dark px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors">Cancelar</button>
+                <button onclick="gSalvarCarimboModal()" class="text-xs font-bold text-white px-4 py-2 rounded-xl" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL COMENTÁRIOS DO PROJETO -->
+<div id="modal-comentarios" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:90vh">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border flex-shrink-0">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark">Comentários</h2>
+                <p class="text-xs text-faiston-muted mt-0.5" id="comment-subtitle"></p>
+            </div>
+            <button onclick="fecharComentarios()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="lista-comentarios" class="flex-1 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-3">
+            <div class="text-center py-8 text-slate-300 text-sm">Carregando...</div>
+        </div>
+        <div class="p-6 pt-0 border-t border-faiston-border flex-shrink-0">
+            <div class="flex gap-2">
+                <textarea id="novo-comentario" rows="2" placeholder="Adicionar comentário... (Ctrl+Enter para enviar)"
+                    class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                <button onclick="enviarComentario()" class="btn-grad text-white px-4 rounded-lg text-sm font-semibold self-end py-2">Enviar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CONTRATO -->
+<div id="modal-contrato" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h2 class="text-lg font-bold text-faiston-dark" id="modal-ct-title">Novo Contrato</h2>
+            <button onclick="fecharModalCt()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="ct-edit-id">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cliente *</label>
+                    <select id="ct-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">Selecionar...</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do Contrato *</label>
+                    <input type="text" id="ct-nome" placeholder="Ex: Contrato de Manutenção 2025..."
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">SDM (Service Delivery Manager)</label>
+                    <input type="text" id="ct-sdm" placeholder="Ex: Eunice Lira"
+                        class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Responsável</label>
+                    <select id="ct-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">— Sem responsável —</option>
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="ct-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option>EM IMPLANTAÇÃO</option>
+                        <option>EM FREEZING</option>
+                        <option>DEBOOKING</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data de Início</label>
+                    <input type="date" id="ct-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data de Término</label>
+                    <input type="date" id="ct-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button id="btn-deletar-ct" onclick="deletarContrato()" class="hidden px-4 py-2.5 rounded-lg border border-faiston-pink/30 text-faiston-pink text-sm font-semibold hover:bg-faiston-pink/5 transition-colors">
+                <i class="ph ph-trash text-sm"></i>
+            </button>
+            <button onclick="fecharModalCt()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvarContrato()" id="btn-salvar-ct" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+let tabAtiva = 'projetos';
+let todosProjetos = [], todosContratos = [], todosUsuarios = [], todosClientes = [];
+let gCarimbos = [], gModalCarimboId = null;
+let canWrite = false;
+let meuPerfil = '';
+let modalProjId = null, modalCtId = null, comentarioProjId = null;
+let agruparPorCliente = false;
+
+// ── Status helpers ─────────────────────────────────────────
+const STATUS_PROJ = {
+    'EM ANDAMENTO': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'FINALIZAÇÃO':  'text-amber-600 bg-amber-50 border-amber-200',
+    'EM FREEZING':  'text-slate-500 bg-slate-100 border-slate-200',
+};
+const STATUS_CT = {
+    'EM IMPLANTAÇÃO': 'text-faiston-purple bg-faiston-purple/10 border-faiston-purple/20',
+    'EM FREEZING':    'text-slate-500 bg-slate-100 border-slate-200',
+    'DEBOOKING':      'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+};
+
+function statusBadge(label, map) {
+    const cls = map[label] || 'text-slate-500 bg-slate-100 border-slate-200';
+    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}">${label || '—'}</span>`;
+}
+
+function fmtDate(d) {
+    if (!d) return '—';
+    const [y,m,day] = d.split('-');
+    return `${day}/${m}/${y}`;
+}
+
+// ── KPI cards ──────────────────────────────────────────────
+function atualizarKPIs() {
+    const andamento = todosProjetos.filter(p => p.status_gestao === 'EM ANDAMENTO').length;
+    const finalizacao = todosProjetos.filter(p => p.status_gestao === 'FINALIZAÇÃO').length;
+    const freezing = todosProjetos.filter(p => p.status_gestao === 'EM FREEZING').length;
+    const ctAtivos = todosContratos.filter(c => c.status === 'EM IMPLANTAÇÃO').length;
+    document.getElementById('kpi-andamento').textContent = andamento;
+    document.getElementById('kpi-finalizacao').textContent = finalizacao;
+    document.getElementById('kpi-freezing').textContent = freezing;
+    document.getElementById('kpi-contratos').textContent = ctAtivos;
+}
+
+// ── Dias restantes ─────────────────────────────────────────
+function fmtDias(d) {
+    if (!d) return '<span class="text-slate-300">—</span>';
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const fim = new Date(d);
+    const dias = Math.round((fim - hoje) / (1000*60*60*24));
+    if (dias < 0) return `<span class="font-mono text-xs font-bold" style="color:#EC4899">${dias}d</span>`;
+    if (dias <= 14) return `<span class="font-mono text-xs font-bold text-amber-600">${dias}d</span>`;
+    return `<span class="font-mono text-xs font-bold text-emerald-600">${dias}d</span>`;
+}
+
+// ── Agrupamento toggle ─────────────────────────────────────
+function toggleAgrupamento() {
+    agruparPorCliente = !agruparPorCliente;
+    const btn = document.getElementById('btn-agrupar');
+    const thumb = document.getElementById('agrupar-thumb');
+    btn.style.background = agruparPorCliente ? '#5B2EE0' : '';
+    thumb.style.transform = agruparPorCliente ? 'translateX(16px)' : '';
+    filtrar();
+}
+
+// ── Sidebar accordion ──────────────────────────────────────
+let _projetosSbOpen = true;
+function toggleProjetosSb() {
+    _projetosSbOpen = !_projetosSbOpen;
+    document.getElementById('submenu-projetos-sb').style.display = _projetosSbOpen ? '' : 'none';
+    document.getElementById('caret-projetos-sb').style.transform = _projetosSbOpen ? '' : 'rotate(-90deg)';
+}
+
+// ── Tabs ───────────────────────────────────────────────────
+function setTab(tab) {
+    tabAtiva = tab;
+
+    const DOT_ACTIVE = {
+        'clientes': { color: '#5B2EE0', shadow: '0 0 8px #5B2EE0' },
+        'projetos': { color: '#06D7E6', shadow: '0 0 8px #06D7E6' },
+        'contratos':{ color: '#5B2EE0', shadow: '0 0 8px #5B2EE0' },
+        'carimbos': { color: '#06D7E6', shadow: '0 0 8px #06D7E6' },
+        'pmo':      { color: '#B826C9', shadow: '0 0 8px #B826C9' },
+    };
+
+    ['clientes','projetos','contratos','carimbos','pmo'].forEach(t => {
+        const view   = document.getElementById(`view-${t}`);
+        const navBtn = document.getElementById(`nav-${t}`);
+        const dot    = document.getElementById(`dot-${t}`);
+        const active = t === tab;
+        if (view) view.classList.toggle('hidden', !active);
+        if (navBtn) {
+            navBtn.style.color      = active ? DOT_ACTIVE[t].color : '';
+            navBtn.style.fontWeight = active ? '700' : '';
+        }
+        if (dot) {
+            dot.style.background = active ? DOT_ACTIVE[t].color : '';
+            dot.style.boxShadow  = active ? DOT_ACTIVE[t].shadow : '';
+        }
+    });
+
+    const toggleGrupo = document.getElementById('toggle-grupo');
+    if (tab === 'projetos') {
+        toggleGrupo.classList.remove('hidden');
+        document.getElementById('btn-nova-label').textContent = 'Novo Projeto';
+        document.getElementById('btn-nova-acao').classList.toggle('hidden', !canWrite);
+        filtrar();
+    } else if (tab === 'pmo') {
+        toggleGrupo.classList.add('hidden');
+        document.getElementById('btn-nova-acao').classList.add('hidden');
+        renderPMO();
+    } else if (tab === 'clientes') {
+        toggleGrupo.classList.add('hidden');
+        document.getElementById('btn-nova-acao').classList.add('hidden');
+        filtrarClientes();
+    } else if (tab === 'carimbos') {
+        toggleGrupo.classList.add('hidden');
+        document.getElementById('btn-nova-acao').classList.add('hidden');
+        filtrarCarimbos();
+    } else {
+        toggleGrupo.classList.add('hidden');
+        document.getElementById('btn-nova-label').textContent = 'Novo Contrato';
+        document.getElementById('btn-nova-acao').classList.toggle('hidden', !canWrite);
+        filtrarContratos();
+    }
+}
+
+// ── Load data ──────────────────────────────────────────────
+async function carregar() {
+    const [rp, rc, ru, rcl, rcar] = await Promise.all([
+        fetch('/api/gestao/projetos'),
+        fetch('/api/gestao/contratos'),
+        fetch('/api/gestao/usuarios'),
+        fetch('/api/clientes'),
+        fetch('/api/carimbos'),
+    ]);
+    if (rp.ok) todosProjetos = await rp.json();
+    if (rc.ok) todosContratos = await rc.json();
+    if (ru.ok) todosUsuarios = await ru.json();
+    if (rcl.ok) todosClientes = (await rcl.json()).filter(c => c.ativo);
+    if (rcar.ok) gCarimbos = await rcar.json();
+
+    popularSelectsClientes();
+    popularSelectsUsuarios();
+    atualizarKPIs();
+    filtrar();
+    filtrarContratos();
+
+    document.getElementById('header-sub').textContent =
+        `${todosProjetos.length} projetos · ${todosContratos.length} contratos · ${todosClientes.length} clientes ativos`;
+}
+
+function popularSelectsClientes() {
+    const opts = todosClientes.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+    document.getElementById('ct-cliente').innerHTML = '<option value="">Selecionar...</option>' + opts;
+    document.getElementById('np-cliente').innerHTML = '<option value="">Selecionar cliente...</option>' + opts;
+
+    const optsNome = todosClientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+    document.getElementById('filtro-cliente-proj').innerHTML = '<option value="">Todos os clientes</option>' + optsNome;
+    document.getElementById('filtro-cliente-ct').innerHTML = '<option value="">Todos os clientes</option>' + optsNome;
+}
+
+function popularSelectsUsuarios() {
+    const opts = '<option value="">— Sem responsável —</option>' +
+        todosUsuarios.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+    document.getElementById('proj-responsavel').innerHTML = opts;
+    document.getElementById('ct-responsavel').innerHTML = opts;
+    document.getElementById('np-responsavel').innerHTML = opts;
+}
+
+// ── Carimbos ───────────────────────────────────────────────
+function filtrarCarimbos() {
+    const q = ((document.getElementById('busca-carimbo') || {}).value || '').toLowerCase();
+    const cat = (document.getElementById('filtro-cat-carimbo') || {}).value || '';
+    const lista = gCarimbos.filter(c =>
+        (!q || (c.titulo||'').toLowerCase().includes(q) || (c.conteudo||'').toLowerCase().includes(q)) &&
+        (!cat || (c.categoria||'Geral') === cat)
+    );
+    renderCarimbosGrid(lista);
+    // rebuild category filter
+    const cats = [...new Set(gCarimbos.map(c => c.categoria || 'Geral'))].sort();
+    const sel = document.getElementById('filtro-cat-carimbo');
+    if (sel) {
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">Todas as categorias</option>' +
+            cats.map(c => `<option${c === cur ? ' selected' : ''}>${escHtml(c)}</option>`).join('');
+    }
+}
+
+const CAR_GRADIENTS = [
+    'linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%)',
+    'linear-gradient(135deg,#06D7E6 0%,#5B2EE0 100%)',
+    'linear-gradient(135deg,#B826C9 0%,#5B2EE0 100%)',
+    'linear-gradient(135deg,#5B2EE0 0%,#06D7E6 100%)',
+    'linear-gradient(135deg,#EC4899 0%,#B826C9 100%)',
+    'linear-gradient(135deg,#06D7E6 0%,#B826C9 100%)',
+];
+
+function renderCarimbosGrid(lista) {
+    document.getElementById('count-carimbos').textContent = `${lista.length} carimbo${lista.length !== 1 ? 's' : ''}`;
+    const grid = document.getElementById('carimbos-grid');
+    const empty = document.getElementById('carimbos-empty');
+    if (!lista.length) {
+        grid.innerHTML = '';
+        empty.classList.remove('hidden'); empty.classList.add('flex');
+        return;
+    }
+    empty.classList.add('hidden'); empty.classList.remove('flex');
+    grid.innerHTML = lista.map((c, i) => {
+        const grad = CAR_GRADIENTS[i % CAR_GRADIENTS.length];
+        const initials = (c.titulo || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+        const preview = (c.conteudo || '').slice(0, 160);
+        return `<div class="bg-white rounded-2xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_8px_32px_-8px_rgba(91,46,224,0.18)] transition-all duration-300 flex flex-col">
+            <div class="relative h-20 flex items-end px-5 pb-0" style="background:${grad}">
+                <span class="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/20 text-white/90 backdrop-blur-sm">${escHtml(c.categoria || 'Geral')}</span>
+                <div class="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white text-base font-black translate-y-5 shadow-lg">
+                    ${initials}
+                </div>
+            </div>
+            <div class="pt-8 px-5 pb-4 flex flex-col flex-1 gap-2">
+                <div class="flex items-start justify-between gap-2">
+                    <h3 class="font-bold text-faiston-dark text-sm leading-tight">${escHtml(c.titulo)}</h3>
+                    ${c.meu ? `<button onclick="gAbrirModalCarimbo(${c.id})" title="Editar" class="flex-shrink-0 w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>` : ''}
+                </div>
+                <p class="text-xs text-slate-500 font-mono leading-relaxed line-clamp-4 flex-1 whitespace-pre-wrap">${escHtml(preview)}${(c.conteudo||'').length > 160 ? '<span class="text-slate-300">…</span>' : ''}</p>
+                <button onclick="gCopiarCarimbo(${c.id}, this)" id="copy-btn-${c.id}" class="mt-1 w-full py-2 rounded-xl text-xs font-bold transition-all border border-faiston-cyan/30 text-faiston-cyan hover:bg-faiston-cyan/10 flex items-center justify-center gap-1.5">
+                    <i class="ph ph-copy text-xs"></i> Copiar
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function gCopiarCarimbo(id, btn) {
+    const c = gCarimbos.find(x => x.id === id); if (!c) return;
+    try {
+        await navigator.clipboard.writeText(c.conteudo || '');
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="ph ph-check text-xs"></i> Copiado!';
+        btn.style.color = '#06D7E6'; btn.style.borderColor = '#06D7E6';
+        setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; btn.style.borderColor = ''; }, 1800);
+    } catch(e) { alert('Não foi possível copiar automaticamente.'); }
+}
+
+function gAbrirModalCarimbo(id) {
+    gModalCarimboId = id;
+    const isEdit = id !== null;
+    document.getElementById('g-modal-carimbo-label').textContent = isEdit ? 'Editar Carimbo' : 'Novo Carimbo';
+    document.getElementById('g-btn-deletar-carimbo').classList.toggle('hidden', !isEdit);
+    if (isEdit) {
+        const c = gCarimbos.find(x => x.id === id); if (!c) return;
+        document.getElementById('g-carimbo-titulo').value = c.titulo || '';
+        document.getElementById('g-carimbo-categoria').value = c.categoria || '';
+        document.getElementById('g-carimbo-conteudo').value = c.conteudo || '';
+    } else {
+        document.getElementById('g-carimbo-titulo').value = '';
+        document.getElementById('g-carimbo-categoria').value = '';
+        document.getElementById('g-carimbo-conteudo').value = '';
+    }
+    document.getElementById('g-modal-carimbo').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('g-carimbo-titulo').focus(), 50);
+}
+
+function gFecharModalCarimbo() {
+    document.getElementById('g-modal-carimbo').classList.add('hidden');
+    document.body.style.overflow = '';
+    gModalCarimboId = null;
+}
+
+async function gSalvarCarimboModal() {
+    const titulo = document.getElementById('g-carimbo-titulo').value.trim();
+    const categoria = document.getElementById('g-carimbo-categoria').value.trim() || 'Geral';
+    const conteudo = document.getElementById('g-carimbo-conteudo').value;
+    if (!titulo) { document.getElementById('g-carimbo-titulo').focus(); return; }
+    try {
+        const url = gModalCarimboId ? `/api/carimbos/${gModalCarimboId}` : '/api/carimbos';
+        const method = gModalCarimboId ? 'PUT' : 'POST';
+        await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({titulo, categoria, conteudo}) });
+        gFecharModalCarimbo();
+        const r = await fetch('/api/carimbos');
+        if (r.ok) { gCarimbos = await r.json(); filtrarCarimbos(); }
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+async function gDeletarCarimboModal() {
+    if (!gModalCarimboId || !confirm('Deletar este carimbo?')) return;
+    await fetch(`/api/carimbos/${gModalCarimboId}`, { method: 'DELETE' });
+    gFecharModalCarimbo();
+    const r = await fetch('/api/carimbos');
+    if (r.ok) { gCarimbos = await r.json(); filtrarCarimbos(); }
+}
+
+// ── Render clientes (card layout) ─────────────────────────
+const CLI_GRADIENTS = [
+    'linear-gradient(135deg,#06D7E6 0%,#5B2EE0 100%)',
+    'linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%)',
+    'linear-gradient(135deg,#EC4899 0%,#5B2EE0 100%)',
+    'linear-gradient(135deg,#5B2EE0 0%,#06D7E6 100%)',
+    'linear-gradient(135deg,#06D7E6 0%,#B826C9 100%)',
+    'linear-gradient(135deg,#B826C9 0%,#EC4899 100%)',
+];
+
+function filtrarClientes() {
+    const q = ((document.getElementById('busca-cliente') || {}).value || '').toLowerCase();
+    const lista = todosClientes.filter(c =>
+        !q || c.nome.toLowerCase().includes(q) ||
+              (c.contato||'').toLowerCase().includes(q) ||
+              (c.email||'').toLowerCase().includes(q)
+    );
+    renderClientesCards(lista);
+}
+
+function renderClientesCards(lista) {
+    document.getElementById('count-clientes').textContent = `${lista.length} cliente${lista.length !== 1 ? 's' : ''}`;
+    const grid = document.getElementById('clientes-grid-gestao');
+    const empty = document.getElementById('clientes-empty');
+    if (!lista.length) {
+        grid.innerHTML = '';
+        empty.classList.remove('hidden'); empty.classList.add('flex');
+        return;
+    }
+    empty.classList.add('hidden'); empty.classList.remove('flex');
+
+    grid.innerHTML = lista.map((c, i) => {
+        const grad = CLI_GRADIENTS[i % CLI_GRADIENTS.length];
+        const projCount = todosProjetos.filter(p => p.cliente === c.nome).length;
+        const initials = c.nome.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+        const statusCls = c.ativo
+            ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+            : 'text-slate-400 bg-slate-100 border-slate-200';
+        const statusLabel = c.ativo ? 'Ativo' : 'Inativo';
+
+        return `<div class="bg-white rounded-2xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_8px_32px_-8px_rgba(91,46,224,0.18)] transition-all duration-300">
+            <div class="relative h-24 flex items-end px-5 pb-0" style="background:${grad}">
+                ${c.setor ? `<span class="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/20 text-white/90 backdrop-blur-sm">${escHtml(c.setor)}</span>` : ''}
+                <div class="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white text-lg font-black translate-y-6 shadow-lg">
+                    ${initials}
+                </div>
+            </div>
+            <div class="pt-9 px-5 pb-0">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-faiston-dark text-sm">${escHtml(c.nome)}</h3>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCls}">${statusLabel}</span>
+                </div>
+                ${c.contato ? `<p class="text-xs text-faiston-muted mb-2"><i class="ph ph-user text-[10px]"></i> ${escHtml(c.contato)}</p>` : ''}
+                <div class="flex items-center gap-3 mb-3">
+                    ${projCount > 0
+                        ? `<button onclick="setTab('projetos');setTimeout(()=>{document.getElementById('filtro-cliente-proj').value='${escHtml(c.nome)}';filtrar();},100)"
+                            class="text-[11px] text-faiston-purple hover:text-faiston-magenta font-semibold transition-colors flex items-center gap-1">
+                            <i class="ph ph-folder-open text-[10px]"></i> ${projCount} projeto${projCount !== 1 ? 's' : ''}
+                          </button>`
+                        : `<span class="text-[11px] text-slate-300">Sem projetos</span>`
+                    }
+                </div>
+                <div class="flex items-center justify-between py-3 border-t border-faiston-border">
+                    <a href="/financeiro/${c.id}" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta transition-colors flex items-center gap-1">
+                        <i class="ph ph-currency-circle-dollar text-xs"></i> Financeiro
+                    </a>
+                    <a href="/relatorio/${encodeURIComponent(c.nome)}" target="_blank" class="text-xs font-semibold text-slate-400 hover:text-faiston-purple transition-colors flex items-center gap-1">
+                        Relatório <i class="ph ph-arrow-square-out text-xs"></i>
+                    </a>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function abrirModalNovoCliente() {
+    window.open('/clientes', '_blank');
+}
+
+// ── Render projetos ────────────────────────────────────────
+function filtrar() {
+    if (tabAtiva !== 'projetos') return;
+    const q = (document.getElementById('busca').value || '').toLowerCase();
+    const st = document.getElementById('filtro-status-proj').value;
+    const cl = document.getElementById('filtro-cliente-proj').value;
+    const lista = todosProjetos.filter(p =>
+        (!q || p.nome.toLowerCase().includes(q) || p.cliente.toLowerCase().includes(q) ||
+               (p.codigo||'').toLowerCase().includes(q) ||
+               (p.responsavel||'').toLowerCase().includes(q) ||
+               (p.responsavel_texto||'').toLowerCase().includes(q)) &&
+        (!st || p.status_gestao === st) &&
+        (!cl || p.cliente === cl)
+    );
+    agruparPorCliente ? renderProjetosAgrupados(lista) : renderProjetos(lista);
+}
+
+function renderProjetos(lista) {
+    document.getElementById('count-projetos').textContent = `${lista.length} projeto${lista.length !== 1 ? 's' : ''}`;
+    document.getElementById('thead-projetos').style.display = '';
+    const tbody = document.getElementById('tabela-projetos');
+    if (!lista.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-12 text-slate-300 text-sm">
+            <i class="ph ph-folder-open text-3xl block mb-2 mx-auto"></i>Nenhum projeto encontrado</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = lista.map(p => projetoRow(p)).join('');
+}
+
+function projetoRow(p) {
+    const clienteLink = `<a href="/clientes" title="Ver cliente" class="ml-1 text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-arrow-square-out text-[10px]"></i></a>`;
+    const editBtn = canWrite
+        ? `<button onclick="abrirModalProj(${p.id})" title="Editar gestão" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
+        : '';
+    const commentBtn = `<button onclick="abrirComentariosDireto(${p.id},'${escHtml(p.cliente)} · ${escHtml(p.nome)}')" title="Comentários" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-300 hover:text-slate-600 transition-colors"><i class="ph ph-chat-circle-dots text-sm"></i></button>`;
+    const respNome = p.responsavel || p.responsavel_texto || '';
+    return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
+        <td class="px-4 py-3 font-mono text-xs text-slate-400">${p.codigo ? escHtml(p.codigo) : '<span class="text-slate-200">—</span>'}</td>
+        <td class="px-4 py-3">
+            <div class="flex items-center gap-1 text-xs text-faiston-muted font-medium">${escHtml(p.cliente)}${clienteLink}</div>
+            <div class="font-semibold text-faiston-dark text-sm">${escHtml(p.nome)}</div>
+        </td>
+        <td class="px-4 py-3 text-sm text-slate-600">${respNome ? escHtml(respNome) : '<span class="text-slate-300 text-xs italic">—</span>'}</td>
+        <td class="px-4 py-3">${statusBadge(p.status_gestao, STATUS_PROJ)}</td>
+        <td class="px-4 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_inicio)}</td>
+        <td class="px-4 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_termino)}</td>
+        <td class="px-4 py-3">${fmtDias(p.data_termino)}</td>
+        <td class="px-4 py-3 text-xs text-slate-500 max-w-[180px] truncate" title="${escHtml(p.escopo)}">${p.escopo ? escHtml(p.escopo) : '<span class="text-slate-300 italic">—</span>'}</td>
+        <td class="px-4 py-3">
+            <div class="flex items-center gap-1 justify-end">${editBtn}${commentBtn}</div>
+        </td>
+    </tr>`;
+}
+
+function renderProjetosAgrupados(lista) {
+    document.getElementById('count-projetos').textContent = `${lista.length} projeto${lista.length !== 1 ? 's' : ''}`;
+    document.getElementById('thead-projetos').style.display = 'none';
+    const tbody = document.getElementById('tabela-projetos');
+    if (!lista.length) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-12 text-slate-300 text-sm">
+            <i class="ph ph-folder-open text-3xl block mb-2 mx-auto"></i>Nenhum projeto encontrado</td></tr>`;
+        return;
+    }
+
+    // Agrupar por cliente
+    const grupos = {};
+    lista.forEach(p => {
+        if (!grupos[p.cliente]) grupos[p.cliente] = { cliente_id: p.cliente_id, projetos: [] };
+        grupos[p.cliente].projetos.push(p);
+    });
+
+    tbody.innerHTML = Object.entries(grupos).map(([clienteNome, g]) => {
+        const andamentoCount = g.projetos.filter(p => p.status_gestao === 'EM ANDAMENTO').length;
+        const headerRow = `<tr class="grupo-header border-b border-faiston-border" style="background:rgba(91,46,224,0.04)">
+            <td colspan="9" class="px-5 py-2.5">
+                <div class="flex items-center gap-3">
+                    <div class="w-5 h-5 rounded grad-bg flex items-center justify-center flex-shrink-0">
+                        <i class="ph ph-buildings text-white text-[9px]"></i>
+                    </div>
+                    <span class="text-xs font-bold text-faiston-dark">${escHtml(clienteNome)}</span>
+                    <span class="text-[10px] font-semibold text-faiston-purple bg-faiston-purple/10 px-1.5 py-0.5 rounded-full">${g.projetos.length} projeto${g.projetos.length !== 1 ? 's' : ''}</span>
+                    ${andamentoCount > 0 ? `<span class="text-[10px] text-faiston-cyan font-semibold">${andamentoCount} em andamento</span>` : ''}
+                    <a href="/clientes" class="ml-auto text-[11px] text-faiston-purple hover:text-faiston-magenta flex items-center gap-1 transition-colors font-medium">
+                        Ver cliente <i class="ph ph-arrow-square-out text-[10px]"></i>
+                    </a>
+                </div>
+            </td>
+        </tr>`;
+        const projRows = g.projetos.map(p => {
+            const editBtn = canWrite
+                ? `<button onclick="abrirModalProj(${p.id})" title="Editar gestão" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
+                : '';
+            const commentBtn = `<button onclick="abrirComentariosDireto(${p.id},'${escHtml(p.cliente)} · ${escHtml(p.nome)}')" title="Comentários" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-300 hover:text-slate-600 transition-colors"><i class="ph ph-chat-circle-dots text-sm"></i></button>`;
+            const respNome = p.responsavel || p.responsavel_texto || '';
+            return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
+                <td class="px-4 py-3 font-mono text-xs text-slate-400">${p.codigo ? escHtml(p.codigo) : ''}</td>
+                <td class="px-4 py-3 pl-12">
+                    <div class="font-semibold text-faiston-dark text-sm">${escHtml(p.nome)}</div>
+                </td>
+                <td class="px-4 py-3 text-sm text-slate-600">${respNome ? escHtml(respNome) : '<span class="text-slate-300 text-xs italic">—</span>'}</td>
+                <td class="px-4 py-3">${statusBadge(p.status_gestao, STATUS_PROJ)}</td>
+                <td class="px-4 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_inicio)}</td>
+                <td class="px-4 py-3 text-xs text-slate-500 font-mono">${fmtDate(p.data_termino)}</td>
+                <td class="px-4 py-3">${fmtDias(p.data_termino)}</td>
+                <td class="px-4 py-3 text-xs text-slate-500 max-w-[180px] truncate" title="${escHtml(p.escopo)}">${p.escopo ? escHtml(p.escopo) : '<span class="text-slate-300 italic">—</span>'}</td>
+                <td class="px-4 py-3">
+                    <div class="flex items-center gap-1 justify-end">${editBtn}${commentBtn}</div>
+                </td>
+            </tr>`;
+        }).join('');
+        return headerRow + projRows;
+    }).join('');
+}
+
+// ── Render contratos ───────────────────────────────────────
+function filtrarContratos() {
+    const q = (document.getElementById('busca').value || '').toLowerCase();
+    const st = document.getElementById('filtro-status-ct').value;
+    const cl = document.getElementById('filtro-cliente-ct').value;
+    const lista = todosContratos.filter(c =>
+        (!q || c.nome.toLowerCase().includes(q) || c.cliente.toLowerCase().includes(q)) &&
+        (!st || c.status === st) &&
+        (!cl || c.cliente === cl)
+    );
+    renderContratos(lista);
+}
+
+function renderContratos(lista) {
+    document.getElementById('count-contratos').textContent = `${lista.length} contrato${lista.length !== 1 ? 's' : ''}`;
+    const tbody = document.getElementById('tabela-contratos');
+    if (!lista.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">
+            <i class="ph ph-file-text text-3xl block mb-2 mx-auto"></i>Nenhum contrato encontrado</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = lista.map(c => {
+        const sdmFmt = c.sdm ? escHtml(String(c.sdm)) : '—';
+        const clienteLink = `<a href="/clientes" title="Ver cliente" class="ml-1 text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-arrow-square-out text-[10px]"></i></a>`;
+        const editBtn = canWrite
+            ? `<button onclick="abrirModalCt(${c.id})" title="Editar" class="w-7 h-7 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-slate-300 hover:text-faiston-purple transition-colors"><i class="ph ph-pencil-simple text-sm"></i></button>`
+            : '';
+        return `<tr class="g-row border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-1 text-xs text-faiston-muted font-medium">${escHtml(c.cliente)}${clienteLink}</div>
+                <div class="font-semibold text-faiston-dark text-sm">${escHtml(c.nome)}</div>
+            </td>
+            <td class="px-5 py-3 text-sm font-mono text-slate-600">${sdmFmt}</td>
+            <td class="px-5 py-3 text-sm text-slate-600">${c.responsavel ? escHtml(c.responsavel) : '<span class="text-slate-300 text-xs italic">—</span>'}</td>
+            <td class="px-5 py-3">${statusBadge(c.status, STATUS_CT)}</td>
+            <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(c.data_inicio)}</td>
+            <td class="px-5 py-3 text-xs text-slate-500 font-mono">${fmtDate(c.data_termino)}</td>
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-1 justify-end">${editBtn}</div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Modal Projeto (editar) ─────────────────────────────────
+function abrirModalProj(pid) {
+    const p = todosProjetos.find(x => x.id === pid);
+    if (!p) return;
+    modalProjId = pid;
+    document.getElementById('proj-edit-id').value = pid;
+    document.getElementById('modal-proj-title').textContent = p.nome;
+    document.getElementById('modal-proj-subtitle').textContent = `${p.cliente}${p.codigo ? ' · ' + p.codigo : ''}`;
+    document.getElementById('proj-codigo').value = p.codigo || '';
+    document.getElementById('proj-responsavel-texto').value = p.responsavel_texto || '';
+    document.getElementById('proj-responsavel').value = p.responsavel_id || '';
+    document.getElementById('proj-status').value = p.status_gestao || 'EM ANDAMENTO';
+    document.getElementById('proj-inicio').value = p.data_inicio || '';
+    document.getElementById('proj-termino').value = p.data_termino || '';
+    document.getElementById('proj-escopo').value = p.escopo || '';
+    document.getElementById('modal-proj').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function fecharModalProj() {
+    document.getElementById('modal-proj').classList.add('hidden');
+    document.body.style.overflow = '';
+    modalProjId = null;
+}
+
+async function salvarProjeto() {
+    const pid = document.getElementById('proj-edit-id').value;
+    const btn = document.getElementById('btn-salvar-proj');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    const body = {
+        responsavel_id: parseInt(document.getElementById('proj-responsavel').value) || null,
+        responsavel_texto: document.getElementById('proj-responsavel-texto').value.trim(),
+        status_gestao: document.getElementById('proj-status').value,
+        data_inicio: document.getElementById('proj-inicio').value || null,
+        data_termino: document.getElementById('proj-termino').value || null,
+        escopo: document.getElementById('proj-escopo').value.trim() || null,
+        codigo: document.getElementById('proj-codigo').value.trim(),
+    };
+    try {
+        const r = await fetch(`/api/gestao/projetos/${pid}`, {
+            method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+        });
+        if (!r.ok) { const d = await r.json(); alert(d.detail || 'Erro ao salvar'); return; }
+        fecharModalProj();
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+    finally { btn.disabled = false; btn.textContent = 'Salvar'; }
+}
+
+// ── Modal Novo Projeto (criar vinculando ao cliente) ───────
+function abrirModalNovoProj() {
+    document.getElementById('np-cliente').value = '';
+    document.getElementById('np-nome').value = '';
+    document.getElementById('np-responsavel').value = '';
+    document.getElementById('np-status').value = 'EM ANDAMENTO';
+    document.getElementById('np-orcamento').value = '';
+    document.getElementById('np-inicio').value = '';
+    document.getElementById('np-termino').value = '';
+    document.getElementById('np-escopo').value = '';
+    document.getElementById('modal-novo-proj').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('np-nome').focus(), 80);
+}
+
+function fecharModalNovoProj() {
+    document.getElementById('modal-novo-proj').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+async function criarProjeto() {
+    const clienteId = parseInt(document.getElementById('np-cliente').value);
+    const nome = document.getElementById('np-nome').value.trim();
+    if (!clienteId) { alert('Selecione um cliente.'); return; }
+    if (!nome) { alert('Informe o nome do projeto.'); return; }
+    const btn = document.getElementById('btn-criar-proj');
+    btn.disabled = true; btn.textContent = 'Criando...';
+    try {
+        // 1. Cria o projeto vinculado ao cliente
+        const r1 = await fetch(`/api/clientes/${clienteId}/projetos`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                nome,
+                orcamento: parseFloat(document.getElementById('np-orcamento').value) || 0,
+                descricao: document.getElementById('np-escopo').value.trim() || ''
+            })
+        });
+        if (!r1.ok) { const d = await r1.json(); alert(d.detail || 'Erro ao criar projeto'); return; }
+        const proj = await r1.json();
+
+        // 2. Atualiza os campos de gestão
+        const gestaoBody = {
+            responsavel_id: parseInt(document.getElementById('np-responsavel').value) || null,
+            status_gestao: document.getElementById('np-status').value,
+            data_inicio: document.getElementById('np-inicio').value || null,
+            data_termino: document.getElementById('np-termino').value || null,
+            escopo: document.getElementById('np-escopo').value.trim() || null,
+        };
+        await fetch(`/api/gestao/projetos/${proj.id}`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(gestaoBody)
+        });
+
+        fecharModalNovoProj();
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+    finally { btn.disabled = false; btn.textContent = 'Criar Projeto'; }
+}
+
+// ── Modal Comentários ──────────────────────────────────────
+function abrirComentarios() {
+    const pid = parseInt(document.getElementById('proj-edit-id').value);
+    const p = todosProjetos.find(x => x.id === pid);
+    fecharModalProj();
+    setTimeout(() => abrirComentariosDireto(pid, p ? `${p.cliente} · ${p.nome}` : ''), 50);
+}
+
+function abrirComentariosDireto(pid, label) {
+    comentarioProjId = pid;
+    document.getElementById('comment-subtitle').textContent = label;
+    document.getElementById('novo-comentario').value = '';
+    document.getElementById('modal-comentarios').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    carregarComentarios(pid);
+}
+
+function fecharComentarios() {
+    document.getElementById('modal-comentarios').classList.add('hidden');
+    document.body.style.overflow = '';
+    comentarioProjId = null;
+}
+
+async function carregarComentarios(pid) {
+    const lista = document.getElementById('lista-comentarios');
+    lista.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm">Carregando...</div>';
+    try {
+        const r = await fetch(`/api/gestao/projetos/${pid}/comentarios`);
+        if (!r.ok) { lista.innerHTML = '<div class="text-center py-8 text-red-400 text-sm">Erro ao carregar</div>'; return; }
+        const comments = await r.json();
+        if (!comments.length) {
+            lista.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm"><i class="ph ph-chat-circle text-3xl block mb-2 mx-auto"></i>Sem comentários ainda</div>';
+            return;
+        }
+        lista.innerHTML = comments.map(c => {
+            const data = c.criado_em ? new Date(c.criado_em).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+            return `<div class="g-comment-bubble bg-slate-50 border border-faiston-border rounded-xl p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-faiston-purple">${escHtml(c.usuario)}</span>
+                    <span class="text-[10px] text-slate-400 font-mono">${data}</span>
+                </div>
+                <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">${escHtml(c.texto)}</p>
+            </div>`;
+        }).join('');
+    } catch(e) { lista.innerHTML = '<div class="text-center py-8 text-red-400 text-sm">Erro de conexão</div>'; }
+}
+
+async function enviarComentario() {
+    const texto = document.getElementById('novo-comentario').value.trim();
+    if (!texto) return;
+    try {
+        const r = await fetch(`/api/gestao/projetos/${comentarioProjId}/comentarios`, {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({texto})
+        });
+        if (!r.ok) { const d = await r.json(); alert(d.detail || 'Erro'); return; }
+        document.getElementById('novo-comentario').value = '';
+        await carregarComentarios(comentarioProjId);
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+// ── Modal Contrato ─────────────────────────────────────────
+function abrirModalNovo() {
+    if (tabAtiva === 'projetos') abrirModalNovoProj();
+    else abrirModalCt(null);
+}
+
+function abrirModalCt(cid) {
+    modalCtId = cid;
+    const isEdit = cid !== null;
+    document.getElementById('modal-ct-title').textContent = isEdit ? 'Editar Contrato' : 'Novo Contrato';
+    document.getElementById('btn-deletar-ct').classList.toggle('hidden', !isEdit);
+    if (isEdit) {
+        const c = todosContratos.find(x => x.id === cid);
+        if (!c) return;
+        document.getElementById('ct-edit-id').value = cid;
+        document.getElementById('ct-cliente').value = c.cliente_id;
+        document.getElementById('ct-nome').value = c.nome;
+        document.getElementById('ct-sdm').value = c.sdm || '';
+        document.getElementById('ct-responsavel').value = c.responsavel_id || '';
+        document.getElementById('ct-status').value = c.status;
+        document.getElementById('ct-inicio').value = c.data_inicio || '';
+        document.getElementById('ct-termino').value = c.data_termino || '';
+    } else {
+        document.getElementById('ct-edit-id').value = '';
+        document.getElementById('ct-cliente').value = '';
+        document.getElementById('ct-nome').value = '';
+        document.getElementById('ct-sdm').value = '';
+        document.getElementById('ct-responsavel').value = '';
+        document.getElementById('ct-status').value = 'EM IMPLANTAÇÃO';
+        document.getElementById('ct-inicio').value = '';
+        document.getElementById('ct-termino').value = '';
+    }
+    document.getElementById('modal-contrato').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('ct-nome').focus(), 50);
+}
+
+function fecharModalCt() {
+    document.getElementById('modal-contrato').classList.add('hidden');
+    document.body.style.overflow = '';
+    modalCtId = null;
+}
+
+async function salvarContrato() {
+    const clienteId = parseInt(document.getElementById('ct-cliente').value);
+    const nome = document.getElementById('ct-nome').value.trim();
+    if (!clienteId || !nome) { alert('Selecione um cliente e informe o nome do contrato.'); return; }
+    const btn = document.getElementById('btn-salvar-ct');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    const body = {
+        cliente_id: clienteId,
+        nome,
+        sdm: document.getElementById('ct-sdm').value.trim() || '',
+        responsavel_id: parseInt(document.getElementById('ct-responsavel').value) || null,
+        status: document.getElementById('ct-status').value,
+        data_inicio: document.getElementById('ct-inicio').value || null,
+        data_termino: document.getElementById('ct-termino').value || null,
+    };
+    try {
+        const url = modalCtId ? `/api/gestao/contratos/${modalCtId}` : '/api/gestao/contratos';
+        const method = modalCtId ? 'PUT' : 'POST';
+        const r = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (!r.ok) { const d = await r.json(); alert(d.detail || 'Erro ao salvar'); return; }
+        fecharModalCt();
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+    finally { btn.disabled = false; btn.textContent = 'Salvar'; }
+}
+
+async function deletarContrato() {
+    if (!modalCtId || !confirm('Excluir este contrato permanentemente?')) return;
+    try {
+        const r = await fetch(`/api/gestao/contratos/${modalCtId}`, { method: 'DELETE' });
+        if (!r.ok) { const d = await r.json(); alert(d.detail || 'Erro'); return; }
+        fecharModalCt();
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+// ── Utilities ──────────────────────────────────────────────
+function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleTema() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('faiston_tema', isDark ? 'light' : 'dark');
+}
+
+async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
+}
+
+// ── Keyboard & backdrop ────────────────────────────────────
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { fecharModalProj(); fecharModalCt(); fecharComentarios(); fecharModalNovoProj(); gFecharModalCarimbo(); }
+});
+document.getElementById('modal-proj').addEventListener('click', e => { if (e.target === document.getElementById('modal-proj')) fecharModalProj(); });
+document.getElementById('modal-novo-proj').addEventListener('click', e => { if (e.target === document.getElementById('modal-novo-proj')) fecharModalNovoProj(); });
+document.getElementById('modal-contrato').addEventListener('click', e => { if (e.target === document.getElementById('modal-contrato')) fecharModalCt(); });
+document.getElementById('modal-comentarios').addEventListener('click', e => { if (e.target === document.getElementById('modal-comentarios')) fecharComentarios(); });
+document.getElementById('novo-comentario').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) enviarComentario();
+});
+
+// ── PMO View ───────────────────────────────────────────────
+let _donutChart = null;
+
+function renderPMO() {
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const em14 = new Date(hoje); em14.setDate(em14.getDate() + 14);
+
+    // Header stats
+    document.getElementById('pmo-header-date').textContent =
+        hoje.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+    document.getElementById('pmo-h-proj').textContent = todosProjetos.length;
+    document.getElementById('pmo-h-ct').textContent = todosContratos.length;
+    document.getElementById('pmo-h-cli').textContent = todosClientes.length;
+
+    const atrasados = todosProjetos.filter(p =>
+        p.data_termino && new Date(p.data_termino) < hoje && p.status_gestao !== 'EM FREEZING'
+    ).length;
+    const em14d = todosProjetos.filter(p => {
+        if (!p.data_termino || p.status_gestao === 'EM FREEZING') return false;
+        const t = new Date(p.data_termino);
+        return t >= hoje && t <= em14;
+    }).length;
+
+    document.getElementById('pmo-h-atrasados').textContent = atrasados;
+    document.getElementById('pmo-h-em14').textContent = em14d;
+
+    // Saúde pill
+    const pill = document.getElementById('pmo-saude-pill');
+    if (atrasados === 0) {
+        pill.textContent = '● Portfólio Saudável';
+        pill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/30 text-white border border-emerald-300/50';
+    } else if (atrasados <= 3) {
+        pill.textContent = `⚠ ${atrasados} Atraso${atrasados > 1 ? 's' : ''}`;
+        pill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-400/30 text-white border border-amber-300/50';
+    } else {
+        pill.textContent = `⚠ ${atrasados} Atrasados`;
+        pill.className = 'px-3 py-1 rounded-full text-xs font-bold bg-red-500/30 text-white border border-red-300/50';
+    }
+
+    // KPI cards
+    const andamento = todosProjetos.filter(p => p.status_gestao === 'EM ANDAMENTO').length;
+    const finalizacao = todosProjetos.filter(p => p.status_gestao === 'FINALIZAÇÃO').length;
+    const freezing = todosProjetos.filter(p => p.status_gestao === 'EM FREEZING').length;
+    const ctAtivos = todosContratos.filter(c => c.status === 'EM IMPLANTAÇÃO').length;
+    document.getElementById('pmo-k-andamento').textContent = andamento;
+    document.getElementById('pmo-k-finalizacao').textContent = finalizacao;
+    document.getElementById('pmo-k-freezing').textContent = freezing;
+    document.getElementById('pmo-k-atrasados').textContent = atrasados;
+    document.getElementById('pmo-k-em14').textContent = em14d;
+    document.getElementById('pmo-k-contratos').textContent = ctAtivos;
+
+    renderAtencao();
+    renderDonut();
+    renderWorkload();
+    renderGantt();
+    renderAlertas();
+}
+
+function renderAtencao() {
+    const el = document.getElementById('pmo-atencao-list');
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const em14 = new Date(hoje); em14.setDate(em14.getDate() + 14);
+
+    const items = [];
+    todosProjetos.forEach(p => {
+        if (p.status_gestao === 'EM FREEZING') return;
+        if (p.data_termino) {
+            const t = new Date(p.data_termino);
+            if (t < hoje) {
+                const diasAtraso = Math.round((hoje - t) / (1000*60*60*24));
+                items.push({ tipo: 'erro', p, diasAtraso });
+            } else if (t <= em14) {
+                const diasRestam = Math.round((t - hoje) / (1000*60*60*24));
+                items.push({ tipo: 'warn', p, diasRestam });
+            }
+        }
+    });
+
+    document.getElementById('pmo-atencao-count').textContent = items.length || '';
+
+    if (!items.length) {
+        el.innerHTML = `<div class="flex flex-col items-center py-6 gap-2">
+            <i class="ph ph-check-circle text-2xl text-emerald-400"></i>
+            <p class="text-xs text-emerald-600 font-semibold">Nenhum projeto em atraso</p>
+        </div>`;
+        return;
+    }
+
+    el.innerHTML = items.map(item => {
+        const p = item.p;
+        const resp = p.responsavel || p.responsavel_texto || '—';
+        if (item.tipo === 'erro') {
+            return `<div class="px-4 py-3 hover:bg-faiston-pink/5 transition-colors" style="border-left:3px solid #EC4899">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold text-faiston-pink uppercase tracking-wide">⚠ Atrasado ${item.diasAtraso}d</p>
+                        <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(p.nome)}</p>
+                        <p class="text-[11px] text-faiston-muted">${escHtml(p.cliente)} · ${escHtml(resp)}</p>
+                    </div>
+                    ${canWrite ? `<button onclick="setTab('projetos');setTimeout(()=>abrirModalProj(${p.id}),150)" class="flex-shrink-0 text-[10px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors mt-1">Editar</button>` : ''}
+                </div>
+            </div>`;
+        } else {
+            return `<div class="px-4 py-3 hover:bg-amber-50/60 transition-colors" style="border-left:3px solid #f59e0b">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold text-amber-600 uppercase tracking-wide">⏰ Vence em ${item.diasRestam}d</p>
+                        <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(p.nome)}</p>
+                        <p class="text-[11px] text-faiston-muted">${escHtml(p.cliente)} · ${escHtml(resp)}</p>
+                    </div>
+                    ${canWrite ? `<button onclick="setTab('projetos');setTimeout(()=>abrirModalProj(${p.id}),150)" class="flex-shrink-0 text-[10px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors mt-1">Editar</button>` : ''}
+                </div>
+            </div>`;
+        }
+    }).join('');
+}
+
+function renderDonut() {
+    const counts = {
+        'EM ANDAMENTO': 0, 'FINALIZAÇÃO': 0, 'EM FREEZING': 0
+    };
+    todosProjetos.forEach(p => { if (counts[p.status_gestao] !== undefined) counts[p.status_gestao]++; });
+    const labels = Object.keys(counts);
+    const series = labels.map(l => counts[l]);
+    const colors = ['#06D7E6','#f59e0b','#94a3b8'];
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+    if (_donutChart) { _donutChart.destroy(); _donutChart = null; }
+    _donutChart = new ApexCharts(document.getElementById('chart-donut'), {
+        chart: { type: 'donut', height: 210, background: 'transparent', animations: { enabled: true, speed: 400 } },
+        series,
+        labels,
+        colors,
+        legend: { position: 'bottom', fontSize: '11px', labels: { colors: isDark ? '#94a3b8' : '#5E647A' } },
+        dataLabels: { enabled: false },
+        plotOptions: { pie: { donut: { size: '60%', labels: {
+            show: true,
+            total: { show: true, label: 'Total', fontSize: '12px', fontWeight: 700,
+                color: isDark ? '#e2e8f0' : '#0B0D1F',
+                formatter: w => w.globals.seriesTotals.reduce((a,b) => a+b, 0)
+            }
+        }}}},
+        theme: { mode: isDark ? 'dark' : 'light' },
+        tooltip: { style: { fontSize: '12px' } },
+    });
+    _donutChart.render();
+}
+
+function renderWorkload() {
+    const el = document.getElementById('pmo-workload');
+    const ativos = todosProjetos.filter(p => p.status_gestao === 'EM ANDAMENTO' || p.status_gestao === 'FINALIZAÇÃO');
+    const mapa = {};
+    ativos.forEach(p => {
+        const nome = p.responsavel || p.responsavel_texto || '— Sem responsável —';
+        if (!mapa[nome]) mapa[nome] = { total: 0, andamento: 0, finalizacao: 0 };
+        mapa[nome].total++;
+        if (p.status_gestao === 'EM ANDAMENTO') mapa[nome].andamento++;
+        else mapa[nome].finalizacao++;
+    });
+    const sorted = Object.entries(mapa).sort((a,b) => b[1].total - a[1].total);
+    const max = sorted[0]?.[1].total || 1;
+    if (!sorted.length) {
+        el.innerHTML = '<p class="text-sm text-slate-300 text-center py-4">Nenhum projeto ativo</p>';
+        return;
+    }
+    el.innerHTML = sorted.map(([nome, d]) => {
+        const pct = Math.round(d.total / max * 100);
+        const isSemResp = nome === '— Sem responsável —';
+        return `<div class="workload-row flex items-center gap-3 py-1.5 border-b border-faiston-border last:border-0">
+            <div class="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-bold text-white ${isSemResp ? 'bg-slate-300' : 'grad-bg'}">
+                ${isSemResp ? '?' : nome.charAt(0).toUpperCase()}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-slate-700 truncate">${escHtml(nome)}</span>
+                    <span class="text-xs text-faiston-muted ml-2 flex-shrink-0">${d.total} projeto${d.total !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full grad-bg" style="width:${pct}%"></div>
+                </div>
+                <div class="flex gap-3 mt-1">
+                    ${d.andamento ? `<span class="text-[10px] text-faiston-cyan font-medium">${d.andamento} em andamento</span>` : ''}
+                    ${d.finalizacao ? `<span class="text-[10px] text-amber-500 font-medium">${d.finalizacao} finalização</span>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderGantt() {
+    const el = document.getElementById('pmo-gantt');
+    const comDatas = todosProjetos.filter(p => p.data_inicio && p.data_termino);
+    if (!comDatas.length) {
+        el.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Nenhum projeto com datas de início e término definidas</p>';
+        document.getElementById('gantt-periodo').textContent = '';
+        return;
+    }
+
+    // Calcular intervalo global
+    const allDates = comDatas.flatMap(p => [new Date(p.data_inicio), new Date(p.data_termino)]);
+    let minD = new Date(Math.min(...allDates));
+    let maxD = new Date(Math.max(...allDates));
+    // Margem de 5% em cada lado
+    const span = maxD - minD || 1;
+    minD = new Date(minD.getTime() - span * 0.05);
+    maxD = new Date(maxD.getTime() + span * 0.05);
+    const totalMs = maxD - minD;
+
+    document.getElementById('gantt-periodo').textContent =
+        `${minD.toLocaleDateString('pt-BR',{month:'short',year:'numeric'})} → ${maxD.toLocaleDateString('pt-BR',{month:'short',year:'numeric'})}`;
+
+    const STATUS_COLOR = {
+        'EM ANDAMENTO': '#06D7E6',
+        'FINALIZAÇÃO':  '#f59e0b',
+        'EM FREEZING':  '#94a3b8',
+    };
+
+    const today = new Date();
+    const todayPct = Math.max(0, Math.min(100, (today - minD) / totalMs * 100));
+
+    // Ordenar por data_inicio
+    const sorted = [...comDatas].sort((a,b) => new Date(a.data_inicio) - new Date(b.data_inicio));
+
+    el.innerHTML = `<div style="min-width:600px">
+        <!-- Linha do hoje -->
+        <div class="relative" style="height:0">
+            <div class="absolute top-0 bottom-0 w-px bg-faiston-pink/60 z-10 pointer-events-none" style="left:calc(${todayPct}% + 140px);height:${sorted.length * 40 + 20}px"></div>
+        </div>
+        ${sorted.map((p,i) => {
+            const start = new Date(p.data_inicio);
+            const end = new Date(p.data_termino);
+            const left = Math.max(0, (start - minD) / totalMs * 100);
+            const width = Math.max(0.5, (end - start) / totalMs * 100);
+            const color = STATUS_COLOR[p.status_gestao] || '#94a3b8';
+            const overdue = end < today && p.status_gestao !== 'EM FREEZING';
+            return `<div class="flex items-center gap-0" style="height:40px">
+                <div class="flex-shrink-0 w-36 pr-3 flex flex-col justify-center" style="max-width:144px">
+                    <span class="gantt-label text-[10px] font-semibold text-slate-500 truncate">${escHtml(p.cliente)}</span>
+                    <span class="gantt-label text-[11px] font-medium text-slate-700 truncate">${escHtml(p.nome)}</span>
+                </div>
+                <div class="flex-1 relative gantt-track bg-slate-50 rounded" style="height:22px">
+                    <div class="gantt-bar absolute top-1 h-5 rounded flex items-center px-2 overflow-hidden"
+                         style="left:${left}%;width:${width}%;background:${color};opacity:${overdue?0.5:0.85};min-width:4px"
+                         title="${escHtml(p.nome)}: ${fmtDate(p.data_inicio)} → ${fmtDate(p.data_termino)}">
+                        ${width > 8 ? `<span class="text-[9px] font-bold text-white truncate">${escHtml(p.nome)}</span>` : ''}
+                    </div>
+                    ${overdue ? `<div class="absolute right-1 top-1 h-5 flex items-center">
+                        <i class="ph ph-warning text-faiston-pink text-[10px]"></i>
+                    </div>` : ''}
+                </div>
+            </div>`;
+        }).join('')}
+    </div>`;
+}
+
+function renderAlertas() {
+    const el = document.getElementById('pmo-alertas');
+    const today = new Date(); today.setHours(0,0,0,0);
+    const em30 = new Date(today); em30.setDate(em30.getDate() + 30);
+
+    const alertas = [];
+    todosProjetos.forEach(p => {
+        if (p.status_gestao === 'EM FREEZING') return;
+        // Prazo vencido
+        if (p.data_termino) {
+            const term = new Date(p.data_termino);
+            if (term < today) {
+                alertas.push({ tipo: 'erro', icon: 'warning', label: 'Prazo Vencido',
+                    msg: `${p.cliente} · ${p.nome}`,
+                    detalhe: `Término previsto: ${fmtDate(p.data_termino)} · Status: ${p.status_gestao}`,
+                    pid: p.id });
+                return;
+            }
+            // Prazo em 30 dias
+            if (term <= em30) {
+                alertas.push({ tipo: 'warn', icon: 'clock-countdown', label: 'Término Próximo',
+                    msg: `${p.cliente} · ${p.nome}`,
+                    detalhe: `Término em: ${fmtDate(p.data_termino)} · Status: ${p.status_gestao}`,
+                    pid: p.id });
+            }
+        }
+        // Sem responsável
+        if (!p.responsavel && !p.responsavel_texto) {
+            alertas.push({ tipo: 'warn', icon: 'user-minus', label: 'Sem Responsável',
+                msg: `${p.cliente} · ${p.nome}`,
+                detalhe: `Status: ${p.status_gestao}`,
+                pid: p.id });
+        }
+        // Sem datas
+        if (!p.data_inicio || !p.data_termino) {
+            alertas.push({ tipo: 'info', icon: 'calendar-blank', label: 'Sem Datas',
+                msg: `${p.cliente} · ${p.nome}`,
+                detalhe: `Início: ${p.data_inicio ? fmtDate(p.data_inicio) : '—'} · Término: ${p.data_termino ? fmtDate(p.data_termino) : '—'}`,
+                pid: p.id });
+        }
+    });
+
+    document.getElementById('pmo-alerta-count').textContent =
+        alertas.length ? `${alertas.length} alerta${alertas.length !== 1 ? 's' : ''}` : 'Nenhum alerta';
+
+    if (!alertas.length) {
+        el.innerHTML = `<div class="flex flex-col items-center py-8 gap-2">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <i class="ph ph-check-circle text-emerald-500 text-xl"></i>
+            </div>
+            <p class="text-sm text-emerald-600 font-semibold">Portfolio sem alertas</p>
+            <p class="text-xs text-slate-400">Todos os projetos ativos têm datas e responsáveis definidos</p>
+        </div>`;
+        return;
+    }
+
+    const colorMap = {
+        'erro': { bg: 'bg-faiston-pink/5', border: 'alerta-row', icon: 'text-faiston-pink', label: 'text-faiston-pink' },
+        'warn': { bg: 'bg-amber-50/60', border: 'alerta-row-warn', icon: 'text-amber-500', label: 'text-amber-600' },
+        'info': { bg: 'bg-slate-50', border: '', icon: 'text-slate-400', label: 'text-slate-500' },
+    };
+    el.innerHTML = alertas.map(a => {
+        const c = colorMap[a.tipo];
+        const editBtn = canWrite
+            ? `<button onclick="setTab('projetos');setTimeout(()=>abrirModalProj(${a.pid}),100)" class="flex-shrink-0 text-[11px] text-faiston-purple hover:text-faiston-magenta font-semibold transition-colors">Editar</button>`
+            : '';
+        return `<div class="px-5 py-3 flex items-center gap-3 ${c.bg} ${c.border}">
+            <i class="ph ph-${a.icon} text-base flex-shrink-0 ${c.icon}"></i>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-0.5">
+                    <span class="text-[10px] font-bold uppercase tracking-wide ${c.label}">${a.label}</span>
+                </div>
+                <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(a.msg)}</p>
+                <p class="text-xs text-faiston-muted">${a.detalhe}</p>
+            </div>
+            ${editBtn}
+        </div>`;
+    }).join('');
+}
+
+// ── Importar dados de referência (admin only) ──────────────
+const SEED_PROJETOS = [
+  {codigo:"F260160",cliente_nome:"ACER",nome:"ACER – 5 Lojas",responsavel_texto:"GIULIA",status_gestao:"EM ANDAMENTO",data_inicio:"2026-02-01",data_termino:"2026-06-25",escopo:"Troca ou instalação de equipamentos PDV"},
+  {codigo:"F260304",cliente_nome:"ACER",nome:"ACER – Mogi das Cruzes Rollout PDV",responsavel_texto:"MARIANA",status_gestao:"FINALIZAÇÃO",data_inicio:"2026-01-01",data_termino:"2026-04-03",escopo:"Troca ou instalação de equipamentos PDV"},
+  {codigo:"F260303",cliente_nome:"ACER",nome:"ACER – Implantação Blumenau SC",responsavel_texto:"MARIANA",status_gestao:"FINALIZAÇÃO",data_inicio:"2026-01-01",data_termino:"2026-04-03",escopo:"Troca ou instalação de equipamentos PDV"},
+  {codigo:"F250787",cliente_nome:"ACER",nome:"ACER – Rollout 3 Lojas Havan",responsavel_texto:"MARIANA",status_gestao:"FINALIZAÇÃO",data_inicio:"2025-10-01",data_termino:"2026-02-01",escopo:"Troca de equipamentos PDV"},
+  {codigo:"F260275",cliente_nome:"BIONOVIS",nome:"BIONOVIS – Cabeamento de Rede",responsavel_texto:"JEFFERSON",status_gestao:"EM ANDAMENTO",data_inicio:"2026-02-01",data_termino:"2026-06-02",escopo:"Passagem de cabeamento"},
+  {codigo:"F260234",cliente_nome:"ELGIN",nome:"ELGIN – Bodyshop Infra N1 e N2",responsavel_texto:"GIULIA",status_gestao:"EM ANDAMENTO",data_inicio:"2026-02-01",data_termino:"2026-07-23",escopo:"Alocação de profissional"},
+  {codigo:"F250733",cliente_nome:"FLEURY",nome:"FLEURY – Reorganização Racks Equinix",responsavel_texto:"JEFFERSON",status_gestao:"EM ANDAMENTO",data_inicio:"2025-10-01",data_termino:"2026-07-26",escopo:"Reorganização de racks"},
+  {codigo:"F260068",cliente_nome:"FLEURY",nome:"FLEURY – Fornecimento Cabos Ópticos",responsavel_texto:"JEFFERSON",status_gestao:"EM ANDAMENTO",data_inicio:"2025-12-01",data_termino:"2026-06-03",escopo:"Fornecimento de cabos"},
+  {codigo:"F260205",cliente_nome:"FLEURY",nome:"FLEURY – Site Survey Sede Campo Belo",responsavel_texto:"MARIANA",status_gestao:"FINALIZAÇÃO",data_inicio:"2026-01-01",data_termino:"2026-04-03",escopo:"Site survey Wi-Fi"},
+  {codigo:"F260224",cliente_nome:"FLEURY",nome:"FLEURY – Atendimento Avulso NTO",responsavel_texto:"MARIANA",status_gestao:"FINALIZAÇÃO",data_inicio:"2026-01-01",data_termino:"2026-04-03",escopo:"Instalação patch panel"},
+  {codigo:"F250237",cliente_nome:"ITALTEL",nome:"ITALTEL – Instalação de Equipamentos",responsavel_texto:"JEFFERSON",status_gestao:"EM ANDAMENTO",data_inicio:"2026-02-01",data_termino:"2026-06-02",escopo:"Instalação de switches"},
+  {codigo:"F260137",cliente_nome:"ITAÚ",nome:"ITAÚ – LPU Logística HDs SSDs NVME",responsavel_texto:"CAMILA",status_gestao:"EM ANDAMENTO",data_inicio:"2025-12-01",data_termino:"2026-12-26",escopo:"Logística de materiais"},
+  {codigo:"F260122",cliente_nome:"ITAÚ",nome:"ITAÚ – Renovação Encerramento Agências 2026",responsavel_texto:"CAMILA",status_gestao:"EM ANDAMENTO",data_inicio:"2026-02-01",data_termino:"2026-12-26",escopo:"Desativação de agências"},
+  {codigo:"F250707",cliente_nome:"MAPFRE",nome:"MAPFRE – Rollout 530 Máquinas",responsavel_texto:"JOBETH",status_gestao:"EM ANDAMENTO",data_inicio:"2025-10-01",data_termino:"2026-06-23",escopo:"Troca de máquinas"},
+  {codigo:"F250343",cliente_nome:"MARISTA",nome:"MARISTA – Assessment Azure AKS",responsavel_texto:"SHIRLEY",status_gestao:"EM ANDAMENTO",data_inicio:"2025-11-01",data_termino:"2026-09-26",escopo:"Assessment de arquitetura"},
+  {codigo:"F250785",cliente_nome:"METSO",nome:"METSO – Realocação de Rack",responsavel_texto:"JEFFERSON",status_gestao:"EM ANDAMENTO",data_inicio:"2026-02-01",data_termino:"2026-06-02",escopo:"Remanejamento de rack"},
+  {codigo:"F260244",cliente_nome:"NBPO",nome:"NBPO – Field Service Diárias",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2026-02-01",data_termino:"2026-06-02",escopo:"Diárias de técnicos"},
+  {codigo:"F250453",cliente_nome:"NTT",nome:"NTT – Instalação Polycom Bradesco",responsavel_texto:"JEFFERSON",status_gestao:"EM ANDAMENTO",data_inicio:"2025-08-01",data_termino:"2027-01-26",escopo:"Instalação de videoconferência"},
+  {codigo:"F240242",cliente_nome:"NTT",nome:"NTT – Desinstalação Bradesco (TRAG)",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2024-05-01",data_termino:"2027-05-28",escopo:"Instalação/desinstalação de equipamentos"},
+  {codigo:"F240077",cliente_nome:"NTT",nome:"NTT – Instalação Blades Fase 02",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2024-04-01",data_termino:"2027-01-26",escopo:"Instalação de chassis e servidores"},
+  {codigo:"F221082",cliente_nome:"NTT",nome:"NTT – 9000 Switches Bradesco",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2022-11-01",data_termino:"2027-01-26",escopo:"Instalação de switches e APs"},
+  {codigo:"F240852",cliente_nome:"NTT",nome:"NTT – Instalação Blades Fase 03",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2025-03-01",data_termino:"2027-01-26",escopo:"Instalação de servidores"},
+  {codigo:"F260022",cliente_nome:"NTT",nome:"NTT – Switches Bradesco Alphabuilding",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2025-12-01",data_termino:"2027-04-28",escopo:"Instalação de switches"},
+  {codigo:"F250135",cliente_nome:"NTT",nome:"NTT – Instalação Polycom MGI",responsavel_texto:"JEFFERSON",status_gestao:"EM ANDAMENTO",data_inicio:"2025-05-01",data_termino:"2027-01-26",escopo:"Videoconferência em Brasília"},
+  {codigo:"F260073",cliente_nome:"NTT",nome:"NTT – QuintoAndar Cabeamento Estruturado",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2025-12-01",data_termino:"2026-06-23",escopo:"Cabeamento estruturado"},
+  {codigo:"F250727",cliente_nome:"NTT",nome:"NTT – 614 APs + Bolsão 500h Bradesco",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2025-10-01",data_termino:"2027-04-28",escopo:"Instalação de APs"},
+  {codigo:"F260235",cliente_nome:"NTT",nome:"NTT – Coleta Descarte Sustentável Swiss Re",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2026-02-01",data_termino:"2026-06-02",escopo:"Descarte sustentável"},
+  {codigo:"F250854",cliente_nome:"NTT",nome:"NTT – Equipamento Vertiv BSEG",responsavel_texto:"MARIANA",status_gestao:"EM FREEZING",data_inicio:"2025-11-01",data_termino:"2027-01-26",escopo:"Instalação de equipamento"},
+  {codigo:"F250714",cliente_nome:"NTT",nome:"NTT – Alocação Tec. Segurança do Trabalho",responsavel_texto:"GIULIA",status_gestao:"FINALIZAÇÃO",data_inicio:"2025-11-01",data_termino:"2026-04-03",escopo:"Alocação de profissional"},
+  {codigo:"F250335",cliente_nome:"NTT",nome:"NTT – Instalação e Desinstalação RJ",responsavel_texto:"GIULIA",status_gestao:"FINALIZAÇÃO",data_inicio:"2025-09-01",data_termino:"2026-04-03",escopo:"Troca de equipamentos"},
+  {codigo:"F250333",cliente_nome:"NTT",nome:"NTT – Instalação e Desinstalação SP",responsavel_texto:"GIULIA",status_gestao:"FINALIZAÇÃO",data_inicio:"2025-09-01",data_termino:"2026-04-03",escopo:"Troca de equipamentos"},
+  {codigo:"F260142",cliente_nome:"PANCO",nome:"PANCO – Instalação Ponto de Rede",responsavel_texto:"MARIANA",status_gestao:"EM FREEZING",data_inicio:"2025-12-01",data_termino:"2027-01-26",escopo:"Passagem de cabeamento"},
+  {codigo:"F260138",cliente_nome:"QUERO-QUERO",nome:"QUERO-QUERO – Pentest Gray Box",responsavel_texto:"JEFFERSON",status_gestao:"EM ANDAMENTO",data_inicio:"2026-01-01",data_termino:"2026-06-20",escopo:"Pentest de segurança"},
+  {codigo:"F260232",cliente_nome:"RI HAPPY",nome:"RI HAPPY – Cabeamento",responsavel_texto:"GIULIA",status_gestao:"EM ANDAMENTO",data_inicio:"2026-01-01",data_termino:"2026-04-03",escopo:"Passagem de cabeamento"},
+  {codigo:"F250410",cliente_nome:"SIMPAR",nome:"SIMPAR – Assessment Rede Corporativa Cloud",responsavel_texto:"SHIRLEY",status_gestao:"EM FREEZING",data_inicio:"2025-07-01",data_termino:"2026-06-23",escopo:"Assessment de rede"},
+  {codigo:"F250570",cliente_nome:"TELETEX",nome:"TELETEX – Instalação LPU Meraki Havan",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2025-08-01",data_termino:"2026-04-03",escopo:"Instalação de rede"},
+  {codigo:"F250868",cliente_nome:"TELETEX",nome:"TELETEX – Instalação Marista Cesar Busatto",responsavel_texto:"MARIANA",status_gestao:"EM FREEZING",data_inicio:"2025-11-01",data_termino:"2026-04-03",escopo:"Cabeamento estruturado"},
+  {codigo:"F260253",cliente_nome:"TELTEC",nome:"TELTEC – Field Service 2 Meses",responsavel_texto:"GIULIA",status_gestao:"EM ANDAMENTO",data_inicio:"2026-01-01",data_termino:"2026-06-23",escopo:"Alocação de profissional"},
+  {codigo:"F231541",cliente_nome:"VIVO VITA",nome:"VITA – Implantação Meraki Arcos Dourados",responsavel_texto:"CRYS",status_gestao:"EM ANDAMENTO",data_inicio:"2023-09-01",data_termino:"2027-01-26",escopo:"Troca de equipamentos e rollout"},
+  {codigo:"F240645",cliente_nome:"VIVO VITA",nome:"VIVO VITA – Continuidade Arcos Box 5G",responsavel_texto:"CRYS",status_gestao:"EM ANDAMENTO",data_inicio:"2024-06-01",data_termino:"2027-01-26",escopo:"Instalação modem 5G"},
+  {codigo:"F260117",cliente_nome:"VIVO VITA",nome:"VIVO VITA – Field Service Alpargatas",responsavel_texto:"GIULIA",status_gestao:"EM FREEZING",data_inicio:"2025-12-01",data_termino:"2026-06-23",escopo:"Staging e instalação de rede"},
+  {codigo:"F260077",cliente_nome:"ZAMP",nome:"ZAMP – BK É Fogo",responsavel_texto:"MARIANA",status_gestao:"EM ANDAMENTO",data_inicio:"2025-12-01",data_termino:"2027-01-26",escopo:"Retrofit lojas Burger King"},
+  {codigo:"F250881",cliente_nome:"ZAMP",nome:"ZAMP – Rollout Servidores e Racks BK",responsavel_texto:"GIULIA",status_gestao:"EM ANDAMENTO",data_inicio:"2025-12-01",data_termino:"2026-06-23",escopo:"Troca de servidores"},
+];
+
+const SEED_CONTRATOS = [
+  {codigo:"F260097",cliente_nome:"C&A",nome:"C&A – Renovação Break Fix 12 Meses",sdm:"Eunice Lira",responsavel_texto:"GIULIA",status:"EM IMPLANTAÇÃO",data_inicio:"2025-11-01",data_termino:"2026-09-17"},
+  {codigo:"F250759",cliente_nome:"FLEURY",nome:"FLEURY – HaaS Meraki",sdm:"Eunice Lira",responsavel_texto:"JEFFERSON",status:"EM IMPLANTAÇÃO",data_inicio:"2026-03-26",data_termino:"2030-12-01"},
+  {codigo:"F250882",cliente_nome:"NTT",nome:"NTT – Sustentação Metrô SP",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM IMPLANTAÇÃO",data_inicio:"2026-04-03",data_termino:"2031-01-01"},
+  {codigo:"F250854",cliente_nome:"NTT",nome:"NTT – Sustentação Vertiv BSEG",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM IMPLANTAÇÃO",data_inicio:"2025-12-15",data_termino:"2031-11-01"},
+  {codigo:"F250553",cliente_nome:"NTT",nome:"NTT – Field 4 Chamados Mensais TBRA",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM IMPLANTAÇÃO",data_inicio:"2025-05-01",data_termino:"2027-05-08"},
+  {codigo:"F240006",cliente_nome:"NTT",nome:"NTT – B&F 21 Meses TRF-3 SP",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM FREEZING",data_inicio:"2026-10-17",data_termino:"2028-08-01"},
+  {codigo:"F250864",cliente_nome:"NTT",nome:"NTT – B&F 12 Meses Rabobank",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM IMPLANTAÇÃO",data_inicio:"2025-12-26",data_termino:"2026-11-15"},
+  {codigo:"F250472",cliente_nome:"NTT",nome:"NTT – B&F Hydro Barcarena",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM IMPLANTAÇÃO",data_inicio:"2025-12-27",data_termino:"2026-07-26"},
+  {codigo:"F260054",cliente_nome:"NTT",nome:"NTT – B&F Hydro Paragominas",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM IMPLANTAÇÃO",data_inicio:"2025-12-27",data_termino:"2026-07-26"},
+  {codigo:"F240358",cliente_nome:"NTT",nome:"NTT – Break Fix Gigamon Telefônica",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM IMPLANTAÇÃO",data_inicio:"2026-01-17",data_termino:"2028-02-14"},
+  {codigo:"F240244",cliente_nome:"NTT",nome:"NTT – Suporte Manutenção Storages",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM FREEZING",data_inicio:"2026-07-26",data_termino:"2026-12-13"},
+  {codigo:"F260023",cliente_nome:"NTT",nome:"NTT – Sustentação Switches Bradesco AlphaBuilding",sdm:"Mayara Ribeiro",responsavel_texto:"MARIANA",status:"EM IMPLANTAÇÃO",data_inicio:"2026-01-13",data_termino:"2029-12-03"},
+  {codigo:"C250077",cliente_nome:"MATRIZ TRANSPORTES",nome:"STARLINK – Matriz Transportes Hotspot",sdm:"Eunice Lira",responsavel_texto:"MARIANA",status:"DEBOOKING",data_inicio:"2025-12-09",data_termino:"2029-11-15"},
+  {codigo:"C260007",cliente_nome:"NAVEGAÇÃO GUARITA",nome:"STARLINK – Navegação Guarita HaaS Mini",sdm:"Eunice Lira",responsavel_texto:"GIULIA",status:"EM IMPLANTAÇÃO",data_inicio:"2026-04-23",data_termino:"2028-10-22"},
+  {codigo:"C250171",cliente_nome:"TPR",nome:"STARLINK – TPR Conectividade via Satélite",sdm:"Eunice Lira",responsavel_texto:"GIULIA",status:"EM IMPLANTAÇÃO",data_inicio:"2025-05-01",data_termino:"2026-04-02"},
+];
+
+async function importarDadosReferencia() {
+    if (!confirm(`Importar ${SEED_PROJETOS.length} projetos e ${SEED_CONTRATOS.length} contratos?\n\nProjetos com o mesmo código serão ignorados.`)) return;
+    try {
+        const r = await fetch('/api/gestao/importar', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ projetos: SEED_PROJETOS, contratos: SEED_CONTRATOS })
+        });
+        const d = await r.json();
+        if (!r.ok) { alert(d.detail || 'Erro ao importar'); return; }
+        alert(`✓ Importação concluída!\n\nProjetos criados: ${d.projetos_criados}\nProjetos ignorados (já existiam): ${d.projetos_ignorados}\nContratos criados: ${d.contratos_criados}`);
+        await carregar();
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+// ── Init ────────────────────────────────────────────────────
+async function init() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
+        if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
+        meuPerfil = me.perfil;
+        const nome = me.nome || me.usuario || 'Usuário';
+        document.getElementById('sidebar-avatar').textContent = nome.charAt(0).toUpperCase();
+        document.getElementById('sidebar-nome').textContent = nome;
+        const perfilLabel = { admin: 'Administrador', gestor: 'Gestor', diretor: 'Diretor' };
+        document.getElementById('sidebar-perfil').textContent = perfilLabel[me.perfil] || me.perfil;
+        if (me.perfil === 'admin') {
+            document.getElementById('link-admin').classList.remove('hidden');
+            document.getElementById('btn-importar').classList.remove('hidden');
+        }
+        canWrite = me.perfil === 'admin' || me.perfil === 'gestor';
+        if (canWrite) document.getElementById('btn-novo-cliente').classList.remove('hidden');
+
+        // PMO: visível apenas para diretor e admin
+        const navPMO = document.getElementById('nav-pmo');
+        if (me.perfil === 'diretor' || me.perfil === 'admin') {
+            navPMO.classList.remove('hidden');
+        } else {
+            navPMO.classList.add('hidden');
+        }
+    } catch(e) { window.location.href = '/'; return; }
+    await carregar();
+    // Tab inicial: query param ?tab= > diretor → pmo > default clientes
+    const urlTab = new URLSearchParams(window.location.search).get('tab');
+    const validTabs = ['clientes','projetos','contratos','carimbos','pmo'];
+    if (urlTab && validTabs.includes(urlTab) && (urlTab !== 'pmo' || meuPerfil === 'diretor' || meuPerfil === 'admin')) {
+        setTab(urlTab);
+    } else {
+        setTab(meuPerfil === 'diretor' ? 'pmo' : 'clientes');
+    }
+}
+
+init();
+</script>
+</body>
+</html>

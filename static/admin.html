@@ -285,6 +285,7 @@
                     <select id="u-perfil" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
                         <option value="funcionario">Funcionário</option>
                         <option value="gestor">Gestor</option>
+                        <option value="diretor">Diretor</option>
                         <option value="demo">Demo</option>
                         <option value="admin">Admin</option>
                     </select>
@@ -321,6 +322,7 @@
 const perfilConfig = {
     admin: { label: 'Admin', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
     gestor: { label: 'Gestor', cls: 'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20' },
+    diretor: { label: 'Diretor', cls: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
 };
 const statusCfg = {
@@ -791,5 +793,6 @@ async function corrigirTimeCarimbo(id, time_usuario) {
 
 init();
 </script>
+<script src="/static/js/faiston-erros.js"></script>
 </body>
 </html>

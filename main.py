@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import psycopg2
@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date, timedelta, datetime
 from calendar import monthrange
-import os, hashlib, secrets, csv, io
+import os, hashlib, secrets, csv, io, logging, traceback, uuid
 import contextvars
 from dotenv import load_dotenv
 from pathlib import Path
@@ -22,7 +22,55 @@ except ImportError:
 
 load_dotenv()
 
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler("errors.log", encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
+logger = logging.getLogger("faiston")
+
 app = FastAPI(title="Faiston Ops - API", version="1.0")
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code >= 500:
+        error_id = uuid.uuid4().hex[:8].upper()
+        # Tenta recuperar o traceback original (preservado em __context__ pelo `raise HTTPException` dentro de `except`)
+        original = getattr(exc, "__context__", None)
+        tb = (
+            "".join(traceback.format_exception(type(original), original, original.__traceback__))
+            if original
+            else "sem traceback"
+        )
+        logger.error(
+            f"[{error_id}] {request.method} {request.url.path}\n"
+            f"Detalhe: {exc.detail}\n"
+            f"{tb}"
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": f"{exc.detail}", "error_id": error_id},
+        )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    error_id = uuid.uuid4().hex[:8].upper()
+    logger.error(
+        f"[{error_id}] Exceção não tratada: {request.method} {request.url.path}\n"
+        f"{traceback.format_exc()}"
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Erro interno inesperado.", "error_id": error_id},
+    )
 
 # Rastreia as conexões de banco abertas durante cada request para garantir que
 # sejam fechadas ao final — mesmo nos caminhos de erro que dão `raise` sem
@@ -60,7 +108,7 @@ def get_db():
             lst.append(conn)
         return conn
     except Exception as e:
-        print(f"Erro BD: {e}")
+        logger.error(f"Falha ao conectar ao banco: {e}\n{traceback.format_exc()}")
         return None
 
 def hash_senha(senha):
@@ -147,6 +195,13 @@ def setup_banco():
             )
         """)
         cur.execute("ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tarefa_colaboradores (
+                tarefa_id INTEGER REFERENCES tarefas(id) ON DELETE CASCADE,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                PRIMARY KEY (tarefa_id, usuario_id)
+            )
+        """)
         cur.execute("SELECT id FROM usuarios WHERE usuario = 'admin'")
         if not cur.fetchone():
             cur.execute(
@@ -172,12 +227,56 @@ def setup_banco():
                 expira_em TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
             )
         """)
+        # ── Clientes e Projetos (criados aqui para gestão funcionar sem acessar financeiro) ──
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS clientes (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(100) UNIQUE NOT NULL,
+                contato VARCHAR(100),
+                email VARCHAR(100),
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS telefone VARCHAR(50) DEFAULT ''")
+        cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cnpj VARCHAR(30) DEFAULT ''")
+        cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS observacoes TEXT DEFAULT ''")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS projetos (
+                id SERIAL PRIMARY KEY,
+                cliente_id INTEGER NOT NULL REFERENCES clientes(id),
+                nome VARCHAR(100) NOT NULL,
+                descricao TEXT DEFAULT '',
+                orcamento NUMERIC(14,2) DEFAULT 0,
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_url TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_mapeamento JSONB")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_sync_em TIMESTAMP")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_replace BOOLEAN DEFAULT FALSE")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS lancamentos (
+                id SERIAL PRIMARY KEY,
+                projeto_id INTEGER NOT NULL REFERENCES projetos(id),
+                descricao VARCHAR(200) NOT NULL,
+                categoria VARCHAR(50) DEFAULT 'Outros',
+                valor NUMERIC(14,2) NOT NULL,
+                data_lancamento DATE DEFAULT CURRENT_DATE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS localidade VARCHAR(150) DEFAULT ''")
+        cur.execute("ALTER TABLE lancamentos ADD COLUMN IF NOT EXISTS tecnico VARCHAR(150) DEFAULT ''")
         # ── Gestão de Projetos ──────────────────────────────────────────────
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS responsavel_id INTEGER REFERENCES usuarios(id) DEFAULT NULL")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS status_gestao VARCHAR(30) DEFAULT 'EM ANDAMENTO'")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS data_inicio DATE DEFAULT NULL")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS data_termino DATE DEFAULT NULL")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS escopo TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS codigo VARCHAR(20) DEFAULT ''")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS responsavel_texto VARCHAR(100) DEFAULT ''")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS contratos_gestao (
                 id SERIAL PRIMARY KEY,
@@ -241,6 +340,7 @@ class TarefaModel(BaseModel):
     projeto_id: Optional[int] = None
     data_prazo: Optional[str] = None
     data_agendamento: Optional[str] = None
+    colaboradores: Optional[List[int]] = None
 
 class AtualizarSegundos(BaseModel):
     segundos: int
@@ -258,6 +358,32 @@ class GestaoProjetoUpdate(BaseModel):
     data_inicio: Optional[str] = None
     data_termino: Optional[str] = None
     escopo: str = ""
+    codigo: str = ""
+    responsavel_texto: str = ""
+
+class SeedProjeto(BaseModel):
+    codigo: str = ""
+    cliente_nome: str
+    nome: str
+    responsavel_texto: str = ""
+    status_gestao: str = "EM ANDAMENTO"
+    data_inicio: Optional[str] = None
+    data_termino: Optional[str] = None
+    escopo: str = ""
+
+class SeedContrato(BaseModel):
+    codigo: str = ""
+    cliente_nome: str
+    nome: str
+    sdm: str = ""
+    responsavel_texto: str = ""
+    status: str = "EM IMPLANTAÇÃO"
+    data_inicio: Optional[str] = None
+    data_termino: Optional[str] = None
+
+class SeedData(BaseModel):
+    projetos: List[SeedProjeto] = []
+    contratos: List[SeedContrato] = []
 
 class ContratoGestao(BaseModel):
     cliente_id: int
@@ -277,7 +403,7 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
     if not destinatario:
         return False
     try:
-        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário"}
+        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário", "diretor": "Diretor"}
         btn = f"<a href='{system_url}' style='display:block;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;text-decoration:none;text-align:center;padding:14px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:12px'>Acessar o Sistema</a>"
         btn_ajuda = f"<a href='{system_url}/ajuda' style='display:block;background:white;color:#5B2EE0;text-decoration:none;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:14px;margin-bottom:24px;border:2px solid #5B2EE0'>📖 Ver Guia de Uso</a>"
         ajuda = f"<a href='{system_url}/ajuda' style='color:#5B2EE0'>Guia de Uso</a>"
@@ -454,7 +580,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
-    if u.perfil not in ("admin", "gestor", "funcionario", "demo"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor"): raise HTTPException(status_code=400, detail="Perfil inválido")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -557,9 +683,17 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
         cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_prazo DATE")
         cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_agendamento DATE")
         conn.commit()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tarefa_colaboradores (
+                tarefa_id INTEGER REFERENCES tarefas(id) ON DELETE CASCADE,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                PRIMARY KEY (tarefa_id, usuario_id)
+            )
+        """)
+        conn.commit()
         base_sel = """SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
                              t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome,
-                             t.data_prazo, t.data_agendamento
+                             t.data_prazo, t.data_agendamento, t.usuario_id
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
         if sess["perfil"] == "admin":
@@ -567,18 +701,46 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
         elif sess["perfil"] in ("gestor", "demo"):
             # Demo na visão de funcionário (funcionario.html) vê só as próprias tarefas
             if sess["perfil"] == "demo" and view == "func":
-                cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
+                cur.execute(base_sel + """ WHERE t.usuario_id = %s
+                    OR t.id IN (SELECT tarefa_id FROM tarefa_colaboradores WHERE usuario_id = %s)
+                    ORDER BY t.criado_em DESC""", (sess["id"], sess["id"]))
             else:
                 cur.execute(base_sel + " WHERE COALESCE(u.time,'Projetos')=%s ORDER BY t.criado_em DESC", (sess.get("time","Projetos"),))
         else:
-            cur.execute(base_sel + " WHERE t.usuario_id = %s ORDER BY t.criado_em DESC", (sess["id"],))
-        rows = cur.fetchall(); cur.close(); conn.close()
+            # Funcionário vê as próprias tarefas + aquelas em que é colaborador (ajudando)
+            cur.execute(base_sel + """ WHERE t.usuario_id = %s
+                OR t.id IN (SELECT tarefa_id FROM tarefa_colaboradores WHERE usuario_id = %s)
+                ORDER BY t.criado_em DESC""", (sess["id"], sess["id"]))
+        rows = cur.fetchall()
+
+        # Colaboradores por tarefa
+        ids = [r[0] for r in rows]
+        colab_map = {}
+        if ids:
+            cur.execute("""SELECT tc.tarefa_id, u.id, u.nome
+                           FROM tarefa_colaboradores tc JOIN usuarios u ON u.id = tc.usuario_id
+                           WHERE tc.tarefa_id = ANY(%s) ORDER BY u.nome""", (ids,))
+            for tid_, uid_, unome_ in cur.fetchall():
+                colab_map.setdefault(tid_, []).append({"id": uid_, "nome": unome_})
+        cur.close(); conn.close()
         return [{"id": r[0], "descricao": r[1], "cliente": r[2], "prioridade": r[3],
                  "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7],
                  "projeto_id": r[8], "projeto_nome": r[9],
                  "data_prazo": str(r[10]) if r[10] else None,
-                 "data_agendamento": str(r[11]) if r[11] else None} for r in rows]
+                 "data_agendamento": str(r[11]) if r[11] else None,
+                 "usuario_id": r[12],
+                 "sou_colaborador": (r[12] != sess["id"]) and any(c["id"] == sess["id"] for c in colab_map.get(r[0], [])),
+                 "colaboradores": colab_map.get(r[0], [])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+def _sync_colaboradores(cur, tarefa_id: int, owner_id: int, colaboradores):
+    """Substitui a lista de colaboradores de uma tarefa (ignora o próprio dono)."""
+    cur.execute("DELETE FROM tarefa_colaboradores WHERE tarefa_id = %s", (tarefa_id,))
+    ids = [int(c) for c in (colaboradores or []) if int(c) != owner_id]
+    for uid in dict.fromkeys(ids):  # remove duplicados preservando ordem
+        cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (uid,))
+        if cur.fetchone():
+            cur.execute("INSERT INTO tarefa_colaboradores (tarefa_id, usuario_id) VALUES (%s,%s) ON CONFLICT DO NOTHING", (tarefa_id, uid))
 
 @app.post("/api/tarefas")
 def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
@@ -600,6 +762,7 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
              t.data_prazo or None, t.data_agendamento or None)
         )
         new_id = cur.fetchone()[0]
+        _sync_colaboradores(cur, new_id, uid, t.colaboradores or [])
         criar_notificacao(conn, "nova_tarefa", f"🆕 {sess['nome']} criou uma tarefa: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -618,6 +781,9 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
             (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
              t.data_prazo or None, t.data_agendamento or None, tid, sess["id"])
         )
+        # Só o dono atualiza colaboradores, e apenas quando a lista é enviada explicitamente
+        if cur.rowcount and t.colaboradores is not None:
+            _sync_colaboradores(cur, tid, sess["id"], t.colaboradores)
         if t.status == "concluido":
             criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         elif t.status == "em_andamento":
@@ -2092,6 +2258,11 @@ class ProjetoModel(BaseModel):
     nome: str
     descricao: str = ""
     orcamento: float = 0.0
+    responsavel_id: Optional[int] = None
+    status_gestao: str = "EM ANDAMENTO"
+    data_inicio: Optional[str] = None
+    data_termino: Optional[str] = None
+    escopo: str = ""
 
 class LancamentoModel(BaseModel):
     descricao: str
@@ -2315,6 +2486,30 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/opcoes-tarefa")
+def opcoes_tarefa(faiston_token: str = Cookie(None)):
+    """Retorna todos os clientes ativos (todos os times) + projetos ativos para uso no modal de tarefa."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur); conn.commit()
+        cur.execute("SELECT id, nome FROM clientes WHERE ativo=TRUE ORDER BY nome")
+        clientes = [{"id": r[0], "nome": r[1]} for r in cur.fetchall()]
+        cur.execute("""
+            SELECT p.id, p.nome, c.nome
+            FROM projetos p
+            JOIN clientes c ON c.id = p.cliente_id
+            WHERE p.ativo = TRUE AND c.ativo = TRUE
+            ORDER BY c.nome, p.nome
+        """)
+        projetos = [{"id": r[0], "nome": r[1], "cliente": r[2]} for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return {"clientes": clientes, "projetos": projetos}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/todos-projetos")
 def todos_projetos(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -2444,8 +2639,13 @@ def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         _ensure_financeiro_tables(cur)
-        cur.execute("INSERT INTO projetos (cliente_id, nome, descricao, orcamento) VALUES (%s,%s,%s,%s) RETURNING id",
-                    (cid, p.nome, p.descricao, p.orcamento))
+        status = p.status_gestao if p.status_gestao in ('EM ANDAMENTO', 'FINALIZAÇÃO', 'EM FREEZING') else 'EM ANDAMENTO'
+        cur.execute("""
+            INSERT INTO projetos (cliente_id, nome, descricao, orcamento, escopo,
+                                  responsavel_id, status_gestao, data_inicio, data_termino, ativo)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE) RETURNING id
+        """, (cid, p.nome, p.descricao, p.orcamento, p.escopo or p.descricao,
+              p.responsavel_id, status, p.data_inicio or None, p.data_termino or None))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -3130,7 +3330,8 @@ def gestao_listar_projetos(faiston_token: str = Cookie(None)):
         cur.execute("""
             SELECT p.id, p.nome, p.cliente_id, c.nome AS cliente_nome,
                    p.responsavel_id, u.nome AS responsavel_nome,
-                   p.status_gestao, p.data_inicio, p.data_termino, p.escopo, p.ativo
+                   p.status_gestao, p.data_inicio, p.data_termino, p.escopo, p.ativo,
+                   COALESCE(p.codigo,''), COALESCE(p.responsavel_texto,'')
             FROM projetos p
             JOIN clientes c ON c.id = p.cliente_id
             LEFT JOIN usuarios u ON u.id = p.responsavel_id
@@ -3140,11 +3341,12 @@ def gestao_listar_projetos(faiston_token: str = Cookie(None)):
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "nome": r[1], "cliente_id": r[2], "cliente": r[3],
-                 "responsavel_id": r[4], "responsavel": r[5] or "",
+                 "responsavel_id": r[4], "responsavel": r[5] or r[12] or "",
                  "status_gestao": r[6] or "EM ANDAMENTO",
                  "data_inicio": r[7].isoformat() if r[7] else "",
                  "data_termino": r[8].isoformat() if r[8] else "",
-                 "escopo": r[9] or "", "ativo": r[10]} for r in rows]
+                 "escopo": r[9] or "", "ativo": r[10],
+                 "codigo": r[11], "responsavel_texto": r[12]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/gestao/projetos/{pid}")
@@ -3159,11 +3361,12 @@ def gestao_atualizar_projeto(pid: int, body: GestaoProjetoUpdate, faiston_token:
         cur.execute("""
             UPDATE projetos SET
                 responsavel_id = %s, status_gestao = %s,
-                data_inicio = %s, data_termino = %s, escopo = %s
+                data_inicio = %s, data_termino = %s, escopo = %s,
+                codigo = %s, responsavel_texto = %s
             WHERE id = %s
         """, (body.responsavel_id, body.status_gestao,
               body.data_inicio or None, body.data_termino or None,
-              body.escopo, pid))
+              body.escopo, body.codigo, body.responsavel_texto, pid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -3283,6 +3486,52 @@ def gestao_deletar_contrato(cid: int, faiston_token: str = Cookie(None)):
         cur.execute("DELETE FROM contratos_gestao WHERE id=%s", (cid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/gestao/importar")
+def gestao_importar(body: SeedData, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Sem permissão — apenas admin")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        criados_proj = 0; ignorados_proj = 0; criados_ct = 0
+        for p in body.projetos:
+            cur.execute("SELECT id FROM clientes WHERE UPPER(nome) = UPPER(%s) AND ativo=TRUE", (p.cliente_nome,))
+            row = cur.fetchone()
+            if row:
+                cliente_id = row[0]
+            else:
+                cur.execute("INSERT INTO clientes (nome, ativo) VALUES (%s, TRUE) RETURNING id", (p.cliente_nome,))
+                cliente_id = cur.fetchone()[0]
+            if p.codigo:
+                cur.execute("SELECT id FROM projetos WHERE codigo = %s", (p.codigo,))
+                if cur.fetchone():
+                    ignorados_proj += 1
+                    continue
+            cur.execute("""
+                INSERT INTO projetos (nome, cliente_id, codigo, responsavel_texto, status_gestao,
+                    data_inicio, data_termino, escopo, ativo)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+            """, (p.nome, cliente_id, p.codigo, p.responsavel_texto, p.status_gestao,
+                  p.data_inicio or None, p.data_termino or None, p.escopo))
+            criados_proj += 1
+        for c in body.contratos:
+            cur.execute("SELECT id FROM clientes WHERE UPPER(nome) = UPPER(%s) AND ativo=TRUE", (c.cliente_nome,))
+            row = cur.fetchone()
+            if row:
+                cliente_id = row[0]
+            else:
+                cur.execute("INSERT INTO clientes (nome, ativo) VALUES (%s, TRUE) RETURNING id", (c.cliente_nome,))
+                cliente_id = cur.fetchone()[0]
+            cur.execute("""
+                INSERT INTO contratos_gestao (cliente_id, nome, sdm, status, data_inicio, data_termino)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (cliente_id, c.nome, c.sdm, c.status, c.data_inicio or None, c.data_termino or None))
+            criados_ct += 1
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "projetos_criados": criados_proj, "projetos_ignorados": ignorados_proj, "contratos_criados": criados_ct}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/gestao/usuarios")
