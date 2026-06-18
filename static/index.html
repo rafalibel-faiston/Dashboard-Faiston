@@ -963,6 +963,10 @@
                     <button id="fc-subtab-resumo" onclick="fcSubtab('resumo')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors">Resumo por Projeto</button>
                     <button id="fc-subtab-mensal" onclick="fcSubtab('mensal')" class="px-3 py-1.5 rounded-md text-xs font-bold text-slate-400 transition-colors">P&L Mensal</button>
                 </div>
+                <div id="fc-modo-wrap" class="flex items-center gap-1 bg-white border border-faiston-border rounded-lg p-1">
+                    <button id="fc-modo-geral" onclick="fcSetModo('geral')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors">Geral</button>
+                    <button id="fc-modo-detalhado" onclick="fcSetModo('detalhado')" class="px-3 py-1.5 rounded-md text-xs font-bold text-slate-400 transition-colors">Detalhado</button>
+                </div>
                 <div class="relative">
                     <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
                     <input id="fc-busca" oninput="fcRenderResumo()" placeholder="Buscar ID, cliente ou projeto..." class="pl-9 pr-3 py-2 border border-faiston-border rounded-lg text-xs w-60 focus:outline-none focus:border-faiston-purple bg-white">
@@ -981,28 +985,8 @@
 
             <!-- Sub-view: Resumo -->
             <div id="fc-view-resumo" class="bg-white rounded-xl border border-faiston-border overflow-hidden shadow-sm">
-                <div class="overflow-x-auto custom-scrollbar">
-                    <table class="w-full text-xs">
-                        <thead>
-                            <tr class="border-b border-faiston-border bg-slate-50/70 text-[10px] uppercase tracking-wider text-slate-400">
-                                <th class="text-left px-3 py-2.5">ID</th>
-                                <th class="text-left px-3 py-2.5">Cliente</th>
-                                <th class="text-left px-3 py-2.5">Projeto</th>
-                                <th class="text-left px-3 py-2.5">Status</th>
-                                <th class="text-right px-3 py-2.5">Total</th>
-                                <th class="text-right px-3 py-2.5">Acum. Fat</th>
-                                <th class="text-right px-3 py-2.5">% Fat</th>
-                                <th class="text-right px-3 py-2.5">Net Rev.</th>
-                                <th class="text-right px-3 py-2.5">Acum. Custo</th>
-                                <th class="text-right px-3 py-2.5">Margem</th>
-                                <th class="text-right px-3 py-2.5">%</th>
-                                <th class="px-3 py-2.5 text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="fc-tabela-resumo" class="divide-y divide-faiston-border">
-                            <tr><td colspan="12" class="text-center py-12 text-slate-300">Carregando...</td></tr>
-                        </tbody>
-                    </table>
+                <div id="fc-resumo-wrap" class="overflow-x-auto custom-scrollbar">
+                    <p class="text-center py-12 text-slate-300 text-xs">Carregando...</p>
                 </div>
             </div>
 
@@ -3602,7 +3586,7 @@ function setTab(tab) {
 // ══════════════════════════════════════════════════════════════════
 // FORECAST / P&L (dentro da Gestão)
 // ══════════════════════════════════════════════════════════════════
-let fcResumo = [], fcPeriodos = [], fcPeriodoAtual = '', fcSubtabAtiva = 'resumo', fcCarregado = false;
+let fcResumo = [], fcPeriodos = [], fcPeriodoAtual = '', fcSubtabAtiva = 'resumo', fcCarregado = false, fcModo = 'geral';
 
 function fcMoeda(v) {
     v = Number(v||0); const s = v < 0 ? '-' : ''; const a = Math.abs(v);
@@ -3644,7 +3628,7 @@ async function fcRender() {
     mg.textContent = fcPct(t.margem_pct); mg.style.color = (t.margem_pct||0) >= 0 ? '#06D7E6' : '#EC4899';
     document.getElementById('fc-atualizado').textContent = data.atualizado_em ? ('atualizado ' + data.atualizado_em.replace('T',' ')) : '';
     fcCarregado = true;
-    fcRenderResumo();
+    fcSetModo(fcModo);
     fcCarregarPeriodos();
 }
 
@@ -3656,6 +3640,16 @@ function fcSubtab(sub) {
     document.getElementById('fc-subtab-mensal').className = sub === 'mensal' ? onCls : offCls;
     document.getElementById('fc-view-resumo').classList.toggle('hidden', sub !== 'resumo');
     document.getElementById('fc-view-mensal').classList.toggle('hidden', sub !== 'mensal');
+    document.getElementById('fc-modo-wrap').classList.toggle('hidden', sub !== 'resumo');
+}
+
+function fcSetModo(modo) {
+    fcModo = modo;
+    const onCls = 'px-3 py-1.5 rounded-md text-xs font-bold bg-faiston-purple text-white transition-colors';
+    const offCls = 'px-3 py-1.5 rounded-md text-xs font-bold text-slate-400 transition-colors';
+    document.getElementById('fc-modo-geral').className = modo === 'geral' ? onCls : offCls;
+    document.getElementById('fc-modo-detalhado').className = modo === 'detalhado' ? onCls : offCls;
+    fcRenderResumo();
 }
 
 function fcRenderResumo() {
@@ -3664,23 +3658,57 @@ function fcRenderResumo() {
         (p.codigo||'').toLowerCase().includes(q) || (p.cliente||'').toLowerCase().includes(q) ||
         (p.cliente_final||'').toLowerCase().includes(q) || (p.projeto||'').toLowerCase().includes(q));
     document.getElementById('fc-count').textContent = `${lista.length} projeto${lista.length!==1?'s':''}`;
-    const empty = document.getElementById('fc-empty');
-    empty.classList.toggle('hidden', fcResumo.length !== 0);
-    document.getElementById('fc-tabela-resumo').innerHTML = lista.map(p => `
-        <tr class="hover:bg-slate-50 transition-colors">
+    document.getElementById('fc-empty').classList.toggle('hidden', fcResumo.length !== 0);
+
+    const thR = 'text-right px-3 py-2.5', thL = 'text-left px-3 py-2.5';
+    const tdR = 'px-3 py-2 text-right font-mono', acoes = p => canWrite ? `<button onclick="fcAbrirModal(${p.id})" class="text-[11px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors">Editar</button>` : '';
+
+    let headers, rowFn;
+    if (fcModo === 'detalhado') {
+        headers = [['ID','l'],['Cliente','l'],['Cliente Final','l'],['Projeto','l'],['Início','l'],['Fim','l'],['Status','l'],['Acum. Fat','r'],['% Fat','r'],['Pend. Fat','r'],['Total','r'],['Gross Rev.','r'],['Tax','r'],['Imp','r'],['Net Rev.','r'],['Acum. Custo','r'],['Valor DM','r'],['% Margem','r'],['Pend. Custo','r'],['Obs','l'],['Ações','r']];
+        rowFn = p => `<tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple">${p.codigo||''}</td>
+            <td class="px-3 py-2 text-slate-600">${p.cliente||''}</td>
+            <td class="px-3 py-2 text-slate-500">${p.cliente_final||''}</td>
+            <td class="px-3 py-2 text-faiston-dark font-medium max-w-[220px] truncate" title="${escHtml(p.projeto||'')}">${p.projeto||''}</td>
+            <td class="px-3 py-2 text-slate-500 whitespace-nowrap">${p.data_inicio?fmtDate(p.data_inicio.slice(0,10)):'—'}</td>
+            <td class="px-3 py-2 text-slate-500 whitespace-nowrap">${p.data_fim?fmtDate(p.data_fim.slice(0,10)):'—'}</td>
+            <td class="px-3 py-2">${fcStatusBadge(p.status)}</td>
+            <td class="${tdR} text-slate-500">${fcMoeda(p.acum_fat)}</td>
+            <td class="${tdR} text-slate-500">${fcPct(p.pct_fat)}</td>
+            <td class="${tdR} text-slate-500">${fcMoeda(p.pend_fat)}</td>
+            <td class="${tdR} text-slate-700 font-semibold">${fcMoeda(p.total)}</td>
+            <td class="${tdR} text-slate-700">${fcMoeda(p.gross_revenue)}</td>
+            <td class="${tdR} text-slate-500">${fcPct(p.tax)}</td>
+            <td class="${tdR} text-slate-500">${fcMoeda(p.imp)}</td>
+            <td class="${tdR} text-faiston-purple font-semibold">${fcMoeda(p.net_revenue)}</td>
+            <td class="${tdR} text-faiston-pink">${fcMoeda(p.acum_custo)}</td>
+            <td class="${tdR} font-bold" style="color:${fcCor(p.valor_dm)}">${fcMoeda(p.valor_dm)}</td>
+            <td class="${tdR} font-semibold" style="color:${fcCor(p.pct_margem)}">${fcPct(p.pct_margem)}</td>
+            <td class="${tdR} text-slate-500">${fcMoeda(p.pend_custo)}</td>
+            <td class="px-3 py-2 text-slate-400 max-w-[220px] truncate" title="${escHtml(p.obs||'')}">${p.obs||''}</td>
+            <td class="px-3 py-2 text-right">${acoes(p)}</td>
+        </tr>`;
+    } else {
+        headers = [['ID','l'],['Cliente','l'],['Projeto','l'],['Status','l'],['Total','r'],['Acum. Fat','r'],['% Fat','r'],['Net Rev.','r'],['Acum. Custo','r'],['Margem','r'],['%','r'],['Ações','r']];
+        rowFn = p => `<tr class="hover:bg-slate-50 transition-colors">
             <td class="px-3 py-2 font-mono text-[11px] font-semibold text-faiston-purple">${p.codigo||''}</td>
             <td class="px-3 py-2 text-slate-600">${p.cliente||''}${p.cliente_final && p.cliente_final!==p.cliente ? `<span class="text-slate-400"> · ${p.cliente_final}</span>`:''}</td>
             <td class="px-3 py-2 text-faiston-dark font-medium max-w-[260px] truncate" title="${escHtml(p.projeto||'')}">${p.projeto||''}</td>
             <td class="px-3 py-2">${fcStatusBadge(p.status)}</td>
-            <td class="px-3 py-2 text-right font-mono text-slate-700">${fcMoeda(p.total)}</td>
-            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcMoeda(p.acum_fat)}</td>
-            <td class="px-3 py-2 text-right font-mono text-slate-500">${fcPct(p.pct_fat)}</td>
-            <td class="px-3 py-2 text-right font-mono text-faiston-purple font-semibold">${fcMoeda(p.net_revenue)}</td>
-            <td class="px-3 py-2 text-right font-mono text-faiston-pink">${fcMoeda(p.acum_custo)}</td>
-            <td class="px-3 py-2 text-right font-mono font-bold" style="color:${fcCor(p.valor_dm)}">${fcMoeda(p.valor_dm)}</td>
-            <td class="px-3 py-2 text-right font-mono font-semibold" style="color:${fcCor(p.pct_margem)}">${fcPct(p.pct_margem)}</td>
-            <td class="px-3 py-2 text-right">${canWrite ? `<button onclick="fcAbrirModal(${p.id})" class="text-[11px] text-faiston-purple hover:text-faiston-magenta font-bold transition-colors">Editar</button>` : ''}</td>
-        </tr>`).join('') || `<tr><td colspan="12" class="text-center py-12 text-slate-300">Nenhum projeto encontrado</td></tr>`;
+            <td class="${tdR} text-slate-700">${fcMoeda(p.total)}</td>
+            <td class="${tdR} text-slate-500">${fcMoeda(p.acum_fat)}</td>
+            <td class="${tdR} text-slate-500">${fcPct(p.pct_fat)}</td>
+            <td class="${tdR} text-faiston-purple font-semibold">${fcMoeda(p.net_revenue)}</td>
+            <td class="${tdR} text-faiston-pink">${fcMoeda(p.acum_custo)}</td>
+            <td class="${tdR} font-bold" style="color:${fcCor(p.valor_dm)}">${fcMoeda(p.valor_dm)}</td>
+            <td class="${tdR} font-semibold" style="color:${fcCor(p.pct_margem)}">${fcPct(p.pct_margem)}</td>
+            <td class="px-3 py-2 text-right">${acoes(p)}</td>
+        </tr>`;
+    }
+    const thead = `<tr class="border-b border-faiston-border bg-slate-50/70 text-[10px] uppercase tracking-wider text-slate-400">${headers.map(h=>`<th class="${h[1]==='r'?thR:thL}">${h[0]}</th>`).join('')}</tr>`;
+    const body = lista.length ? lista.map(rowFn).join('') : `<tr><td colspan="${headers.length}" class="text-center py-12 text-slate-300">Nenhum projeto encontrado</td></tr>`;
+    document.getElementById('fc-resumo-wrap').innerHTML = `<table class="w-full text-xs whitespace-nowrap"><thead>${thead}</thead><tbody class="divide-y divide-faiston-border">${body}</tbody></table>`;
 }
 
 async function fcCarregarPeriodos() {
