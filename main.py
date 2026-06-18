@@ -1687,6 +1687,10 @@ def limpar_seed(faiston_token: str = Cookie(None)):
         tarefas += cur.rowcount
         cur.execute("DELETE FROM usuarios WHERE usuario IN ('mariana','joao','carlos','fernanda','thiago')")
         usuarios = cur.rowcount
+        # Remove também projetos, clientes e histórico de teste (namespaced [TESTE])
+        cur.execute("DELETE FROM tarefa_historico WHERE COALESCE(tarefa_desc,'') LIKE '%[TESTE]%' OR COALESCE(projeto_nome,'') LIKE '%[TESTE]%'")
+        cur.execute("DELETE FROM projetos WHERE nome LIKE '%[TESTE]%'")
+        cur.execute("DELETE FROM clientes WHERE nome LIKE '%[TESTE]%'")
         conn.commit()
         return {"ok": True, "tarefas_removidas": tarefas, "usuarios_removidos": usuarios}
     except Exception as e:
@@ -1701,8 +1705,16 @@ def seed_dados():
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        # Garante colunas usadas pelo seed (migração lazy normalmente roda no GET /api/tarefas)
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS projeto_id INTEGER REFERENCES projetos(id)")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_prazo DATE")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS hora_prazo TIME")
+        # Limpa qualquer dado de teste anterior (ordem respeita as FKs)
         cur.execute("DELETE FROM tarefas WHERE descricao LIKE '%[TESTE]%'")
         cur.execute("DELETE FROM usuarios WHERE usuario IN ('mariana','joao','carlos','fernanda','thiago')")
+        cur.execute("DELETE FROM tarefa_historico WHERE COALESCE(tarefa_desc,'') LIKE '%[TESTE]%' OR COALESCE(projeto_nome,'') LIKE '%[TESTE]%'")
+        cur.execute("DELETE FROM projetos WHERE nome LIKE '%[TESTE]%'")
+        cur.execute("DELETE FROM clientes WHERE nome LIKE '%[TESTE]%'")
 
         funcionarios = [
             ("mariana","faiston123","Mariana Silva","funcionario"),
@@ -1720,6 +1732,20 @@ def seed_dados():
 
         clientes = ["NTT","Arcos Dourados","Zamp","Telcoweb","VIVO VITA"]
         prioridades_peso = ["Critica","Alta","Alta","Media","Media","Media","Baixa"]
+
+        # Clientes e projetos de teste (namespaced [TESTE] → limpeza segura, não toca dado real)
+        clientes_proj = {
+            "[TESTE] NTT":            ["[TESTE] NOC 24x7", "[TESTE] Backbone MPLS"],
+            "[TESTE] Zamp":           ["[TESTE] Rollout de Lojas"],
+            "[TESTE] Arcos Dourados": ["[TESTE] Field Services"],
+        }
+        projetos_ref = []  # (projeto_id, projeto_nome, cliente_nome)
+        for cli_nome, projs in clientes_proj.items():
+            cur.execute("INSERT INTO clientes (nome) VALUES (%s) ON CONFLICT (nome) DO UPDATE SET nome=EXCLUDED.nome RETURNING id", (cli_nome,))
+            cli_id = cur.fetchone()[0]
+            for pnome in projs:
+                cur.execute("INSERT INTO projetos (cliente_id, nome) VALUES (%s,%s) RETURNING id", (cli_id, pnome))
+                projetos_ref.append((cur.fetchone()[0], pnome, cli_nome))
         descricoes = [
             "[TESTE] Abertura de chamado no NOC",
             "[TESTE] Acompanhamento de incidente crítico",
@@ -1742,56 +1768,84 @@ def seed_dados():
         ]
         now = datetime.now()
         total = 0
+        criadas = []  # (tid, desc, cliente, projeto_id, projeto_nome, owner_nome)
+
+        def add_tarefa(owner_nome, desc, status, segundos, prioridade, dias_atras, com_projeto=True):
+            # ~75% das tarefas vão para um projeto de teste (pra exercitar o agrupamento
+            # por projeto); o restante fica "Sem projeto" (cliente avulso).
+            if com_projeto and projetos_ref and random.random() < 0.75:
+                pid, pnome, cli = random.choice(projetos_ref)
+            else:
+                pid, pnome, cli = None, None, random.choice(clientes)
+            ts = now - timedelta(days=dias_atras)
+            cur.execute("""INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,projeto_id,criado_em,atualizado_em)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                        (ids[owner_nome], desc, cli, prioridade, status, segundos, pid, ts, now))
+            tid = cur.fetchone()[0]
+            criadas.append((tid, desc, cli, pid, pnome, owner_nome))
+            return tid
 
         # Mariana — sobrecarregada, muitos abertos antigos (IA deve alertar)
         for i in range(12):
-            dias = random.randint(8, 20)
-            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                (ids["Mariana Silva"], random.choice(descricoes), random.choice(clientes),
-                 random.choice(["Alta","Critica"]), "aberto", 0,
-                 now - timedelta(days=dias), now - timedelta(days=dias)))
+            add_tarefa("Mariana Silva", random.choice(descricoes), "aberto", 0,
+                       random.choice(["Alta","Critica"]), random.randint(8, 20))
             total += 1
-
         # João — lento, tickets em andamento há muito tempo
         for i in range(8):
-            dias = random.randint(5, 15)
-            status = random.choice(["em_andamento","em_andamento","aberto"])
-            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                (ids["João Henrique"], random.choice(descricoes), random.choice(clientes),
-                 random.choice(prioridades_peso), status, random.randint(600, 3600),
-                 now - timedelta(days=dias), now - timedelta(days=dias)))
+            add_tarefa("João Henrique", random.choice(descricoes),
+                       random.choice(["em_andamento","em_andamento","aberto"]),
+                       random.randint(600, 3600), random.choice(prioridades_peso), random.randint(5, 15))
             total += 1
-
         # Carlos — equilibrado, maioria concluído
         for i in range(10):
             status = random.choice(["concluido","concluido","concluido","em_andamento","aberto"])
             segundos = random.randint(1800, 7200) if status == "concluido" else random.randint(600, 3600)
-            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                (ids["Carlos Eduardo"], random.choice(descricoes), random.choice(clientes),
-                 random.choice(prioridades_peso), status, segundos,
-                 now - timedelta(days=random.randint(1,7)), now))
+            add_tarefa("Carlos Eduardo", random.choice(descricoes), status, segundos,
+                       random.choice(prioridades_peso), random.randint(1, 7))
             total += 1
-
         # Fernanda — poucos tickets, bem resolvidos
         for i in range(5):
-            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                (ids["Fernanda Lima"], random.choice(descricoes), random.choice(clientes),
-                 "Media", random.choice(["concluido","concluido","aberto"]), random.randint(1800, 5400),
-                 now - timedelta(days=random.randint(1,5)), now))
+            add_tarefa("Fernanda Lima", random.choice(descricoes),
+                       random.choice(["concluido","concluido","aberto"]), random.randint(1800, 5400),
+                       "Media", random.randint(1, 5))
             total += 1
-
         # Thiago — vários críticos abertos
         for i in range(7):
-            cur.execute("INSERT INTO tarefas (usuario_id,descricao,cliente,prioridade,status,segundos,criado_em,atualizado_em) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                (ids["Thiago Rocha"], random.choice(descricoes), random.choice(clientes),
-                 random.choice(["Critica","Alta"]), random.choice(["aberto","aberto","em_andamento"]), 0,
-                 now - timedelta(days=random.randint(2,10)), now))
+            add_tarefa("Thiago Rocha", random.choice(descricoes),
+                       random.choice(["aberto","aberto","em_andamento"]), 0,
+                       random.choice(["Critica","Alta"]), random.randint(2, 10))
             total += 1
+
+        # ── Histórico de "hoje" (NOW()) para popular o resumo diário ──
+        def add_hist(tid, desc, pid, pnome, autor, acao, campo, antigo, novo):
+            cur.execute("""INSERT INTO tarefa_historico
+                (tarefa_id, tarefa_desc, autor_id, autor_nome, acao, campo, valor_antigo, valor_novo,
+                 projeto_id, projeto_nome, time_tarefa, criado_em)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Projetos', NOW())""",
+                (tid, desc, ids.get(autor), autor, acao, campo, antigo, novo, pid, pnome))
+
+        com_proj = [c for c in criadas if c[3]]
+        random.shuffle(com_proj)
+        hist = 0
+        for c in com_proj[:6]:
+            add_hist(c[0], c[1], c[3], c[4], c[5], "criou", "tarefa", None, c[1]); hist += 1
+        for c in com_proj[6:10]:
+            add_hist(c[0], c[1], c[3], c[4], c[5], "editou", "status", "aberto", "em_andamento"); hist += 1
+            add_hist(c[0], c[1], c[3], c[4], c[5], "editou", "prioridade", "Media", "Alta"); hist += 1
+        if com_proj:
+            c = com_proj[0]
+            add_hist(c[0], c[1], c[3], c[4], c[5], "editou", "data_prazo", None,
+                     (now + timedelta(days=1)).strftime("%Y-%m-%d")); hist += 1
+        if len(com_proj) > 10:
+            c = com_proj[10]
+            add_hist(c[0], c[1], c[3], c[4], c[5], "excluiu", "tarefa", c[1], None); hist += 1
 
         conn.commit(); cur.close(); conn.close()
         return {
             "sucesso": True,
             "tarefas_criadas": total,
+            "projetos_criados": len(projetos_ref),
+            "historico_criado": hist,
             "usuarios": {u[0]: "senha: faiston123" for u in funcionarios}
         }
     except Exception as e:
