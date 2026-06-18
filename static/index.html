@@ -2594,11 +2594,13 @@ function renderCharts(data) {
     });
     charts['status'].render();
 
-    // 3. Barras horizontais
+    // 3. Barras horizontais — esforço por cliente (só quem tem horas apontadas)
     destroyChart('barras');
-    const hpc = data.horas_por_cliente;
+    const hpc = (data.horas_por_cliente || []).filter(h => (h.horas || 0) > 0);
+    const hpcHoras = hpc.map(h => parseFloat((h.horas || 0).toFixed(1)));
+    const hpcMax = hpcHoras.length ? Math.max(...hpcHoras) : 1;
     charts['barras'] = new ApexCharts(document.querySelector("#chart-barras"), {
-        series: [{ name: 'Horas', data: hpc.map(h => h.horas) }],
+        series: [{ name: 'Horas', data: hpcHoras }],
         chart: { ...chartDefaults, type: 'bar', height: 240,
             events: { dataPointSelection: (e, ctx, config) => {
                 const cliente = hpc[config.dataPointIndex]?.cliente;
@@ -2610,14 +2612,16 @@ function renderCharts(data) {
         colors: ['#EC4899'],
         fill: { type: 'gradient', gradient: { shade: 'light', type: 'horizontal',
             gradientToColors: ['#5B2EE0'], opacityFrom: 1, opacityTo: 0.85, stops: [0, 100] } },
-        dataLabels: { enabled: true, offsetX: 8,
-            style: { fontSize: '11px', fontFamily: 'Inter, sans-serif', colors: [dlC], fontWeight: 600 },
+        dataLabels: { enabled: true, textAnchor: 'start', offsetX: 6,
+            style: { fontSize: '11px', fontFamily: 'Inter, sans-serif', colors: [valC], fontWeight: 700 },
             formatter: val => val + 'h' },
-        xaxis: { categories: hpc.map(h => h.cliente), labels: { style: { fontSize: '11px', colors: axisC } },
+        // Folga à direita (max + ~18%) para o rótulo da maior barra não ser cortado
+        xaxis: { categories: hpc.map(h => h.cliente), max: Math.ceil(hpcMax * 1.18) || 1,
+            labels: { style: { fontSize: '11px', colors: axisC } },
             title: { text: clienteAtivo ? '' : '← clique para filtrar', style: { fontSize: '10px', color: axisC } } },
         yaxis: { labels: { style: { colors: axisC } } },
         states: { active: { filter: { type: 'darken', value: 0.7 } } },
-        grid: { ...grid, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+        grid: { ...grid, padding: { right: 28, left: 8 }, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
         tooltip: { ...tt, y: { formatter: val => val + ' horas' } }
     });
     charts['barras'].render();
