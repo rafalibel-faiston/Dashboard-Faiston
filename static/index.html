@@ -435,6 +435,17 @@
                     <i class="ph ph-folder-simple"></i> Projeto
                 </button>
             </div>
+            <!-- Resumo diário de alterações -->
+            <div class="ml-auto flex items-center gap-2">
+                <button onclick="previewResumoDia()" title="Pré-visualizar o resumo do dia (não envia)"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-faiston-border bg-white text-faiston-muted hover:border-faiston-purple transition-colors">
+                    <i class="ph ph-eye"></i> Prévia do resumo
+                </button>
+                <button onclick="enviarResumoDia()" title="Enviar agora o resumo do dia por e-mail"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold btn-grad text-white">
+                    <i class="ph ph-paper-plane-tilt"></i> Enviar resumo do dia
+                </button>
+            </div>
         </div>
         <div class="grid grid-cols-3 gap-5">
 
@@ -3119,6 +3130,28 @@ function setGkAgrupamento(modo) {
     if (br) br.style.cssText = (modo==='responsavel'?ACTIVE:INACTIVE);
     if (bp) bp.style.cssText = (modo==='projeto'?ACTIVE:INACTIVE);
     renderKanbanGestor();
+}
+
+// ── Resumo diário de alterações ─────────────────────────────────────
+function previewResumoDia() {
+    window.open('/api/admin/resumo-diario', '_blank');
+}
+async function enviarResumoDia() {
+    if (!confirm('Enviar agora o resumo de alterações de hoje por e-mail para gestores/admins com e-mail cadastrado?')) return;
+    try {
+        const res = await fetch('/api/admin/resumo-diario?enviar=1');
+        const data = await res.json();
+        if (!res.ok) { alert('Não foi possível enviar: ' + (data.detail || res.status)); return; }
+        if (data.sucesso) {
+            alert(data.enviados > 0
+                ? `✅ Resumo de ${data.dia} enviado para ${data.enviados} destinatário(s).`
+                : `Nenhum e-mail enviado — sem alterações registradas hoje, ou nenhum gestor/admin com e-mail cadastrado.`);
+        } else {
+            alert('Falha ao enviar: ' + (data.erro || 'erro desconhecido'));
+        }
+    } catch (e) {
+        alert('Erro de rede ao enviar o resumo.');
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════

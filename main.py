@@ -1175,8 +1175,8 @@ def preview_resumo_diario(enviar: int = 0, dia: str = "", faiston_token: str = C
     except ValueError:
         raise HTTPException(status_code=400, detail="Data inválida (use YYYY-MM-DD)")
     if enviar == 1:
-        if sess["perfil"] not in ("admin", "diretor"):
-            raise HTTPException(status_code=403, detail="Apenas admin/diretor pode disparar o envio")
+        if sess["perfil"] not in ("admin", "gestor", "diretor"):
+            raise HTTPException(status_code=403, detail="Sem permissão para disparar o envio")
         return enviar_resumo_diario(d)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")

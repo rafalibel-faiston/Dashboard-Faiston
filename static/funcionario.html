@@ -183,6 +183,10 @@
             <option value="">Todas as prioridades</option>
             <option>Alta</option><option>Media</option><option>Baixa</option>
         </select>
+        <select id="filter-agrupar" onchange="setAgrupamentoFunc(this.value)" title="Agrupar tarefas por" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-faiston-muted focus:outline-none focus:border-faiston-purple cursor-pointer">
+            <option value="cliente">Agrupar: Cliente</option>
+            <option value="projeto">Agrupar: Projeto</option>
+        </select>
         <button onclick="toggleTemaFunc()" id="btn-tema-f" class="btn-theme" title="Alternar tema" data-embed-hide>
             <i class="ph ph-moon" id="icon-tema-f"></i>
         </button>
@@ -680,6 +684,15 @@ const MAX_SEGUNDOS = 36_000_000; // cap em 10.000h para evitar overflow no banco
 let tabAtiva = 'kanban';
 let calMes = new Date().getMonth();
 let calAno = new Date().getFullYear();
+let agrupamentoFunc = localStorage.getItem('agrupamentoFunc') || 'cliente';
+
+function setAgrupamentoFunc(modo) {
+    agrupamentoFunc = modo;
+    localStorage.setItem('agrupamentoFunc', modo);
+    const sel = document.getElementById('filter-agrupar');
+    if (sel) sel.value = modo;
+    renderTasks();
+}
 
 // Cores por cliente (geradas dinamicamente)
 const CLIENT_PALETTE = ['#5B2EE0','#06D7E6','#B826C9','#EC4899','#a78bfa','#34d399','#f59e0b','#3b82f6'];
@@ -708,6 +721,8 @@ if (_EMBED) document.body.classList.add('embed');
 
 async function init() {
     try {
+        const _selAgr = document.getElementById('filter-agrupar');
+        if (_selAgr) _selAgr.value = agrupamentoFunc;  // reflete preferência salva
         const res = await fetch('/api/me');
         if (!res.ok) { window.location.href = '/'; return; }
         const me = await res.json();
@@ -896,21 +911,24 @@ function renderTasks() {
             return;
         }
 
-        // Agrupa por cliente
-        const byClient = {};
+        // Agrupa por cliente ou por projeto (seletor "Agrupar")
+        const porProjeto = agrupamentoFunc === 'projeto';
+        const grupos = {};
         filtered.forEach(t => {
-            if (!byClient[t.cliente]) byClient[t.cliente] = [];
-            byClient[t.cliente].push(t);
+            const chave = porProjeto ? (t.projeto_nome || 'Sem projeto') : t.cliente;
+            if (!grupos[chave]) grupos[chave] = [];
+            grupos[chave].push(t);
         });
 
-        col.innerHTML = Object.entries(byClient).map(([cliente, clientTasks]) => {
-            const cor = getClientColor(cliente);
-            const cards = clientTasks.map(task => renderKanbanCard(task, status)).join('');
+        col.innerHTML = Object.entries(grupos).map(([chave, grpTasks]) => {
+            const cor = getClientColor(chave);
+            const icone = porProjeto ? '<i class="ph ph-folder-simple text-[11px]" style="color:'+cor+'"></i>' : '<div class="w-2 h-2 rounded-full flex-shrink-0" style="background:'+cor+'"></div>';
+            const cards = grpTasks.map(task => renderKanbanCard(task, status)).join('');
             return `<div class="mb-4">
                 <div class="flex items-center gap-2 mb-2 px-1">
-                    <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${cor}"></div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider" style="color:${cor}">${cliente}</span>
-                    <span class="text-[10px] text-slate-400 ml-auto">${clientTasks.length} tarefa${clientTasks.length>1?'s':''}</span>
+                    ${icone}
+                    <span class="text-[10px] font-bold uppercase tracking-wider" style="color:${cor}">${chave}</span>
+                    <span class="text-[10px] text-slate-400 ml-auto">${grpTasks.length} tarefa${grpTasks.length>1?'s':''}</span>
                 </div>
                 <div class="flex flex-col gap-2">${cards}</div>
             </div>`;
