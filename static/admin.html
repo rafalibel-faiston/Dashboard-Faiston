@@ -122,6 +122,14 @@
                 <select id="filtro-func" onchange="carregarTarefas()" class="text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-cyan">
                     <option value="">Todos os funcionários</option>
                 </select>
+                <button onclick="previewResumoDia()" title="Pré-visualizar o resumo do dia (não envia)"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border border-faiston-border bg-white text-slate-600 text-sm font-semibold hover:border-faiston-purple transition-colors">
+                    <i class="ph ph-eye text-sm"></i> Prévia do resumo
+                </button>
+                <button onclick="enviarResumoDia()" title="Enviar agora o resumo do dia por e-mail"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg btn-grad text-white text-sm font-semibold">
+                    <i class="ph ph-paper-plane-tilt text-sm"></i> Enviar resumo
+                </button>
                 <button onclick="verificarHorasCorretas()"
                         class="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold hover:bg-amber-100 transition-colors">
                     <i class="ph ph-clock-counter-clockwise text-sm"></i> Corrigir Horas
@@ -354,6 +362,28 @@ async function init() {
 async function logout() {
     await fetch('/api/logout', { method: 'POST' });
     window.location.href = '/';
+}
+
+// ── Resumo diário de alterações ─────────────────────────────────────
+function previewResumoDia() {
+    window.open('/api/admin/resumo-diario', '_blank');
+}
+async function enviarResumoDia() {
+    if (!confirm('Enviar agora o resumo de alterações de hoje por e-mail para gestores/admins com e-mail cadastrado?')) return;
+    try {
+        const res = await fetch('/api/admin/resumo-diario?enviar=1');
+        const data = await res.json();
+        if (!res.ok) { alert('Não foi possível enviar: ' + (data.detail || res.status)); return; }
+        if (data.sucesso) {
+            alert(data.enviados > 0
+                ? `✅ Resumo de ${data.dia} enviado para ${data.enviados} destinatário(s).`
+                : `Nenhum e-mail enviado — sem alterações registradas hoje, ou nenhum gestor/admin com e-mail cadastrado.`);
+        } else {
+            alert('Falha ao enviar: ' + (data.erro || 'erro desconhecido'));
+        }
+    } catch (e) {
+        alert('Erro de rede ao enviar o resumo.');
+    }
 }
 
 function setTab(tab) {
