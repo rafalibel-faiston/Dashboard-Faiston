@@ -685,6 +685,17 @@ let tabAtiva = 'kanban';
 let calMes = new Date().getMonth();
 let calAno = new Date().getFullYear();
 let agrupamentoFunc = localStorage.getItem('agrupamentoFunc') || 'cliente';
+const gruposRecolhidos = new Set();  // chaves "status::grupo" recolhidas no kanban
+
+function toggleGrupoFunc(headerEl) {
+    const gkey  = headerEl.dataset.gkey;
+    const cards = headerEl.parentElement.querySelector('.grp-cards');
+    const chev  = headerEl.querySelector('.grp-chevron');
+    const aberto = cards.style.display !== 'none';
+    cards.style.display = aberto ? 'none' : 'flex';
+    if (chev) chev.style.transform = aberto ? 'rotate(-90deg)' : 'rotate(0deg)';
+    if (aberto) gruposRecolhidos.add(gkey); else gruposRecolhidos.delete(gkey);
+}
 
 function setAgrupamentoFunc(modo) {
     agrupamentoFunc = modo;
@@ -924,13 +935,17 @@ function renderTasks() {
             const cor = getClientColor(chave);
             const icone = porProjeto ? '<i class="ph ph-folder-simple text-[11px]" style="color:'+cor+'"></i>' : '<div class="w-2 h-2 rounded-full flex-shrink-0" style="background:'+cor+'"></div>';
             const cards = grpTasks.map(task => renderKanbanCard(task, status)).join('');
+            const gkey = status + '::' + chave;
+            const recolhido = gruposRecolhidos.has(gkey);
+            const safeKey = gkey.replace(/"/g, '&quot;');
             return `<div class="mb-4">
-                <div class="flex items-center gap-2 mb-2 px-1">
+                <div onclick="toggleGrupoFunc(this)" data-gkey="${safeKey}" class="flex items-center gap-2 mb-2 px-1 cursor-pointer select-none rounded-md hover:bg-slate-100/60 py-1 transition-colors">
                     ${icone}
                     <span class="text-[10px] font-bold uppercase tracking-wider" style="color:${cor}">${chave}</span>
                     <span class="text-[10px] text-slate-400 ml-auto">${grpTasks.length} tarefa${grpTasks.length>1?'s':''}</span>
+                    <i class="ph ph-caret-down text-[11px] text-slate-400 grp-chevron" style="transition:transform .2s ease;transform:rotate(${recolhido?'-90deg':'0deg'})"></i>
                 </div>
-                <div class="flex flex-col gap-2">${cards}</div>
+                <div class="grp-cards flex flex-col gap-2" style="display:${recolhido?'none':'flex'}">${cards}</div>
             </div>`;
         }).join('');
     });
@@ -1220,6 +1235,10 @@ async function saveTask() {
     const descricao  = document.getElementById('input-descricao').value.trim();
     const cliente    = document.getElementById('input-cliente').value;
     const projeto_id = parseInt(document.getElementById('input-projeto').value) || null;
+    // Resolve o nome do projeto a partir da lista já carregada, para a tarefa
+    // aparecer no grupo certo imediatamente (sem precisar recarregar a página).
+    const _proj = (_todosProjetos || []).find(p => p.id == projeto_id);
+    const projeto_nome = _proj ? _proj.nome : '';
     if (!descricao) { alert('Preencha a descrição da tarefa.'); return; }
     const horas    = parseInt(document.getElementById('input-horas').value) || 0;
     const minutos  = parseInt(document.getElementById('input-minutos').value) || 0;
@@ -1247,13 +1266,13 @@ async function saveTask() {
             // tempo enquanto o modal estava aberto, preservamos o maior valor.
             body.segundos = Math.min(Math.max(body.segundos, task.segundos), MAX_SEGUNDOS);
             await fetch(`/api/tarefas/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-            Object.assign(task,body);
+            Object.assign(task, body, { projeto_nome });
             if (!task._running && body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(parseInt(editId)); return; }
         }
     } else {
         const res  = await fetch('/api/tarefas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         const data = await res.json();
-        tasks.unshift({id:data.id,...body,_running:false,funcionario:''});
+        tasks.unshift({id:data.id,...body,projeto_nome,_running:false,funcionario:''});
         if (body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(data.id); return; }
     }
     closeModal(); renderTasks(); updateSummary();
