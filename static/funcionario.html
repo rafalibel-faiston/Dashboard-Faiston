@@ -1134,6 +1134,18 @@ function openModal() {
 
 function closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
+// Evita perder o que foi escrito ao fechar a tarefa sem querer.
+function modalTarefaSujo() {
+    const m = document.getElementById('modal');
+    if (m.classList.contains('hidden')) return false;
+    return document.getElementById('input-descricao').value.trim() !== '';
+}
+function tentarFecharModal() {
+    if (document.getElementById('modal').classList.contains('hidden')) return;
+    if (modalTarefaSujo() && !confirm('Descartar esta tarefa? O que você escreveu será perdido.')) return;
+    closeModal();
+}
+
 function selecionarProjeto(projetoId) {
     const proj = _todosProjetos.find(p => p.id == projetoId);
     const clienteHidden = document.getElementById('input-cliente');
@@ -1375,8 +1387,16 @@ async function enviarComentario() {
 }
 
 document.getElementById('modal-comentarios').addEventListener('click',e=>{ if(e.target===document.getElementById('modal-comentarios')) fecharComentarios(); });
-document.getElementById('modal').addEventListener('click',e=>{ if(e.target===document.getElementById('modal')) closeModal(); });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') { closeModal(); fecharComentarios(); } });
+// Só fecha por clique no fundo se o clique COMEÇOU e TERMINOU no fundo.
+// Assim, selecionar texto dentro do card e soltar o mouse fora não fecha mais o modal.
+let _modalMouseDownNoFundo = false;
+const _modalEl = document.getElementById('modal');
+_modalEl.addEventListener('mousedown', e => { _modalMouseDownNoFundo = (e.target === _modalEl); });
+_modalEl.addEventListener('click', e => {
+    if (e.target === _modalEl && _modalMouseDownNoFundo) tentarFecharModal();
+    _modalMouseDownNoFundo = false;
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') { tentarFecharModal(); fecharComentarios(); } });
 
 // ── AGENDA (Outlook style) ────────────────────────────────────────────
 function agendaPrevMes() { calMes--; if(calMes<0){calMes=11;calAno--;} renderMiniCalendario(); }
