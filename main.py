@@ -725,49 +725,69 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
                 if autor:
                     mudancas[campo]["autores"].add(autor)
 
-            eventos = []   # (chip_label, chip_cor, chip_bg, corpo_html, meta_html)
-            for acao, autor, hora in marcos:
-                if acao == "criou":
-                    chip = ("Criada", "#0E9F6E", "#E3F6EE")
-                    corpo_ev = '<span style="color:#0E9F6E;font-weight:600;font-size:13px">Tarefa criada</span>'
-                else:
-                    chip = ("Excluída", "#DC2626", "#FDECEC")
-                    corpo_ev = '<span style="color:#DC2626;font-weight:600;font-size:13px">Tarefa excluída</span>'
-                eventos.append((chip[0], chip[1], chip[2], corpo_ev, f'por {autor} · {hora}'))
+            # Autor(es) e horário representativos da tarefa no período
+            autores_all, hora_ult = set(), ""
+            for autor, acao, campo, antigo, novo, quando in info["eventos"]:
+                if autor:
+                    autores_all.add(autor)
+                h = str(quando)[11:16] if quando else ""
+                if h:
+                    hora_ult = h   # rows vêm em ordem cronológica → fica o mais recente
+            criada = any(a == "criou" for a, _au, _h in marcos)
+            excluida = any(a == "excluiu" for a, _au, _h in marcos)
 
+            # Alterações líquidas (ignora as que voltaram ao valor original)
+            net, status_final = [], None
             for campo in ordem_campos:
                 m = mudancas[campo]
                 de = _hist_fmt(campo, m["antigo"])
                 para = _hist_fmt(campo, m["novo"])
                 if de == para:
-                    continue  # alteração que voltou ao valor original — ignora
-                autores = ", ".join(sorted(m["autores"])) or "—"
-                corpo_ev = (
-                    f'<span style="color:#9AA0AE;font-size:13px;text-decoration:line-through">{de}</span> '
-                    f'<span style="color:#5B2EE0;font-weight:700;font-size:13px">&rarr;</span> '
-                    f'<strong style="color:#11131C;font-size:13px">{para}</strong>')
-                eventos.append((label_campo(campo), "#5B2EE0", "#EEE8FE",
-                                corpo_ev, f'por {autores} · {m["hora"]}'))
+                    continue
+                if campo == "status":
+                    status_final = para
+                net.append((label_campo(campo), de, para))
 
-            if not eventos:
-                continue  # tarefa sem alterações líquidas — não polui o resumo
-            eventos_html = []
-            for i, (chip_l, chip_c, chip_b, corpo_ev, meta) in enumerate(eventos):
-                borda = "" if i == len(eventos) - 1 else ";border-bottom:1px solid #F1F2F8"
-                eventos_html.append(
-                    f'<tr><td style="padding:10px 0{borda};line-height:1.55">'
-                    f'<span style="display:inline-block;background:{chip_b};color:{chip_c};font-size:10.5px;'
-                    f'font-weight:700;letter-spacing:.2px;padding:2px 9px;border-radius:6px;margin-right:8px">{chip_l}</span>'
-                    f'{corpo_ev}'
-                    f'<div style="margin-top:3px;color:#AEB3C2;font-size:11px">{meta}</div></td></tr>')
+            if not (criada or excluida or net):
+                continue  # nada relevante para esta tarefa
+
+            def _tag(txt, cor, bg):
+                return (f'<span style="display:inline-block;background:{bg};color:{cor};font-size:10px;'
+                        f'font-weight:800;letter-spacing:.3px;text-transform:uppercase;padding:3px 8px;'
+                        f'border-radius:6px;margin-right:8px;vertical-align:middle">{txt}</span>')
+            id_pill = (f'<span style="display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;'
+                       f'font-size:10.5px;font-weight:700;color:#7C84A0;background:#F1F2F6;padding:2px 7px;'
+                       f'border-radius:5px;margin-right:8px;vertical-align:middle">#{tid}</span>')
+            titulo_t = (f'<span style="font-size:14px;font-weight:700;color:#11131C;vertical-align:middle">'
+                        f'{(info["desc"] or "(sem descrição)")}</span>')
+            meta_html = (f'<div style="margin-top:6px;color:#AEB3C2;font-size:11px">'
+                         f'{", ".join(sorted(autores_all)) or "—"} · {hora_ult}</div>')
+
+            if excluida:
+                cabecalho = _tag("Excluída", "#DC2626", "#FDECEC") + id_pill + titulo_t
+                corpo_t = ""
+            elif criada:
+                # Tarefa nova: uma linha só, sem repetir o "Aberto → ..." inicial
+                resumo = ("criada" + (f' já em <strong style="color:#11131C">{status_final}</strong>'
+                                       if status_final else ""))
+                cabecalho = _tag("Nova", "#0E9F6E", "#E3F6EE") + id_pill + titulo_t
+                corpo_t = f'<div style="margin-top:6px;color:#6B7280;font-size:12.5px">{resumo}</div>'
+            else:
+                cabecalho = id_pill + titulo_t
+                linhas_ch = []
+                for lbl, de, para in net:
+                    linhas_ch.append(
+                        f'<div style="margin-top:8px">'
+                        f'<span style="display:inline-block;background:#EEE8FE;color:#5B2EE0;font-size:10.5px;'
+                        f'font-weight:700;padding:2px 9px;border-radius:6px;margin-right:8px">{lbl}</span>'
+                        f'<span style="color:#9AA0AE;font-size:13px;text-decoration:line-through">{de}</span> '
+                        f'<span style="color:#5B2EE0;font-weight:700;font-size:13px">&rarr;</span> '
+                        f'<strong style="color:#11131C;font-size:13px">{para}</strong></div>')
+                corpo_t = "".join(linhas_ch)
+
             linhas_tarefa.append(
-                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 4px">'
-                f'<tr><td style="padding:12px 16px 4px">'
-                f'<span style="display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;'
-                f'font-weight:700;color:#7C84A0;background:#F1F2F6;padding:2px 7px;border-radius:5px;margin-right:7px">#{tid}</span>'
-                f'<span style="font-size:14px;font-weight:700;color:#11131C">{(info["desc"] or "(sem descrição)")}</span></td></tr>'
-                f'<tr><td style="padding:0 16px 6px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(eventos_html)}</table></td></tr>'
-                f'</table>')
+                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0">'
+                f'<tr><td style="padding:13px 16px">{cabecalho}{corpo_t}{meta_html}</td></tr></table>')
         if not linhas_tarefa:
             continue
         sep = '<tr><td style="border-top:1px solid #EEF0F6;font-size:0;line-height:0">&nbsp;</td></tr>'
