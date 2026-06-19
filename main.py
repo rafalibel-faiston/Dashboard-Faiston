@@ -583,6 +583,81 @@ def _brevo_send(destinatario: str, subject: str, html: str) -> bool:
 
 
 # ── Resumo diário de alterações nas tarefas ───────────────────────────────────
+def montar_kpis(cur, hoje, time_filter: str, concluidas_hoje: int) -> str:
+    """Painel-resumo no topo do e-mail: situação atual das tarefas em aberto.
+    Conta o que está em andamento, o que foi concluído no dia e o que está em
+    risco de estourar o prazo (atrasadas ou vencendo hoje), respeitando o time."""
+    base = """FROM tarefas t
+              LEFT JOIN usuarios u ON u.id = t.usuario_id
+              WHERE t.status <> 'concluido'"""
+    params = []
+    if time_filter:
+        base += " AND COALESCE(u.time,'Projetos') = %s"
+        params.append(time_filter)
+    cur.execute(f"""
+        SELECT
+          SUM(CASE WHEN t.status='em_andamento' THEN 1 ELSE 0 END),
+          SUM(CASE WHEN t.data_prazo IS NOT NULL AND t.data_prazo < %s THEN 1 ELSE 0 END),
+          SUM(CASE WHEN t.data_prazo = %s THEN 1 ELSE 0 END)
+        {base}""", [hoje, hoje] + params)
+    em_andamento, atrasadas, vence_hoje = (cur.fetchone() or (0, 0, 0))
+    em_andamento = em_andamento or 0
+    atrasadas = atrasadas or 0
+    vence_hoje = vence_hoje or 0
+    em_risco = atrasadas + vence_hoje
+
+    def card(emoji, num, rotulo, cor):
+        return (f'<td width="33%" align="center" style="padding:14px 8px;background:#F7F8FC;'
+                f'border:1px solid #ECEEF6;border-radius:14px">'
+                f'<div style="font-size:22px;line-height:1">{emoji}</div>'
+                f'<div style="font-size:28px;font-weight:800;color:{cor};margin:4px 0 2px">{num}</div>'
+                f'<div style="font-size:11px;color:#9097AC;text-transform:uppercase;letter-spacing:.5px">{rotulo}</div></td>')
+
+    cards = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">'
+             f'<tr>'
+             f'{card("✅", concluidas_hoje, "Concluídas hoje", "#06A77D")}'
+             f'<td width="8"></td>'
+             f'{card("🔵", em_andamento, "Em andamento", "#5B2EE0")}'
+             f'<td width="8"></td>'
+             f'{card("⚠️", em_risco, "Em risco do prazo", "#E03B57" if em_risco else "#9097AC")}'
+             f'</tr></table>')
+
+    # Detalhe do que está em risco — lista acionável (atrasadas + vencendo hoje)
+    risco_html = ""
+    if em_risco:
+        cur.execute(f"""
+            SELECT t.id, t.descricao, t.data_prazo, t.hora_prazo, t.status
+            {base} AND t.data_prazo IS NOT NULL AND t.data_prazo <= %s
+            ORDER BY t.data_prazo ASC, t.hora_prazo ASC NULLS LAST
+            LIMIT 8""", params + [hoje])
+        itens = []
+        for tid, desc, prazo, hora, status in cur.fetchall():
+            atrasada = prazo and prazo < hoje
+            tag_cor, tag_txt = (("#E03B57", "Atrasada") if atrasada
+                                else ("#E08A00", "Vence hoje"))
+            prazo_fmt = _hist_fmt("data_prazo", str(prazo)) if prazo else "—"
+            hora_fmt = f' {str(hora)[:5]}' if hora else ""
+            itens.append(
+                f'<tr><td style="padding:7px 0;border-bottom:1px solid #F1F2F8;line-height:1.5">'
+                f'<span style="display:inline-block;background:{tag_cor};color:#fff;font-size:10px;'
+                f'font-weight:700;padding:2px 7px;border-radius:6px;margin-right:6px">{tag_txt}</span>'
+                f'<span style="font-family:monospace;font-size:11px;color:#9097AC">#{tid}</span> '
+                f'<strong style="color:#0B0D1F;font-size:13px">{desc or "(sem descrição)"}</strong> '
+                f'<span style="color:#B6BBCB;font-size:11px">· prazo {prazo_fmt}{hora_fmt} · '
+                f'{HIST_STATUS_LABEL.get(status, status)}</span></td></tr>')
+        sufixo = ' <span style="color:#9097AC;font-weight:400">(8 mais antigas)</span>' if em_risco > 8 else ""
+        risco_html = (
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'style="margin:0 0 22px;background:#FFF5F6;border:1px solid #F7D6dc;border-radius:14px">'
+            f'<tr><td style="padding:12px 16px 4px"><span style="font-size:11px;font-weight:800;'
+            f'text-transform:uppercase;letter-spacing:1px;color:#E03B57">⚠️ Atenção ao prazo</span>'
+            f'<span style="font-size:11px;color:#9097AC">· {em_risco} tarefa(s){sufixo}</span></td></tr>'
+            f'<tr><td style="padding:2px 16px 12px"><table role="presentation" width="100%" '
+            f'cellpadding="0" cellspacing="0">{"".join(itens)}</table></td></tr></table>')
+
+    return cards + risco_html
+
+
 def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
     """Monta (html, total) com as alterações do período, agrupadas por projeto.
     `inicio`/`fim` são timestamps; `time_filter` restringe ao time do dono da tarefa."""
@@ -680,9 +755,25 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
             f'<span style="font-size:11px;color:#9097AC">· {len(linhas_tarefa)} tarefa(s)</span></td></tr>'
             f'<tr><td style="padding:4px 6px 10px">{"".join(linhas_tarefa)}</td></tr></table>')
 
-    corpo = "".join(blocos) if blocos else (
+    detalhes = "".join(blocos) if blocos else (
         '<p style="color:#9097AC;font-size:14px;text-align:center;padding:24px 0">'
         'Nenhuma alteração registrada neste período. 😴</p>')
+
+    # Painel-resumo (KPIs + alertas de prazo) no topo do corpo
+    concluidas_hoje = len({tid for _proj, tid, _d, _a, acao, campo, _ant, novo, _q in rows
+                           if acao == "alterou" and campo == "status" and novo == "concluido"})
+    hoje = inicio.date() if hasattr(inicio, "date") else inicio
+    try:
+        kpis = montar_kpis(cur, hoje, time_filter, concluidas_hoje)
+    except Exception as e:
+        print(f"[resumo-diario] KPIs indisponíveis: {e}")
+        kpis = ""
+
+    if detalhes and blocos:
+        detalhes = ('<p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;'
+                    'letter-spacing:1px;margin:6px 0 14px">📝 Alterações do dia</p>') + detalhes
+
+    corpo = kpis + detalhes
     return corpo, total
 
 
