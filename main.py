@@ -2033,6 +2033,20 @@ def marcar_lidas(faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/notificacoes/{notif_id}/marcar-lida")
+def marcar_uma_lida(notif_id: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE notificacoes SET lida = TRUE WHERE id = %s AND destinatario_id IS NULL", (notif_id,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/notificacoes/nao-lidas")
 def count_nao_lidas(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -2074,6 +2088,19 @@ def marcar_minhas_lidas(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("UPDATE notificacoes SET lida = TRUE WHERE destinatario_id = %s AND lida = FALSE", (sess["id"],))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/minhas-notificacoes/{notif_id}/marcar-lida")
+def marcar_minha_uma_lida(notif_id: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE notificacoes SET lida = TRUE WHERE id = %s AND destinatario_id = %s", (notif_id, sess["id"]))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
