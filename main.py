@@ -1855,6 +1855,9 @@ def seed_dados():
 @app.get("/")
 def root(): return FileResponse("static/login.html")
 
+@app.get("/faiston-ops-mark.svg")
+def faiston_ops_mark(): return FileResponse("static/faiston-ops-mark.svg", media_type="image/svg+xml")
+
 @app.get("/dashboard")
 def dashboard(): return FileResponse("static/index.html")
 

@@ -1,0 +1,11 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FAISTON OPS">
+  <defs>
+    <linearGradient id="faistonOps" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5B2EE0"/>
+      <stop offset="0.55" stop-color="#B826C9"/>
+      <stop offset="1" stop-color="#EC4899"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#faistonOps)"/>
+  <path d="M26 21.5 L44 32 L26 42.5 Z" fill="#fff"/>
+</svg>
