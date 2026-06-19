@@ -606,20 +606,28 @@ def montar_kpis(cur, hoje, time_filter: str, concluidas_hoje: int) -> str:
     vence_hoje = vence_hoje or 0
     em_risco = atrasadas + vence_hoje
 
-    def card(emoji, num, rotulo, cor):
-        return (f'<td width="33%" align="center" style="padding:14px 8px;background:#F7F8FC;'
-                f'border:1px solid #ECEEF6;border-radius:14px">'
-                f'<div style="font-size:22px;line-height:1">{emoji}</div>'
-                f'<div style="font-size:28px;font-weight:800;color:{cor};margin:4px 0 2px">{num}</div>'
-                f'<div style="font-size:11px;color:#9097AC;text-transform:uppercase;letter-spacing:.5px">{rotulo}</div></td>')
+    def card(emoji, num, rotulo, cor, chip):
+        return (f'<td width="32%" valign="top" style="padding:0">'
+                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                f'style="background:#FBFBFE;border:1px solid #ECEEF4;border-top:3px solid {cor};border-radius:13px">'
+                f'<tr><td align="center" style="padding:17px 8px 15px">'
+                f'<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 9px">'
+                f'<tr><td style="width:38px;height:38px;background:{chip};border-radius:11px;text-align:center;'
+                f'vertical-align:middle;font-size:18px;line-height:38px">{emoji}</td></tr></table>'
+                f'<div style="font-size:32px;font-weight:800;color:{cor};line-height:1;letter-spacing:-1.2px">{num}</div>'
+                f'<div style="font-size:10.5px;color:#8A90A2;text-transform:uppercase;letter-spacing:.7px;'
+                f'font-weight:700;margin-top:6px">{rotulo}</div></td></tr></table></td>')
 
-    cards = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">'
+    eyebrow = ('<p style="margin:0 0 12px;font-size:11px;font-weight:800;letter-spacing:1.4px;'
+               'text-transform:uppercase;color:#A78BFA">Panorama de hoje</p>')
+    cards = (f'{eyebrow}'
+             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px">'
              f'<tr>'
-             f'{card("✅", concluidas_hoje, "Concluídas hoje", "#06A77D")}'
-             f'<td width="8"></td>'
-             f'{card("🔵", em_andamento, "Em andamento", "#5B2EE0")}'
-             f'<td width="8"></td>'
-             f'{card("⚠️", em_risco, "Em risco do prazo", "#E03B57" if em_risco else "#9097AC")}'
+             f'{card("✅", concluidas_hoje, "Concluídas hoje", "#0E9F6E", "#E3F6EE")}'
+             f'<td width="10"></td>'
+             f'{card("🚀", em_andamento, "Em andamento", "#5B2EE0", "#EEE8FE")}'
+             f'<td width="10"></td>'
+             f'{card("⚠️", em_risco, "Em risco do prazo", "#EF4444" if em_risco else "#9AA0AE", "#FDECEC" if em_risco else "#F1F2F6")}'
              f'</tr></table>')
 
     # Detalhe do que está em risco — lista acionável (atrasadas + vencendo hoje)
@@ -630,29 +638,33 @@ def montar_kpis(cur, hoje, time_filter: str, concluidas_hoje: int) -> str:
             {base} AND t.data_prazo IS NOT NULL AND t.data_prazo <= %s
             ORDER BY t.data_prazo ASC, t.hora_prazo ASC NULLS LAST
             LIMIT 8""", params + [hoje])
+        linhas = cur.fetchall()
         itens = []
-        for tid, desc, prazo, hora, status in cur.fetchall():
+        for i, (tid, desc, prazo, hora, status) in enumerate(linhas):
             atrasada = prazo and prazo < hoje
-            tag_cor, tag_txt = (("#E03B57", "Atrasada") if atrasada
-                                else ("#E08A00", "Vence hoje"))
+            tag_cor, tag_bg, tag_txt = (("#DC2626", "#FDECEC", "Atrasada") if atrasada
+                                        else ("#B45309", "#FEF3DC", "Vence hoje"))
             prazo_fmt = _hist_fmt("data_prazo", str(prazo)) if prazo else "—"
-            hora_fmt = f' {str(hora)[:5]}' if hora else ""
+            hora_fmt = f' às {str(hora)[:5]}' if hora else ""
+            borda = "" if i == len(linhas) - 1 else ";border-bottom:1px solid #F4ECEE"
             itens.append(
-                f'<tr><td style="padding:7px 0;border-bottom:1px solid #F1F2F8;line-height:1.5">'
-                f'<span style="display:inline-block;background:{tag_cor};color:#fff;font-size:10px;'
-                f'font-weight:700;padding:2px 7px;border-radius:6px;margin-right:6px">{tag_txt}</span>'
-                f'<span style="font-family:monospace;font-size:11px;color:#9097AC">#{tid}</span> '
-                f'<strong style="color:#0B0D1F;font-size:13px">{desc or "(sem descrição)"}</strong> '
-                f'<span style="color:#B6BBCB;font-size:11px">· prazo {prazo_fmt}{hora_fmt} · '
-                f'{HIST_STATUS_LABEL.get(status, status)}</span></td></tr>')
-        sufixo = ' <span style="color:#9097AC;font-weight:400">(8 mais antigas)</span>' if em_risco > 8 else ""
+                f'<tr><td style="padding:11px 0{borda}">'
+                f'<span style="display:inline-block;background:{tag_bg};color:{tag_cor};font-size:10px;'
+                f'font-weight:800;letter-spacing:.3px;padding:3px 8px;border-radius:6px;margin-right:8px;'
+                f'text-transform:uppercase">{tag_txt}</span>'
+                f'<strong style="color:#11131C;font-size:13.5px">{desc or "(sem descrição)"}</strong>'
+                f'<div style="margin-top:4px;color:#9AA0AE;font-size:11px;font-weight:500">'
+                f'#{tid} &nbsp;·&nbsp; prazo {prazo_fmt}{hora_fmt} &nbsp;·&nbsp; '
+                f'{HIST_STATUS_LABEL.get(status, status)}</div></td></tr>')
+        sufixo = ' <span style="color:#C99;font-weight:500">· 8 mais urgentes</span>' if em_risco > 8 else ""
         risco_html = (
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            f'style="margin:0 0 22px;background:#FFF5F6;border:1px solid #F7D6dc;border-radius:14px">'
-            f'<tr><td style="padding:12px 16px 4px"><span style="font-size:11px;font-weight:800;'
-            f'text-transform:uppercase;letter-spacing:1px;color:#E03B57">⚠️ Atenção ao prazo</span>'
-            f'<span style="font-size:11px;color:#9097AC">· {em_risco} tarefa(s){sufixo}</span></td></tr>'
-            f'<tr><td style="padding:2px 16px 12px"><table role="presentation" width="100%" '
+            f'style="margin:0 0 24px;background:#fff;border:1px solid #F4D7D7;border-radius:14px">'
+            f'<tr><td style="background:#FEF4F4;border-radius:14px 14px 0 0;border-bottom:1px solid #F4D7D7;'
+            f'padding:12px 18px"><span style="font-size:11.5px;font-weight:800;'
+            f'letter-spacing:.8px;text-transform:uppercase;color:#DC2626">⚠ Atenção ao prazo</span>'
+            f'<span style="font-size:11px;color:#C28A8A;font-weight:600">&nbsp; {em_risco} tarefa(s){sufixo}</span></td></tr>'
+            f'<tr><td style="padding:2px 18px 14px"><table role="presentation" width="100%" '
             f'cellpadding="0" cellspacing="0">{"".join(itens)}</table></td></tr></table>')
 
     return cards + risco_html
@@ -713,15 +725,15 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
                 if autor:
                     mudancas[campo]["autores"].add(autor)
 
-            eventos_html = []
+            eventos = []   # (chip_label, chip_cor, chip_bg, corpo_html, meta_html)
             for acao, autor, hora in marcos:
-                cor, txt = (("#06A77D", "criou esta tarefa") if acao == "criou"
-                            else ("#E03B57", "excluiu esta tarefa"))
-                eventos_html.append(
-                    f'<tr><td style="padding:7px 0;border-bottom:1px solid #F1F2F8;font-size:13px;line-height:1.5">'
-                    f'<span style="color:{cor};font-weight:700">{txt}</span> '
-                    f'<span style="color:#9097AC">por {autor}</span> '
-                    f'<span style="color:#B6BBCB;font-size:11px">· {hora}</span></td></tr>')
+                if acao == "criou":
+                    chip = ("Criada", "#0E9F6E", "#E3F6EE")
+                    corpo_ev = '<span style="color:#0E9F6E;font-weight:600;font-size:13px">Tarefa criada</span>'
+                else:
+                    chip = ("Excluída", "#DC2626", "#FDECEC")
+                    corpo_ev = '<span style="color:#DC2626;font-weight:600;font-size:13px">Tarefa excluída</span>'
+                eventos.append((chip[0], chip[1], chip[2], corpo_ev, f'por {autor} · {hora}'))
 
             for campo in ordem_campos:
                 m = mudancas[campo]
@@ -730,34 +742,52 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
                 if de == para:
                     continue  # alteração que voltou ao valor original — ignora
                 autores = ", ".join(sorted(m["autores"])) or "—"
-                eventos_html.append(
-                    f'<tr><td style="padding:7px 0;border-bottom:1px solid #F1F2F8;line-height:1.6">'
-                    f'<span style="display:inline-block;background:#EFEAFE;color:#5B2EE0;font-size:11px;font-weight:700;'
-                    f'padding:2px 8px;border-radius:6px;margin-right:6px">{label_campo(campo)}</span>'
-                    f'<span style="color:#9097AC;font-size:13px;text-decoration:line-through">{de}</span> '
-                    f'<span style="color:#B6BBCB">&rarr;</span> '
-                    f'<strong style="color:#0B0D1F;font-size:13px">{para}</strong><br>'
-                    f'<span style="color:#B6BBCB;font-size:11px">por {autores} · {hora}</span></td></tr>')
+                corpo_ev = (
+                    f'<span style="color:#9AA0AE;font-size:13px;text-decoration:line-through">{de}</span> '
+                    f'<span style="color:#5B2EE0;font-weight:700;font-size:13px">&rarr;</span> '
+                    f'<strong style="color:#11131C;font-size:13px">{para}</strong>')
+                eventos.append((label_campo(campo), "#5B2EE0", "#EEE8FE",
+                                corpo_ev, f'por {autores} · {m["hora"]}'))
 
-            if not eventos_html:
+            if not eventos:
                 continue  # tarefa sem alterações líquidas — não polui o resumo
+            eventos_html = []
+            for i, (chip_l, chip_c, chip_b, corpo_ev, meta) in enumerate(eventos):
+                borda = "" if i == len(eventos) - 1 else ";border-bottom:1px solid #F1F2F8"
+                eventos_html.append(
+                    f'<tr><td style="padding:10px 0{borda};line-height:1.55">'
+                    f'<span style="display:inline-block;background:{chip_b};color:{chip_c};font-size:10.5px;'
+                    f'font-weight:700;letter-spacing:.2px;padding:2px 9px;border-radius:6px;margin-right:8px">{chip_l}</span>'
+                    f'{corpo_ev}'
+                    f'<div style="margin-top:3px;color:#AEB3C2;font-size:11px">{meta}</div></td></tr>')
             linhas_tarefa.append(
-                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px">'
-                f'<tr><td style="padding:10px 14px 6px"><span style="font-family:monospace;font-size:11px;font-weight:700;color:#9097AC">#{tid}</span> '
-                f'<span style="font-size:14px;font-weight:700;color:#0B0D1F">{(info["desc"] or "(sem descrição)")}</span></td></tr>'
-                f'<tr><td style="padding:0 14px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(eventos_html)}</table></td></tr>'
+                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 4px">'
+                f'<tr><td style="padding:12px 16px 4px">'
+                f'<span style="display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;'
+                f'font-weight:700;color:#7C84A0;background:#F1F2F6;padding:2px 7px;border-radius:5px;margin-right:7px">#{tid}</span>'
+                f'<span style="font-size:14px;font-weight:700;color:#11131C">{(info["desc"] or "(sem descrição)")}</span></td></tr>'
+                f'<tr><td style="padding:0 16px 6px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(eventos_html)}</table></td></tr>'
                 f'</table>')
         if not linhas_tarefa:
             continue
+        sep = '<tr><td style="border-top:1px solid #EEF0F6;font-size:0;line-height:0">&nbsp;</td></tr>'
+        corpo_tarefas = sep.join(f'<tr><td>{lt}</td></tr>' for lt in linhas_tarefa)
         blocos.append(
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;background:#F7F8FC;border:1px solid #ECEEF6;border-radius:14px">'
-            f'<tr><td style="padding:12px 16px 4px"><span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#5B2EE0">📁 {proj}</span> '
-            f'<span style="font-size:11px;color:#9097AC">· {len(linhas_tarefa)} tarefa(s)</span></td></tr>'
-            f'<tr><td style="padding:4px 6px 10px">{"".join(linhas_tarefa)}</td></tr></table>')
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'style="margin:0 0 18px;background:#fff;border:1px solid #ECEEF4;border-radius:14px">'
+            f'<tr><td style="background:#F8F9FC;border-radius:14px 14px 0 0;border-bottom:1px solid #EEF0F6;padding:12px 16px">'
+            f'<span style="font-size:12px;font-weight:800;letter-spacing:.3px;color:#5B2EE0">📁 {proj}</span>'
+            f'<span style="font-size:11px;color:#9AA0AE;font-weight:600">&nbsp; {len(linhas_tarefa)} tarefa(s)</span></td></tr>'
+            f'<tr><td style="padding:4px 4px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+            f'{corpo_tarefas}</table></td></tr></table>')
 
     detalhes = "".join(blocos) if blocos else (
-        '<p style="color:#9097AC;font-size:14px;text-align:center;padding:24px 0">'
-        'Nenhuma alteração registrada neste período. 😴</p>')
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="background:#FBFBFE;border:1px solid #ECEEF4;border-radius:14px">'
+        '<tr><td align="center" style="padding:30px 20px">'
+        '<div style="font-size:26px;margin-bottom:6px">🌙</div>'
+        '<p style="color:#6B7280;font-size:14px;font-weight:600;margin:0">Nenhuma alteração registrada hoje</p>'
+        '<p style="color:#AEB3C2;font-size:12px;margin:4px 0 0">Dia tranquilo por aqui.</p></td></tr></table>')
 
     # Painel-resumo (KPIs + alertas de prazo) no topo do corpo
     concluidas_hoje = len({tid for _proj, tid, _d, _a, acao, campo, _ant, novo, _q in rows
@@ -769,27 +799,50 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
         print(f"[resumo-diario] KPIs indisponíveis: {e}")
         kpis = ""
 
-    if detalhes and blocos:
-        detalhes = ('<p style="color:#9097AC;font-size:11px;font-weight:700;text-transform:uppercase;'
-                    'letter-spacing:1px;margin:6px 0 14px">📝 Alterações do dia</p>') + detalhes
+    if blocos:
+        detalhes = ('<p style="margin:0 0 14px;font-size:11px;font-weight:800;letter-spacing:1.4px;'
+                    'text-transform:uppercase;color:#A78BFA">Alterações do dia</p>') + detalhes
 
     corpo = kpis + detalhes
     return corpo, total
 
 
 def _shell_email(titulo: str, subtitulo: str, corpo_html: str) -> str:
-    """Envelope visual padrão (header roxo + footer) para e-mails do OPS."""
+    """Envelope visual padrão (header da marca + footer) para e-mails do OPS."""
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head>
-<body style="margin:0;padding:0;background:#EEF0F8;-webkit-font-smoothing:antialiased">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF0F8;padding:32px 12px"><tr><td align="center">
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;font-family:'Segoe UI',Arial,sans-serif">
-      <tr><td bgcolor="#5B2EE0" style="border-radius:18px 18px 0 0;background:linear-gradient(135deg,#5B2EE0 0%,#B826C9 55%,#EC4899 100%);padding:32px;text-align:center">
-        <h1 style="color:#fff;margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px">{titulo}</h1>
-        <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px">{subtitulo}</p></td></tr>
-      <tr><td bgcolor="#ffffff" style="background:#fff;padding:28px 28px 24px;border-left:1px solid #E5E8F0;border-right:1px solid #E5E8F0">{corpo_html}</td></tr>
-      <tr><td bgcolor="#ffffff" style="background:#fff;border-radius:0 0 18px 18px;border:1px solid #E5E8F0;border-top:none;padding:18px 28px;text-align:center">
-        <p style="color:#9097AC;font-size:11px;margin:0;line-height:1.6">Faiston OPS · Torre de Controle<br>Resumo automático de fim de expediente — por favor não responda.</p></td></tr>
+<body style="margin:0;padding:0;background:#0E0B1F;-webkit-font-smoothing:antialiased;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0">{subtitulo}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF0F8;padding:36px 14px"><tr><td align="center">
+    <table role="presentation" width="620" cellpadding="0" cellspacing="0" style="max-width:620px;width:100%;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+
+      <!-- Header -->
+      <tr><td bgcolor="#4C1FBF" style="border-radius:20px 20px 0 0;background:#4C1FBF;background:linear-gradient(135deg,#3A1B9E 0%,#6D28D9 52%,#9D24B8 100%);padding:30px 34px 28px">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="vertical-align:middle">
+            <span style="display:inline-block;width:34px;height:34px;background:rgba(255,255,255,0.16);border-radius:9px;text-align:center;line-height:34px;font-size:17px;vertical-align:middle">🛰️</span>
+            <span style="color:#fff;font-size:13px;font-weight:800;letter-spacing:1.6px;vertical-align:middle;margin-left:11px">FAISTON OPS</span>
+          </td>
+          <td align="right" style="vertical-align:middle"><span style="color:rgba(255,255,255,0.62);font-size:10.5px;font-weight:700;letter-spacing:1.3px">TORRE DE CONTROLE</span></td>
+        </tr></table>
+        <h1 style="color:#fff;margin:22px 0 0;font-size:26px;font-weight:800;letter-spacing:-0.6px">{titulo}</h1>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:13px"><tr>
+          <td style="background:rgba(255,255,255,0.15);border-radius:8px;padding:6px 13px">
+            <span style="color:#fff;font-size:12.5px;font-weight:600;letter-spacing:.2px">{subtitulo}</span></td></tr></table>
+      </td></tr>
+
+      <!-- Body -->
+      <tr><td bgcolor="#ffffff" style="background:#fff;padding:28px 30px 24px;border-left:1px solid #E7E9F2;border-right:1px solid #E7E9F2">{corpo_html}</td></tr>
+
+      <!-- Footer -->
+      <tr><td bgcolor="#ffffff" style="background:#fff;border-radius:0 0 20px 20px;border:1px solid #E7E9F2;border-top:none;padding:8px 30px 26px;text-align:center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #EEF0F6;padding-top:20px;text-align:center">
+          <span style="display:inline-block;width:28px;height:28px;background:#F2EEFE;border-radius:8px;text-align:center;line-height:28px;font-size:14px">🛰️</span>
+          <p style="color:#6B7280;font-size:12px;font-weight:700;margin:9px 0 3px;letter-spacing:.2px">Faiston OPS · Torre de Controle</p>
+          <p style="color:#AEB3C2;font-size:11px;margin:0;line-height:1.5">Resumo automático de fim de expediente · por favor não responda.</p>
+        </td></tr></table>
+      </td></tr>
+
     </table></td></tr></table></body></html>"""
 
 
@@ -830,7 +883,7 @@ def enviar_resumo_diario(dia=None) -> dict:
             if total == 0:
                 continue  # nada a reportar → não envia
             escopo = "todos os times" if chave == "__all__" else f"time {time_u}"
-            html = _shell_email("🛰️ Resumo do dia",
+            html = _shell_email("Resumo do dia",
                                 f"{data_label} · {total} alteração(ões) · {escopo}", corpo)
             if _brevo_send(email, f"🛰️ Faiston OPS — Resumo de {data_label}", html):
                 enviados += 1
@@ -1313,7 +1366,7 @@ def preview_resumo_diario(enviar: int = 0, dia: str = "", faiston_token: str = C
         corpo, total = montar_resumo_diario(cur, inicio, fim, tf)
         cur.close(); conn.close()
         escopo = "todos os times" if tf is None else f"time {tf}"
-        html = _shell_email("🛰️ Resumo do dia",
+        html = _shell_email("Resumo do dia",
                             f"{d.strftime('%d/%m/%Y')} · {total} alteração(ões) · {escopo}", corpo)
         return HTMLResponse(content=html)
     except Exception as e:
