@@ -617,34 +617,67 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
     for proj, tarefas in projetos.items():
         linhas_tarefa = []
         for tid, info in tarefas.items():
-            eventos_html = []
+            # Eventos de criação/exclusão da tarefa (destaque próprio)
+            marcos = []        # (acao, autor, hora)
+            # Alterações de campo: colapsa repetições do mesmo campo no período,
+            # mantendo o valor ANTERIOR original e o valor FINAL (net change).
+            ordem_campos = []
+            mudancas = {}      # campo -> {antigo, novo, autores:set, hora}
             for autor, acao, campo, antigo, novo, quando in info["eventos"]:
                 hora = str(quando)[11:16] if quando else ""
-                if acao == "criou":
-                    detalhe = '<span style="color:#06A77D;font-weight:700">criou esta tarefa</span>'
-                elif acao == "excluiu":
-                    detalhe = '<span style="color:#E03B57;font-weight:700">excluiu esta tarefa</span>'
+                if acao in ("criou", "excluiu"):
+                    marcos.append((acao, autor or "—", hora))
+                    continue
+                if campo not in mudancas:
+                    mudancas[campo] = {"antigo": antigo, "novo": novo,
+                                       "autores": set(), "hora": hora}
+                    ordem_campos.append(campo)
                 else:
-                    de = _hist_fmt(campo, antigo)
-                    para = _hist_fmt(campo, novo)
-                    detalhe = (f'alterou <strong style="color:#0B0D1F">{label_campo(campo)}</strong>: '
-                               f'<span style="color:#9097AC;text-decoration:line-through">{de}</span> '
-                               f'<span style="color:#5B2EE0">&rarr;</span> '
-                               f'<strong style="color:#5B2EE0">{para}</strong>')
+                    mudancas[campo]["novo"] = novo   # mantém o estado final
+                    mudancas[campo]["hora"] = hora
+                if autor:
+                    mudancas[campo]["autores"].add(autor)
+
+            eventos_html = []
+            for acao, autor, hora in marcos:
+                cor, txt = (("#06A77D", "criou esta tarefa") if acao == "criou"
+                            else ("#E03B57", "excluiu esta tarefa"))
                 eventos_html.append(
-                    f'<tr><td style="padding:6px 0;border-bottom:1px solid #F1F2F8;font-size:13px;color:#5E647A;line-height:1.5">'
-                    f'<span style="color:#0B0D1F;font-weight:600">{autor or "—"}</span> {detalhe} '
+                    f'<tr><td style="padding:7px 0;border-bottom:1px solid #F1F2F8;font-size:13px;line-height:1.5">'
+                    f'<span style="color:{cor};font-weight:700">{txt}</span> '
+                    f'<span style="color:#9097AC">por {autor}</span> '
                     f'<span style="color:#B6BBCB;font-size:11px">· {hora}</span></td></tr>')
+
+            for campo in ordem_campos:
+                m = mudancas[campo]
+                de = _hist_fmt(campo, m["antigo"])
+                para = _hist_fmt(campo, m["novo"])
+                if de == para:
+                    continue  # alteração que voltou ao valor original — ignora
+                autores = ", ".join(sorted(m["autores"])) or "—"
+                eventos_html.append(
+                    f'<tr><td style="padding:7px 0;border-bottom:1px solid #F1F2F8;line-height:1.6">'
+                    f'<span style="display:inline-block;background:#EFEAFE;color:#5B2EE0;font-size:11px;font-weight:700;'
+                    f'padding:2px 8px;border-radius:6px;margin-right:6px">{label_campo(campo)}</span>'
+                    f'<span style="color:#9097AC;font-size:13px;text-decoration:line-through">{de}</span> '
+                    f'<span style="color:#B6BBCB">&rarr;</span> '
+                    f'<strong style="color:#0B0D1F;font-size:13px">{para}</strong><br>'
+                    f'<span style="color:#B6BBCB;font-size:11px">por {autores} · {hora}</span></td></tr>')
+
+            if not eventos_html:
+                continue  # tarefa sem alterações líquidas — não polui o resumo
             linhas_tarefa.append(
                 f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px">'
                 f'<tr><td style="padding:10px 14px 6px"><span style="font-family:monospace;font-size:11px;font-weight:700;color:#9097AC">#{tid}</span> '
                 f'<span style="font-size:14px;font-weight:700;color:#0B0D1F">{(info["desc"] or "(sem descrição)")}</span></td></tr>'
                 f'<tr><td style="padding:0 14px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(eventos_html)}</table></td></tr>'
                 f'</table>')
+        if not linhas_tarefa:
+            continue
         blocos.append(
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;background:#F7F8FC;border:1px solid #ECEEF6;border-radius:14px">'
             f'<tr><td style="padding:12px 16px 4px"><span style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#5B2EE0">📁 {proj}</span> '
-            f'<span style="font-size:11px;color:#9097AC">· {len(tarefas)} tarefa(s)</span></td></tr>'
+            f'<span style="font-size:11px;color:#9097AC">· {len(linhas_tarefa)} tarefa(s)</span></td></tr>'
             f'<tr><td style="padding:4px 6px 10px">{"".join(linhas_tarefa)}</td></tr></table>')
 
     corpo = "".join(blocos) if blocos else (
