@@ -6,7 +6,7 @@
     <title>Guia de Uso · Faiston OPS</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>tailwind.config={theme:{extend:{colors:{faiston:{bg:'#F4F5FA',dark:'#0B0D1F',border:'#E5E8F0',muted:'#5E647A',faint:'#9097AC',cyan:'#06D7E6',purple:'#5B2EE0',magenta:'#B826C9',pink:'#EC4899'}}},fontFamily:{sans:['Inter','sans-serif'],display:['Space Grotesk','sans-serif']}}}}</script>
+    <script>tailwind.config={theme:{extend:{colors:{faiston:{bg:'#F4F5FA',dark:'#0B0D1F',border:'#E5E8F0',muted:'#5E647A',faint:'#9097AC',cyan:'#06D7E6',purple:'#5B2EE0',magenta:'#B826C9',pink:'#EC4899'}}},fontFamily:{sans:['Inter','sans-serif'],display:['Space Grotesk','sans-serif']}}}</script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
         *{box-sizing:border-box;margin:0;padding:0}
@@ -146,9 +146,9 @@
                 Guia de Uso<br><span style="background:linear-gradient(135deg,#B826C9,#EC4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">do Sistema</span>
             </h1>
             <p style="color:rgba(255,255,255,.55);font-size:15px;max-width:380px;line-height:1.7;margin-bottom:24px">Tudo que você precisa para dominar o Faiston OPS. Selecione seu perfil abaixo.</p>
-            <a href="/dashboard" style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;font-size:13px;font-weight:600;padding:10px 20px;border-radius:12px;text-decoration:none;transition:all .2s;backdrop-filter:blur(10px)"
+            <a href="/dashboard" id="hero-cta" style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;font-size:13px;font-weight:600;padding:10px 20px;border-radius:12px;text-decoration:none;transition:all .2s;backdrop-filter:blur(10px)"
                onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">
-                <i class="ph ph-arrow-left"></i> Voltar ao Dashboard
+                <i class="ph ph-arrow-left" id="hero-cta-icon"></i> <span id="hero-cta-label">Voltar ao Dashboard</span>
             </a>
         </div>
 
@@ -199,6 +199,10 @@
             <button class="tab-btn" onclick="setTab('gestor')" id="tb-gestor">
                 <span class="tab-icon"><i class="ph ph-chart-line-up"></i></span>
                 <span class="lbl">Gestor</span>
+            </button>
+            <button class="tab-btn" onclick="setTab('diretor')" id="tb-diretor">
+                <span class="tab-icon"><i class="ph ph-crown-simple"></i></span>
+                <span class="lbl">Diretor</span>
             </button>
         </div>
     </div>
@@ -936,6 +940,153 @@
     </div>
 </div>
 
+<!-- ════════════ DIRETOR ════════════ -->
+<div id="tab-diretor" class="tab-panel" style="display:none;flex-direction:column;gap:32px">
+
+    <!-- Boas-vindas -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#EC4899)"><i class="ph ph-crown-simple" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Bem-vindo, Diretor</div>
+                <div class="sec-hd-sub">Visão consolidada das áreas que você comanda</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:18px">A ideia do Faiston OPS é <strong style="color:#0B0D1F">unificar tudo num só sistema</strong>: projetos, finanças, tarefas e acompanhamento conversando entre si. Como diretor, você enxerga o <strong style="color:#0B0D1F">consolidado das 3 áreas</strong> que comanda, sem precisar pular entre planilhas e telas.</p>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                <div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:14px;background:#06D7E608;border:1px solid #06D7E620">
+                    <i class="ph ph-truck" style="color:#06D7E6;font-size:26px;flex-shrink:0"></i>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Logística</p>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:14px;background:#5B2EE008;border:1px solid #5B2EE020">
+                    <i class="ph ph-folder-open" style="color:#5B2EE0;font-size:26px;flex-shrink:0"></i>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Projetos</p>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:14px;background:#EC489908;border:1px solid #EC489920">
+                    <i class="ph ph-network" style="color:#EC4899;font-size:26px;flex-shrink:0"></i>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Rede Credenciada</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backoffice por área -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)"><i class="ph ph-buildings" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Backoffice por Área</div>
+                <div class="sec-hd-sub">Cada área mostra só os seus funcionários</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Na barra lateral, em <strong style="color:#0B0D1F">Backoffice</strong>, os funcionários aparecem <strong style="color:#0B0D1F">agrupados pelas 3 áreas</strong>. Você navega assim:</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="info-row"><i class="ph ph-buildings" style="color:#5B2EE0"></i><div>Clique no <strong>nome da área</strong> (ex.: Logística) → o dashboard passa a mostrar só aquela área</div></div>
+                <div class="info-row"><i class="ph ph-user" style="color:#06D7E6"></i><div>Clique em um <strong>funcionário</strong> → filtra todos os dados por aquela pessoa</div></div>
+                <div class="info-row"><i class="ph ph-arrow-counter-clockwise" style="color:#EC4899"></i><div>Clique em <strong>Todos</strong> → limpa o filtro e volta a ver as 3 áreas juntas</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Visão PMO -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#B826C9,#EC4899)"><i class="ph ph-presentation-chart" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Visão PMO <span style="font-size:11px;font-weight:700;color:#B826C9;background:#B826C915;padding:2px 8px;border-radius:6px;margin-left:6px;vertical-align:middle">EXCLUSIVO</span></div>
+                <div class="sec-hd-sub">Torre de controle do portfólio — só o diretor vê</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:18px">No menu <strong style="color:#0B0D1F">Gestão de Projetos → Visão PMO</strong>, você tem o panorama executivo de todo o portfólio.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="fcard" style="border-left:3px solid #B826C9">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><i class="ph ph-heartbeat" style="color:#B826C9;font-size:22px"></i><p style="font-size:14px;font-weight:700;color:#0B0D1F">Saúde do Portfólio</p></div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Indicador geral, projetos em andamento, em finalização, em freezing e atrasados.</p>
+                </div>
+                <div class="fcard" style="border-left:3px solid #5B2EE0">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><i class="ph ph-users-three" style="color:#5B2EE0;font-size:22px"></i><p style="font-size:14px;font-weight:700;color:#0B0D1F">Carga por Responsável</p></div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Quantos projetos cada responsável está tocando — para equilibrar a distribuição.</p>
+                </div>
+                <div class="fcard" style="border-left:3px solid #EC4899">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><i class="ph ph-warning" style="color:#EC4899;font-size:22px"></i><p style="font-size:14px;font-weight:700;color:#0B0D1F">Alertas de Prazo</p></div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Lista do que está atrasado ou vencendo, para agir antes de estourar.</p>
+                </div>
+                <div class="fcard" style="border-left:3px solid #06D7E6">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><i class="ph ph-chart-line" style="color:#06D7E6;font-size:22px"></i><p style="font-size:14px;font-weight:700;color:#0B0D1F">Linha do Tempo</p></div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Gantt do portfólio e distribuição por status, numa visão só.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gestão de Projetos -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#06D7E6)"><i class="ph ph-folder-open" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Gestão de Projetos</div>
+                <div class="sec-hd-sub">Clientes, projetos, contratos e o financeiro dos projetos</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#5B2EE012"><i class="ph ph-folders" style="color:#5B2EE0;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Clientes · Projetos · Contratos</p>
+                        <p style="font-size:12px;color:#9097AC">Status, responsável e histórico de cada projeto</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-cursor-click" style="color:#5B2EE0"></i><div>Clique num projeto para abrir <strong>comentários e status</strong></div></div>
+                        <div class="info-row"><i class="ph ph-chat-circle-dots" style="color:#06D7E6"></i><div>O responsável atualiza pela aba <strong>Projetos</strong> dele — e sobe para cá</div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#EC489912"><i class="ph ph-currency-dollar" style="color:#EC4899;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Forecast / P&L</p>
+                        <p style="font-size:12px;color:#9097AC">Margem por projeto e P&L mensal</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-table" style="color:#EC4899"></i><div>Visão <strong>Geral</strong> e <strong>Detalhada</strong> com as colunas da planilha FORECAST2026</div></div>
+                        <div class="info-row"><i class="ph ph-funnel" style="color:#5B2EE0"></i><div>Filtros recalculam os <strong>KPIs na hora</strong></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo diário -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#B826C9)"><i class="ph ph-envelope-simple" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Resumo Diário</div>
+                <div class="sec-hd-sub">O consolidado chega até você</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="info-row"><i class="ph ph-clock" style="color:#06D7E6"></i><div>Todo dia útil às <strong>18h</strong> você recebe por e-mail o resumo de <strong>todas as áreas</strong></div></div>
+                <div class="info-row"><i class="ph ph-user-list" style="color:#5B2EE0"></i><div>Inclui a <strong>quebra por pessoa</strong>: quem concluiu quantas tarefas e quantas estão em andamento</div></div>
+                <div class="info-row"><i class="ph ph-gauge" style="color:#EC4899"></i><div>Painel de KPIs e <strong>alerta de prazo</strong> no topo do e-mail</div></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
 <!-- Footer -->
 <div style="text-align:center;padding:32px 0 16px;font-size:12px;color:#C4C8D8">
     Faiston OPS · Torre de Controle · <span id="ano"></span>
@@ -1091,6 +1242,29 @@ const kpiTarget = document.getElementById('kpi-clientes');
 if (kpiTarget) kpiObs.observe(kpiTarget);
 
 document.getElementById('ano').textContent = new Date().getFullYear();
+
+// ── Abre a aba certa pelo perfil e ajusta o botão de saída ──
+(function() {
+    const params = new URLSearchParams(location.search);
+    const perfil = (params.get('perfil') || '').toLowerCase();
+    const tabParam = (params.get('tab') || '').toLowerCase();
+
+    // Mapeia perfil → aba do guia (admin acompanha a visão de gestor)
+    const perfilParaAba = { funcionario: 'func', gestor: 'gestor', demo: 'gestor', admin: 'gestor', diretor: 'diretor' };
+    const aba = tabParam || perfilParaAba[perfil];
+    if (aba && document.getElementById('tb-' + aba)) setTab(aba);
+
+    // Destino do botão de saída conforme o perfil
+    const destino = { funcionario: '/funcionario', gestor: '/dashboard', demo: '/dashboard', admin: '/dashboard', diretor: '/gestao' };
+    if (perfil && destino[perfil]) {
+        const cta = document.getElementById('hero-cta');
+        const label = document.getElementById('hero-cta-label');
+        const icon = document.getElementById('hero-cta-icon');
+        if (cta) cta.href = destino[perfil];
+        if (label) label.textContent = 'Ir para o sistema';
+        if (icon) icon.className = 'ph ph-arrow-right';
+    }
+})();
 </script>
 </body>
 </html>

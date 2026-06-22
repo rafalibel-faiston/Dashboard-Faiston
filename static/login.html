@@ -310,6 +310,11 @@ function redirecionarPorPerfil(perfil) {
     else window.location.href = '/funcionario';
 }
 
+// No primeiro acesso, leva o usuário ao Guia de Uso da sua função.
+function irParaGuia(perfil) {
+    window.location.href = '/ajuda?perfil=' + encodeURIComponent(perfil || 'funcionario');
+}
+
 function toggleNovaSenha() {
     const input = document.getElementById('nova-senha');
     const icon = document.getElementById('icon-eye-nova');
@@ -377,7 +382,8 @@ async function trocarSenha() {
             btn.innerHTML = '<i class="ph ph-check"></i> Confirmar e Entrar';
             return;
         }
-        redirecionarPorPerfil(_perfilPendente || 'funcionario');
+        // Acabou de definir a senha (primeiro acesso) → vai para o Guia de Uso
+        irParaGuia(_perfilPendente || 'funcionario');
     } catch(e) {
         errText.textContent = 'Erro de conexão. Tente novamente.';
         errDiv.classList.add('show');
