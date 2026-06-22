@@ -3777,7 +3777,7 @@ def _parse_forecast_workbook(content):
 @app.post("/api/forecast/importar")
 async def forecast_importar(file: UploadFile = File(...), faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
         import subprocess, sys
@@ -3820,7 +3820,7 @@ def _fc_to_float(v): return float(v) if v is not None else 0.0
 @app.get("/api/forecast/resumo")
 def forecast_get_resumo(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -3864,7 +3864,7 @@ def forecast_get_resumo(faiston_token: str = Cookie(None)):
 @app.get("/api/forecast/periodos")
 def forecast_periodos(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -3885,7 +3885,7 @@ def forecast_periodos(faiston_token: str = Cookie(None)):
 @app.get("/api/forecast/mensal")
 def forecast_mensal(periodo: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -3959,7 +3959,7 @@ def _fc_calcular(m: "ForecastProjetoModel"):
 @app.post("/api/forecast/projeto")
 def forecast_criar_projeto(m: ForecastProjetoModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     if not (m.codigo or "").strip(): raise HTTPException(status_code=400, detail="Informe o ID do projeto.")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
@@ -3986,7 +3986,7 @@ def forecast_criar_projeto(m: ForecastProjetoModel, faiston_token: str = Cookie(
 @app.put("/api/forecast/projeto/{fid}")
 def forecast_atualizar_projeto(fid: int, m: ForecastProjetoModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     if not (m.codigo or "").strip(): raise HTTPException(status_code=400, detail="Informe o ID do projeto.")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
@@ -4012,7 +4012,7 @@ def forecast_atualizar_projeto(fid: int, m: ForecastProjetoModel, faiston_token:
 @app.delete("/api/forecast/projeto/{fid}")
 def forecast_deletar_projeto(fid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
