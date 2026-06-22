@@ -242,6 +242,11 @@
             style="background:transparent;color:#9097AC;box-shadow:none">
             <i class="ph ph-stamp text-base"></i> Carimbos
         </button>
+        <button onclick="switchTab('projetos')" id="tab-projetos"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-folder-open text-base"></i> Projetos
+        </button>
     </div>
 
     <!-- VIEW: KANBAN -->
@@ -400,6 +405,20 @@
         <div id="carimbos-view-content">
             <div class="text-center py-24 text-slate-300">
                 <i class="ph ph-stamp text-3xl mb-3 block"></i>
+                <p class="text-sm">Carregando...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW: PROJETOS (responsável → PMO) -->
+    <div id="view-projetos-func" class="hidden">
+        <div class="mb-6">
+            <h2 class="text-base font-bold text-faiston-dark">Meus Projetos</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Projetos sob sua responsabilidade. Atualize o status e registre comentários — eles sobem direto para o PMO.</p>
+        </div>
+        <div id="projetos-view-content">
+            <div class="text-center py-24 text-slate-300">
+                <i class="ph ph-folder-open text-3xl mb-3 block"></i>
                 <p class="text-sm">Carregando...</p>
             </div>
         </div>
@@ -916,11 +935,14 @@ function switchTab(tab) {
     document.getElementById('tab-kanban').style.cssText   = tab==='kanban'   ? ACTIVE : INACTIVE;
     document.getElementById('tab-agenda').style.cssText   = tab==='agenda'   ? ACTIVE : INACTIVE;
     document.getElementById('tab-carimbos').style.cssText = tab==='carimbos' ? ACTIVE : INACTIVE;
+    document.getElementById('tab-projetos').style.cssText = tab==='projetos' ? ACTIVE : INACTIVE;
     document.getElementById('view-kanban-func').classList.toggle('hidden', tab !== 'kanban');
     document.getElementById('view-agenda-func').classList.toggle('hidden', tab !== 'agenda');
     document.getElementById('view-carimbos-func').classList.toggle('hidden', tab !== 'carimbos');
+    document.getElementById('view-projetos-func').classList.toggle('hidden', tab !== 'projetos');
     if (tab === 'agenda') renderAgenda();
     if (tab === 'carimbos') renderCarimbos();
+    if (tab === 'projetos') renderProjetos();
 }
 
 // ── TAREFAS ──────────────────────────────────────────────────────────
@@ -1953,6 +1975,145 @@ async function deletarNotaModal() {
     modalNotaId=null;
     await carregarNotas();
     if (notas.length>0) selecionarNota(notas[0].id); else mostrarVazioSidebar();
+}
+
+// ── MEUS PROJETOS (responsável → PMO) ────────────────────────────────
+let meusProjetos = [];
+const STATUS_PROJ_FUNC = {
+    'EM ANDAMENTO': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'FINALIZAÇÃO':  'text-amber-600 bg-amber-50 border-amber-200',
+    'EM FREEZING':  'text-slate-500 bg-slate-100 border-slate-200',
+};
+
+function fmtDataProj(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return '—';
+    return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+async function renderProjetos() {
+    const cont = document.getElementById('projetos-view-content');
+    if (!cont) return;
+    try {
+        const res = await fetch('/api/meus-projetos');
+        if (!res.ok) throw new Error();
+        meusProjetos = await res.json();
+    } catch(e) {
+        cont.innerHTML = `<div class="text-center py-24 text-slate-400"><i class="ph ph-warning-circle text-3xl mb-3 block"></i><p class="text-sm">Não foi possível carregar seus projetos.</p></div>`;
+        return;
+    }
+    if (!meusProjetos.length) {
+        cont.innerHTML = `<div class="text-center py-24 text-slate-300"><i class="ph ph-folder-open text-3xl mb-3 block"></i><p class="text-sm">Você ainda não é responsável por nenhum projeto.</p><p class="text-xs text-slate-400 mt-1">Quando o PMO te atribuir um projeto, ele aparece aqui.</p></div>`;
+        return;
+    }
+    cont.innerHTML = meusProjetos.map(cardProjeto).join('');
+    meusProjetos.forEach(p => carregarComentariosProjeto(p.id));
+}
+
+function cardProjeto(p) {
+    const cls = STATUS_PROJ_FUNC[p.status_gestao] || 'text-slate-500 bg-slate-100 border-slate-200';
+    const opts = ['EM ANDAMENTO','FINALIZAÇÃO','EM FREEZING']
+        .map(s => `<option value="${s}" ${s===p.status_gestao?'selected':''}>${s}</option>`).join('');
+    const codigo = p.codigo ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">${escHtmlC(p.codigo)}</span>` : '';
+    return `
+    <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-4">
+        <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <h3 class="text-sm font-bold text-faiston-dark">${escHtmlC(p.nome)}</h3>
+                    ${codigo}
+                </div>
+                <p class="text-xs text-faiston-muted">${escHtmlC(p.cliente) || 'Sem cliente'}</p>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls} flex-shrink-0">${escHtmlC(p.status_gestao)}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-wide block mb-1">Status</label>
+                <select onchange="atualizarStatusProjeto(${p.id}, this.value)" class="w-full border border-faiston-border rounded-lg px-2 py-1.5 text-xs font-semibold bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-wide block mb-1">Término previsto</label>
+                <p class="text-xs font-semibold text-faiston-dark pt-2">${fmtDataProj(p.data_termino)}</p>
+            </div>
+        </div>
+        <div class="border-t border-faiston-border pt-3">
+            <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-wide mb-2"><i class="ph ph-chat-circle-dots mr-1"></i>Comentários / Atualizações para o PMO</p>
+            <div id="coment-${p.id}" class="flex flex-col gap-2 mb-3 max-h-60 overflow-y-auto">
+                <p class="text-xs text-slate-300">Carregando...</p>
+            </div>
+            <div class="flex gap-2 items-end">
+                <textarea id="coment-input-${p.id}" rows="1" placeholder="Escreva uma atualização..." class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple resize-none bg-white"></textarea>
+                <button onclick="enviarComentarioProjeto(${p.id})" class="btn-grad text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-1.5 whitespace-nowrap"><i class="ph ph-paper-plane-tilt"></i> Enviar</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+async function carregarComentariosProjeto(pid) {
+    const box = document.getElementById(`coment-${pid}`);
+    if (!box) return;
+    try {
+        const res = await fetch(`/api/gestao/projetos/${pid}/comentarios`);
+        if (!res.ok) throw new Error();
+        const lista = await res.json();
+        if (!lista.length) {
+            box.innerHTML = `<p class="text-xs text-slate-300 italic">Nenhum comentário ainda. Seja o primeiro a atualizar o PMO.</p>`;
+            return;
+        }
+        box.innerHTML = lista.map(c => {
+            const dt = new Date(c.criado_em);
+            return `<div class="bg-slate-50 rounded-lg px-3 py-2">
+                <div class="flex items-center justify-between gap-2 mb-0.5">
+                    <span class="text-xs font-bold text-faiston-dark">${escHtmlC(c.usuario)}</span>
+                    <span class="text-[10px] text-faiston-faint">${tempoRelativo(dt)}</span>
+                </div>
+                <p class="text-xs text-faiston-muted whitespace-pre-wrap">${escHtmlC(c.texto)}</p>
+            </div>`;
+        }).join('');
+    } catch(e) {
+        box.innerHTML = `<p class="text-xs text-slate-300">Não foi possível carregar os comentários.</p>`;
+    }
+}
+
+async function enviarComentarioProjeto(pid) {
+    const input = document.getElementById(`coment-input-${pid}`);
+    if (!input) return;
+    const texto = input.value.trim();
+    if (!texto) return;
+    input.disabled = true;
+    try {
+        const res = await fetch(`/api/gestao/projetos/${pid}/comentarios`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ texto })
+        });
+        if (!res.ok) throw new Error();
+        input.value = '';
+        await carregarComentariosProjeto(pid);
+    } catch(e) {
+        alert('Não foi possível enviar o comentário. Tente novamente.');
+    } finally {
+        input.disabled = false;
+        input.focus();
+    }
+}
+
+async function atualizarStatusProjeto(pid, status) {
+    try {
+        const res = await fetch(`/api/meus-projetos/${pid}/status`, {
+            method:'PUT',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ status_gestao: status })
+        });
+        if (!res.ok) throw new Error();
+        const p = meusProjetos.find(x => x.id === pid);
+        if (p) { p.status_gestao = status; renderProjetos(); }
+    } catch(e) {
+        alert('Não foi possível atualizar o status. Tente novamente.');
+        renderProjetos();
+    }
 }
 
 // ── TEMA ─────────────────────────────────────────────────────────────

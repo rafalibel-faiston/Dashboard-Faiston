@@ -420,6 +420,9 @@ class ContratoGestao(BaseModel):
 class ComentarioProjeto(BaseModel):
     texto: str
 
+class MeuProjetoStatus(BaseModel):
+    status_gestao: str = ""
+
 # --- EMAIL ---
 def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bool:
     system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
@@ -4515,6 +4518,61 @@ def gestao_adicionar_comentario(pid: int, body: ComentarioProjeto, faiston_token
         conn.commit(); cur.close(); conn.close()
         return {"id": r[0], "usuario": sess["nome"], "texto": body.texto.strip(),
                 "criado_em": r[1].isoformat()}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ── Meus projetos (visão do responsável → PMO) ───────────────
+# O funcionário responsável por um projeto acompanha aqui o que está sob sua
+# responsabilidade: atualiza o status e registra comentários que sobem direto
+# para o PMO (mesma tabela comentarios_projeto que a Gestão de Projetos lê).
+@app.get("/api/meus-projetos")
+def meus_projetos(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT p.id, p.nome, COALESCE(c.nome,''), p.status_gestao,
+                   p.data_inicio, p.data_termino, p.escopo, COALESCE(p.codigo,''),
+                   (SELECT COUNT(*) FROM comentarios_projeto cp WHERE cp.projeto_id = p.id)
+            FROM projetos p
+            LEFT JOIN clientes c ON c.id = p.cliente_id
+            WHERE p.ativo = TRUE AND p.responsavel_id = %s
+            ORDER BY p.nome
+        """, (sess["id"],))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1], "cliente": r[2],
+                 "status_gestao": r[3] or "EM ANDAMENTO",
+                 "data_inicio": r[4].isoformat() if r[4] else "",
+                 "data_termino": r[5].isoformat() if r[5] else "",
+                 "escopo": r[6] or "", "codigo": r[7],
+                 "comentarios": r[8]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/meus-projetos/{pid}/status")
+def meus_projetos_status(pid: int, body: MeuProjetoStatus, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT responsavel_id FROM projetos WHERE id=%s", (pid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=404, detail="Projeto não encontrado")
+        # Só o responsável pelo projeto (ou gestor/admin) pode mexer no status
+        if row[0] != sess["id"] and not _can_gestao(sess):
+            cur.close(); conn.close()
+            raise HTTPException(status_code=403, detail="Sem permissão")
+        cur.execute("UPDATE projetos SET status_gestao=%s WHERE id=%s",
+                    (body.status_gestao, pid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 # ── Contratos ────────────────────────────────────────────────
