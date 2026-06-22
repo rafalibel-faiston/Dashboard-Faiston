@@ -161,6 +161,7 @@ def setup_banco():
             )
         """)
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS primeiro_acesso BOOLEAN DEFAULT FALSE")
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acesso TIMESTAMP DEFAULT NULL")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT ''")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
         cur.execute("""
@@ -1010,6 +1011,8 @@ def login(req: LoginRequest, response: Response):
             INSERT INTO sessoes (token, usuario_id, nome, perfil, time_usuario, pagina, expira_em)
             VALUES (%s, %s, %s, %s, %s, 'dashboard', NOW() + INTERVAL '24 hours')
         """, (token, row[0], row[1], row[2], row[4]))
+        # Registra o último acesso (data/hora do login bem-sucedido)
+        cur.execute("UPDATE usuarios SET ultimo_acesso = NOW() WHERE id = %s", (row[0],))
         conn.commit(); cur.close(); conn.close()
         response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
         return {"sucesso": True, "perfil": row[2], "nome": row[1], "primeiro_acesso": bool(row[3])}
@@ -1061,11 +1064,12 @@ def listar_usuarios(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         if sess["perfil"] == "admin":
-            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos') FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
         else:
-            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos') FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (sess.get("time","Projetos"),))
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (sess.get("time","Projetos"),))
         rows = cur.fetchall(); cur.close(); conn.close()
-        return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5]), "email": r[6], "time": r[7]} for r in rows]
+        return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5]), "email": r[6], "time": r[7],
+                 "primeiro_acesso": bool(r[8]), "ultimo_acesso": str(r[9])[:19] if r[9] else None} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/funcionarios")
