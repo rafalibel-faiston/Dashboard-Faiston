@@ -673,6 +673,76 @@ def montar_kpis(cur, hoje, time_filter: str, concluidas_hoje: int) -> str:
     return cards + risco_html
 
 
+def montar_resumo_por_pessoa(cur, inicio, fim, time_filter: str = None) -> str:
+    """Quebra por pessoa: quantas tarefas cada um concluiu no dia e quantas
+    estão em andamento agora. A conclusão é atribuída ao dono da tarefa.
+    Respeita o time (gestor vê só o seu). Retorna '' se não houver ninguém."""
+    pessoas = {}  # nome -> {"concluidas": int, "andamento": int}
+
+    # Concluídas no período (status → 'concluido'), atribuídas ao dono da tarefa
+    q1 = """SELECT u.nome, COUNT(DISTINCT th.tarefa_id)
+            FROM tarefa_historico th
+            JOIN tarefas t ON t.id = th.tarefa_id
+            JOIN usuarios u ON u.id = t.usuario_id
+            WHERE th.acao = 'alterou' AND th.campo = 'status'
+              AND th.valor_novo = 'concluido'
+              AND th.criado_em >= %s AND th.criado_em < %s"""
+    p1 = [inicio, fim]
+    if time_filter:
+        q1 += " AND COALESCE(u.time,'Projetos') = %s"
+        p1.append(time_filter)
+    q1 += " GROUP BY u.nome"
+    cur.execute(q1, p1)
+    for nome, n in cur.fetchall():
+        pessoas.setdefault(nome, {"concluidas": 0, "andamento": 0})["concluidas"] = n or 0
+
+    # Em andamento agora (estado atual das tarefas)
+    q2 = """SELECT u.nome, COUNT(*)
+            FROM tarefas t JOIN usuarios u ON u.id = t.usuario_id
+            WHERE t.status = 'em_andamento'"""
+    p2 = []
+    if time_filter:
+        q2 += " AND COALESCE(u.time,'Projetos') = %s"
+        p2.append(time_filter)
+    q2 += " GROUP BY u.nome"
+    cur.execute(q2, p2)
+    for nome, n in cur.fetchall():
+        pessoas.setdefault(nome, {"concluidas": 0, "andamento": 0})["andamento"] = n or 0
+
+    if not pessoas:
+        return ""
+
+    # Quem produziu mais primeiro: concluídas desc, depois em andamento desc
+    ordenado = sorted(pessoas.items(),
+                      key=lambda kv: (-kv[1]["concluidas"], -kv[1]["andamento"], (kv[0] or "").lower()))
+    linhas = []
+    for i, (nome, d) in enumerate(ordenado):
+        borda = "" if i == len(ordenado) - 1 else ";border-bottom:1px solid #EEF0F6"
+        inicial = (nome or "?").strip()[:1].upper()
+        linhas.append(
+            f'<tr><td style="padding:11px 4px{borda}">'
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
+            f'<td style="vertical-align:middle">'
+            f'<span style="display:inline-block;width:30px;height:30px;background:#EEE8FE;color:#5B2EE0;'
+            f'border-radius:9px;text-align:center;line-height:30px;font-size:13px;font-weight:800;'
+            f'margin-right:10px;vertical-align:middle">{inicial}</span>'
+            f'<span style="font-size:13.5px;font-weight:700;color:#11131C;vertical-align:middle">{nome or "—"}</span></td>'
+            f'<td align="right" style="vertical-align:middle;white-space:nowrap">'
+            f'<span style="display:inline-block;background:#E3F6EE;color:#0E9F6E;font-size:11px;font-weight:800;'
+            f'padding:4px 9px;border-radius:7px;margin-left:6px">✅ {d["concluidas"]} concl.</span>'
+            f'<span style="display:inline-block;background:#EEE8FE;color:#5B2EE0;font-size:11px;font-weight:800;'
+            f'padding:4px 9px;border-radius:7px;margin-left:6px">🚀 {d["andamento"]} em and.</span>'
+            f'</td></tr></table></td></tr>')
+
+    eyebrow = ('<p style="margin:0 0 12px;font-size:11px;font-weight:800;letter-spacing:1.4px;'
+               'text-transform:uppercase;color:#A78BFA">Por pessoa</p>')
+    return (f'{eyebrow}'
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'style="margin:0 0 22px;background:#fff;border:1px solid #ECEEF4;border-radius:14px">'
+            f'<tr><td style="padding:6px 16px 8px"><table role="presentation" width="100%" '
+            f'cellpadding="0" cellspacing="0">{"".join(linhas)}</table></td></tr></table>')
+
+
 def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
     """Monta (html, total) com as alterações do período, agrupadas por projeto.
     `inicio`/`fim` são timestamps; `time_filter` restringe ao time do dono da tarefa."""
@@ -822,11 +892,18 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
         print(f"[resumo-diario] KPIs indisponíveis: {e}")
         kpis = ""
 
+    # Quebra por pessoa: quem concluiu quantas e quem está com quantas em andamento
+    try:
+        por_pessoa = montar_resumo_por_pessoa(cur, inicio, fim, time_filter)
+    except Exception as e:
+        print(f"[resumo-diario] Quebra por pessoa indisponível: {e}")
+        por_pessoa = ""
+
     if blocos:
         detalhes = ('<p style="margin:0 0 14px;font-size:11px;font-weight:800;letter-spacing:1.4px;'
                     'text-transform:uppercase;color:#A78BFA">Alterações do dia</p>') + detalhes
 
-    corpo = kpis + detalhes
+    corpo = kpis + por_pessoa + detalhes
     return corpo, total
 
 

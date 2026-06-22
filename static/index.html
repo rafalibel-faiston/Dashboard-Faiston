@@ -3583,6 +3583,12 @@ function toggleAgrupamento() {
 // ── Sidebar accordion ──────────────────────────────────────
 // ── Tabs ───────────────────────────────────────────────────
 function setTab(tab) {
+    // Visão PMO é exclusiva de diretor (e admin como superusuário). Qualquer
+    // outra tentativa de abrir o PMO cai na aba de clientes.
+    if (tab === 'pmo') {
+        const p = (window.ME && window.ME.perfil) || meuPerfil;
+        if (p !== 'diretor' && p !== 'admin') tab = 'clientes';
+    }
     tabAtiva = tab;
 
     const DOT_ACTIVE = {
