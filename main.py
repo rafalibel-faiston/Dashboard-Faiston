@@ -1674,7 +1674,7 @@ def limpar_todas_tarefas(faiston_token: str = Cookie(None)):
 
 # --- MÉTRICAS DASHBOARD ---
 @app.get("/api/metricas")
-def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", projeto: str = "", faiston_token: str = Cookie(None)):
+def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", projeto: str = "", time: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -1683,11 +1683,15 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         cur = conn.cursor()
         conditions = []
         params = []
-        # Filtro de time: gestor/demo vê só seu time; admin vê tudo
-        is_admin = sess["perfil"] == "admin"
+        # Filtro de time: gestor/demo vê só seu time; admin/diretor vê todos os
+        # times (o diretor comanda as 3 áreas) e pode focar numa via ?time=.
+        is_admin = sess["perfil"] in ("admin", "diretor")
         if not is_admin:
             conditions.append("COALESCE(u.time,'Projetos') = %s")
             params.append(sess.get("time", "Projetos"))
+        elif time:
+            conditions.append("COALESCE(u.time,'Projetos') = %s")
+            params.append(time)
         if cliente:
             conditions.append("t.cliente = %s")
             params.append(cliente)
@@ -1707,7 +1711,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         params = tuple(params)
 
         # JOINs necessários — time filter sempre precisa do JOIN com usuarios
-        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if (funcionario or not is_admin) else ""
+        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if (funcionario or not is_admin or time) else ""
         join_p = "LEFT JOIN projetos p ON t.projeto_id = p.id" if projeto else ""
         # Helpers para adicionar condição de status sem quebrar o filtro existente
         def fwhere(extra): return f"{filtro} AND {extra}" if filtro else f"WHERE {extra}"
@@ -1801,12 +1805,13 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             func_params = params
         func_filtro = "WHERE " + " AND ".join(func_conds)
         cur.execute(
-            f"SELECT u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas "
+            f"SELECT u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas, "
+            f"COALESCE(u.time,'Projetos') as area "
             f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
-            f"{func_filtro} GROUP BY u.nome ORDER BY SUM(t.segundos) DESC",
+            f"{func_filtro} GROUP BY u.nome, u.time ORDER BY SUM(t.segundos) DESC",
             func_params
         )
-        horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2]} for r in cur.fetchall()]
+        horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2], "time": r[3]} for r in cur.fetchall()]
 
         # Taxa de conclusão por cliente — respeita todos os filtros
         cur.execute(

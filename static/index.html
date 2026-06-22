@@ -112,7 +112,7 @@
                 <a href="#" onclick="setModule('dashboard'); return false;" id="sidebar-link-dashboard" class="flex items-center gap-2.5 bg-faiston-cyan/10 text-faiston-cyan font-medium text-sm rounded-md p-2.5 border border-faiston-cyan/30">
                     <i class="ph ph-chart-line-up text-lg"></i> Dashboard
                 </a>
-                <a href="#" onclick="setModule('financeiro'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                <a href="#" id="link-financeiro" onclick="setModule('financeiro'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-currency-circle-dollar text-lg"></i> Financeiro
                 </a>
                 <a href="#" onclick="setModule('historico'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
@@ -2284,12 +2284,19 @@ async function init() {
         } else if (me.perfil === 'demo') {
             document.getElementById('sidebar-perfil').textContent = 'Demo';
             document.getElementById('demo-toggle-bar').classList.remove('hidden');
+        } else if (me.perfil === 'diretor') {
+            document.getElementById('sidebar-perfil').textContent = 'Diretor';
         } else {
             document.getElementById('sidebar-perfil').textContent = 'Gestor';
         }
         // Visão PMO: visível apenas para diretor e admin
         if (me.perfil === 'diretor' || me.perfil === 'admin') {
             document.getElementById('sb-link-pmo').classList.remove('hidden');
+        }
+        // Diretor não acessa o módulo Financeiro
+        if (me.perfil === 'diretor') {
+            const lf = document.getElementById('link-financeiro');
+            if (lf) lf.classList.add('hidden');
         }
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
@@ -2409,6 +2416,12 @@ async function popularDropdownProjetos() {
 }
 
 function filtrarFuncionarioSidebar(nome) {
+    // Selecionar um funcionário (ou "Todos") zera o foco de área da visão diretor
+    areaFiltro = '';
+    document.querySelectorAll('.area-link').forEach(el => {
+        el.classList.remove('text-faiston-purple', 'font-bold');
+        el.classList.add('text-slate-400');
+    });
     // Atualiza destaques na sidebar
     document.querySelectorAll('.func-link').forEach(el => {
         const isActive = el.dataset.func === nome;
@@ -2436,7 +2449,70 @@ function filtrarFuncionarioSidebar(nome) {
 }
 
 const FUNC_COLORS_SB = ['#06D7E6','#5B2EE0','#EC4899','#B826C9','#a78bfa','#34d399'];
+// Áreas que o diretor comanda. O Backoffice é separado por elas na visão dele.
+const AREAS_DIRETOR = ['Logística', 'Projetos', 'Rede Credenciada'];
 let _sidebarFuncsCarregados = false;
+let areaFiltro = '';
+
+function linkFuncSidebar(u, i) {
+    const cor = FUNC_COLORS_SB[i % FUNC_COLORS_SB.length];
+    const nome = u.nome;
+    const primeiro = nome.split(' ')[0];
+    return `<a href="#" onclick="filtrarFuncionarioSidebar('${nome.replace(/'/g,"\\'")}'); return false;"
+        data-func="${nome}"
+        class="func-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative">
+        <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full" style="background:${cor}"></div>
+        ${primeiro}
+    </a>`;
+}
+
+function renderBackofficePorArea(hpf) {
+    // Agrupa os funcionários por área/time
+    const grupos = {};
+    AREAS_DIRETOR.forEach(a => { grupos[a] = []; });
+    hpf.forEach(u => {
+        const a = u.time || 'Projetos';
+        (grupos[a] = grupos[a] || []).push(u);
+    });
+    // Áreas conhecidas primeiro; qualquer outra que apareça vai no fim
+    const areas = [...AREAS_DIRETOR, ...Object.keys(grupos).filter(a => !AREAS_DIRETOR.includes(a))];
+    let gi = 0;
+    return areas.map(area => {
+        const membros = grupos[area] || [];
+        const links = membros.length
+            ? membros.map(u => linkFuncSidebar(u, gi++)).join('')
+            : `<p class="text-xs text-slate-300 italic">Sem funcionários com tarefas</p>`;
+        const safe = area.replace(/'/g, "\\'");
+        return `<div class="mb-3">
+            <a href="#" onclick="filtrarAreaSidebar('${safe}'); return false;" data-area="${area}"
+               class="area-link text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-faiston-purple flex items-center gap-1.5 mb-2.5 transition-colors">
+                <i class="ph ph-buildings text-xs"></i> ${area}
+            </a>
+            <div class="flex flex-col gap-3">${links}</div>
+        </div>`;
+    }).join('');
+}
+
+function filtrarAreaSidebar(area) {
+    // Alterna o foco numa área (time). Limpa o filtro de funcionário ao trocar.
+    areaFiltro = (areaFiltro === area) ? '' : area;
+    funcionarioFiltro = '';
+    const sel = document.getElementById('filtro-funcionario');
+    if (sel) sel.value = '';
+    document.querySelectorAll('.func-link').forEach(el => {
+        el.classList.remove('font-bold', 'text-faiston-cyan');
+        el.classList.add('text-slate-500', 'font-medium');
+    });
+    document.querySelectorAll('.area-link').forEach(el => {
+        const on = el.dataset.area === areaFiltro;
+        el.classList.toggle('text-faiston-purple', on);
+        el.classList.toggle('font-bold', on);
+        el.classList.toggle('text-slate-400', !on);
+    });
+    if (areaFiltro) mostrarToastFiltro(`Área: ${areaFiltro}`, '🏢');
+    carregarDados(clienteAtivo);
+    return false;
+}
 
 function popularSidebarFuncionarios(hpf) {
     // Só popula uma vez (evita duplicar itens no auto-refresh)
@@ -2448,18 +2524,11 @@ function popularSidebarFuncionarios(hpf) {
     if (!listaSidebar) return;
 
     const sel = document.getElementById('filtro-funcionario');
+    const ehDiretor = window.ME && window.ME.perfil === 'diretor';
 
-    listaSidebar.innerHTML = hpf.map((u, i) => {
-        const cor = FUNC_COLORS_SB[i % FUNC_COLORS_SB.length];
-        const nome = u.nome;
-        const primeiro = nome.split(' ')[0];
-        return `<a href="#" onclick="filtrarFuncionarioSidebar('${nome.replace(/'/g,"\\'")}'); return false;"
-            data-func="${nome}"
-            class="func-link text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative">
-            <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full" style="background:${cor}"></div>
-            ${primeiro}
-        </a>`;
-    }).join('');
+    listaSidebar.innerHTML = ehDiretor
+        ? renderBackofficePorArea(hpf)
+        : hpf.map((u, i) => linkFuncSidebar(u, i)).join('');
 
     // Popula também o select do header (limpa antes para não duplicar)
     if (sel) {
@@ -2773,6 +2842,7 @@ async function carregarDados(cliente) {
         if (di) params.push('data_inicio=' + di);
         if (df) params.push('data_fim=' + df);
         if (projetoFiltro) params.push('projeto=' + encodeURIComponent(projetoFiltro));
+        if (areaFiltro) params.push('time=' + encodeURIComponent(areaFiltro));
         url += params.join('&');
         const res = await fetch(url);
         if (!res.ok) return;
