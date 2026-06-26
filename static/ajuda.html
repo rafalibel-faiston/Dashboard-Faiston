@@ -145,7 +145,7 @@
             <h1 style="font-family:'Space Grotesk',sans-serif;font-size:clamp(32px,5vw,52px);font-weight:800;color:white;line-height:1.1;margin-bottom:12px">
                 Guia de Uso<br><span style="background:linear-gradient(135deg,#B826C9,#EC4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">do Sistema</span>
             </h1>
-            <p style="color:rgba(255,255,255,.55);font-size:15px;max-width:380px;line-height:1.7;margin-bottom:24px">Tudo que você precisa para dominar o Faiston OPS. Selecione seu perfil abaixo.</p>
+            <p id="hero-sub" style="color:rgba(255,255,255,.55);font-size:15px;max-width:380px;line-height:1.7;margin-bottom:24px">Tudo que você precisa para dominar o Faiston OPS. Selecione seu perfil abaixo.</p>
             <a href="/dashboard" id="hero-cta" style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:white;font-size:13px;font-weight:600;padding:10px 20px;border-radius:12px;text-decoration:none;transition:all .2s;backdrop-filter:blur(10px)"
                onmouseover="this.style.background='rgba(255,255,255,.18)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">
                 <i class="ph ph-arrow-left" id="hero-cta-icon"></i> <span id="hero-cta-label">Voltar ao Dashboard</span>
@@ -1501,15 +1501,45 @@ if (kpiTarget) kpiObs.observe(kpiTarget);
 
 document.getElementById('ano').textContent = new Date().getFullYear();
 
-// ── Abre a aba certa pelo perfil e ajusta o botão de saída ──
+// ── Mostra só a aba do perfil e ajusta o botão de saída ──
 (function() {
     const params = new URLSearchParams(location.search);
     const perfil = (params.get('perfil') || '').toLowerCase();
     const tabParam = (params.get('tab') || '').toLowerCase();
 
-    // Mapeia perfil → aba do guia (admin acompanha a visão de gestor)
+    // Abas que cada perfil enxerga no guia.
+    // Funcionário, gestor e diretor veem só a própria. Demo e admin veem mais.
+    const perfilAbas = {
+        funcionario: ['func'],
+        gestor:      ['gestor'],
+        diretor:     ['diretor'],
+        demo:        ['func', 'gestor'],
+        admin:       ['func', 'gestor', 'diretor']
+    };
+    // Aba padrão (ativa) de cada perfil
     const perfilParaAba = { funcionario: 'func', gestor: 'gestor', demo: 'gestor', admin: 'gestor', diretor: 'diretor' };
-    const aba = tabParam || perfilParaAba[perfil];
+
+    // Sem perfil conhecido → mostra tudo (fallback para acesso anônimo)
+    const permitidas = perfilAbas[perfil] || ['func', 'gestor', 'diretor'];
+
+    // Esconde os botões das abas que não pertencem ao perfil
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        const id = b.id.replace('tb-', '');
+        if (!permitidas.includes(id)) b.style.display = 'none';
+    });
+
+    // Se o perfil só tem uma aba, a barra de navegação não faz sentido
+    if (permitidas.length === 1) {
+        const nav = document.getElementById('tab-nav');
+        if (nav) nav.style.display = 'none';
+        const sub = document.getElementById('hero-sub');
+        if (sub) sub.textContent = 'Tudo que você precisa para dominar o Faiston OPS.';
+    }
+
+    // Escolhe a aba ativa: parâmetro tab (se permitido) → padrão do perfil → primeira permitida
+    let aba = (tabParam && permitidas.includes(tabParam)) ? tabParam : null;
+    if (!aba && permitidas.includes(perfilParaAba[perfil])) aba = perfilParaAba[perfil];
+    if (!aba) aba = permitidas[0];
     if (aba && document.getElementById('tb-' + aba)) setTab(aba);
 
     // Destino do botão de saída conforme o perfil

@@ -2955,7 +2955,15 @@ def deletar_cliente(cid: int, faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/ajuda")
-def ajuda_page(): return FileResponse("static/ajuda.html")
+def ajuda_page(perfil: str = "", faiston_token: str = Cookie(None)):
+    # Se o perfil não veio na URL, descobre pela sessão e redireciona —
+    # assim cada perfil vê só a aba do guia correspondente à sua função,
+    # independente de como o guia foi aberto (login, email ou link direto).
+    if not perfil:
+        sess = get_session(faiston_token)
+        if sess and sess.get("perfil"):
+            return RedirectResponse(f"/ajuda?perfil={sess['perfil']}")
+    return FileResponse("static/ajuda.html")
 
 # Rotas antigas (páginas standalone duplicadas) → redirecionam para a SPA,
 # abrindo o módulo correto via ?go=. As páginas antigas foram removidas.
