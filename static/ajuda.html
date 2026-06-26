@@ -600,6 +600,47 @@
 <!-- ════════════ GESTOR ════════════ -->
 <div id="tab-gestor" class="tab-panel" style="display:none;flex-direction:column;gap:32px">
 
+    <!-- Mapa de Navegação -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#06D7E6)"><i class="ph ph-compass" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Por onde começar</div>
+                <div class="sec-hd-sub">O que cada item da barra lateral faz</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+            <div class="fcard" style="padding:16px;border-left:3px solid #5B2EE0">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-user-focus" style="color:#5B2EE0;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Minhas Tarefas</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Seu quadro pessoal — Kanban, Agenda e Carimbos</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #06D7E6">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-chart-line-up" style="color:#06D7E6;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Dashboard</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">KPIs e visão de todo o time (Métricas · Kanban · Agenda)</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #B826C9">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-users-three" style="color:#B826C9;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Backoffice</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Cadastrar e gerenciar os funcionários do time</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #5B2EE0">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-folders" style="color:#5B2EE0;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Gestão de Projetos</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Clientes, Projetos, Contratos, Carimbos, Forecast e Visão PMO</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #EC4899">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-currency-circle-dollar" style="color:#EC4899;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Financeiro</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Orçamento e lançamentos de gastos por cliente</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #06D7E6">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-clock-counter-clockwise" style="color:#06D7E6;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Histórico</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Linha do tempo de todas as tarefas, com filtros</p>
+            </div>
+        </div>
+        <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025;margin-top:12px">
+            <i class="ph ph-shield-check" style="color:#5B2EE0;font-size:18px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:13px;color:#5E647A;line-height:1.6">Tudo que você vê é <strong style="color:#0B0D1F">filtrado pelo seu time</strong>. Você enxerga e gerencia apenas os clientes, projetos, tarefas e funcionários da sua área.</p>
+        </div>
+    </div>
+
     <!-- Dashboard KPIs -->
     <div class="reveal">
         <div class="sec-hd">
@@ -671,6 +712,101 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Modos de Visualização -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#B826C9)"><i class="ph ph-squares-four" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Três Modos de Ver o Time</div>
+                <div class="sec-hd-sub">Alterne no topo do Dashboard</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#06D7E612;display:flex;align-items:center;justify-content:center"><i class="ph ph-chart-bar" style="color:#06D7E6;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Métricas</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                    <div class="info-row"><i class="ph ph-chart-line-up" style="color:#06D7E6"></i><div>Tarefas e horas <strong>por funcionário</strong></div></div>
+                    <div class="info-row"><i class="ph ph-chart-donut" style="color:#5B2EE0"></i><div>Status da fila e <strong>esforço por cliente</strong></div></div>
+                    <div class="info-row"><i class="ph ph-funnel" style="color:#B826C9"></i><div>Funil de atendimento e <strong>taxa de conclusão</strong></div></div>
+                    <div class="info-row"><i class="ph ph-table" style="color:#EC4899"></i><div>Tabela de <strong>tarefas recentes</strong></div></div>
+                </div>
+            </div>
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#5B2EE012;display:flex;align-items:center;justify-content:center"><i class="ph ph-kanban" style="color:#5B2EE0;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Kanban</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                    <div class="info-row"><i class="ph ph-columns" style="color:#5B2EE0"></i><div>Colunas <strong>Aberto · Em Andamento · Concluído</strong> com total de horas</div></div>
+                    <div class="info-row"><i class="ph ph-users" style="color:#06D7E6"></i><div>Agrupe por <strong>Responsável</strong> ou por <strong>Projeto</strong></div></div>
+                    <div class="info-row"><i class="ph ph-hand" style="color:#B826C9"></i><div>Arraste cards entre colunas para mudar o status</div></div>
+                </div>
+            </div>
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#EC489912;display:flex;align-items:center;justify-content:center"><i class="ph ph-calendar" style="color:#EC4899;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Agenda</p>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                    <div class="info-row"><i class="ph ph-list" style="color:#EC4899"></i><div>Alterne entre <strong>Lista</strong> e <strong>Calendário</strong></div></div>
+                    <div class="info-row"><i class="ph ph-calendar-x" style="color:#B826C9"></i><div>Veja tarefas do time por <strong>prazo</strong> e <strong>agendamento</strong></div></div>
+                    <div class="info-row"><i class="ph ph-warning-circle" style="color:#EC4899"></i><div>Atrasadas destacadas no topo</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backoffice — Funcionários -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#B826C9,#5B2EE0)"><i class="ph ph-users-three" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Backoffice — Gerenciar Funcionários</div>
+                <div class="sec-hd-sub">Cadastre e administre o time</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px;margin-bottom:12px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Em <strong style="color:#0B0D1F">Backoffice</strong>, na barra lateral, você gerencia as contas dos funcionários do seu time. Ao criar uma conta, o sistema dispara o <strong style="color:#0B0D1F">email de primeiro acesso</strong> automaticamente.</p>
+            <div style="display:flex;flex-direction:column;gap:0">
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">1</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Clique em <strong style="color:#0B0D1F">"Novo Funcionário"</strong> e preencha nome, usuário e email</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">2</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">O funcionário recebe email com <strong style="color:#0B0D1F">usuário e senha temporária</strong> e cria a própria senha no primeiro acesso</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">3</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">A partir daí você já pode <strong style="color:#0B0D1F">atribuir tarefas</strong> a essa pessoa</p>
+                </div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+            <div class="fcard" style="padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-pencil-simple" style="color:#5B2EE0;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Editar</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Atualize nome, email, status ativo/inativo ou redefina a senha</p>
+            </div>
+            <div class="fcard" style="padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-paper-plane-tilt" style="color:#06D7E6;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Reenviar acesso</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Dispara de novo o email de credenciais se a pessoa não recebeu</p>
+            </div>
+            <div class="fcard" style="padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-trash" style="color:#EC4899;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Remover</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Exclui a conta do funcionário do seu time</p>
+            </div>
+        </div>
+        <div class="hbox" style="background:#f59e0b0a;border:1px solid #f59e0b30;margin-top:12px">
+            <i class="ph ph-info" style="color:#f59e0b;font-size:18px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:13px;color:#5E647A;line-height:1.6">O gestor cria e gerencia apenas contas de <strong style="color:#0B0D1F">funcionário</strong> dentro do próprio time. Contas de gestor, diretor ou admin são criadas pelo administrador.</p>
         </div>
     </div>
 
@@ -820,6 +956,55 @@
         </div>
     </div>
 
+    <!-- Contratos & Forecast -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#EC4899,#5B2EE0)"><i class="ph ph-file-text" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Contratos & Forecast</div>
+                <div class="sec-hd-sub">Acompanhe contratos e a saúde financeira do portfólio</div>
+            </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#5B2EE012"><i class="ph ph-file-text" style="color:#5B2EE0;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Contratos</p>
+                        <p style="font-size:12px;color:#9097AC">SDM, responsável e status de implantação</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:6px">Em <strong style="color:#5B2EE0">Gestão de Projetos → Contratos</strong>, cadastre e acompanhe os contratos do time numa tabela.</p>
+                        <div class="info-row"><i class="ph ph-plus-circle" style="color:#06D7E6"></i><div>Botão <strong>"Novo Contrato"</strong> — preencha cliente, nome, <strong>SDM</strong> e responsável</div></div>
+                        <div class="info-row"><i class="ph ph-flag" style="color:#5B2EE0"></i><div>Status: <strong>Em Implantação · Em Andamento · Finalização · Em Freezing</strong></div></div>
+                        <div class="info-row"><i class="ph ph-calendar-blank" style="color:#B826C9"></i><div>Defina <strong>data de início e término</strong> e edite direto na tabela</div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#EC489912"><i class="ph ph-chart-line" style="color:#EC4899;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Forecast / P&L</p>
+                        <p style="font-size:12px;color:#9097AC">Margem por projeto e resultado mensal</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-table" style="color:#EC4899"></i><div>Aba <strong>Resumo</strong>: faturamento, custo e margem acumulados por projeto</div></div>
+                        <div class="info-row"><i class="ph ph-calendar-dots" style="color:#5B2EE0"></i><div>Aba <strong>Mensal</strong>: quebra por mês (JAN26, FEV26...) com custos de folha, logística, material e parceiros</div></div>
+                        <div class="info-row"><i class="ph ph-upload-simple" style="color:#06D7E6"></i><div>Botão <strong>"Importar Planilha"</strong>: suba o FORECAST (aba Resumo + abas mensais), confira a prévia e confirme</div></div>
+                        <div class="info-row"><i class="ph ph-funnel" style="color:#B826C9"></i><div>Filtros por mês, cliente e projeto <strong>recalculam os KPIs na hora</strong></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Carimbos, Clientes, Financeiro -->
     <div class="reveal">
         <div class="sec-hd">
@@ -904,6 +1089,79 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Histórico -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)"><i class="ph ph-clock-counter-clockwise" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Histórico</div>
+                <div class="sec-hd-sub">Tudo que o time fez, com filtros e busca</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">A tela <strong style="color:#0B0D1F">Histórico</strong> é a linha do tempo completa das tarefas do time, paginada e pesquisável.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+                <div>
+                    <p style="font-size:11px;font-weight:700;color:#9097AC;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Filtros disponíveis</p>
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-calendar" style="color:#06D7E6"></i><div>Período de criação</div></div>
+                        <div class="info-row"><i class="ph ph-buildings" style="color:#5B2EE0"></i><div>Cliente</div></div>
+                        <div class="info-row"><i class="ph ph-flag" style="color:#B826C9"></i><div>Status e prioridade</div></div>
+                        <div class="info-row"><i class="ph ph-user" style="color:#EC4899"></i><div>Funcionário e busca por texto</div></div>
+                    </div>
+                </div>
+                <div>
+                    <p style="font-size:11px;font-weight:700;color:#9097AC;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Painel de resumo</p>
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-list-numbers" style="color:#5B2EE0"></i><div>Total de tarefas no filtro</div></div>
+                        <div class="info-row"><i class="ph ph-clock" style="color:#06D7E6"></i><div>Total de horas apontadas</div></div>
+                        <div class="info-row"><i class="ph ph-check-circle" style="color:#10B981"></i><div>Concluídas e <strong>% de conclusão</strong></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo Diário & Exportação -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#B826C9,#EC4899)"><i class="ph ph-envelope-simple" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Resumo Diário & Exportação</div>
+                <div class="sec-hd-sub">Compartilhe o status do dia em um clique</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#B826C912;display:flex;align-items:center;justify-content:center"><i class="ph ph-paper-plane-tilt" style="color:#B826C9;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Enviar Resumo do Dia</p>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:10px">No <strong style="color:#0B0D1F">Dashboard → Kanban</strong>, use <strong style="color:#0B0D1F">"Prévia do Resumo"</strong> para ver o email e <strong style="color:#0B0D1F">"Enviar Resumo do Dia"</strong> para disparar.</p>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                    <div class="info-row"><i class="ph ph-gauge" style="color:#EC4899"></i><div>KPIs do dia: concluídas, em andamento e em risco</div></div>
+                    <div class="info-row"><i class="ph ph-warning" style="color:#f59e0b"></i><div>Alertas de tarefas atrasadas ou vencendo</div></div>
+                    <div class="info-row"><i class="ph ph-user-list" style="color:#5B2EE0"></i><div>Quebra por pessoa e alterações do dia por projeto</div></div>
+                </div>
+            </div>
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#06D7E612;display:flex;align-items:center;justify-content:center"><i class="ph ph-download-simple" style="color:#06D7E6;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Exportar CSV</p>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:10px">No topo do Dashboard, o botão <strong style="color:#0B0D1F">"Exportar"</strong> gera um CSV das tarefas conforme os filtros aplicados.</p>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                    <div class="info-row"><i class="ph ph-funnel" style="color:#06D7E6"></i><div>Respeita período, cliente e funcionário selecionados</div></div>
+                    <div class="info-row"><i class="ph ph-microsoft-excel-logo" style="color:#10B981"></i><div>Abra no Excel ou Google Sheets para análises próprias</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="hbox" style="background:#06D7E608;border:1px solid #06D7E625;margin-top:12px">
+            <i class="ph ph-clock" style="color:#06D7E6;font-size:18px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:13px;color:#5E647A;line-height:1.6">O resumo também é enviado <strong style="color:#0B0D1F">automaticamente todo dia útil às 18h</strong> para gestores, diretores e admins com email cadastrado — desde que haja movimentação no dia.</p>
         </div>
     </div>
 </div>
