@@ -376,6 +376,10 @@
                             <div class="w-1.5 h-1.5 rounded-full bg-faiston-purple"></div>
                             <span class="text-[10px] text-slate-400">Agendado</span>
                         </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full" style="background:#10B981"></div>
+                            <span class="text-[10px] text-slate-400">Pessoal (Claude)</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -689,6 +693,7 @@
 
 <script>
 let tasks = [];
+let agendaPessoal = []; // tarefas/reuniões pessoais criadas via Claude (MCP) — só leitura
 let _todosProjetos = [];
 let _funcionarios = [];      // lista para atribuir ajudantes
 let _colabSelecionados = []; // ids dos ajudantes no modal atual
@@ -954,6 +959,15 @@ async function carregarTarefas() {
     tasks.forEach(t => { t.segundos = Math.max(0, Math.min(t.segundos || 0, MAX_SEGUNDOS)); });
     renderTasks();
     updateSummary();
+    carregarAgendaPessoal();
+    if (tabAtiva === 'agenda') renderAgenda();
+}
+
+async function carregarAgendaPessoal() {
+    try {
+        const res = await fetch('/api/agenda-pessoal');
+        agendaPessoal = res.ok ? await res.json() : [];
+    } catch (e) { agendaPessoal = []; }
     if (tabAtiva === 'agenda') renderAgenda();
 }
 
@@ -1511,10 +1525,11 @@ function renderMiniCalendario() {
         const d  = new Date(calAno, calMes, day);
         const isToday = d.getTime()===hoje.getTime();
         const isPast  = d < hoje;
-        const hasPrazo= tasks.some(t=>t.status!=='concluido'&&t.data_prazo===ds);
-        const hasAg   = tasks.some(t=>t.status!=='concluido'&&t.data_agendamento===ds);
-        const hasTask = hasPrazo||hasAg;
-        const dotColor= hasPrazo?'#EC4899':'#5B2EE0';
+        const hasPrazo   = tasks.some(t=>t.status!=='concluido'&&t.data_prazo===ds);
+        const hasAg      = tasks.some(t=>t.status!=='concluido'&&t.data_agendamento===ds);
+        const hasPessoal = agendaPessoal.some(p=>p.status!=='concluido'&&p.data===ds);
+        const hasTask = hasPrazo||hasAg||hasPessoal;
+        const dotColor= hasPrazo?'#EC4899':hasAg?'#5B2EE0':'#10B981';
 
         cells += `<div onclick="agendaIrPara('${ds}')"
             class="mini-cal-day relative flex flex-col items-center justify-center w-7 h-7 rounded-full mx-auto text-[11px] font-semibold cursor-pointer transition-all
@@ -1564,6 +1579,42 @@ function renderAgenda() {
     // Sem data
     const semData = ativas.filter(t => !t.data_agendamento && !t.data_prazo);
 
+    // ── Itens pessoais (criados via Claude/MCP) — somente leitura ────
+    const TIPO_LBL = {tarefa:'Pessoal', reuniao:'Reunião'};
+    const pessoaisAtivos = agendaPessoal.filter(p => p.status !== 'concluido');
+
+    const personalDateMap = {};
+    pessoaisAtivos.forEach(p => {
+        if (!p.data) return;
+        if (!personalDateMap[p.data]) personalDateMap[p.data] = [];
+        personalDateMap[p.data].push(p);
+    });
+
+    const personalAtrasadas = pessoaisAtivos.filter(p => p.data && new Date(p.data+'T00:00:00') < hoje);
+    const personalFutureDates = Object.keys(personalDateMap).filter(ds => new Date(ds+'T00:00:00') >= hoje);
+    const personalSemData = pessoaisAtivos.filter(p => !p.data);
+
+    function personalEventCard(p) {
+        const color = p.tipo === 'reuniao' ? '#10B981' : '#9097AC';
+        const horario = p.hora_inicio ? `${p.hora_inicio}${p.hora_fim ? ' - ' + p.hora_fim : ''}` : '';
+        return `<div class="agenda-card bg-white rounded-xl border border-faiston-border overflow-hidden" style="border-left:3px solid ${color}">
+            <div class="px-4 py-3 flex items-center gap-3">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-faiston-dark truncate mb-1">${p.titulo}</p>
+                    <div class="flex items-center flex-wrap gap-1.5">
+                        <span style="font-size:10px;font-weight:800;color:${color}">${TIPO_LBL[p.tipo]||p.tipo}</span>
+                        ${p.local?`<span class="text-slate-300 text-xs">·</span><span class="text-[11px] text-slate-500 font-medium">${p.local}</span>`:''}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                    ${horario?`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${color}20;color:${color};border:1px solid ${color}35">${horario}</span>`:''}
+                    <span class="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-400" title="Criado via Claude — edite conversando com o Claude">
+                        <i class="ph ph-robot" style="font-size:9px"></i> Claude</span>
+                </div>
+            </div>
+        </div>`;
+    }
+
     // ── Event card ──────────────────────────────────────────────────
     function eventCard(t) {
         const pColor = PRIO[t.prioridade]||PRIO.Media;
@@ -1606,7 +1657,7 @@ function renderAgenda() {
     }
 
     // ── Day row (coluna data + eventos) ─────────────────────────────
-    function dayRow(dateStr, tarefas) {
+    function dayRow(dateStr, tarefas, pessoais) {
         const d      = new Date(dateStr+'T00:00:00');
         const isToday  = d.getTime()===hoje.getTime();
         const isAmanha = d.getTime()===amanha.getTime();
@@ -1627,6 +1678,7 @@ function renderAgenda() {
             </div>
             <div class="flex-1 min-w-0 flex flex-col gap-2 pt-0.5">
                 ${tarefas.map(t=>eventCard(t)).join('')}
+                ${(pessoais||[]).map(p=>personalEventCard(p)).join('')}
             </div>
         </div>`;
     }
@@ -1634,27 +1686,28 @@ function renderAgenda() {
     // ── Build HTML ───────────────────────────────────────────────────
     let html = '';
 
-    if (atrasadas.length) {
+    if (atrasadas.length || personalAtrasadas.length) {
         html += `<div class="mb-6 rounded-2xl overflow-hidden border border-faiston-pink/20 bg-faiston-pink/5">
             <div class="flex items-center gap-2 px-4 py-2.5 border-b border-faiston-pink/15">
                 <i class="ph ph-warning text-faiston-pink text-sm"></i>
                 <span class="text-[11px] font-bold uppercase tracking-widest text-faiston-pink">Atrasado</span>
-                <span class="ml-auto text-[10px] font-semibold bg-faiston-pink/20 text-faiston-pink px-2 py-0.5 rounded-full">${atrasadas.length}</span>
+                <span class="ml-auto text-[10px] font-semibold bg-faiston-pink/20 text-faiston-pink px-2 py-0.5 rounded-full">${atrasadas.length+personalAtrasadas.length}</span>
             </div>
-            <div class="p-3 flex flex-col gap-2">${atrasadas.map(t=>eventCard(t)).join('')}</div>
+            <div class="p-3 flex flex-col gap-2">${atrasadas.map(t=>eventCard(t)).join('')}${personalAtrasadas.map(p=>personalEventCard(p)).join('')}</div>
         </div>`;
     }
 
-    futureDates.forEach(ds => { html += dayRow(ds, dateMap[ds]); });
+    const allFutureDates = Array.from(new Set([...futureDates, ...personalFutureDates])).sort();
+    allFutureDates.forEach(ds => { html += dayRow(ds, dateMap[ds]||[], personalDateMap[ds]||[]); });
 
-    if (semData.length) {
+    if (semData.length || personalSemData.length) {
         html += `<div class="mt-4 pt-6 border-t border-faiston-border">
             <div class="flex items-center gap-2 mb-4 px-1">
                 <div class="w-2 h-2 rounded-full bg-slate-300"></div>
                 <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Sem Data</span>
-                <span class="ml-auto text-[10px] text-slate-400">${semData.length}</span>
+                <span class="ml-auto text-[10px] text-slate-400">${semData.length+personalSemData.length}</span>
             </div>
-            <div class="flex flex-col gap-2">${semData.map(t=>eventCard(t)).join('')}</div>
+            <div class="flex flex-col gap-2">${semData.map(t=>eventCard(t)).join('')}${personalSemData.map(p=>personalEventCard(p)).join('')}</div>
         </div>`;
     }
 

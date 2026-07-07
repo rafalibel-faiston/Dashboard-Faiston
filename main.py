@@ -69,6 +69,19 @@ _mcp_auth = StaticTokenVerifier(tokens={_MCP_TOKEN: {"client_id": "rafael", "sco
 
 mcp = FastMCP("faiston-tarefas", auth=_mcp_auth)
 
+# Usuário do dashboard (login) dono da agenda pessoal — permite que os itens
+# criados via Claude apareçam na aba Agenda do próprio quadro pessoal dele.
+_MCP_OWNER_USUARIO = os.environ.get("MCP_OWNER_USUARIO", "")
+if not _MCP_OWNER_USUARIO:
+    logger.warning("MCP_OWNER_USUARIO não definido — itens da agenda pessoal não aparecerão no dashboard")
+
+def _mcp_owner_id(cur) -> int | None:
+    if not _MCP_OWNER_USUARIO:
+        return None
+    cur.execute("SELECT id FROM usuarios WHERE usuario = %s", (_MCP_OWNER_USUARIO,))
+    row = cur.fetchone()
+    return row[0] if row else None
+
 _AGENDA_COLS = ("id, titulo, descricao, tipo, status, data, hora_inicio, hora_fim, "
                 "local, participantes, origem, external_id, criado_em, atualizado_em")
 
@@ -121,10 +134,11 @@ def create_task(titulo: str, descricao: str = "", tipo: str = "tarefa",
     conn = get_db()
     if not conn: raise RuntimeError("Banco offline")
     cur = conn.cursor()
+    owner_id = _mcp_owner_id(cur)
     cur.execute(
-        """INSERT INTO agenda_pessoal (titulo, descricao, tipo, status, data, hora_inicio, hora_fim, origem, external_id)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-        (titulo, descricao, tipo, status, data, hora_inicio, hora_fim, origem, external_id)
+        """INSERT INTO agenda_pessoal (titulo, descricao, tipo, status, data, hora_inicio, hora_fim, origem, external_id, usuario_id)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+        (titulo, descricao, tipo, status, data, hora_inicio, hora_fim, origem, external_id, owner_id)
     )
     new_id = cur.fetchone()[0]
     conn.commit()
@@ -176,10 +190,11 @@ def upsert_meeting(external_id: str, titulo: str, data: str, hora_inicio: str, h
         tid = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"id": tid, "created": False}
+    owner_id = _mcp_owner_id(cur)
     cur.execute(
-        """INSERT INTO agenda_pessoal (external_id, titulo, tipo, status, data, hora_inicio, hora_fim, local, participantes, origem)
-           VALUES (%s,%s,'reuniao','pendente',%s,%s,%s,%s,%s,'outlook') RETURNING id""",
-        (external_id, titulo, data, hora_inicio, hora_fim, local, part_json)
+        """INSERT INTO agenda_pessoal (external_id, titulo, tipo, status, data, hora_inicio, hora_fim, local, participantes, origem, usuario_id)
+           VALUES (%s,%s,'reuniao','pendente',%s,%s,%s,%s,%s,'outlook',%s) RETURNING id""",
+        (external_id, titulo, data, hora_inicio, hora_fim, local, part_json, owner_id)
     )
     tid = cur.fetchone()[0]
     conn.commit(); cur.close(); conn.close()
@@ -516,10 +531,12 @@ def setup_banco():
                 participantes JSONB DEFAULT '[]',
                 origem VARCHAR(30) DEFAULT 'manual',
                 external_id TEXT,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
                 criado_em TIMESTAMP DEFAULT NOW(),
                 atualizado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        cur.execute("ALTER TABLE agenda_pessoal ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
         cur.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS ux_agenda_pessoal_external_id
             ON agenda_pessoal(external_id) WHERE external_id IS NOT NULL
@@ -1521,6 +1538,27 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
                  "hora_prazo": str(r[13])[:5] if r[13] else None,
                  "sou_colaborador": (r[12] != sess["id"]) and any(c["id"] == sess["id"] for c in colab_map.get(r[0], [])),
                  "colaboradores": colab_map.get(r[0], [])} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/agenda-pessoal")
+def listar_agenda_pessoal(faiston_token: str = Cookie(None)):
+    """Tarefas/reuniões pessoais (criadas via Claude/MCP) do usuário logado — somente leitura no dashboard."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT id, titulo, descricao, tipo, status, data, hora_inicio, hora_fim, local, participantes, origem
+                       FROM agenda_pessoal WHERE usuario_id = %s ORDER BY data NULLS LAST, hora_inicio NULLS LAST""",
+                    (sess["id"],))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": f"p{r[0]}", "titulo": r[1], "descricao": r[2], "tipo": r[3], "status": r[4],
+                 "data": str(r[5]) if r[5] else None,
+                 "hora_inicio": str(r[6])[:5] if r[6] else None,
+                 "hora_fim": str(r[7])[:5] if r[7] else None,
+                 "local": r[8], "participantes": r[9] or [], "origem": r[10]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 def _sync_colaboradores(cur, tarefa_id: int, owner_id: int, colaboradores) -> list:
