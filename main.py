@@ -34,7 +34,155 @@ logging.basicConfig(
 )
 logger = logging.getLogger("faiston")
 
-app = FastAPI(title="Faiston Ops - API", version="1.0")
+# ── MCP Server (agenda pessoal) ──────────────────────────────────────────────
+# Expõe list_tasks/get_task/create_task/update_task/upsert_meeting/delete_task
+# em /mcp (Streamable HTTP) para o Claude ler/criar tarefas e sincronizar as
+# reuniões do briefing matinal. Tabela própria (agenda_pessoal), separada de
+# `tarefas` (quadro de trabalho compartilhado por toda a equipe), e Bearer
+# token próprio (MCP_API_TOKEN), independente do login por cookie do dashboard.
+import json as _json
+from fastmcp import FastMCP
+from fastmcp.server.auth import StaticTokenVerifier
+
+_MCP_TOKEN = os.environ.get("MCP_API_TOKEN", "")
+if not _MCP_TOKEN:
+    logger.warning("MCP_API_TOKEN não definido — endpoint /mcp ficará sem autenticação")
+_mcp_auth = StaticTokenVerifier(tokens={_MCP_TOKEN: {"client_id": "rafael", "scopes": []}}) if _MCP_TOKEN else None
+
+mcp = FastMCP("faiston-tarefas", auth=_mcp_auth)
+
+_AGENDA_COLS = ("id, titulo, descricao, tipo, status, data, hora_inicio, hora_fim, "
+                "local, participantes, origem, external_id, criado_em, atualizado_em")
+
+def _agenda_row_to_dict(r: tuple) -> dict:
+    return {
+        "id": r[0], "titulo": r[1], "descricao": r[2], "tipo": r[3], "status": r[4],
+        "data": str(r[5]) if r[5] else None,
+        "hora_inicio": str(r[6])[:5] if r[6] else None,
+        "hora_fim": str(r[7])[:5] if r[7] else None,
+        "local": r[8], "participantes": r[9] or [], "origem": r[10], "external_id": r[11],
+        "criado_em": str(r[12]) if r[12] else None,
+        "atualizado_em": str(r[13]) if r[13] else None,
+    }
+
+@mcp.tool()
+def list_tasks(date: str | None = None, status: str | None = None, type: str | None = None) -> list[dict]:
+    """Lista tarefas e reuniões da agenda pessoal. Filtros opcionais: date (YYYY-MM-DD), status (pendente|em_andamento|concluido), type (tarefa|reuniao)."""
+    conn = get_db()
+    if not conn: raise RuntimeError("Banco offline")
+    cur = conn.cursor()
+    clauses, params = [], []
+    if date: clauses.append("data = %s"); params.append(date)
+    if status: clauses.append("status = %s"); params.append(status)
+    if type: clauses.append("tipo = %s"); params.append(type)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    cur.execute(f"SELECT {_AGENDA_COLS} FROM agenda_pessoal {where} "
+                f"ORDER BY data NULLS LAST, hora_inicio NULLS LAST, criado_em", params)
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    return [_agenda_row_to_dict(r) for r in rows]
+
+@mcp.tool()
+def get_task(id: str) -> dict:
+    """Retorna uma tarefa ou reunião completa da agenda pessoal pelo id."""
+    conn = get_db()
+    if not conn: raise RuntimeError("Banco offline")
+    cur = conn.cursor()
+    cur.execute(f"SELECT {_AGENDA_COLS} FROM agenda_pessoal WHERE id = %s", (id,))
+    row = cur.fetchone()
+    cur.close(); conn.close()
+    if not row: raise ValueError(f"Tarefa {id} não encontrada")
+    return _agenda_row_to_dict(row)
+
+@mcp.tool()
+def create_task(titulo: str, descricao: str = "", tipo: str = "tarefa",
+                data: str | None = None, hora_inicio: str | None = None,
+                hora_fim: str | None = None, status: str = "pendente",
+                origem: str = "manual", external_id: str | None = None) -> dict:
+    """Cria uma tarefa (tipo=tarefa) ou reunião (tipo=reuniao) na agenda pessoal."""
+    conn = get_db()
+    if not conn: raise RuntimeError("Banco offline")
+    cur = conn.cursor()
+    cur.execute(
+        """INSERT INTO agenda_pessoal (titulo, descricao, tipo, status, data, hora_inicio, hora_fim, origem, external_id)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+        (titulo, descricao, tipo, status, data, hora_inicio, hora_fim, origem, external_id)
+    )
+    new_id = cur.fetchone()[0]
+    conn.commit()
+    cur.execute(f"SELECT {_AGENDA_COLS} FROM agenda_pessoal WHERE id = %s", (new_id,))
+    row = cur.fetchone()
+    cur.close(); conn.close()
+    return _agenda_row_to_dict(row)
+
+@mcp.tool()
+def update_task(id: str, titulo: str | None = None, descricao: str | None = None,
+                status: str | None = None, data: str | None = None,
+                hora_inicio: str | None = None, hora_fim: str | None = None) -> dict:
+    """Atualiza campos de uma tarefa/reunião existente da agenda pessoal pelo id."""
+    fields = {"titulo": titulo, "descricao": descricao, "status": status,
+              "data": data, "hora_inicio": hora_inicio, "hora_fim": hora_fim}
+    fields = {k: v for k, v in fields.items() if v is not None}
+    if not fields: raise ValueError("Nenhum campo para atualizar foi informado")
+    conn = get_db()
+    if not conn: raise RuntimeError("Banco offline")
+    cur = conn.cursor()
+    set_clause = ", ".join(f"{k} = %s" for k in fields)
+    cur.execute(f"UPDATE agenda_pessoal SET {set_clause}, atualizado_em = NOW() WHERE id = %s",
+                list(fields.values()) + [id])
+    if cur.rowcount == 0:
+        conn.rollback(); cur.close(); conn.close()
+        raise ValueError(f"Tarefa {id} não encontrada")
+    conn.commit()
+    cur.execute(f"SELECT {_AGENDA_COLS} FROM agenda_pessoal WHERE id = %s", (id,))
+    row = cur.fetchone()
+    cur.close(); conn.close()
+    return _agenda_row_to_dict(row)
+
+@mcp.tool()
+def upsert_meeting(external_id: str, titulo: str, data: str, hora_inicio: str, hora_fim: str,
+                    local: str = "", participantes: list[str] | None = None) -> dict:
+    """Cria ou atualiza uma reunião pelo external_id (id do evento no Outlook). Idempotente: não duplica se a reunião já existir."""
+    conn = get_db()
+    if not conn: raise RuntimeError("Banco offline")
+    cur = conn.cursor()
+    part_json = _json.dumps(participantes or [])
+    cur.execute("SELECT id FROM agenda_pessoal WHERE external_id = %s", (external_id,))
+    existing = cur.fetchone()
+    if existing:
+        cur.execute(
+            """UPDATE agenda_pessoal SET titulo=%s, data=%s, hora_inicio=%s, hora_fim=%s,
+               local=%s, participantes=%s, atualizado_em=NOW() WHERE external_id=%s RETURNING id""",
+            (titulo, data, hora_inicio, hora_fim, local, part_json, external_id)
+        )
+        tid = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"id": tid, "created": False}
+    cur.execute(
+        """INSERT INTO agenda_pessoal (external_id, titulo, tipo, status, data, hora_inicio, hora_fim, local, participantes, origem)
+           VALUES (%s,%s,'reuniao','pendente',%s,%s,%s,%s,%s,'outlook') RETURNING id""",
+        (external_id, titulo, data, hora_inicio, hora_fim, local, part_json)
+    )
+    tid = cur.fetchone()[0]
+    conn.commit(); cur.close(); conn.close()
+    return {"id": tid, "created": True}
+
+@mcp.tool()
+def delete_task(id: str) -> dict:
+    """Remove uma tarefa ou reunião da agenda pessoal pelo id."""
+    conn = get_db()
+    if not conn: raise RuntimeError("Banco offline")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM agenda_pessoal WHERE id = %s", (id,))
+    ok = cur.rowcount > 0
+    conn.commit(); cur.close(); conn.close()
+    if not ok: raise ValueError(f"Tarefa {id} não encontrada")
+    return {"ok": True}
+
+_mcp_app = mcp.http_app(path="/", stateless_http=True)
+
+app = FastAPI(title="Faiston Ops - API", version="1.0", lifespan=_mcp_app.lifespan)
+app.mount("/mcp", _mcp_app)
 
 
 @app.exception_handler(HTTPException)
@@ -322,6 +470,29 @@ def setup_banco():
                 texto TEXT NOT NULL,
                 criado_em TIMESTAMP DEFAULT NOW()
             )
+        """)
+        # ── Agenda pessoal (MCP: tarefas/reuniões do dia a dia, sync Outlook) ──
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS agenda_pessoal (
+                id SERIAL PRIMARY KEY,
+                titulo TEXT NOT NULL,
+                descricao TEXT DEFAULT '',
+                tipo VARCHAR(20) NOT NULL DEFAULT 'tarefa',
+                status VARCHAR(20) NOT NULL DEFAULT 'pendente',
+                data DATE,
+                hora_inicio TIME,
+                hora_fim TIME,
+                local TEXT DEFAULT '',
+                participantes JSONB DEFAULT '[]',
+                origem VARCHAR(30) DEFAULT 'manual',
+                external_id TEXT,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_agenda_pessoal_external_id
+            ON agenda_pessoal(external_id) WHERE external_id IS NOT NULL
         """)
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
