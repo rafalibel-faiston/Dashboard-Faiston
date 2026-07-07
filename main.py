@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List
@@ -182,6 +183,18 @@ def delete_task(id: str) -> dict:
 _mcp_app = mcp.http_app(path="/", stateless_http=True)
 
 app = FastAPI(title="Faiston Ops - API", version="1.0", lifespan=_mcp_app.lifespan)
+
+# O conector personalizado do claude.ai só oferece campos de OAuth (client id/secret),
+# sem campo para header Authorization customizado. Como workaround, aceita o token
+# também via query string (?token=...) e injeta como Bearer antes do StaticTokenVerifier.
+@app.middleware("http")
+async def _mcp_query_token_to_bearer(request: Request, call_next):
+    if request.url.path.startswith("/mcp") and "authorization" not in request.headers:
+        token = request.query_params.get("token")
+        if token:
+            MutableHeaders(scope=request.scope)["authorization"] = f"Bearer {token}"
+    return await call_next(request)
+
 app.mount("/mcp", _mcp_app)
 
 
