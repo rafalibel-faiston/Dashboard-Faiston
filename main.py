@@ -10,7 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date, timedelta, datetime
 from calendar import monthrange
-import os, hashlib, secrets, csv, io, logging, traceback, uuid
+import os, hashlib, secrets, csv, io, logging, traceback, uuid, re
 import contextvars
 from dotenv import load_dotenv
 from pathlib import Path
@@ -34,6 +34,23 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("faiston")
+
+# Redige o token do MCP (recebido via ?token=... — ver seção MCP abaixo) antes de
+# ele chegar aos logs de acesso do uvicorn, já que essas linhas registram a URL
+# completa da requisição, query string incluída.
+class _RedactMcpTokenFilter(logging.Filter):
+    _rx = re.compile(r"(token=)[^&\s\"]+")
+    def filter(self, record):
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                self._rx.sub(r"\1***", a) if isinstance(a, str) else a
+                for a in record.args
+            )
+        elif isinstance(record.msg, str):
+            record.msg = self._rx.sub(r"\1***", record.msg)
+        return True
+
+logging.getLogger("uvicorn.access").addFilter(_RedactMcpTokenFilter())
 
 # ── MCP Server (agenda pessoal) ──────────────────────────────────────────────
 # Expõe list_tasks/get_task/create_task/update_task/upsert_meeting/delete_task
