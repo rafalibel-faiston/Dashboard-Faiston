@@ -137,10 +137,20 @@ def create_task(titulo: str, descricao: str = "", tipo: str = "tarefa",
                 data: str | None = None, hora_inicio: str | None = None,
                 hora_fim: str | None = None, status: str = "pendente",
                 origem: str = "manual", external_id: str | None = None) -> dict:
-    """Cria uma tarefa (tipo=tarefa) ou reunião (tipo=reuniao) na agenda pessoal."""
+    """Cria uma tarefa (tipo=tarefa) ou reunião (tipo=reuniao) na agenda pessoal.
+    Se external_id for informado e já existir uma tarefa com esse external_id, retorna a
+    tarefa existente em vez de duplicar (idempotente — use isso para itens gerados
+    automaticamente a partir de fontes externas, como um e-mail sinalizado, que podem
+    ser vistos de novo em execuções futuras)."""
     conn = get_db()
     if not conn: raise RuntimeError("Banco offline")
     cur = conn.cursor()
+    if external_id:
+        cur.execute(f"SELECT {_AGENDA_COLS} FROM agenda_pessoal WHERE external_id = %s", (external_id,))
+        row = cur.fetchone()
+        if row:
+            cur.close(); conn.close()
+            return _agenda_row_to_dict(row)
     owner_id = _mcp_owner_id(cur)
     cur.execute(
         """INSERT INTO agenda_pessoal (titulo, descricao, tipo, status, data, hora_inicio, hora_fim, origem, external_id, usuario_id)
