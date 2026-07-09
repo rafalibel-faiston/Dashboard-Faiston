@@ -269,6 +269,18 @@ _mcp_app = mcp.http_app(path="/", stateless_http=True)
 
 app = FastAPI(title="Faiston Ops - API", version="1.0", lifespan=_mcp_app.lifespan)
 
+# Endpoint de diagnóstico: confirma qual versão do código está rodando (útil pra checar
+# se um deploy realmente aplicou as mudanças, sem precisar vasculhar logs do Railway).
+_MCP_BUILD_MARKER = "mcp-kanban-2026-07-09"
+
+@app.get("/api/mcp-version")
+def mcp_version():
+    return {
+        "build": _MCP_BUILD_MARKER,
+        "tools_esperadas": ["list_tasks", "get_task", "create_task", "update_task",
+                            "upsert_meeting", "delete_task", "create_kanban_task"],
+    }
+
 # O conector personalizado do claude.ai só oferece campos de OAuth (client id/secret),
 # sem campo para header Authorization customizado. Como workaround, aceita o token
 # também via query string (?token=...) e injeta como Bearer antes do StaticTokenVerifier.
