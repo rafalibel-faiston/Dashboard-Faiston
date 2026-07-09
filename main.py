@@ -137,11 +137,19 @@ def create_task(titulo: str, descricao: str = "", tipo: str = "tarefa",
                 data: str | None = None, hora_inicio: str | None = None,
                 hora_fim: str | None = None, status: str = "pendente",
                 origem: str = "manual", external_id: str | None = None) -> dict:
-    """Cria uma tarefa (tipo=tarefa) ou reunião (tipo=reuniao) na agenda pessoal.
-    Se external_id for informado e já existir uma tarefa com esse external_id, retorna a
-    tarefa existente em vez de duplicar (idempotente — use isso para itens gerados
+    """Cria um item. tipo="tarefa" (padrão) cria no Kanban compartilhado da equipe
+    (tabela `tarefas`, visível e acionável por todo o time — tarefas nunca ficam só na
+    agenda pessoal). tipo="reuniao" cria na agenda pessoal privada (prefira upsert_meeting
+    pra reuniões, que já é idempotente por external_id do Outlook).
+    Se external_id for informado e já existir um item com esse external_id, retorna o
+    existente em vez de duplicar (idempotente — use isso para itens gerados
     automaticamente a partir de fontes externas, como um e-mail sinalizado, que podem
     ser vistos de novo em execuções futuras)."""
+    if tipo == "tarefa":
+        return create_kanban_task(
+            descricao=titulo + (f" — {descricao}" if descricao else ""),
+            data_prazo=data, hora_prazo=hora_inicio or hora_fim, external_id=external_id,
+        )
     conn = get_db()
     if not conn: raise RuntimeError("Banco offline")
     cur = conn.cursor()
@@ -311,6 +319,35 @@ def debug_auto_concluir_reunioes():
         atualizadas = cur.rowcount
         conn.commit(); cur.close()
         return {"antes": antes, "atualizadas_agora": atualizadas}
+    finally:
+        conn.close()
+
+@app.get("/api/debug/migrar-tarefas-pessoais")
+def debug_migrar_tarefas_pessoais():
+    """Migração única: move itens tipo=tarefa que ficaram na agenda pessoal (criados antes
+    de create_task passar a gravar direto no Kanban) para a tabela `tarefas`, e remove da
+    agenda pessoal — tarefas não devem mais aparecer como "Pessoal" no dashboard."""
+    conn = get_db()
+    if not conn: return {"erro": "banco offline"}
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, titulo, descricao, status, data, hora_inicio, origem, external_id, usuario_id "
+                    "FROM agenda_pessoal WHERE tipo = 'tarefa'")
+        rows = cur.fetchall()
+        status_map = {"pendente": "aberto", "em_andamento": "em_andamento", "concluido": "concluido"}
+        migradas = []
+        for (aid, titulo, descricao, status, data, hora_inicio, origem, external_id, usuario_id) in rows:
+            descricao_kanban = titulo + (f" — {descricao}" if descricao else "")
+            cur.execute(
+                """INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, data_prazo, hora_prazo, external_id)
+                   VALUES (%s,%s,'Interno','Media',%s,0,%s,%s,%s) RETURNING id""",
+                (usuario_id, descricao_kanban, status_map.get(status, "aberto"), data, hora_inicio, external_id)
+            )
+            novo_id = cur.fetchone()[0]
+            cur.execute("DELETE FROM agenda_pessoal WHERE id = %s", (aid,))
+            migradas.append({"agenda_pessoal_id": aid, "novo_id_kanban": novo_id, "titulo": titulo})
+        conn.commit(); cur.close()
+        return {"migradas": migradas, "total": len(migradas)}
     finally:
         conn.close()
 
