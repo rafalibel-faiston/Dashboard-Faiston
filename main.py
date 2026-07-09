@@ -97,14 +97,21 @@ def _agenda_row_to_dict(r: tuple) -> dict:
     }
 
 @mcp.tool()
-def list_tasks(date: str | None = None, status: str | None = None, type: str | None = None) -> list[dict]:
-    """Lista tarefas e reuniões da agenda pessoal. Filtros opcionais: date (YYYY-MM-DD), status (pendente|em_andamento|concluido), type (tarefa|reuniao)."""
+def list_tasks(date: str | None = None, date_from: str | None = None, date_until: str | None = None,
+                status: str | None = None, type: str | None = None) -> list[dict]:
+    """Lista tarefas e reuniões da agenda pessoal. Filtros opcionais: date (YYYY-MM-DD, data exata),
+    date_from/date_until (YYYY-MM-DD, intervalo de datas), status (pendente|em_andamento|concluido),
+    type (tarefa|reuniao). Se status não for informado, itens concluídos ficam ocultos por padrão —
+    passe status="concluido" para vê-los."""
     conn = get_db()
     if not conn: raise RuntimeError("Banco offline")
     cur = conn.cursor()
     clauses, params = [], []
     if date: clauses.append("data = %s"); params.append(date)
+    if date_from: clauses.append("data >= %s"); params.append(date_from)
+    if date_until: clauses.append("data <= %s"); params.append(date_until)
     if status: clauses.append("status = %s"); params.append(status)
+    else: clauses.append("status != 'concluido'")
     if type: clauses.append("tipo = %s"); params.append(type)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     cur.execute(f"SELECT {_AGENDA_COLS} FROM agenda_pessoal {where} "
