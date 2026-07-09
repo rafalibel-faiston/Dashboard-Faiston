@@ -281,6 +281,39 @@ def mcp_version():
                             "upsert_meeting", "delete_task", "create_kanban_task"],
     }
 
+@app.get("/api/debug/auto-concluir-reunioes")
+def debug_auto_concluir_reunioes():
+    """Diagnóstico: mostra o cálculo de "já passou?" para cada reunião pendente e
+    aplica a atualização na hora (não espera o job de 15 em 15 min)."""
+    conn = get_db()
+    if not conn: return {"erro": "banco offline"}
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, titulo, tipo, data, hora_inicio, hora_fim, status,
+                   (data + COALESCE(hora_fim, hora_inicio, TIME '23:59')) AS fim_calculado,
+                   NOW() AS agora,
+                   (data + COALESCE(hora_fim, hora_inicio, TIME '23:59')) < NOW() AS deveria_concluir
+            FROM agenda_pessoal WHERE tipo = 'reuniao' AND status != 'concluido'
+            ORDER BY data
+        """)
+        antes = [
+            {"id": r[0], "titulo": r[1], "tipo": r[2], "data": str(r[3]),
+             "hora_inicio": str(r[4]) if r[4] else None, "hora_fim": str(r[5]) if r[5] else None,
+             "status": r[6], "fim_calculado": str(r[7]), "agora": str(r[8]), "deveria_concluir": r[9]}
+            for r in cur.fetchall()
+        ]
+        cur.execute("""
+            UPDATE agenda_pessoal SET status = 'concluido', atualizado_em = NOW()
+            WHERE tipo = 'reuniao' AND status != 'concluido' AND data IS NOT NULL
+              AND (data + COALESCE(hora_fim, hora_inicio, TIME '23:59')) < NOW()
+        """)
+        atualizadas = cur.rowcount
+        conn.commit(); cur.close()
+        return {"antes": antes, "atualizadas_agora": atualizadas}
+    finally:
+        conn.close()
+
 # O conector personalizado do claude.ai só oferece campos de OAuth (client id/secret),
 # sem campo para header Authorization customizado. Como workaround, aceita o token
 # também via query string (?token=...) e injeta como Bearer antes do StaticTokenVerifier.
