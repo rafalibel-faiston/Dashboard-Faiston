@@ -4821,11 +4821,16 @@ try:
                            id="resumo_diario", replace_existing=True)
         print(f"APScheduler — resumo diário agendado seg-sex às {_resumo_hora}h")
     _scheduler.add_job(_auto_concluir_reunioes_passadas, "interval", minutes=15,
-                       id="auto_concluir_reunioes", replace_existing=True, next_run_time=datetime.now())
+                       id="auto_concluir_reunioes", replace_existing=True)
     _scheduler.start()
     print("APScheduler iniciado — relatório agendado para dia 1 de cada mês às 08h")
 except ImportError:
     print("APScheduler não instalado — relatórios automáticos desativados. Instale com: pip install apscheduler")
+
+try:
+    _auto_concluir_reunioes_passadas()
+except Exception as e:
+    print(f"Erro ao rodar auto-conclusão de reuniões no startup: {e}")
 
 
 # ─── Endpoints de relatório ───
