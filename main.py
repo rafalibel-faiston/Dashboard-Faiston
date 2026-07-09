@@ -165,6 +165,42 @@ def create_task(titulo: str, descricao: str = "", tipo: str = "tarefa",
     return _agenda_row_to_dict(row)
 
 @mcp.tool()
+def create_kanban_task(descricao: str, cliente: str = "Interno", prioridade: str = "Alta",
+                        data_prazo: str | None = None, hora_prazo: str | None = None,
+                        external_id: str | None = None) -> dict:
+    """Cria uma tarefa no Kanban compartilhado da equipe (tabela `tarefas`, visível e
+    acionável por todo o time — diferente de create_task, que grava na agenda pessoal
+    privada). Use para itens que exigem ação da equipe, como um e-mail crítico sinalizado.
+    prioridade: Baixa|Media|Alta. Se external_id for informado e já existir uma tarefa
+    com esse external_id, retorna a existente em vez de duplicar (idempotente — use isso
+    para itens gerados a partir de fontes externas, como o id do e-mail no Outlook, que
+    podem ser vistos de novo em execuções futuras)."""
+    conn = get_db()
+    if not conn: raise RuntimeError("Banco offline")
+    cur = conn.cursor()
+    if external_id:
+        cur.execute("SELECT id, descricao, cliente, prioridade, status, projeto_id, data_prazo, hora_prazo, external_id "
+                    "FROM tarefas WHERE external_id = %s", (external_id,))
+        row = cur.fetchone()
+        if row:
+            cur.close(); conn.close()
+            return {"id": row[0], "descricao": row[1], "cliente": row[2], "prioridade": row[3],
+                    "status": row[4], "projeto_id": row[5],
+                    "data_prazo": str(row[6]) if row[6] else None,
+                    "hora_prazo": str(row[7])[:5] if row[7] else None, "external_id": row[8]}
+    owner_id = _mcp_owner_id(cur)
+    cur.execute(
+        """INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, data_prazo, hora_prazo, external_id)
+           VALUES (%s,%s,%s,%s,'aberto',0,%s,%s,%s) RETURNING id""",
+        (owner_id, descricao, cliente, prioridade, data_prazo, hora_prazo, external_id)
+    )
+    new_id = cur.fetchone()[0]
+    criar_notificacao(conn, "nova_tarefa", f"🆕 Claude criou uma tarefa: {descricao[:50]} [{cliente}]", owner_id)
+    conn.commit(); cur.close(); conn.close()
+    return {"id": new_id, "descricao": descricao, "cliente": cliente, "prioridade": prioridade,
+            "status": "aberto", "data_prazo": data_prazo, "hora_prazo": hora_prazo, "external_id": external_id}
+
+@mcp.tool()
 def update_task(id: str, titulo: str | None = None, descricao: str | None = None,
                 status: str | None = None, data: str | None = None,
                 hora_inicio: str | None = None, hora_fim: str | None = None) -> dict:
@@ -387,6 +423,7 @@ def setup_banco():
                 atualizado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS external_id TEXT")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS comentarios (
                 id SERIAL PRIMARY KEY,
@@ -4705,6 +4742,26 @@ def _job_relatorio_mensal():
         print(f"Erro ao enviar relatório: {e}")
 
 
+def _auto_concluir_reunioes_passadas():
+    """Marca como concluído (agenda_pessoal) reuniões cujo horário de término já passou —
+    diferente de uma tarefa com prazo, uma reunião não fica "atrasada" só por já ter
+    ocorrido, então some da lista de pendentes/atrasados assim que termina."""
+    conn = get_db()
+    if not conn: return
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE agenda_pessoal SET status = 'concluido', atualizado_em = NOW()
+            WHERE tipo = 'reuniao' AND status != 'concluido' AND data IS NOT NULL
+              AND (data + COALESCE(hora_fim, hora_inicio, TIME '23:59')) < NOW()
+        """)
+        conn.commit(); cur.close()
+    except Exception as e:
+        print(f"Erro ao auto-concluir reuniões passadas: {e}")
+    finally:
+        conn.close()
+
+
 # Inicia agendador
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -4718,6 +4775,8 @@ try:
                            day_of_week="mon-fri", hour=_resumo_hora, minute=0,
                            id="resumo_diario", replace_existing=True)
         print(f"APScheduler — resumo diário agendado seg-sex às {_resumo_hora}h")
+    _scheduler.add_job(_auto_concluir_reunioes_passadas, "interval", minutes=15,
+                       id="auto_concluir_reunioes", replace_existing=True, next_run_time=datetime.now())
     _scheduler.start()
     print("APScheduler iniciado — relatório agendado para dia 1 de cada mês às 08h")
 except ImportError:
