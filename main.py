@@ -323,6 +323,32 @@ def setup_banco():
                 criado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        # ── Status de Campo (despachos técnicos por site/cliente) ───────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS status_atividades (
+                id SERIAL PRIMARY KEY,
+                cliente_id INTEGER REFERENCES clientes(id),
+                data DATE NOT NULL DEFAULT CURRENT_DATE,
+                horario_agendado TIME,
+                tecnico VARCHAR(150) DEFAULT '',
+                n2_responsavel VARCHAR(150) DEFAULT '',
+                site_sigla VARCHAR(50) DEFAULT '',
+                site_nome VARCHAR(150) DEFAULT '',
+                endereco TEXT DEFAULT '',
+                cidade VARCHAR(100) DEFAULT '',
+                uf VARCHAR(2) DEFAULT '',
+                hora_chegada TIME,
+                hora_termino TIME,
+                detalhamento_tecnico TEXT DEFAULT '',
+                status VARCHAR(20) NOT NULL DEFAULT 'agendado',
+                observacoes TEXT DEFAULT '',
+                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_data ON status_atividades(data)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_cliente ON status_atividades(cliente_id)")
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -4806,4 +4832,220 @@ def gestao_listar_usuarios(faiston_token: str = Cookie(None)):
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "nome": r[1]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ── Status de Campo (despachos técnicos por site/cliente: ARCOS, ZAMP,
+#    HAVAN, Câmeras IP etc.) — substitui a planilha STATUS_REPORT.xlsx ──────
+STATUS_CAMPO_VALIDOS = ('agendado', 'em_andamento', 'concluido', 'parcial', 'improdutiva', 'cancelado')
+
+class StatusAtividadeModel(BaseModel):
+    cliente_id: int
+    data: str
+    horario_agendado: Optional[str] = None
+    tecnico: str = ""
+    n2_responsavel: str = ""
+    site_sigla: str = ""
+    site_nome: str = ""
+    endereco: str = ""
+    cidade: str = ""
+    uf: str = ""
+    hora_chegada: Optional[str] = None
+    hora_termino: Optional[str] = None
+    detalhamento_tecnico: str = ""
+    status: str = "agendado"
+    observacoes: str = ""
+
+@app.get("/api/status-campo")
+def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
+                         cliente_id: int = 0, status: str = "", texto: str = "",
+                         faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        where = ["1=1"]
+        params = []
+        if data:
+            where.append("a.data = %s"); params.append(data)
+        if data_de:
+            where.append("a.data >= %s"); params.append(data_de)
+        if data_ate:
+            where.append("a.data <= %s"); params.append(data_ate)
+        if cliente_id:
+            where.append("a.cliente_id = %s"); params.append(cliente_id)
+        if status:
+            where.append("a.status = %s"); params.append(status)
+        if texto:
+            where.append("""(a.tecnico ILIKE %s OR a.n2_responsavel ILIKE %s OR a.site_sigla ILIKE %s
+                              OR a.site_nome ILIKE %s OR a.cidade ILIKE %s OR a.observacoes ILIKE %s)""")
+            like = f"%{texto}%"
+            params.extend([like, like, like, like, like, like])
+        cur.execute(f"""
+            SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico, a.n2_responsavel,
+                   a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
+                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em
+            FROM status_atividades a
+            LEFT JOIN clientes c ON c.id = a.cliente_id
+            WHERE {' AND '.join(where)}
+            ORDER BY a.data DESC, a.horario_agendado ASC NULLS LAST
+            LIMIT 300
+        """, params)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico", "n2_responsavel",
+                "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
+                "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em"]
+        out = []
+        for r in rows:
+            item = dict(zip(cols, r))
+            item["data"] = str(item["data"]) if item["data"] else None
+            for k in ("horario_agendado", "hora_chegada", "hora_termino"):
+                item[k] = str(item[k])[:5] if item[k] else None
+            for k in ("criado_em", "atualizado_em"):
+                item[k] = str(item[k])[:16] if item[k] else None
+            out.append(item)
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/status-campo/report")
+def report_status_campo(data: str, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT a.id, c.nome, a.site_sigla, a.site_nome, a.tecnico, a.status, a.observacoes,
+                   a.horario_agendado, a.cidade, a.uf, a.n2_responsavel
+            FROM status_atividades a
+            LEFT JOIN clientes c ON c.id = a.cliente_id
+            WHERE a.data = %s
+            ORDER BY c.nome NULLS LAST, a.horario_agendado ASC NULLS LAST
+        """, (data,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        contagem = {}
+        por_cliente = {}
+        for r in rows:
+            (aid, cliente_nome, sigla, nome_site, tecnico, status, obs, horario, cidade, uf, n2) = r
+            cliente_nome = cliente_nome or "Sem cliente"
+            contagem[status] = contagem.get(status, 0) + 1
+            por_cliente.setdefault(cliente_nome, []).append({
+                "id": aid, "site": sigla or nome_site or "(sem site)", "tecnico": tecnico,
+                "status": status, "observacoes": obs, "horario_agendado": str(horario)[:5] if horario else None,
+                "cidade": cidade, "uf": uf, "n2_responsavel": n2,
+            })
+        return {"data": data, "contagem": contagem, "por_cliente": por_cliente, "total": len(rows)}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/status-campo/{aid}")
+def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico, a.n2_responsavel,
+                   a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
+                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em
+            FROM status_atividades a
+            LEFT JOIN clientes c ON c.id = a.cliente_id
+            WHERE a.id = %s
+        """, (aid,))
+        r = cur.fetchone()
+        cur.close(); conn.close()
+        if not r: raise HTTPException(status_code=404, detail="Despacho não encontrado")
+        cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico", "n2_responsavel",
+                "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
+                "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em"]
+        item = dict(zip(cols, r))
+        item["data"] = str(item["data"]) if item["data"] else None
+        for k in ("horario_agendado", "hora_chegada", "hora_termino"):
+            item[k] = str(item[k])[:5] if item[k] else None
+        for k in ("criado_em", "atualizado_em"):
+            item[k] = str(item[k])[:16] if item[k] else None
+        return item
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/status-campo")
+def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
+        cur.execute("""
+            INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+                site_sigla, site_nome, endereco, cidade, uf, hora_chegada, hora_termino,
+                detalhamento_tecnico, status, observacoes, criado_por)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, a.n2_responsavel,
+              a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
+              a.hora_chegada or None, a.hora_termino or None,
+              a.detalhamento_tecnico, status, a.observacoes, sess["id"]))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/status-campo/{aid}")
+def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
+        cur.execute("""
+            UPDATE status_atividades SET
+                cliente_id=%s, data=%s, horario_agendado=%s, tecnico=%s, n2_responsavel=%s,
+                site_sigla=%s, site_nome=%s, endereco=%s, cidade=%s, uf=%s,
+                hora_chegada=%s, hora_termino=%s, detalhamento_tecnico=%s, status=%s, observacoes=%s,
+                atualizado_em=NOW()
+            WHERE id=%s
+        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, a.n2_responsavel,
+              a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
+              a.hora_chegada or None, a.hora_termino or None,
+              a.detalhamento_tecnico, status, a.observacoes, aid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class StatusCampoStatusModel(BaseModel):
+    status: str
+
+@app.patch("/api/status-campo/{aid}/status")
+def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE status_atividades SET status=%s, atualizado_em=NOW() WHERE id=%s", (body.status, aid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/status-campo/{aid}")
+def deletar_status_campo(aid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM status_atividades WHERE id=%s", (aid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
