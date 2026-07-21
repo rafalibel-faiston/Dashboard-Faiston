@@ -118,6 +118,9 @@
                 <a href="#" onclick="setModule('historico'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-lg"></i> Histórico
                 </a>
+                <a href="#" onclick="setModule('statuscampo'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-map-pin-line text-lg"></i> Status de Campo
+                </a>
                 <a href="/apresentacao" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-presentation-chart text-lg"></i> Apresentação
                 </a>
@@ -1539,6 +1542,187 @@
 </div>
 
 </div><!-- /mod-historico -->
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- MODULE: STATUS DE CAMPO                                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="mod-statuscampo" class="hidden flex-1 overflow-y-auto custom-scrollbar">
+<div class="px-6 py-6">
+
+    <header class="flex justify-between items-start mb-5">
+        <div>
+            <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Status de Campo</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Despachos técnicos por site/cliente — substitui a planilha STATUS_REPORT.xlsx</p>
+        </div>
+        <button onclick="scAbrirModalNovo()" id="sc-btn-novo" class="hidden flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+            <i class="ph ph-plus text-base"></i> Novo despacho
+        </button>
+    </header>
+
+    <!-- FILTROS -->
+    <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+        <div class="flex items-center gap-2 mb-4">
+            <i class="ph ph-funnel text-faiston-purple"></i>
+            <span class="text-sm font-bold text-faiston-dark">Filtros</span>
+            <button onclick="scLimparFiltros()" class="ml-auto text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1">
+                <i class="ph ph-x-circle"></i> Limpar tudo
+            </button>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+            <div class="lg:col-span-2 relative">
+                <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                <input type="text" id="sc-f-texto" placeholder="Técnico, site, cidade, N2..." oninput="scDebounceBuscar()"
+                    class="w-full pl-9 pr-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-cyan transition-all">
+            </div>
+            <select id="sc-f-cliente" onchange="scBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os projetos</option>
+            </select>
+            <select id="sc-f-status" onchange="scBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os status</option>
+                <option value="agendado">Agendado</option>
+                <option value="em_andamento">Em andamento</option>
+                <option value="concluido">Concluído</option>
+                <option value="parcial">Parcial</option>
+                <option value="improdutiva">Improdutiva</option>
+                <option value="cancelado">Cancelado</option>
+            </select>
+            <input type="date" id="sc-f-data-de" onchange="scBuscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
+            <input type="date" id="sc-f-data-ate" onchange="scBuscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
+        </div>
+    </div>
+
+    <!-- REPORT DO DIA -->
+    <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+        <div class="flex items-center gap-3 mb-4 flex-wrap">
+            <i class="ph ph-file-text text-faiston-purple"></i>
+            <span class="text-sm font-bold text-faiston-dark">Report do dia</span>
+            <input type="date" id="sc-report-data" onchange="scCarregarReport()" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-faiston-cyan">
+            <button onclick="scCopiarReport()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
+                <i class="ph ph-copy text-sm"></i> Copiar texto do report
+            </button>
+            <span class="text-xs text-faiston-faint" id="sc-report-msg"></span>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4" id="sc-report-pills"></div>
+        <pre id="sc-report-texto" class="text-xs bg-slate-50 border border-faiston-border rounded-lg p-4 whitespace-pre-wrap max-h-72 overflow-y-auto font-mono text-slate-700"></pre>
+    </div>
+
+    <!-- TABELA -->
+    <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-faiston-dark">Despachos</span>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="sc-count-label">carregando...</span>
+            </div>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-faiston-border bg-slate-50">
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Data</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Projeto</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Site</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Técnico</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">N2</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                        <th class="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="sc-tabela-body"><tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Carregando...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</div><!-- /mod-statuscampo -->
+
+<!-- MODAL NOVO/EDITAR DESPACHO -->
+<div id="modal-status-campo" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark" id="sc-modal-titulo">Novo despacho</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Registro de atividade de campo por site/cliente</p>
+            </div>
+            <button onclick="scFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Projeto/Cliente *</label>
+                    <select id="sc-m-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">Selecionar...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data *</label>
+                    <input type="date" id="sc-m-data" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Horário agendado</label>
+                    <input type="time" id="sc-m-horario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico</label>
+                    <input type="text" id="sc-m-tecnico" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">N2 responsável</label>
+                    <input type="text" id="sc-m-n2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Sigla do site</label>
+                    <input type="text" id="sc-m-sigla" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do site</label>
+                    <input type="text" id="sc-m-nomesite" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cidade</label>
+                    <input type="text" id="sc-m-cidade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">UF</label>
+                    <input type="text" id="sc-m-uf" maxlength="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="sc-m-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="agendado">Agendado</option>
+                        <option value="em_andamento">Em andamento</option>
+                        <option value="concluido">Concluído</option>
+                        <option value="parcial">Parcial</option>
+                        <option value="improdutiva">Improdutiva</option>
+                        <option value="cancelado">Cancelado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora chegada</label>
+                    <input type="time" id="sc-m-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora término</label>
+                    <input type="time" id="sc-m-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Endereço</label>
+                    <input type="text" id="sc-m-endereco" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
+                    <textarea id="sc-m-detalhamento" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Observações</label>
+                    <textarea id="sc-m-observacoes" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="scFecharModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="scSalvar()" id="sc-btn-salvar" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- MODULE: ADMIN                                                    -->
@@ -3529,9 +3713,10 @@ let _gestaoCarregado = false;
 let _finCarregado = false;
 let _histCarregado = false;
 let _adminCarregado = false;
+let _statusCampoCarregado = false;
 
 function setModule(mod, gestaoTab) {
-    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas'];
+    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo'];
     mods.forEach(m => {
         const el = document.getElementById('mod-' + m);
         if (el) el.classList.toggle('hidden', m !== mod);
@@ -3575,6 +3760,8 @@ function setModule(mod, gestaoTab) {
             ifr.dataset.loaded = '1';
             ifr.src = '/funcionario?embed=1';
         }
+    } else if (mod === 'statuscampo') {
+        if (!_statusCampoCarregado) { _statusCampoCarregado = true; scInit(); }
     }
 }
 
@@ -6007,7 +6194,252 @@ async function corrigirTimeCarimbo(id, time_usuario) {
     if (!res.ok) alert('Erro ao salvar');
 }
 
+// ══════════════════════════════════════════════════════════════════
+// MÓDULO: STATUS DE CAMPO
+// ══════════════════════════════════════════════════════════════════
+let scClientes = [];
+let scEditandoId = null;
+let scBuscaTimer = null;
 
+const STATUS_CAMPO_LABEL = {
+    agendado: 'Agendado', em_andamento: 'Em andamento', concluido: 'Concluído',
+    parcial: 'Parcial', improdutiva: 'Improdutiva', cancelado: 'Cancelado',
+};
+const STATUS_CAMPO_MAP = {
+    'Agendado': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Em andamento': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'Concluído': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    'Parcial': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Improdutiva': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
+};
+
+function scEsc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function scPodeEditar() {
+    return !!(window.ME && ['admin', 'gestor', 'demo'].includes(window.ME.perfil));
+}
+
+async function scInit() {
+    if (scPodeEditar()) document.getElementById('sc-btn-novo').classList.remove('hidden');
+    try {
+        const res = await fetch('/api/clientes');
+        if (res.ok) {
+            scClientes = await res.json();
+            const optsFiltro = scClientes.map(c => `<option value="${c.id}">${scEsc(c.nome)}</option>`).join('');
+            document.getElementById('sc-f-cliente').insertAdjacentHTML('beforeend', optsFiltro);
+            document.getElementById('sc-m-cliente').insertAdjacentHTML('beforeend', optsFiltro);
+        }
+    } catch (e) { /* segue sem a lista de clientes */ }
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    document.getElementById('sc-report-data').value = hoje;
+    await scBuscar();
+    await scCarregarReport();
+}
+
+function scDebounceBuscar() {
+    clearTimeout(scBuscaTimer);
+    scBuscaTimer = setTimeout(scBuscar, 300);
+}
+
+function scLimparFiltros() {
+    document.getElementById('sc-f-texto').value = '';
+    document.getElementById('sc-f-cliente').value = '';
+    document.getElementById('sc-f-status').value = '';
+    document.getElementById('sc-f-data-de').value = '';
+    document.getElementById('sc-f-data-ate').value = '';
+    scBuscar();
+}
+
+async function scBuscar() {
+    const params = new URLSearchParams();
+    const texto = document.getElementById('sc-f-texto').value.trim();
+    const cliente_id = document.getElementById('sc-f-cliente').value;
+    const status = document.getElementById('sc-f-status').value;
+    const data_de = document.getElementById('sc-f-data-de').value;
+    const data_ate = document.getElementById('sc-f-data-ate').value;
+    if (texto) params.set('texto', texto);
+    if (cliente_id) params.set('cliente_id', cliente_id);
+    if (status) params.set('status', status);
+    if (data_de) params.set('data_de', data_de);
+    if (data_ate) params.set('data_ate', data_ate);
+
+    const tbody = document.getElementById('sc-tabela-body');
+    try {
+        const res = await fetch('/api/status-campo?' + params.toString());
+        if (!res.ok) throw new Error('Erro ao buscar');
+        const rows = await res.json();
+        document.getElementById('sc-count-label').textContent = `${rows.length} despacho(s)`;
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Nenhum despacho encontrado.</td></tr>';
+            return;
+        }
+        const podeEditar = scPodeEditar();
+        tbody.innerHTML = rows.map(r => {
+            const label = STATUS_CAMPO_LABEL[r.status] || r.status;
+            const acoes = podeEditar ? `
+                <button onclick="scAbrirModalEditar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Editar"><i class="ph ph-pencil-simple text-slate-400 text-sm"></i></button>
+                <button onclick="scExcluir(${r.id})" class="w-7 h-7 rounded-md hover:bg-red-50 inline-flex items-center justify-center" title="Excluir"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+            ` : '';
+            return `<tr class="border-b border-faiston-border last:border-0 hover:bg-slate-50/60">
+                <td class="px-5 py-3 text-xs text-slate-500">${fmtDate(r.data)}</td>
+                <td class="px-5 py-3 text-sm font-medium text-faiston-dark">${scEsc(r.cliente_nome || '—')}</td>
+                <td class="px-5 py-3 text-sm text-slate-600">${scEsc(r.site_sigla || r.site_nome || '—')}</td>
+                <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.tecnico || '—')}</td>
+                <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.n2_responsavel || '—')}</td>
+                <td class="px-5 py-3">${statusBadge(label, STATUS_CAMPO_MAP)}</td>
+                <td class="px-5 py-3 text-right whitespace-nowrap">${acoes}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-red-400 text-sm">Erro ao carregar despachos.</td></tr>';
+    }
+}
+
+async function scCarregarReport() {
+    const data = document.getElementById('sc-report-data').value;
+    if (!data) return;
+    const msg = document.getElementById('sc-report-msg');
+    msg.textContent = '';
+    try {
+        const res = await fetch('/api/status-campo/report?data=' + data);
+        if (!res.ok) throw new Error('Erro');
+        const rep = await res.json();
+
+        const pillsEl = document.getElementById('sc-report-pills');
+        const entradas = Object.entries(rep.contagem || {});
+        pillsEl.innerHTML = entradas.length
+            ? entradas.map(([st, n]) => statusBadge(`${STATUS_CAMPO_LABEL[st] || st}: ${n}`, STATUS_CAMPO_MAP)).join('')
+            : '<span class="text-xs text-faiston-faint">Nenhum despacho nesta data.</span>';
+
+        let texto = `STATUS REPORT — ${fmtDate(data)}\n\n`;
+        const porCliente = rep.por_cliente || {};
+        Object.keys(porCliente).forEach(nome => {
+            const lista = porCliente[nome];
+            texto += `*${nome}* (${lista.length})\n`;
+            lista.forEach(a => {
+                texto += `- ${a.site}: ${STATUS_CAMPO_LABEL[a.status] || a.status}`;
+                if (a.tecnico) texto += ` | ${a.tecnico}`;
+                if (a.observacoes) texto += ` | ${a.observacoes}`;
+                texto += '\n';
+            });
+            texto += '\n';
+        });
+        if (!rep.total) texto += '(nenhuma atividade registrada nesta data)\n';
+        document.getElementById('sc-report-texto').textContent = texto;
+    } catch (e) {
+        document.getElementById('sc-report-pills').innerHTML = '';
+        document.getElementById('sc-report-texto').textContent = '';
+        msg.textContent = 'Erro ao carregar o report.';
+    }
+}
+
+async function scCopiarReport() {
+    const texto = document.getElementById('sc-report-texto').textContent;
+    const msg = document.getElementById('sc-report-msg');
+    try {
+        await navigator.clipboard.writeText(texto);
+        msg.textContent = 'Copiado!';
+    } catch (e) {
+        msg.textContent = 'Não foi possível copiar — selecione o texto manualmente.';
+    }
+}
+
+function scAbrirModalNovo() {
+    if (!scPodeEditar()) return;
+    scEditandoId = null;
+    document.getElementById('sc-modal-titulo').textContent = 'Novo despacho';
+    ['sc-m-cliente','sc-m-horario','sc-m-tecnico','sc-m-n2','sc-m-sigla','sc-m-nomesite',
+     'sc-m-cidade','sc-m-uf','sc-m-chegada','sc-m-termino','sc-m-endereco','sc-m-detalhamento','sc-m-observacoes']
+        .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('sc-m-status').value = 'agendado';
+    document.getElementById('sc-m-data').value = document.getElementById('sc-report-data').value || new Date().toISOString().slice(0, 10);
+    document.getElementById('modal-status-campo').classList.remove('hidden');
+}
+
+async function scAbrirModalEditar(id) {
+    if (!scPodeEditar()) return;
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (!res.ok) { alert('Despacho não encontrado (pode já ter sido excluído).'); return; }
+        const r = await res.json();
+        scEditandoId = id;
+        document.getElementById('sc-modal-titulo').textContent = 'Editar despacho';
+        document.getElementById('sc-m-cliente').value = r.cliente_id || '';
+        document.getElementById('sc-m-data').value = r.data || '';
+        document.getElementById('sc-m-horario').value = r.horario_agendado || '';
+        document.getElementById('sc-m-tecnico').value = r.tecnico || '';
+        document.getElementById('sc-m-n2').value = r.n2_responsavel || '';
+        document.getElementById('sc-m-sigla').value = r.site_sigla || '';
+        document.getElementById('sc-m-nomesite').value = r.site_nome || '';
+        document.getElementById('sc-m-cidade').value = r.cidade || '';
+        document.getElementById('sc-m-uf').value = r.uf || '';
+        document.getElementById('sc-m-status').value = r.status || 'agendado';
+        document.getElementById('sc-m-chegada').value = r.hora_chegada || '';
+        document.getElementById('sc-m-termino').value = r.hora_termino || '';
+        document.getElementById('sc-m-endereco').value = r.endereco || '';
+        document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
+        document.getElementById('sc-m-observacoes').value = r.observacoes || '';
+        document.getElementById('modal-status-campo').classList.remove('hidden');
+    } catch (e) { alert('Erro ao carregar despacho para edição.'); }
+}
+
+function scFecharModal() {
+    document.getElementById('modal-status-campo').classList.add('hidden');
+    scEditandoId = null;
+}
+
+async function scSalvar() {
+    const cliente_id = document.getElementById('sc-m-cliente').value;
+    const data = document.getElementById('sc-m-data').value;
+    if (!cliente_id || !data) { alert('Selecione o projeto/cliente e a data.'); return; }
+    const payload = {
+        cliente_id: parseInt(cliente_id, 10),
+        data,
+        horario_agendado: document.getElementById('sc-m-horario').value || null,
+        tecnico: document.getElementById('sc-m-tecnico').value.trim(),
+        n2_responsavel: document.getElementById('sc-m-n2').value.trim(),
+        site_sigla: document.getElementById('sc-m-sigla').value.trim(),
+        site_nome: document.getElementById('sc-m-nomesite').value.trim(),
+        endereco: document.getElementById('sc-m-endereco').value.trim(),
+        cidade: document.getElementById('sc-m-cidade').value.trim(),
+        uf: document.getElementById('sc-m-uf').value.trim(),
+        hora_chegada: document.getElementById('sc-m-chegada').value || null,
+        hora_termino: document.getElementById('sc-m-termino').value || null,
+        detalhamento_tecnico: document.getElementById('sc-m-detalhamento').value.trim(),
+        status: document.getElementById('sc-m-status').value,
+        observacoes: document.getElementById('sc-m-observacoes').value.trim(),
+    };
+    const btn = document.getElementById('sc-btn-salvar');
+    btn.disabled = true;
+    try {
+        const url = scEditandoId ? `/api/status-campo/${scEditandoId}` : '/api/status-campo';
+        const method = scEditandoId ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao salvar: ' + (err.detail || res.status)); return; }
+        scFecharModal();
+        await scBuscar();
+        await scCarregarReport();
+    } catch (e) {
+        alert('Erro de rede ao salvar.');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function scExcluir(id) {
+    if (!scPodeEditar()) return;
+    if (!confirm('Excluir este despacho?')) return;
+    try {
+        const res = await fetch(`/api/status-campo/${id}`, { method: 'DELETE' });
+        if (!res.ok) { alert('Erro ao excluir.'); return; }
+        await scBuscar();
+        await scCarregarReport();
+    } catch (e) { alert('Erro de rede ao excluir.'); }
+}
 
 </script>
 <!-- MODAL NOVO TICKET -->
