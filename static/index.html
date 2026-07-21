@@ -1713,43 +1713,19 @@
                     </select>
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora chegada</label>
-                    <input type="time" id="sc-m-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Ticket</label>
+                    <input type="text" id="sc-m-ticket" placeholder="Nº do ticket" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Endereço</label>
                     <input type="text" id="sc-m-endereco" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Particularidades</label>
-                    <div class="flex gap-4 pt-1">
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="checkbox" id="sc-m-part-reversa" value="reversa"> Reversa
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="checkbox" id="sc-m-part-equip" value="equipamento_em_posse_do_cliente"> Equipamento em posse do cliente
-                        </label>
-                    </div>
-                </div>
-                <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Material</label>
-                    <div class="flex gap-4 pt-1 mb-2">
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="sc-m-material-radio" id="sc-m-material-sim" onchange="scToggleMaterialDetalhe()"> Utilizado
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="sc-m-material-radio" id="sc-m-material-nao" onchange="scToggleMaterialDetalhe()" checked> Não utilizado
-                        </label>
-                    </div>
-                    <textarea id="sc-m-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="hidden w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
-                </div>
-                <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
                     <textarea id="sc-m-detalhamento" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 </div>
-                <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Observações <span class="normal-case font-normal text-faiston-faint">(preenchido pelo N2)</span></label>
-                    <textarea id="sc-m-observacoes" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                <div class="col-span-2 text-xs text-faiston-faint bg-slate-50 border border-faiston-border rounded-lg px-3 py-2.5">
+                    <i class="ph ph-info text-sm"></i> Chegada/saída, particularidades, material e observações são preenchidos pelo próprio N2 ao finalizar a atividade.
                 </div>
             </div>
         </div>
@@ -6426,6 +6402,11 @@ let scEditandoId = null;
 let scBuscaTimer = null;
 let scReportPorCliente = {};
 let scReportDataAtual = '';
+// Campos que só o N2 preenche (ao finalizar) -- o formulário do admin não
+// tem controles pra eles, então precisam ser preservados ao salvar (o PUT
+// substitui o registro inteiro; sem isso, editar pelo admin apagaria o
+// que o N2 já tinha preenchido).
+let scCamposN2Preservados = {};
 
 const STATUS_CAMPO_LABEL = {
     agendado: 'Agendado', em_andamento: 'Em andamento', concluido: 'Concluído',
@@ -6441,12 +6422,6 @@ const STATUS_CAMPO_MAP = {
     'Improdutiva — Faiston': 'text-faiston-magenta bg-faiston-magenta/10 border-faiston-magenta/30',
     'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
 };
-const PARTICULARIDADE_LABEL = { reversa: 'Reversa', equipamento_em_posse_do_cliente: 'Equip. c/ cliente' };
-
-function scToggleMaterialDetalhe() {
-    const usado = document.getElementById('sc-m-material-sim').checked;
-    document.getElementById('sc-m-material-detalhe').classList.toggle('hidden', !usado);
-}
 
 function scEsc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -6666,14 +6641,11 @@ async function scGerarPrint() {
 function scAbrirModalNovo() {
     if (!scPodeEditar()) return;
     scEditandoId = null;
+    scCamposN2Preservados = {};
     document.getElementById('sc-modal-titulo').textContent = 'Nova atividade';
     ['sc-m-cliente','sc-m-horario','sc-m-tecnico','sc-m-n2','sc-m-sigla','sc-m-nomesite',
-     'sc-m-cidade','sc-m-uf','sc-m-chegada','sc-m-endereco','sc-m-detalhamento','sc-m-observacoes','sc-m-material-detalhe']
+     'sc-m-cidade','sc-m-uf','sc-m-endereco','sc-m-detalhamento','sc-m-ticket']
         .forEach(id => document.getElementById(id).value = '');
-    document.getElementById('sc-m-part-reversa').checked = false;
-    document.getElementById('sc-m-part-equip').checked = false;
-    document.getElementById('sc-m-material-nao').checked = true;
-    scToggleMaterialDetalhe();
     document.getElementById('sc-m-status').value = 'agendado';
     document.getElementById('sc-m-status').disabled = true;
     document.getElementById('sc-m-data').value = document.getElementById('sc-report-data').value || new Date().toISOString().slice(0, 10);
@@ -6687,6 +6659,12 @@ async function scAbrirModalEditar(id) {
         if (!res.ok) { alert('Atividade não encontrada (pode já ter sido excluída).'); return; }
         const r = await res.json();
         scEditandoId = id;
+        scCamposN2Preservados = {
+            hora_chegada: r.hora_chegada || null, hora_termino: r.hora_termino || null,
+            observacoes: r.observacoes || '', particularidades: r.particularidades || [],
+            material_utilizado: !!r.material_utilizado, material_detalhe: r.material_detalhe || '',
+            material_quantidade: r.material_quantidade ?? null, material_valor: r.material_valor ?? null,
+        };
         document.getElementById('sc-m-status').disabled = false;
         document.getElementById('sc-modal-titulo').textContent = 'Editar atividade';
         document.getElementById('sc-m-cliente').value = r.cliente_id || '';
@@ -6699,17 +6677,9 @@ async function scAbrirModalEditar(id) {
         document.getElementById('sc-m-cidade').value = r.cidade || '';
         document.getElementById('sc-m-uf').value = r.uf || '';
         document.getElementById('sc-m-status').value = r.status || 'agendado';
-        document.getElementById('sc-m-chegada').value = r.hora_chegada || '';
         document.getElementById('sc-m-endereco').value = r.endereco || '';
         document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
-        document.getElementById('sc-m-observacoes').value = r.observacoes || '';
-        const particularidades = r.particularidades || [];
-        document.getElementById('sc-m-part-reversa').checked = particularidades.includes('reversa');
-        document.getElementById('sc-m-part-equip').checked = particularidades.includes('equipamento_em_posse_do_cliente');
-        document.getElementById('sc-m-material-sim').checked = !!r.material_utilizado;
-        document.getElementById('sc-m-material-nao').checked = !r.material_utilizado;
-        document.getElementById('sc-m-material-detalhe').value = r.material_detalhe || '';
-        scToggleMaterialDetalhe();
+        document.getElementById('sc-m-ticket').value = r.ticket || '';
         document.getElementById('modal-status-campo').classList.remove('hidden');
     } catch (e) { alert('Erro ao carregar atividade para edição.'); }
 }
@@ -6734,16 +6704,12 @@ async function scSalvar() {
         endereco: document.getElementById('sc-m-endereco').value.trim(),
         cidade: document.getElementById('sc-m-cidade').value.trim(),
         uf: document.getElementById('sc-m-uf').value.trim(),
-        hora_chegada: document.getElementById('sc-m-chegada').value || null,
         detalhamento_tecnico: document.getElementById('sc-m-detalhamento').value.trim(),
         status: document.getElementById('sc-m-status').value,
-        observacoes: document.getElementById('sc-m-observacoes').value.trim(),
-        particularidades: [
-            document.getElementById('sc-m-part-reversa').checked ? 'reversa' : null,
-            document.getElementById('sc-m-part-equip').checked ? 'equipamento_em_posse_do_cliente' : null,
-        ].filter(Boolean),
-        material_utilizado: document.getElementById('sc-m-material-sim').checked,
-        material_detalhe: document.getElementById('sc-m-material-detalhe').value.trim(),
+        ticket: document.getElementById('sc-m-ticket').value.trim(),
+        // Preserva o que o N2 já preencheu -- este formulário não tem
+        // controles pra esses campos (ver scCamposN2Preservados).
+        ...scCamposN2Preservados,
     };
     const btn = document.getElementById('sc-btn-salvar');
     btn.disabled = true;
@@ -7044,8 +7010,19 @@ async function pn2SalvarDistribuicao() {
     const btn = document.getElementById('pn2-btn-salvar-ge');
     btn.disabled = true;
     const msg = document.getElementById('pn2-ge-msg');
+    let totalAtribuidas = 0, totalEsperado = 0;
     try {
         for (const d of pn2GeDistribuicao) {
+            // 1) Atribui de verdade o N2 às atividades já existentes desse cliente/data
+            totalEsperado += d.quantidade;
+            const resAtr = await fetch('/api/status-campo/atribuir-lote', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cliente_id: parseInt(d.cliente_id, 10), data, quantidade: d.quantidade, n2_usuario_id: d.n2_usuario_id })
+            });
+            if (!resAtr.ok) { const err = await resAtr.json().catch(() => ({})); msg.textContent = 'Erro ao atribuir: ' + (err.detail || resAtr.status); btn.disabled = false; return; }
+            totalAtribuidas += (await resAtr.json()).atribuidas || 0;
+
+            // 2) Registra o plantão/escala (visão de "quem tá em campo hoje")
             const atribuicao = `${d.cliente_nome} (${d.quantidade} atividade${d.quantidade > 1 ? 's' : ''})${d.particularidade ? ' — ' + d.particularidade : ''}`;
             const res = await fetch('/api/escala-n2', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -7056,6 +7033,9 @@ async function pn2SalvarDistribuicao() {
         pn2FecharModalGerarEscala();
         document.getElementById('pn2-escala-data').value = data;
         await pn2CarregarEscala();
+        if (totalAtribuidas < totalEsperado) {
+            alert(`Escala salva, mas só ${totalAtribuidas} de ${totalEsperado} atividades foram encontradas sem N2 pra atribuir (as demais podem não existir ainda nesse cliente/data, ou já estarem atribuídas a outra pessoa).`);
+        }
     } catch (e) {
         msg.textContent = 'Erro de rede ao salvar.';
     } finally {

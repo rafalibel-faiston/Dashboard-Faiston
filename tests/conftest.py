@@ -64,3 +64,17 @@ def cliente_teste(admin_client):
     cid = resp.json()["id"]
     yield cid
     admin_client.delete(f"/api/clientes/{cid}")
+
+
+@pytest.fixture()
+def n2_user(admin_client):
+    """Cria um usuário N2 temporário pra isolar os testes; limpa no teardown."""
+    usuario = f"teste_n2_{uuid.uuid4().hex[:8]}"
+    senha = "senhaTeste123"
+    resp = admin_client.post("/api/usuarios", json={
+        "usuario": usuario, "senha": senha, "nome": "N2 Fixture Teste", "perfil": "n2",
+    })
+    assert resp.status_code == 200, resp.text
+    uid = resp.json()["id"]
+    yield {"id": uid, "usuario": usuario, "senha": senha}
+    admin_client.delete(f"/api/usuarios/{uid}")

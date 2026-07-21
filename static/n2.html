@@ -149,8 +149,16 @@
                     </select>
                 </div>
                 <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Ticket</label>
+                    <input type="text" id="m-ticket" placeholder="Nº do ticket" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora chegada</label>
                     <input type="time" id="m-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora de saída</label>
+                    <input type="time" id="m-saida" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Endereço</label>
@@ -177,7 +185,19 @@
                             <input type="radio" name="m-material-radio" id="m-material-nao" onchange="toggleMaterialDetalhe()" checked> Não utilizado
                         </label>
                     </div>
-                    <textarea id="m-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="hidden w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                    <div id="m-material-campos" class="hidden flex-col gap-2">
+                        <textarea id="m-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none mb-2"></textarea>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Quantidade</label>
+                                <input type="number" min="0" id="m-material-qtd" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>
+                                <input type="number" min="0" step="0.01" id="m-material-valor" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
@@ -213,7 +233,9 @@ const STATUS_MAP = {
 };
 function toggleMaterialDetalhe() {
     const usado = document.getElementById('m-material-sim').checked;
-    document.getElementById('m-material-detalhe').classList.toggle('hidden', !usado);
+    const campos = document.getElementById('m-material-campos');
+    campos.classList.toggle('hidden', !usado);
+    campos.classList.toggle('flex', usado);
 }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
@@ -309,7 +331,8 @@ async function buscar() {
 function abrirModalNovo() {
     editandoId = null;
     document.getElementById('modal-titulo').textContent = 'Nova atividade';
-    ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-endereco','m-detalhamento','m-observacoes','m-material-detalhe']
+    ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-saida',
+     'm-endereco','m-detalhamento','m-observacoes','m-material-detalhe','m-material-qtd','m-material-valor','m-ticket']
         .forEach(id => document.getElementById(id).value = '');
     document.getElementById('m-part-reversa').checked = false;
     document.getElementById('m-part-equip').checked = false;
@@ -339,15 +362,19 @@ async function abrirModalEditar(id) {
         document.getElementById('m-uf').value = r.uf || '';
         document.getElementById('m-status').value = r.status || 'agendado';
         document.getElementById('m-chegada').value = r.hora_chegada || '';
+        document.getElementById('m-saida').value = r.hora_termino || '';
         document.getElementById('m-endereco').value = r.endereco || '';
         document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
         document.getElementById('m-observacoes').value = r.observacoes || '';
+        document.getElementById('m-ticket').value = r.ticket || '';
         const particularidades = r.particularidades || [];
         document.getElementById('m-part-reversa').checked = particularidades.includes('reversa');
         document.getElementById('m-part-equip').checked = particularidades.includes('equipamento_em_posse_do_cliente');
         document.getElementById('m-material-sim').checked = !!r.material_utilizado;
         document.getElementById('m-material-nao').checked = !r.material_utilizado;
         document.getElementById('m-material-detalhe').value = r.material_detalhe || '';
+        document.getElementById('m-material-qtd').value = r.material_quantidade ?? '';
+        document.getElementById('m-material-valor').value = r.material_valor ?? '';
         toggleMaterialDetalhe();
         document.getElementById('modal').classList.remove('hidden');
     } catch (e) { alert('Erro ao carregar atividade.'); }
@@ -373,15 +400,21 @@ async function salvar() {
         cidade: document.getElementById('m-cidade').value.trim(),
         uf: document.getElementById('m-uf').value.trim(),
         hora_chegada: document.getElementById('m-chegada').value || null,
+        hora_termino: document.getElementById('m-saida').value || null,
         detalhamento_tecnico: document.getElementById('m-detalhamento').value.trim(),
         status: document.getElementById('m-status').value,
         observacoes: document.getElementById('m-observacoes').value.trim(),
+        ticket: document.getElementById('m-ticket').value.trim(),
         particularidades: [
             document.getElementById('m-part-reversa').checked ? 'reversa' : null,
             document.getElementById('m-part-equip').checked ? 'equipamento_em_posse_do_cliente' : null,
         ].filter(Boolean),
         material_utilizado: document.getElementById('m-material-sim').checked,
         material_detalhe: document.getElementById('m-material-detalhe').value.trim(),
+        material_quantidade: document.getElementById('m-material-sim').checked && document.getElementById('m-material-qtd').value
+            ? parseInt(document.getElementById('m-material-qtd').value, 10) : null,
+        material_valor: document.getElementById('m-material-sim').checked && document.getElementById('m-material-valor').value
+            ? parseFloat(document.getElementById('m-material-valor').value) : null,
     };
     const btn = document.getElementById('btn-salvar');
     btn.disabled = true;

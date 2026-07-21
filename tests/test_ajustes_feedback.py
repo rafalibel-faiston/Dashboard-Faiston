@@ -112,6 +112,52 @@ class TestParticularidadesEMaterial:
         finally:
             admin_client.delete(f"/api/status-campo/{aid}")
 
+    def test_material_utilizado_com_quantidade_e_valor(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(
+            cliente_teste, material_utilizado=True, material_detalhe="Cabo cat6",
+            material_quantidade=5, material_valor=123.45,
+        )).json()["id"]
+        try:
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["material_quantidade"] == 5
+            assert item["material_valor"] == 123.45
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_material_nao_utilizado_ignora_quantidade_e_valor(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(
+            cliente_teste, material_utilizado=False, material_quantidade=5, material_valor=123.45,
+        )).json()["id"]
+        try:
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["material_quantidade"] is None
+            assert item["material_valor"] is None
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+
+class TestTicket:
+    def test_ticket_e_salvo_e_pode_ser_editado(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste, ticket="TCK-1001")).json()["id"]
+        try:
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["ticket"] == "TCK-1001"
+
+            resp = admin_client.put(f"/api/status-campo/{aid}", json=_payload(cliente_teste, ticket="TCK-2002"))
+            assert resp.status_code == 200
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["ticket"] == "TCK-2002"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_ticket_default_vazio(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["ticket"] == ""
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
 
 class TestAcessoDiretor:
     @pytest.fixture()

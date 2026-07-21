@@ -2,24 +2,6 @@
 Testes do Painel de Controle do N2: escala do dia (/api/escala-n2) e
 resumo da equipe (/api/painel-n2/resumo).
 """
-import uuid
-
-import pytest
-
-
-@pytest.fixture()
-def n2_user(admin_client):
-    usuario = f"teste_pn2_{uuid.uuid4().hex[:8]}"
-    senha = "senhaTeste123"
-    resp = admin_client.post("/api/usuarios", json={
-        "usuario": usuario, "senha": senha, "nome": "N2 Painel Teste", "perfil": "n2",
-    })
-    assert resp.status_code == 200, resp.text
-    uid = resp.json()["id"]
-    yield {"id": uid, "usuario": usuario, "senha": senha}
-    admin_client.delete(f"/api/usuarios/{uid}")
-
-
 class TestEscalaN2:
     def test_listar_sem_login_retorna_401(self, app):
         from fastapi.testclient import TestClient
@@ -48,7 +30,7 @@ class TestEscalaN2:
             resp = admin_client.get("/api/escala-n2", params={"data": data})
             assert resp.status_code == 200
             item = next(x for x in resp.json() if x["id"] == eid)
-            assert item["n2_nome"] == "N2 Painel Teste"
+            assert item["n2_nome"] == "N2 Fixture Teste"
             assert item["modalidade"] == "home"
             assert item["atribuicao"] == "ARCOS - vistoria"
 
@@ -123,3 +105,88 @@ class TestPainelN2Resumo:
         finally:
             admin_client.delete(f"/api/status-campo/{a1}")
             admin_client.delete(f"/api/status-campo/{a2}")
+
+
+class TestAtribuirLote:
+    """
+    Cobre o bug de raiz do item 4 do feedback: gerar a escala criava só um
+    registro de plantão (escala_n2) sem de fato vincular o N2 às atividades
+    -- por isso elas nunca apareciam na aba do N2. Esse endpoint é o que o
+    Gerador de Escala chama pra fazer o vínculo real em status_atividades.
+    """
+
+    def test_sem_permissao_retorna_403(self, app, n2_user, cliente_teste):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        resp = client.post("/api/login", json={"usuario": n2_user["usuario"], "senha": n2_user["senha"]})
+        assert resp.status_code == 200
+        resp = client.post("/api/status-campo/atribuir-lote", json={
+            "cliente_id": cliente_teste, "data": "2026-07-21", "quantidade": 1, "n2_usuario_id": n2_user["id"],
+        })
+        assert resp.status_code == 403
+
+    def test_atribui_apenas_as_sem_n2_ate_a_quantidade_pedida(self, admin_client, n2_user, cliente_teste):
+        data = "2026-07-21"
+        # 3 atividades sem N2 + 1 já com N2 definido (não deve ser tocada)
+        sem_n2 = [
+            admin_client.post("/api/status-campo", json={"cliente_id": cliente_teste, "data": data}).json()["id"]
+            for _ in range(3)
+        ]
+        ja_atribuida = admin_client.post("/api/status-campo", json={
+            "cliente_id": cliente_teste, "data": data, "n2_usuario_id": n2_user["id"],
+        }).json()["id"]
+        todas = sem_n2 + [ja_atribuida]
+        try:
+            resp = admin_client.post("/api/status-campo/atribuir-lote", json={
+                "cliente_id": cliente_teste, "data": data, "quantidade": 2, "n2_usuario_id": n2_user["id"],
+            })
+            assert resp.status_code == 200, resp.text
+            body = resp.json()
+            assert body["sucesso"] is True
+            assert body["atribuidas"] == 2
+            assert len(body["ids"]) == 2
+            # as duas atribuídas têm que vir das que estavam sem N2
+            assert set(body["ids"]).issubset(set(sem_n2))
+
+            atualizadas = {aid: admin_client.get(f"/api/status-campo/{aid}").json() for aid in todas}
+            com_n2_agora = [aid for aid, item in atualizadas.items() if item["n2_usuario_id"] == n2_user["id"]]
+            # as 2 recém-atribuídas + a que já estava atribuída antes
+            assert len(com_n2_agora) == 3
+            assert ja_atribuida in com_n2_agora
+        finally:
+            for aid in todas:
+                admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_atividade_atribuida_aparece_para_o_n2(self, admin_client, app, n2_user, cliente_teste):
+        """Prova fim-a-fim do fix: depois do atribuir-lote, a atividade
+        aparece na listagem do próprio N2 (GET /api/status-campo?n2_usuario_id=)."""
+        data = "2026-07-21"
+        aid = admin_client.post("/api/status-campo", json={"cliente_id": cliente_teste, "data": data}).json()["id"]
+        try:
+            resp = admin_client.post("/api/status-campo/atribuir-lote", json={
+                "cliente_id": cliente_teste, "data": data, "quantidade": 1, "n2_usuario_id": n2_user["id"],
+            })
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["atribuidas"] == 1
+
+            from fastapi.testclient import TestClient
+            n2_client = TestClient(app)
+            resp = n2_client.post("/api/login", json={"usuario": n2_user["usuario"], "senha": n2_user["senha"]})
+            assert resp.status_code == 200
+            resp = n2_client.get("/api/status-campo", params={"n2_usuario_id": n2_user["id"]})
+            assert resp.status_code == 200
+            assert aid in [r["id"] for r in resp.json()]
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_quantidade_maior_que_disponivel_atribui_so_as_existentes(self, admin_client, n2_user, cliente_teste):
+        data = "2026-07-21"
+        aid = admin_client.post("/api/status-campo", json={"cliente_id": cliente_teste, "data": data}).json()["id"]
+        try:
+            resp = admin_client.post("/api/status-campo/atribuir-lote", json={
+                "cliente_id": cliente_teste, "data": data, "quantidade": 5, "n2_usuario_id": n2_user["id"],
+            })
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["atribuidas"] == 1
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")

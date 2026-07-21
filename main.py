@@ -368,6 +368,12 @@ def setup_banco():
         cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS particularidades TEXT[] NOT NULL DEFAULT '{}'")
         cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_utilizado BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_detalhe TEXT NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_quantidade INTEGER")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_valor NUMERIC(10,2)")
+        # Ticket de suporte associado (preenchido na criação, ex. via import
+        # de planilha) -- e "hora_termino" passa a ser usada como "hora de
+        # saída", preenchida pelo N2 ao finalizar (sem precisar de coluna nova).
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS ticket VARCHAR(100) DEFAULT ''")
         # ── Escala N2 (plantão do dia: quem, horário, home/presencial) ──────
         cur.execute("""
             CREATE TABLE IF NOT EXISTS escala_n2 (
@@ -4889,13 +4895,16 @@ class StatusAtividadeModel(BaseModel):
     cidade: str = ""
     uf: str = ""
     hora_chegada: Optional[str] = None
-    hora_termino: Optional[str] = None
+    hora_termino: Optional[str] = None  # usado como "hora de saída" no front, preenchido pelo N2
     detalhamento_tecnico: str = ""
     status: str = "agendado"
     observacoes: str = ""
     particularidades: List[str] = []
     material_utilizado: bool = False
     material_detalhe: str = ""
+    material_quantidade: Optional[int] = None
+    material_valor: Optional[float] = None
+    ticket: str = ""
 
 def _resolver_n2(cur, n2_usuario_id, n2_responsavel_texto):
     """Se veio n2_usuario_id, busca o nome pra cachear em n2_responsavel
@@ -4958,7 +4967,8 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
                    a.n2_usuario_id, a.n2_responsavel,
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
                    a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em,
-                   a.particularidades, a.material_utilizado, a.material_detalhe
+                   a.particularidades, a.material_utilizado, a.material_detalhe,
+                   a.material_quantidade, a.material_valor, a.ticket
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE {' AND '.join(where)}
@@ -4971,7 +4981,8 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
                 "n2_usuario_id", "n2_responsavel",
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
                 "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em",
-                "particularidades", "material_utilizado", "material_detalhe"]
+                "particularidades", "material_utilizado", "material_detalhe",
+                "material_quantidade", "material_valor", "ticket"]
         out = []
         for r in rows:
             item = dict(zip(cols, r))
@@ -4996,7 +5007,8 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
         cur.execute("""
             SELECT a.id, c.nome, a.site_sigla, a.site_nome, a.tecnico, a.status, a.observacoes,
                    a.horario_agendado, a.cidade, a.uf, a.n2_responsavel,
-                   a.particularidades, a.material_utilizado, a.material_detalhe
+                   a.particularidades, a.material_utilizado, a.material_detalhe,
+                   a.material_quantidade, a.material_valor, a.ticket
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.data = %s
@@ -5008,7 +5020,8 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
         por_cliente = {}
         for r in rows:
             (aid, cliente_nome, sigla, nome_site, tecnico, status, obs, horario, cidade, uf, n2,
-             particularidades, material_utilizado, material_detalhe) = r
+             particularidades, material_utilizado, material_detalhe,
+             material_quantidade, material_valor, ticket) = r
             cliente_nome = cliente_nome or "Sem cliente"
             contagem[status] = contagem.get(status, 0) + 1
             por_cliente.setdefault(cliente_nome, []).append({
@@ -5016,7 +5029,9 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
                 "status": status, "observacoes": obs, "horario_agendado": str(horario)[:5] if horario else None,
                 "cidade": cidade, "uf": uf, "n2_responsavel": n2,
                 "particularidades": particularidades or [], "material_utilizado": material_utilizado,
-                "material_detalhe": material_detalhe,
+                "material_detalhe": material_detalhe, "material_quantidade": material_quantidade,
+                "material_valor": float(material_valor) if material_valor is not None else None,
+                "ticket": ticket,
             })
         return {"data": data, "contagem": contagem, "por_cliente": por_cliente, "total": len(rows)}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -5034,7 +5049,8 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
                    a.n2_usuario_id, a.n2_responsavel,
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
                    a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em,
-                   a.particularidades, a.material_utilizado, a.material_detalhe
+                   a.particularidades, a.material_utilizado, a.material_detalhe,
+                   a.material_quantidade, a.material_valor, a.ticket
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.id = %s
@@ -5046,7 +5062,8 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
                 "n2_usuario_id", "n2_responsavel",
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
                 "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em",
-                "particularidades", "material_utilizado", "material_detalhe"]
+                "particularidades", "material_utilizado", "material_detalhe",
+                "material_quantidade", "material_valor", "ticket"]
         item = dict(zip(cols, r))
         item["data"] = str(item["data"]) if item["data"] else None
         for k in ("horario_agendado", "hora_chegada", "hora_termino"):
@@ -5079,13 +5096,16 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
                 n2_usuario_id, n2_responsavel,
                 site_sigla, site_nome, endereco, cidade, uf, hora_chegada, hora_termino,
                 detalhamento_tecnico, status, observacoes, criado_por,
-                particularidades, material_utilizado, material_detalhe)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                particularidades, material_utilizado, material_detalhe,
+                material_quantidade, material_valor, ticket)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
         """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
               a.detalhamento_tecnico, status, a.observacoes, sess["id"],
-              particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else ""))
+              particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else "",
+              a.material_quantidade if a.material_utilizado else None,
+              a.material_valor if a.material_utilizado else None, a.ticket))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -5113,13 +5133,16 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
                 site_sigla=%s, site_nome=%s, endereco=%s, cidade=%s, uf=%s,
                 hora_chegada=%s, hora_termino=%s, detalhamento_tecnico=%s, status=%s, observacoes=%s,
                 particularidades=%s, material_utilizado=%s, material_detalhe=%s,
+                material_quantidade=%s, material_valor=%s, ticket=%s,
                 atualizado_em=NOW()
             WHERE id=%s
         """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
               a.detalhamento_tecnico, status, a.observacoes,
-              particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else "", aid))
+              particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else "",
+              a.material_quantidade if a.material_utilizado else None,
+              a.material_valor if a.material_utilizado else None, a.ticket, aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except HTTPException: raise
@@ -5259,6 +5282,41 @@ def deletar_escala_n2(eid: int, faiston_token: str = Cookie(None)):
         cur.execute("DELETE FROM escala_n2 WHERE id=%s", (eid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class AtribuirLoteModel(BaseModel):
+    cliente_id: int
+    data: str
+    quantidade: int
+    n2_usuario_id: int
+
+@app.post("/api/status-campo/atribuir-lote")
+def atribuir_lote_status_campo(body: AtribuirLoteModel, faiston_token: str = Cookie(None)):
+    """Usado pelo Gerador de Escala: atribui de verdade o N2 a até
+    `quantidade` atividades já existentes (sem N2 ainda) daquele
+    cliente/data -- gerar escala sem isso só criava um registro de
+    plantão sem vínculo real com as atividades."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        _, n2_nome = _resolver_n2(cur, body.n2_usuario_id, "")
+        cur.execute("""
+            UPDATE status_atividades SET n2_usuario_id=%s, n2_responsavel=%s, atualizado_em=NOW()
+            WHERE id IN (
+                SELECT id FROM status_atividades
+                WHERE cliente_id=%s AND data=%s AND n2_usuario_id IS NULL
+                ORDER BY horario_agendado ASC NULLS LAST, id
+                LIMIT %s
+            )
+            RETURNING id
+        """, (body.n2_usuario_id, n2_nome, body.cliente_id, body.data, body.quantidade))
+        ids = [r[0] for r in cur.fetchall()]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "atribuidas": len(ids), "ids": ids}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/painel-n2/resumo")
