@@ -264,6 +264,13 @@ def setup_banco():
         cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS telefone VARCHAR(50) DEFAULT ''")
         cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS cnpj VARCHAR(30) DEFAULT ''")
         cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS observacoes TEXT DEFAULT ''")
+        # Bug pré-existente: esta coluna só era criada dentro do handler GET
+        # /api/clientes (main.py, listar_clientes), nunca no setup_banco().
+        # Num banco novo, chamar POST /api/clientes antes de qualquer GET
+        # quebrava com "column \"time\" of relation \"clientes\" does not
+        # exist" — achado testando o módulo Status de Campo contra um
+        # Postgres de staging genuinamente vazio.
+        cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS projetos (
                 id SERIAL PRIMARY KEY,
