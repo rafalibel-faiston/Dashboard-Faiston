@@ -53,11 +53,11 @@
 
     <div class="flex items-center justify-between mb-5">
         <div>
-            <h2 class="text-xl font-bold text-faiston-dark">Meus despachos</h2>
-            <p class="text-xs text-faiston-muted mt-0.5">Despachos de campo onde você é o N2 responsável</p>
+            <h2 class="text-xl font-bold text-faiston-dark">Minhas atividades</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Atividades de campo onde você é o N2 responsável</p>
         </div>
         <button onclick="abrirModalNovo()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
-            <i class="ph ph-plus text-base"></i> Novo despacho
+            <i class="ph ph-plus text-base"></i> Nova atividade
         </button>
     </div>
 
@@ -82,19 +82,19 @@
 
     <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
         <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
-            <span class="text-sm font-bold text-faiston-dark">Despachos</span>
+            <span class="text-sm font-bold text-faiston-dark">Atividades</span>
             <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
         </div>
         <div id="lista"></div>
     </div>
 </main>
 
-<!-- MODAL NOVO/EDITAR DESPACHO -->
+<!-- MODAL NOVA/EDITAR ATIVIDADE -->
 <div id="modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between p-6 border-b border-faiston-border">
             <div>
-                <h2 class="text-lg font-bold text-faiston-dark" id="modal-titulo">Novo despacho</h2>
+                <h2 class="text-lg font-bold text-faiston-dark" id="modal-titulo">Nova atividade</h2>
                 <p class="text-xs text-faiston-muted mt-0.5">Você é registrado automaticamente como N2 responsável</p>
             </div>
             <button onclick="fecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
@@ -245,18 +245,19 @@ async function buscar() {
         const res = await fetch('/api/status-campo?' + params.toString());
         if (!res.ok) throw new Error();
         const rows = await res.json();
-        document.getElementById('count-label').textContent = `${rows.length} despacho(s)`;
+        document.getElementById('count-label').textContent = `${rows.length} atividade(s)`;
         if (!rows.length) {
-            lista.innerHTML = '<div class="text-center py-12 text-slate-300 text-sm">Nenhum despacho seu registrado ainda.</div>';
+            lista.innerHTML = '<div class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade sua registrada ainda.</div>';
             return;
         }
         lista.innerHTML = rows.map(r => {
-            const label = STATUS_LABEL[r.status] || r.status;
+            const opts = Object.entries(STATUS_LABEL)
+                .map(([k, l]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${l}</option>`).join('');
             return `<div class="px-5 py-3.5 border-b border-faiston-border last:border-0 hover:bg-slate-50/60">
                 <div class="flex items-center gap-3 flex-wrap">
                     <span class="text-xs font-bold text-faiston-purple">${esc(r.cliente_nome || '—')}</span>
                     <span class="text-sm font-semibold flex-1 min-w-[120px]">${esc(r.site_sigla || r.site_nome || '(sem site)')}</span>
-                    ${statusBadge(label)}
+                    <select onchange="mudarStatus(${r.id}, this.value)" class="text-xs font-semibold border border-faiston-border rounded-full px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>
                 </div>
                 <div class="flex gap-4 flex-wrap text-xs text-faiston-muted mt-1.5">
                     <span>${fmtDate(r.data)}</span>
@@ -272,13 +273,13 @@ async function buscar() {
             </div>`;
         }).join('');
     } catch (e) {
-        lista.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar despachos.</div>';
+        lista.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
     }
 }
 
 function abrirModalNovo() {
     editandoId = null;
-    document.getElementById('modal-titulo').textContent = 'Novo despacho';
+    document.getElementById('modal-titulo').textContent = 'Nova atividade';
     ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-termino','m-endereco','m-detalhamento','m-observacoes']
         .forEach(id => document.getElementById(id).value = '');
     document.getElementById('m-status').value = 'agendado';
@@ -289,10 +290,10 @@ function abrirModalNovo() {
 async function abrirModalEditar(id) {
     try {
         const res = await fetch(`/api/status-campo/${id}`);
-        if (!res.ok) { alert('Despacho não encontrado.'); return; }
+        if (!res.ok) { alert('Atividade não encontrada.'); return; }
         const r = await res.json();
         editandoId = id;
-        document.getElementById('modal-titulo').textContent = 'Editar despacho';
+        document.getElementById('modal-titulo').textContent = 'Editar atividade';
         document.getElementById('m-cliente').value = r.cliente_id || '';
         document.getElementById('m-data').value = r.data || '';
         document.getElementById('m-horario').value = r.horario_agendado || '';
@@ -308,7 +309,7 @@ async function abrirModalEditar(id) {
         document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
         document.getElementById('m-observacoes').value = r.observacoes || '';
         document.getElementById('modal').classList.remove('hidden');
-    } catch (e) { alert('Erro ao carregar despacho.'); }
+    } catch (e) { alert('Erro ao carregar atividade.'); }
 }
 
 function fecharModal() {
@@ -353,12 +354,22 @@ async function salvar() {
 }
 
 async function excluir(id) {
-    if (!confirm('Excluir este despacho?')) return;
+    if (!confirm('Excluir esta atividade?')) return;
     try {
         const res = await fetch(`/api/status-campo/${id}`, { method: 'DELETE' });
         if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao excluir: ' + (err.detail || res.status)); return; }
         await buscar();
     } catch (e) { alert('Erro de rede ao excluir.'); }
+}
+
+async function mudarStatus(id, novoStatus) {
+    try {
+        const res = await fetch(`/api/status-campo/${id}/status`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: novoStatus })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao mudar status: ' + (err.detail || res.status)); await buscar(); return; }
+        await buscar();
+    } catch (e) { alert('Erro de rede ao mudar status.'); await buscar(); }
 }
 
 function toggleTema() {

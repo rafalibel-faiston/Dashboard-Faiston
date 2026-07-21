@@ -361,6 +361,20 @@ def setup_banco():
         # exibição do nome (mesmo padrão de comentarios_projeto.usuario_nome).
         cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS n2_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_n2 ON status_atividades(n2_usuario_id)")
+        # ── Escala N2 (plantão do dia: quem, horário, home/presencial) ──────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS escala_n2 (
+                id SERIAL PRIMARY KEY,
+                data DATE NOT NULL DEFAULT CURRENT_DATE,
+                n2_usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                horario_entrada TIME,
+                modalidade VARCHAR(20) NOT NULL DEFAULT 'presencial',
+                atribuicao VARCHAR(200) DEFAULT '',
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_escala_n2_data ON escala_n2(data)")
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -5007,7 +5021,7 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
         """, (aid,))
         r = cur.fetchone()
         cur.close(); conn.close()
-        if not r: raise HTTPException(status_code=404, detail="Despacho não encontrado")
+        if not r: raise HTTPException(status_code=404, detail="Atividade não encontrada")
         cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico",
                 "n2_usuario_id", "n2_responsavel",
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
@@ -5059,7 +5073,7 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
     if not conn: raise HTTPException(status_code=500)
     try:
         if not _pode_gerenciar_status_campo(sess, conn, aid):
-            raise HTTPException(status_code=403, detail="Você só pode editar despachos onde é o N2 responsável")
+            raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
         cur = conn.cursor()
         status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
         n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
@@ -5093,7 +5107,7 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
     if not conn: raise HTTPException(status_code=500)
     try:
         if not _pode_gerenciar_status_campo(sess, conn, aid):
-            raise HTTPException(status_code=403, detail="Você só pode editar despachos onde é o N2 responsável")
+            raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
         cur = conn.cursor()
         cur.execute("UPDATE status_atividades SET status=%s, atualizado_em=NOW() WHERE id=%s", (body.status, aid))
         conn.commit(); cur.close(); conn.close()
@@ -5109,7 +5123,7 @@ def deletar_status_campo(aid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         if not _pode_gerenciar_status_campo(sess, conn, aid):
-            raise HTTPException(status_code=403, detail="Você só pode excluir despachos onde é o N2 responsável")
+            raise HTTPException(status_code=403, detail="Você só pode excluir atividades onde é o N2 responsável")
         cur = conn.cursor()
         cur.execute("DELETE FROM status_atividades WHERE id=%s", (aid,))
         conn.commit(); cur.close(); conn.close()
@@ -5131,4 +5145,113 @@ def listar_usuarios_n2(faiston_token: str = Cookie(None)):
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "nome": r[1], "perfil": r[2]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ── Painel de Controle do N2 ─────────────────────────────────────────────────
+MODALIDADES_ESCALA = ('presencial', 'home')
+
+class EscalaN2Model(BaseModel):
+    data: str
+    n2_usuario_id: int
+    horario_entrada: Optional[str] = None
+    modalidade: str = "presencial"
+    atribuicao: str = ""
+
+@app.get("/api/escala-n2")
+def listar_escala_n2(data: str = "", faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        if data:
+            cur.execute("""
+                SELECT e.id, e.data, e.n2_usuario_id, u.nome, e.horario_entrada, e.modalidade, e.atribuicao
+                FROM escala_n2 e JOIN usuarios u ON u.id = e.n2_usuario_id
+                WHERE e.data = %s ORDER BY e.horario_entrada ASC NULLS LAST, u.nome
+            """, (data,))
+        else:
+            cur.execute("""
+                SELECT e.id, e.data, e.n2_usuario_id, u.nome, e.horario_entrada, e.modalidade, e.atribuicao
+                FROM escala_n2 e JOIN usuarios u ON u.id = e.n2_usuario_id
+                WHERE e.data = CURRENT_DATE ORDER BY e.horario_entrada ASC NULLS LAST, u.nome
+            """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "data": str(r[1]), "n2_usuario_id": r[2], "n2_nome": r[3],
+                 "horario_entrada": str(r[4])[:5] if r[4] else None, "modalidade": r[5], "atribuicao": r[6]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/escala-n2")
+def criar_escala_n2(e: EscalaN2Model, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    modalidade = e.modalidade if e.modalidade in MODALIDADES_ESCALA else "presencial"
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO escala_n2 (data, n2_usuario_id, horario_entrada, modalidade, atribuicao)
+            VALUES (%s,%s,%s,%s,%s) RETURNING id
+        """, (e.data, e.n2_usuario_id, e.horario_entrada or None, modalidade, e.atribuicao))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e2: raise HTTPException(status_code=500, detail=str(e2))
+
+@app.put("/api/escala-n2/{eid}")
+def atualizar_escala_n2(eid: int, e: EscalaN2Model, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    modalidade = e.modalidade if e.modalidade in MODALIDADES_ESCALA else "presencial"
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE escala_n2 SET data=%s, n2_usuario_id=%s, horario_entrada=%s, modalidade=%s, atribuicao=%s, atualizado_em=NOW()
+            WHERE id=%s
+        """, (e.data, e.n2_usuario_id, e.horario_entrada or None, modalidade, e.atribuicao, eid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e2: raise HTTPException(status_code=500, detail=str(e2))
+
+@app.delete("/api/escala-n2/{eid}")
+def deletar_escala_n2(eid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM escala_n2 WHERE id=%s", (eid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/painel-n2/resumo")
+def painel_n2_resumo(faiston_token: str = Cookie(None)):
+    """Lista de usuários N2 com contagem de atividades (total/concluído/pendente)."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, ativo FROM usuarios WHERE perfil='n2' ORDER BY ativo DESC, nome")
+        n2s = cur.fetchall()
+        out = []
+        for uid, nome, ativo in n2s:
+            cur.execute("""
+                SELECT COUNT(*),
+                       COUNT(*) FILTER (WHERE status = 'concluido'),
+                       COUNT(*) FILTER (WHERE status IN ('agendado','em_andamento'))
+                FROM status_atividades WHERE n2_usuario_id = %s
+            """, (uid,))
+            total, concluidas, pendentes = cur.fetchone()
+            out.append({"id": uid, "nome": nome, "ativo": ativo, "total": total, "concluidas": concluidas, "pendentes": pendentes})
+        cur.close(); conn.close()
+        return out
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

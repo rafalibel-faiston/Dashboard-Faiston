@@ -121,6 +121,9 @@
                 <a href="#" onclick="setModule('statuscampo'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-map-pin-line text-lg"></i> Status de Campo
                 </a>
+                <a href="#" onclick="setModule('painelN2'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-headset text-lg"></i> Painel N2
+                </a>
                 <a href="/apresentacao" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-presentation-chart text-lg"></i> Apresentação
                 </a>
@@ -1552,10 +1555,10 @@
     <header class="flex justify-between items-start mb-5">
         <div>
             <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Status de Campo</h2>
-            <p class="text-xs text-faiston-muted mt-0.5">Despachos técnicos por site/cliente — substitui a planilha STATUS_REPORT.xlsx</p>
+            <p class="text-xs text-faiston-muted mt-0.5">Atividades técnicas por site/cliente — substitui a planilha STATUS_REPORT.xlsx</p>
         </div>
         <button onclick="scAbrirModalNovo()" id="sc-btn-novo" class="hidden flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
-            <i class="ph ph-plus text-base"></i> Novo despacho
+            <i class="ph ph-plus text-base"></i> Nova atividade
         </button>
     </header>
 
@@ -1576,6 +1579,9 @@
             </div>
             <select id="sc-f-cliente" onchange="scBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
                 <option value="">Todos os projetos</option>
+            </select>
+            <select id="sc-f-n2" onchange="scBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os N2</option>
             </select>
             <select id="sc-f-status" onchange="scBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
                 <option value="">Todos os status</option>
@@ -1610,7 +1616,7 @@
     <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
         <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
             <div class="flex items-center gap-2">
-                <span class="text-sm font-bold text-faiston-dark">Despachos</span>
+                <span class="text-sm font-bold text-faiston-dark">Atividades</span>
                 <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="sc-count-label">carregando...</span>
             </div>
         </div>
@@ -1634,12 +1640,12 @@
 </div>
 </div><!-- /mod-statuscampo -->
 
-<!-- MODAL NOVO/EDITAR DESPACHO -->
+<!-- MODAL NOVA/EDITAR ATIVIDADE -->
 <div id="modal-status-campo" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between p-6 border-b border-faiston-border">
             <div>
-                <h2 class="text-lg font-bold text-faiston-dark" id="sc-modal-titulo">Novo despacho</h2>
+                <h2 class="text-lg font-bold text-faiston-dark" id="sc-modal-titulo">Nova atividade</h2>
                 <p class="text-xs text-faiston-muted mt-0.5">Registro de atividade de campo por site/cliente</p>
             </div>
             <button onclick="scFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
@@ -1722,6 +1728,118 @@
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="scFecharModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="scSalvar()" id="sc-btn-salvar" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- MODULE: PAINEL DE CONTROLE DO N2                                 -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div id="mod-painelN2" class="hidden flex-1 overflow-y-auto custom-scrollbar">
+<div class="px-6 py-6">
+    <header class="mb-5">
+        <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Painel de Controle do N2</h2>
+        <p class="text-xs text-faiston-muted mt-0.5">Escala do dia e acompanhamento da equipe de N2</p>
+    </header>
+
+    <!-- ESCALA DO DIA -->
+    <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden mb-6" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+                <span class="text-sm font-bold text-faiston-dark">Escala</span>
+                <input type="date" id="pn2-escala-data" onchange="pn2CarregarEscala()" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-faiston-cyan">
+            </div>
+            <button onclick="pn2AbrirModalEscala()" class="flex items-center gap-2 btn-grad text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
+                <i class="ph ph-plus text-sm"></i> Adicionar à escala
+            </button>
+        </div>
+        <div id="pn2-escala-lista"></div>
+    </div>
+
+    <!-- EQUIPE N2 -->
+    <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+            <span class="text-sm font-bold text-faiston-dark">Equipe N2</span>
+            <button onclick="pn2AbrirModalNovoN2()" class="flex items-center gap-2 btn-grad text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
+                <i class="ph ph-user-plus text-sm"></i> Novo N2
+            </button>
+        </div>
+        <div id="pn2-equipe-lista"></div>
+    </div>
+</div>
+</div><!-- /mod-painelN2 -->
+
+<!-- MODAL ESCALA -->
+<div id="modal-escala" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h2 class="text-lg font-bold text-faiston-dark" id="pn2-escala-modal-titulo">Adicionar à escala</h2>
+            <button onclick="pn2FecharModalEscala()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">N2 *</label>
+                <select id="pn2-e-n2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                    <option value="">Selecionar...</option>
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data *</label>
+                    <input type="date" id="pn2-e-data" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Horário entrada</label>
+                    <input type="time" id="pn2-e-horario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Modalidade</label>
+                <select id="pn2-e-modalidade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                    <option value="presencial">Presencial</option>
+                    <option value="home">Home</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Atribuição / projeto do dia</label>
+                <input type="text" id="pn2-e-atribuicao" placeholder="Ex: HAVAN - TELETEX" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="pn2FecharModalEscala()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="pn2SalvarEscala()" id="pn2-btn-salvar-escala" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NOVO N2 -->
+<div id="modal-novo-n2" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h2 class="text-lg font-bold text-faiston-dark">Novo N2</h2>
+            <button onclick="pn2FecharModalNovoN2()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome *</label>
+                <input type="text" id="pn2-n-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Usuário (login) *</label>
+                <input type="text" id="pn2-n-usuario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha inicial *</label>
+                <input type="text" id="pn2-n-senha" placeholder="Mínimo 6 caracteres" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Email (opcional)</label>
+                <input type="email" id="pn2-n-email" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="pn2FecharModalNovoN2()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="pn2SalvarNovoN2()" id="pn2-btn-salvar-n2" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Criar</button>
         </div>
     </div>
 </div>
@@ -3717,9 +3835,10 @@ let _finCarregado = false;
 let _histCarregado = false;
 let _adminCarregado = false;
 let _statusCampoCarregado = false;
+let _painelN2Carregado = false;
 
 function setModule(mod, gestaoTab) {
-    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo'];
+    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo','painelN2'];
     mods.forEach(m => {
         const el = document.getElementById('mod-' + m);
         if (el) el.classList.toggle('hidden', m !== mod);
@@ -3765,7 +3884,25 @@ function setModule(mod, gestaoTab) {
         }
     } else if (mod === 'statuscampo') {
         if (!_statusCampoCarregado) { _statusCampoCarregado = true; scInit(); }
+    } else if (mod === 'painelN2') {
+        if (!_painelN2Carregado) { _painelN2Carregado = true; pn2Init(); }
     }
+}
+
+async function scFiltrarPorN2(id) {
+    const jaCarregado = _statusCampoCarregado;
+    setModule('statuscampo');
+    if (!jaCarregado) {
+        // setModule acabou de dar start em scInit() (async) -- espera terminar
+        // antes de mexer no filtro, senão a option do N2 ainda não existe.
+        await new Promise(r => setTimeout(r, 50));
+        while (document.getElementById('sc-f-n2').options.length <= 1) {
+            await new Promise(r => setTimeout(r, 50));
+        }
+    }
+    const sel = document.getElementById('sc-f-n2');
+    sel.value = id;
+    scBuscar();
 }
 
 
@@ -6225,6 +6362,25 @@ function scPodeEditar() {
     return !!(window.ME && ['admin', 'gestor', 'demo'].includes(window.ME.perfil));
 }
 
+function scStatusCell(r, podeEditar) {
+    const label = STATUS_CAMPO_LABEL[r.status] || r.status;
+    if (!podeEditar) return statusBadge(label, STATUS_CAMPO_MAP);
+    const opts = Object.entries(STATUS_CAMPO_LABEL)
+        .map(([k, l]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${l}</option>`).join('');
+    return `<select onchange="scMudarStatus(${r.id}, this.value)" class="text-xs font-semibold border border-faiston-border rounded-full px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>`;
+}
+
+async function scMudarStatus(id, novoStatus) {
+    try {
+        const res = await fetch(`/api/status-campo/${id}/status`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: novoStatus })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao mudar status: ' + (err.detail || res.status)); await scBuscar(); return; }
+        await scBuscar();
+        await scCarregarReport();
+    } catch (e) { alert('Erro de rede ao mudar status.'); await scBuscar(); }
+}
+
 async function scInit() {
     if (scPodeEditar()) document.getElementById('sc-btn-novo').classList.remove('hidden');
     try {
@@ -6241,8 +6397,9 @@ async function scInit() {
         const res = await fetch('/api/status-campo/usuarios/n2');
         if (res.ok) {
             const usuarios = await res.json();
-            document.getElementById('sc-m-n2').insertAdjacentHTML('beforeend',
-                usuarios.map(u => `<option value="${u.id}">${scEsc(u.nome)}</option>`).join(''));
+            const optsN2 = usuarios.map(u => `<option value="${u.id}">${scEsc(u.nome)}</option>`).join('');
+            document.getElementById('sc-m-n2').insertAdjacentHTML('beforeend', optsN2);
+            document.getElementById('sc-f-n2').insertAdjacentHTML('beforeend', optsN2);
         }
     } catch (e) { /* segue sem a lista de N2 */ }
 
@@ -6260,6 +6417,7 @@ function scDebounceBuscar() {
 function scLimparFiltros() {
     document.getElementById('sc-f-texto').value = '';
     document.getElementById('sc-f-cliente').value = '';
+    document.getElementById('sc-f-n2').value = '';
     document.getElementById('sc-f-status').value = '';
     document.getElementById('sc-f-data-de').value = '';
     document.getElementById('sc-f-data-ate').value = '';
@@ -6270,11 +6428,13 @@ async function scBuscar() {
     const params = new URLSearchParams();
     const texto = document.getElementById('sc-f-texto').value.trim();
     const cliente_id = document.getElementById('sc-f-cliente').value;
+    const n2_usuario_id = document.getElementById('sc-f-n2').value;
     const status = document.getElementById('sc-f-status').value;
     const data_de = document.getElementById('sc-f-data-de').value;
     const data_ate = document.getElementById('sc-f-data-ate').value;
     if (texto) params.set('texto', texto);
     if (cliente_id) params.set('cliente_id', cliente_id);
+    if (n2_usuario_id) params.set('n2_usuario_id', n2_usuario_id);
     if (status) params.set('status', status);
     if (data_de) params.set('data_de', data_de);
     if (data_ate) params.set('data_ate', data_ate);
@@ -6284,14 +6444,13 @@ async function scBuscar() {
         const res = await fetch('/api/status-campo?' + params.toString());
         if (!res.ok) throw new Error('Erro ao buscar');
         const rows = await res.json();
-        document.getElementById('sc-count-label').textContent = `${rows.length} despacho(s)`;
+        document.getElementById('sc-count-label').textContent = `${rows.length} atividade(s)`;
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Nenhum despacho encontrado.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</td></tr>';
             return;
         }
         const podeEditar = scPodeEditar();
         tbody.innerHTML = rows.map(r => {
-            const label = STATUS_CAMPO_LABEL[r.status] || r.status;
             const acoes = podeEditar ? `
                 <button onclick="scAbrirModalEditar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Editar"><i class="ph ph-pencil-simple text-slate-400 text-sm"></i></button>
                 <button onclick="scExcluir(${r.id})" class="w-7 h-7 rounded-md hover:bg-red-50 inline-flex items-center justify-center" title="Excluir"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
@@ -6302,12 +6461,12 @@ async function scBuscar() {
                 <td class="px-5 py-3 text-sm text-slate-600">${scEsc(r.site_sigla || r.site_nome || '—')}</td>
                 <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.tecnico || '—')}</td>
                 <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.n2_responsavel || '—')}</td>
-                <td class="px-5 py-3">${statusBadge(label, STATUS_CAMPO_MAP)}</td>
+                <td class="px-5 py-3">${scStatusCell(r, podeEditar)}</td>
                 <td class="px-5 py-3 text-right whitespace-nowrap">${acoes}</td>
             </tr>`;
         }).join('');
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-red-400 text-sm">Erro ao carregar despachos.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</td></tr>';
     }
 }
 
@@ -6325,7 +6484,7 @@ async function scCarregarReport() {
         const entradas = Object.entries(rep.contagem || {});
         pillsEl.innerHTML = entradas.length
             ? entradas.map(([st, n]) => statusBadge(`${STATUS_CAMPO_LABEL[st] || st}: ${n}`, STATUS_CAMPO_MAP)).join('')
-            : '<span class="text-xs text-faiston-faint">Nenhum despacho nesta data.</span>';
+            : '<span class="text-xs text-faiston-faint">Nenhuma atividade nesta data.</span>';
 
         let texto = `STATUS REPORT — ${fmtDate(data)}\n\n`;
         const porCliente = rep.por_cliente || {};
@@ -6363,7 +6522,7 @@ async function scCopiarReport() {
 function scAbrirModalNovo() {
     if (!scPodeEditar()) return;
     scEditandoId = null;
-    document.getElementById('sc-modal-titulo').textContent = 'Novo despacho';
+    document.getElementById('sc-modal-titulo').textContent = 'Nova atividade';
     ['sc-m-cliente','sc-m-horario','sc-m-tecnico','sc-m-n2','sc-m-sigla','sc-m-nomesite',
      'sc-m-cidade','sc-m-uf','sc-m-chegada','sc-m-termino','sc-m-endereco','sc-m-detalhamento','sc-m-observacoes']
         .forEach(id => document.getElementById(id).value = '');
@@ -6376,10 +6535,10 @@ async function scAbrirModalEditar(id) {
     if (!scPodeEditar()) return;
     try {
         const res = await fetch(`/api/status-campo/${id}`);
-        if (!res.ok) { alert('Despacho não encontrado (pode já ter sido excluído).'); return; }
+        if (!res.ok) { alert('Atividade não encontrada (pode já ter sido excluída).'); return; }
         const r = await res.json();
         scEditandoId = id;
-        document.getElementById('sc-modal-titulo').textContent = 'Editar despacho';
+        document.getElementById('sc-modal-titulo').textContent = 'Editar atividade';
         document.getElementById('sc-m-cliente').value = r.cliente_id || '';
         document.getElementById('sc-m-data').value = r.data || '';
         document.getElementById('sc-m-horario').value = r.horario_agendado || '';
@@ -6396,7 +6555,7 @@ async function scAbrirModalEditar(id) {
         document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
         document.getElementById('sc-m-observacoes').value = r.observacoes || '';
         document.getElementById('modal-status-campo').classList.remove('hidden');
-    } catch (e) { alert('Erro ao carregar despacho para edição.'); }
+    } catch (e) { alert('Erro ao carregar atividade para edição.'); }
 }
 
 function scFecharModal() {
@@ -6444,13 +6603,186 @@ async function scSalvar() {
 
 async function scExcluir(id) {
     if (!scPodeEditar()) return;
-    if (!confirm('Excluir este despacho?')) return;
+    if (!confirm('Excluir esta atividade?')) return;
     try {
         const res = await fetch(`/api/status-campo/${id}`, { method: 'DELETE' });
         if (!res.ok) { alert('Erro ao excluir.'); return; }
         await scBuscar();
         await scCarregarReport();
     } catch (e) { alert('Erro de rede ao excluir.'); }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MÓDULO: PAINEL DE CONTROLE DO N2
+// ══════════════════════════════════════════════════════════════════
+let pn2Usuarios = [];
+let pn2EditandoEscalaId = null;
+let pn2EscalaAtual = [];
+
+async function pn2Init() {
+    try {
+        const res = await fetch('/api/status-campo/usuarios/n2');
+        if (res.ok) {
+            pn2Usuarios = await res.json();
+            document.getElementById('pn2-e-n2').insertAdjacentHTML('beforeend',
+                pn2Usuarios.map(u => `<option value="${u.id}">${scEsc(u.nome)}</option>`).join(''));
+        }
+    } catch (e) { /* segue sem a lista */ }
+
+    document.getElementById('pn2-escala-data').value = new Date().toISOString().slice(0, 10);
+    await pn2CarregarEscala();
+    await pn2CarregarEquipe();
+}
+
+async function pn2CarregarEscala() {
+    const data = document.getElementById('pn2-escala-data').value;
+    const lista = document.getElementById('pn2-escala-lista');
+    try {
+        const res = await fetch('/api/escala-n2?data=' + data);
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        pn2EscalaAtual = rows;
+        if (!rows.length) {
+            lista.innerHTML = '<div class="text-center py-10 text-slate-300 text-sm">Ninguém escalado nesta data ainda.</div>';
+            return;
+        }
+        const MODALIDADE_LABEL = { presencial: 'Presencial', home: 'Home' };
+        lista.innerHTML = rows.map(r => `
+            <div class="flex items-center gap-3 px-5 py-3 border-b border-faiston-border last:border-0 flex-wrap">
+                <span class="text-sm font-semibold text-faiston-dark flex-1 min-w-[140px]">${scEsc(r.n2_nome)}</span>
+                ${r.horario_entrada ? `<span class="text-xs text-faiston-muted">Entrada: ${scEsc(r.horario_entrada)}</span>` : ''}
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${r.modalidade === 'home' ? 'text-faiston-purple bg-faiston-purple/10 border-faiston-purple/20' : 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30'}">${MODALIDADE_LABEL[r.modalidade] || r.modalidade}</span>
+                <span class="text-xs text-slate-500">${scEsc(r.atribuicao || '—')}</span>
+                <div class="flex gap-1 ml-auto">
+                    <button onclick="pn2AbrirModalEscala(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Editar"><i class="ph ph-pencil-simple text-slate-400 text-sm"></i></button>
+                    <button onclick="pn2ExcluirEscala(${r.id})" class="w-7 h-7 rounded-md hover:bg-red-50 inline-flex items-center justify-center" title="Excluir"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+                </div>
+            </div>`).join('');
+    } catch (e) {
+        lista.innerHTML = '<div class="text-center py-10 text-red-400 text-sm">Erro ao carregar a escala.</div>';
+    }
+}
+
+function pn2AbrirModalEscala(id) {
+    pn2EditandoEscalaId = id || null;
+    document.getElementById('pn2-escala-modal-titulo').textContent = id ? 'Editar escala' : 'Adicionar à escala';
+    if (id) {
+        const r = pn2EscalaAtual.find(x => x.id === id);
+        if (r) {
+            document.getElementById('pn2-e-n2').value = r.n2_usuario_id;
+            document.getElementById('pn2-e-data').value = r.data;
+            document.getElementById('pn2-e-horario').value = r.horario_entrada || '';
+            document.getElementById('pn2-e-modalidade').value = r.modalidade;
+            document.getElementById('pn2-e-atribuicao').value = r.atribuicao || '';
+        }
+    } else {
+        document.getElementById('pn2-e-n2').value = '';
+        document.getElementById('pn2-e-data').value = document.getElementById('pn2-escala-data').value;
+        document.getElementById('pn2-e-horario').value = '';
+        document.getElementById('pn2-e-modalidade').value = 'presencial';
+        document.getElementById('pn2-e-atribuicao').value = '';
+    }
+    document.getElementById('modal-escala').classList.remove('hidden');
+}
+
+function pn2FecharModalEscala() {
+    document.getElementById('modal-escala').classList.add('hidden');
+    pn2EditandoEscalaId = null;
+}
+
+async function pn2SalvarEscala() {
+    const n2_usuario_id = document.getElementById('pn2-e-n2').value;
+    const data = document.getElementById('pn2-e-data').value;
+    if (!n2_usuario_id || !data) { alert('Selecione o N2 e a data.'); return; }
+    const payload = {
+        n2_usuario_id: parseInt(n2_usuario_id, 10),
+        data,
+        horario_entrada: document.getElementById('pn2-e-horario').value || null,
+        modalidade: document.getElementById('pn2-e-modalidade').value,
+        atribuicao: document.getElementById('pn2-e-atribuicao').value.trim(),
+    };
+    const btn = document.getElementById('pn2-btn-salvar-escala');
+    btn.disabled = true;
+    try {
+        const url = pn2EditandoEscalaId ? `/api/escala-n2/${pn2EditandoEscalaId}` : '/api/escala-n2';
+        const method = pn2EditandoEscalaId ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao salvar: ' + (err.detail || res.status)); return; }
+        pn2FecharModalEscala();
+        await pn2CarregarEscala();
+    } catch (e) {
+        alert('Erro de rede ao salvar.');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function pn2ExcluirEscala(id) {
+    if (!confirm('Remover esta pessoa da escala?')) return;
+    try {
+        const res = await fetch(`/api/escala-n2/${id}`, { method: 'DELETE' });
+        if (!res.ok) { alert('Erro ao excluir.'); return; }
+        await pn2CarregarEscala();
+    } catch (e) { alert('Erro de rede ao excluir.'); }
+}
+
+async function pn2CarregarEquipe() {
+    const lista = document.getElementById('pn2-equipe-lista');
+    try {
+        const res = await fetch('/api/painel-n2/resumo');
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        if (!rows.length) {
+            lista.innerHTML = '<div class="text-center py-10 text-slate-300 text-sm">Nenhum N2 cadastrado ainda.</div>';
+            return;
+        }
+        lista.innerHTML = rows.map(r => `
+            <div class="flex items-center gap-3 px-5 py-3 border-b border-faiston-border last:border-0 flex-wrap">
+                <span class="text-sm font-semibold text-faiston-dark flex-1 min-w-[140px]">${scEsc(r.nome)}${!r.ativo ? ' <span class=\"text-xs text-slate-400\">(inativo)</span>' : ''}</span>
+                <span class="text-xs text-faiston-muted">${r.total} atividade(s)</span>
+                <span class="text-xs text-emerald-600">${r.concluidas} concluída(s)</span>
+                <span class="text-xs text-amber-600">${r.pendentes} pendente(s)</span>
+                <button onclick="scFiltrarPorN2(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline ml-auto">Ver atividades</button>
+            </div>`).join('');
+    } catch (e) {
+        lista.innerHTML = '<div class="text-center py-10 text-red-400 text-sm">Erro ao carregar a equipe.</div>';
+    }
+}
+
+function pn2AbrirModalNovoN2() {
+    ['pn2-n-nome','pn2-n-usuario','pn2-n-senha','pn2-n-email'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('modal-novo-n2').classList.remove('hidden');
+}
+
+function pn2FecharModalNovoN2() {
+    document.getElementById('modal-novo-n2').classList.add('hidden');
+}
+
+async function pn2SalvarNovoN2() {
+    const nome = document.getElementById('pn2-n-nome').value.trim();
+    const usuario = document.getElementById('pn2-n-usuario').value.trim();
+    const senha = document.getElementById('pn2-n-senha').value;
+    const email = document.getElementById('pn2-n-email').value.trim();
+    if (!nome || !usuario || !senha) { alert('Preencha nome, usuário e senha.'); return; }
+    if (senha.length < 6) { alert('A senha precisa ter no mínimo 6 caracteres.'); return; }
+    const btn = document.getElementById('pn2-btn-salvar-n2');
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/usuarios', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuario, senha, nome, perfil: 'n2', email })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao criar: ' + (err.detail || res.status)); return; }
+        pn2FecharModalNovoN2();
+        // Novo N2 também precisa aparecer nos dropdowns já carregados
+        _painelN2Carregado = false;
+        _statusCampoCarregado = false;
+        await pn2Init();
+    } catch (e) {
+        alert('Erro de rede ao criar.');
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 </script>
