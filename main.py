@@ -356,6 +356,11 @@ def setup_banco():
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_data ON status_atividades(data)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_cliente ON status_atividades(cliente_id)")
+        # n2_responsavel era só texto livre; n2_usuario_id referencia o usuário
+        # de verdade (perfil n2) responsável, n2_responsavel vira cache de
+        # exibição do nome (mesmo padrão de comentarios_projeto.usuario_nome).
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS n2_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_n2 ON status_atividades(n2_usuario_id)")
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -1128,7 +1133,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
-    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "n2"): raise HTTPException(status_code=400, detail="Perfil inválido")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -2182,6 +2187,9 @@ def dashboard(): return FileResponse("static/index.html")
 
 @app.get("/funcionario")
 def funcionario(): return FileResponse("static/funcionario.html")
+
+@app.get("/n2")
+def n2_page(): return FileResponse("static/n2.html")
 
 @app.get("/admin")
 def admin_page(): return FileResponse("static/admin.html")
@@ -4850,6 +4858,7 @@ class StatusAtividadeModel(BaseModel):
     data: str
     horario_agendado: Optional[str] = None
     tecnico: str = ""
+    n2_usuario_id: Optional[int] = None
     n2_responsavel: str = ""
     site_sigla: str = ""
     site_nome: str = ""
@@ -4862,9 +4871,34 @@ class StatusAtividadeModel(BaseModel):
     status: str = "agendado"
     observacoes: str = ""
 
+def _resolver_n2(cur, n2_usuario_id, n2_responsavel_texto):
+    """Se veio n2_usuario_id, busca o nome pra cachear em n2_responsavel
+    (mesmo padrão de comentarios_projeto.usuario_nome). Sem id, mantém o
+    texto livre como veio (compatibilidade / preenchimento manual)."""
+    if not n2_usuario_id:
+        return None, n2_responsavel_texto
+    cur.execute("SELECT nome FROM usuarios WHERE id=%s AND ativo=TRUE", (n2_usuario_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=400, detail="N2 responsável inválido")
+    return n2_usuario_id, row[0]
+
+def _pode_gerenciar_status_campo(sess, conn, aid):
+    """admin/gestor/demo podem tudo; n2 só nos despachos onde é o responsável."""
+    if sess["perfil"] in ("admin", "gestor", "demo"):
+        return True
+    if sess["perfil"] == "n2":
+        cur = conn.cursor()
+        cur.execute("SELECT n2_usuario_id FROM status_atividades WHERE id=%s", (aid,))
+        row = cur.fetchone()
+        cur.close()
+        return bool(row) and row[0] == sess["id"]
+    return False
+
 @app.get("/api/status-campo")
 def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
                          cliente_id: int = 0, status: str = "", texto: str = "",
+                         n2_usuario_id: int = 0, apenas_meu: bool = False,
                          faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
@@ -4884,13 +4918,18 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
             where.append("a.cliente_id = %s"); params.append(cliente_id)
         if status:
             where.append("a.status = %s"); params.append(status)
+        if apenas_meu:
+            where.append("a.n2_usuario_id = %s"); params.append(sess["id"])
+        elif n2_usuario_id:
+            where.append("a.n2_usuario_id = %s"); params.append(n2_usuario_id)
         if texto:
             where.append("""(a.tecnico ILIKE %s OR a.n2_responsavel ILIKE %s OR a.site_sigla ILIKE %s
                               OR a.site_nome ILIKE %s OR a.cidade ILIKE %s OR a.observacoes ILIKE %s)""")
             like = f"%{texto}%"
             params.extend([like, like, like, like, like, like])
         cur.execute(f"""
-            SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico, a.n2_responsavel,
+            SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico,
+                   a.n2_usuario_id, a.n2_responsavel,
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
                    a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em
             FROM status_atividades a
@@ -4901,7 +4940,8 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
         """, params)
         rows = cur.fetchall()
         cur.close(); conn.close()
-        cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico", "n2_responsavel",
+        cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico",
+                "n2_usuario_id", "n2_responsavel",
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
                 "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em"]
         out = []
@@ -4957,7 +4997,8 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico, a.n2_responsavel,
+            SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico,
+                   a.n2_usuario_id, a.n2_responsavel,
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
                    a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em
             FROM status_atividades a
@@ -4967,7 +5008,8 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
         r = cur.fetchone()
         cur.close(); conn.close()
         if not r: raise HTTPException(status_code=404, detail="Despacho não encontrado")
-        cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico", "n2_responsavel",
+        cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico",
+                "n2_usuario_id", "n2_responsavel",
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
                 "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em"]
         item = dict(zip(cols, r))
@@ -4983,48 +5025,60 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
 @app.post("/api/status-campo")
 def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "n2"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
         status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
+        # N2 só cria despacho atribuído a si mesmo -- ignora qualquer
+        # n2_usuario_id que venha no corpo da requisição.
+        n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
+        n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
         cur.execute("""
-            INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+            INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico,
+                n2_usuario_id, n2_responsavel,
                 site_sigla, site_nome, endereco, cidade, uf, hora_chegada, hora_termino,
                 detalhamento_tecnico, status, observacoes, criado_por)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
-        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, a.n2_responsavel,
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
               a.detalhamento_tecnico, status, a.observacoes, sess["id"]))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/status-campo/{aid}")
 def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "n2"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
+        if not _pode_gerenciar_status_campo(sess, conn, aid):
+            raise HTTPException(status_code=403, detail="Você só pode editar despachos onde é o N2 responsável")
         cur = conn.cursor()
         status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
+        n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
+        n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
         cur.execute("""
             UPDATE status_atividades SET
-                cliente_id=%s, data=%s, horario_agendado=%s, tecnico=%s, n2_responsavel=%s,
+                cliente_id=%s, data=%s, horario_agendado=%s, tecnico=%s,
+                n2_usuario_id=%s, n2_responsavel=%s,
                 site_sigla=%s, site_nome=%s, endereco=%s, cidade=%s, uf=%s,
                 hora_chegada=%s, hora_termino=%s, detalhamento_tecnico=%s, status=%s, observacoes=%s,
                 atualizado_em=NOW()
             WHERE id=%s
-        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, a.n2_responsavel,
+        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
               a.detalhamento_tecnico, status, a.observacoes, aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 class StatusCampoStatusModel(BaseModel):
@@ -5033,26 +5087,48 @@ class StatusCampoStatusModel(BaseModel):
 @app.patch("/api/status-campo/{aid}/status")
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "n2"): raise HTTPException(status_code=403)
     if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
+        if not _pode_gerenciar_status_campo(sess, conn, aid):
+            raise HTTPException(status_code=403, detail="Você só pode editar despachos onde é o N2 responsável")
         cur = conn.cursor()
         cur.execute("UPDATE status_atividades SET status=%s, atualizado_em=NOW() WHERE id=%s", (body.status, aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/status-campo/{aid}")
 def deletar_status_campo(aid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "n2"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
+        if not _pode_gerenciar_status_campo(sess, conn, aid):
+            raise HTTPException(status_code=403, detail="Você só pode excluir despachos onde é o N2 responsável")
         cur = conn.cursor()
         cur.execute("DELETE FROM status_atividades WHERE id=%s", (aid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/status-campo/usuarios/n2")
+def listar_usuarios_n2(faiston_token: str = Cookie(None)):
+    """Dropdown de N2 responsável -- qualquer usuário ativo (não só perfil
+    n2), já que admin/gestor às vezes também atuam como N2 em campo."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, perfil FROM usuarios WHERE ativo=TRUE ORDER BY nome")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1], "perfil": r[2]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

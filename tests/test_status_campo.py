@@ -203,3 +203,108 @@ class TestPermissoes:
         # leitura é permitida pra qualquer perfil autenticado
         resp = funcionario_client.get("/api/status-campo")
         assert resp.status_code == 200
+
+
+class TestN2:
+    @pytest.fixture()
+    def n2_user(self, admin_client):
+        """Cria um usuário perfil=n2 temporário; retorna (id, usuario, senha)."""
+        usuario = f"teste_n2_{uuid.uuid4().hex[:8]}"
+        senha = "senhaTeste123"
+        resp = admin_client.post("/api/usuarios", json={
+            "usuario": usuario, "senha": senha, "nome": "N2 de Teste", "perfil": "n2",
+        })
+        assert resp.status_code == 200, resp.text
+        uid = resp.json()["id"]
+        yield {"id": uid, "usuario": usuario, "senha": senha}
+        admin_client.delete(f"/api/usuarios/{uid}")
+
+    @pytest.fixture()
+    def n2_client(self, app, n2_user):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        resp = client.post("/api/login", json={"usuario": n2_user["usuario"], "senha": n2_user["senha"]})
+        assert resp.status_code == 200, resp.text
+        return client
+
+    def test_n2_pode_criar_despacho(self, n2_client, cliente_teste):
+        resp = n2_client.post("/api/status-campo", json=_payload(cliente_teste))
+        assert resp.status_code == 200, resp.text
+        n2_client.delete(f"/api/status-campo/{resp.json()['id']}")
+
+    def test_n2_e_atribuido_automaticamente_como_responsavel(self, n2_client, n2_user, cliente_teste):
+        # mesmo enviando um n2_usuario_id diferente, o servidor força o próprio usuário logado
+        resp = n2_client.post("/api/status-campo", json=_payload(cliente_teste, n2_usuario_id=999999))
+        assert resp.status_code == 200, resp.text
+        aid = resp.json()["id"]
+        try:
+            item = n2_client.get(f"/api/status-campo/{aid}").json()
+            assert item["n2_usuario_id"] == n2_user["id"]
+            assert item["n2_responsavel"] == "N2 de Teste"
+        finally:
+            n2_client.delete(f"/api/status-campo/{aid}")
+
+    def test_n2_pode_editar_e_excluir_proprio_despacho(self, n2_client, cliente_teste):
+        aid = n2_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        resp = n2_client.put(f"/api/status-campo/{aid}", json=_payload(cliente_teste, status="concluido"))
+        assert resp.status_code == 200, resp.text
+        resp = n2_client.patch(f"/api/status-campo/{aid}/status", json={"status": "parcial"})
+        assert resp.status_code == 200, resp.text
+        resp = n2_client.delete(f"/api/status-campo/{aid}")
+        assert resp.status_code == 200, resp.text
+
+    def test_n2_nao_pode_editar_despacho_de_outro_n2(self, admin_client, n2_client, cliente_teste):
+        # despacho criado pelo admin, sem n2 atribuído -- outro N2 não pode mexer
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = n2_client.put(f"/api/status-campo/{aid}", json=_payload(cliente_teste, status="concluido"))
+            assert resp.status_code == 403
+            resp = n2_client.patch(f"/api/status-campo/{aid}/status", json={"status": "concluido"})
+            assert resp.status_code == 403
+            resp = n2_client.delete(f"/api/status-campo/{aid}")
+            assert resp.status_code == 403
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_admin_pode_editar_despacho_de_qualquer_n2(self, admin_client, n2_client, cliente_teste):
+        aid = n2_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.put(f"/api/status-campo/{aid}", json=_payload(cliente_teste, status="concluido"))
+            assert resp.status_code == 200, resp.text
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_admin_pode_atribuir_n2_a_qualquer_usuario(self, admin_client, n2_user, cliente_teste):
+        resp = admin_client.post("/api/status-campo", json=_payload(cliente_teste, n2_usuario_id=n2_user["id"]))
+        assert resp.status_code == 200, resp.text
+        aid = resp.json()["id"]
+        try:
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["n2_usuario_id"] == n2_user["id"]
+            assert item["n2_responsavel"] == "N2 de Teste"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_filtro_apenas_meu(self, admin_client, n2_client, n2_user, cliente_teste):
+        meu = n2_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        de_outro = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = n2_client.get("/api/status-campo", params={"apenas_meu": "true"})
+            ids = [r["id"] for r in resp.json()]
+            assert meu in ids
+            assert de_outro not in ids
+        finally:
+            n2_client.delete(f"/api/status-campo/{meu}")
+            admin_client.delete(f"/api/status-campo/{de_outro}")
+
+    def test_listar_usuarios_n2_requer_login(self, app):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        resp = client.get("/api/status-campo/usuarios/n2")
+        assert resp.status_code == 401
+
+    def test_listar_usuarios_n2_retorna_lista(self, admin_client):
+        resp = admin_client.get("/api/status-campo/usuarios/n2")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+        assert any("nome" in u and "perfil" in u for u in resp.json())

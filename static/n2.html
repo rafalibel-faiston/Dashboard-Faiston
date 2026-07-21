@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status de Campo — N2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } }
+            }}
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar{width:5px;height:5px}
+        .custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
+    </style>
+</head>
+<body class="bg-faiston-bg font-sans min-h-screen">
+
+<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div class="flex items-center gap-3">
+        <i class="ph ph-map-pin-line text-faiston-purple text-lg"></i>
+        <span class="text-sm font-bold text-faiston-dark">Status de Campo</span>
+        <span class="text-xs text-faiston-faint">Painel N2</span>
+    </div>
+    <div class="flex items-center gap-3">
+        <button onclick="toggleTema()" id="btn-tema-h" class="btn-theme" title="Alternar tema">
+            <i class="ph ph-moon" id="icon-tema-h"></i>
+        </button>
+        <button onclick="logout()" class="text-faiston-faint hover:text-faiston-pink transition-colors">
+            <i class="ph ph-sign-out text-lg"></i>
+        </button>
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+            <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-av">?</div>
+            <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-6 py-6">
+
+    <div class="flex items-center justify-between mb-5">
+        <div>
+            <h2 class="text-xl font-bold text-faiston-dark">Meus despachos</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Despachos de campo onde você é o N2 responsável</p>
+        </div>
+        <button onclick="abrirModalNovo()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+            <i class="ph ph-plus text-base"></i> Novo despacho
+        </button>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <select id="f-status" onchange="buscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os status</option>
+                <option value="agendado">Agendado</option>
+                <option value="em_andamento">Em andamento</option>
+                <option value="concluido">Concluído</option>
+                <option value="parcial">Parcial</option>
+                <option value="improdutiva">Improdutiva</option>
+                <option value="cancelado">Cancelado</option>
+            </select>
+            <input type="date" id="f-data-de" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
+            <input type="date" id="f-data-ate" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
+            <button onclick="limparFiltros()" class="text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1 justify-center">
+                <i class="ph ph-x-circle"></i> Limpar
+            </button>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+            <span class="text-sm font-bold text-faiston-dark">Despachos</span>
+            <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
+        </div>
+        <div id="lista"></div>
+    </div>
+</main>
+
+<!-- MODAL NOVO/EDITAR DESPACHO -->
+<div id="modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark" id="modal-titulo">Novo despacho</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Você é registrado automaticamente como N2 responsável</p>
+            </div>
+            <button onclick="fecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Projeto/Cliente *</label>
+                    <select id="m-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">Selecionar...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data *</label>
+                    <input type="date" id="m-data" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Horário agendado</label>
+                    <input type="time" id="m-horario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico</label>
+                    <input type="text" id="m-tecnico" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Sigla do site</label>
+                    <input type="text" id="m-sigla" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do site</label>
+                    <input type="text" id="m-nomesite" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cidade</label>
+                    <input type="text" id="m-cidade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">UF</label>
+                    <input type="text" id="m-uf" maxlength="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="m-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="agendado">Agendado</option>
+                        <option value="em_andamento">Em andamento</option>
+                        <option value="concluido">Concluído</option>
+                        <option value="parcial">Parcial</option>
+                        <option value="improdutiva">Improdutiva</option>
+                        <option value="cancelado">Cancelado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora chegada</label>
+                    <input type="time" id="m-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora término</label>
+                    <input type="time" id="m-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Endereço</label>
+                    <input type="text" id="m-endereco" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
+                    <textarea id="m-detalhamento" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Observações</label>
+                    <textarea id="m-observacoes" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="fecharModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvar()" id="btn-salvar" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/faiston-erros.js"></script>
+<script>
+const STATUS_LABEL = { agendado:'Agendado', em_andamento:'Em andamento', concluido:'Concluído', parcial:'Parcial', improdutiva:'Improdutiva', cancelado:'Cancelado' };
+const STATUS_MAP = {
+    'Agendado': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Em andamento': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'Concluído': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    'Parcial': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Improdutiva': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
+};
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
+function statusBadge(label) {
+    const cls = STATUS_MAP[label] || 'text-slate-500 bg-slate-100 border-slate-200';
+    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}">${label || '—'}</span>`;
+}
+
+let meId = null;
+let editandoId = null;
+
+async function init() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
+        if (me.perfil !== 'n2' && me.perfil !== 'admin') { window.location.href = '/dashboard'; return; }
+        meId = me.id;
+        document.getElementById('user-nome').textContent = me.nome;
+        document.getElementById('user-av').textContent = me.nome.charAt(0).toUpperCase();
+    } catch(e) { window.location.href = '/'; return; }
+
+    try {
+        const res = await fetch('/api/clientes');
+        if (res.ok) {
+            const clientes = await res.json();
+            document.getElementById('m-cliente').insertAdjacentHTML('beforeend',
+                clientes.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join(''));
+        }
+    } catch(e) {}
+
+    buscar();
+}
+
+async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
+}
+
+function limparFiltros() {
+    document.getElementById('f-status').value = '';
+    document.getElementById('f-data-de').value = '';
+    document.getElementById('f-data-ate').value = '';
+    buscar();
+}
+
+async function buscar() {
+    const params = new URLSearchParams({ apenas_meu: 'true' });
+    const status = document.getElementById('f-status').value;
+    const dataDe = document.getElementById('f-data-de').value;
+    const dataAte = document.getElementById('f-data-ate').value;
+    if (status) params.set('status', status);
+    if (dataDe) params.set('data_de', dataDe);
+    if (dataAte) params.set('data_ate', dataAte);
+
+    const lista = document.getElementById('lista');
+    try {
+        const res = await fetch('/api/status-campo?' + params.toString());
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        document.getElementById('count-label').textContent = `${rows.length} despacho(s)`;
+        if (!rows.length) {
+            lista.innerHTML = '<div class="text-center py-12 text-slate-300 text-sm">Nenhum despacho seu registrado ainda.</div>';
+            return;
+        }
+        lista.innerHTML = rows.map(r => {
+            const label = STATUS_LABEL[r.status] || r.status;
+            return `<div class="px-5 py-3.5 border-b border-faiston-border last:border-0 hover:bg-slate-50/60">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span class="text-xs font-bold text-faiston-purple">${esc(r.cliente_nome || '—')}</span>
+                    <span class="text-sm font-semibold flex-1 min-w-[120px]">${esc(r.site_sigla || r.site_nome || '(sem site)')}</span>
+                    ${statusBadge(label)}
+                </div>
+                <div class="flex gap-4 flex-wrap text-xs text-faiston-muted mt-1.5">
+                    <span>${fmtDate(r.data)}</span>
+                    ${r.horario_agendado ? `<span>Agendado: ${esc(r.horario_agendado)}</span>` : ''}
+                    ${r.tecnico ? `<span>Técnico: ${esc(r.tecnico)}</span>` : ''}
+                    ${r.cidade ? `<span>${esc(r.cidade)}${r.uf ? '/' + esc(r.uf) : ''}</span>` : ''}
+                </div>
+                ${r.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${esc(r.observacoes)}</div>` : ''}
+                <div class="flex gap-2 mt-2">
+                    <button onclick="abrirModalEditar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Editar</button>
+                    <button onclick="excluir(${r.id})" class="text-xs font-semibold text-faiston-pink hover:underline">Excluir</button>
+                </div>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        lista.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar despachos.</div>';
+    }
+}
+
+function abrirModalNovo() {
+    editandoId = null;
+    document.getElementById('modal-titulo').textContent = 'Novo despacho';
+    ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-termino','m-endereco','m-detalhamento','m-observacoes']
+        .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('m-status').value = 'agendado';
+    document.getElementById('m-data').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+async function abrirModalEditar(id) {
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (!res.ok) { alert('Despacho não encontrado.'); return; }
+        const r = await res.json();
+        editandoId = id;
+        document.getElementById('modal-titulo').textContent = 'Editar despacho';
+        document.getElementById('m-cliente').value = r.cliente_id || '';
+        document.getElementById('m-data').value = r.data || '';
+        document.getElementById('m-horario').value = r.horario_agendado || '';
+        document.getElementById('m-tecnico').value = r.tecnico || '';
+        document.getElementById('m-sigla').value = r.site_sigla || '';
+        document.getElementById('m-nomesite').value = r.site_nome || '';
+        document.getElementById('m-cidade').value = r.cidade || '';
+        document.getElementById('m-uf').value = r.uf || '';
+        document.getElementById('m-status').value = r.status || 'agendado';
+        document.getElementById('m-chegada').value = r.hora_chegada || '';
+        document.getElementById('m-termino').value = r.hora_termino || '';
+        document.getElementById('m-endereco').value = r.endereco || '';
+        document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
+        document.getElementById('m-observacoes').value = r.observacoes || '';
+        document.getElementById('modal').classList.remove('hidden');
+    } catch (e) { alert('Erro ao carregar despacho.'); }
+}
+
+function fecharModal() {
+    document.getElementById('modal').classList.add('hidden');
+    editandoId = null;
+}
+
+async function salvar() {
+    const cliente_id = document.getElementById('m-cliente').value;
+    const data = document.getElementById('m-data').value;
+    if (!cliente_id || !data) { alert('Selecione o projeto/cliente e a data.'); return; }
+    const payload = {
+        cliente_id: parseInt(cliente_id, 10),
+        data,
+        horario_agendado: document.getElementById('m-horario').value || null,
+        tecnico: document.getElementById('m-tecnico').value.trim(),
+        site_sigla: document.getElementById('m-sigla').value.trim(),
+        site_nome: document.getElementById('m-nomesite').value.trim(),
+        endereco: document.getElementById('m-endereco').value.trim(),
+        cidade: document.getElementById('m-cidade').value.trim(),
+        uf: document.getElementById('m-uf').value.trim(),
+        hora_chegada: document.getElementById('m-chegada').value || null,
+        hora_termino: document.getElementById('m-termino').value || null,
+        detalhamento_tecnico: document.getElementById('m-detalhamento').value.trim(),
+        status: document.getElementById('m-status').value,
+        observacoes: document.getElementById('m-observacoes').value.trim(),
+    };
+    const btn = document.getElementById('btn-salvar');
+    btn.disabled = true;
+    try {
+        const url = editandoId ? `/api/status-campo/${editandoId}` : '/api/status-campo';
+        const method = editandoId ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao salvar: ' + (err.detail || res.status)); return; }
+        fecharModal();
+        await buscar();
+    } catch (e) {
+        alert('Erro de rede ao salvar.');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function excluir(id) {
+    if (!confirm('Excluir este despacho?')) return;
+    try {
+        const res = await fetch(`/api/status-campo/${id}`, { method: 'DELETE' });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao excluir: ' + (err.detail || res.status)); return; }
+        await buscar();
+    } catch (e) { alert('Erro de rede ao excluir.'); }
+}
+
+function toggleTema() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const novo = !isDark;
+    localStorage.setItem('faiston_tema', novo ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', novo ? 'dark' : 'light');
+    const icon = document.getElementById('icon-tema-h');
+    if (icon) icon.className = novo ? 'ph ph-sun text-faiston-cyan' : 'ph ph-moon';
+}
+(function() {
+    const icon = document.getElementById('icon-tema-h');
+    if (icon && localStorage.getItem('faiston_tema') === 'dark') icon.className = 'ph ph-sun text-faiston-cyan';
+})();
+
+init();
+</script>
+</body>
+</html>

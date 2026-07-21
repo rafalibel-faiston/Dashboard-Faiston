@@ -1666,7 +1666,9 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">N2 responsável</label>
-                    <input type="text" id="sc-m-n2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <select id="sc-m-n2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">— Sem N2 definido —</option>
+                    </select>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Sigla do site</label>
@@ -2461,6 +2463,7 @@ async function init() {
         const me = await res.json();
         window.ME = me;
         if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
+        if (me.perfil === 'n2') { window.location.href = '/n2'; return; }
         document.getElementById('sidebar-nome').textContent = me.nome;
         document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'admin') {
@@ -6234,6 +6237,15 @@ async function scInit() {
         }
     } catch (e) { /* segue sem a lista de clientes */ }
 
+    try {
+        const res = await fetch('/api/status-campo/usuarios/n2');
+        if (res.ok) {
+            const usuarios = await res.json();
+            document.getElementById('sc-m-n2').insertAdjacentHTML('beforeend',
+                usuarios.map(u => `<option value="${u.id}">${scEsc(u.nome)}</option>`).join(''));
+        }
+    } catch (e) { /* segue sem a lista de N2 */ }
+
     const hoje = new Date().toISOString().slice(0, 10);
     document.getElementById('sc-report-data').value = hoje;
     await scBuscar();
@@ -6372,7 +6384,7 @@ async function scAbrirModalEditar(id) {
         document.getElementById('sc-m-data').value = r.data || '';
         document.getElementById('sc-m-horario').value = r.horario_agendado || '';
         document.getElementById('sc-m-tecnico').value = r.tecnico || '';
-        document.getElementById('sc-m-n2').value = r.n2_responsavel || '';
+        document.getElementById('sc-m-n2').value = r.n2_usuario_id || '';
         document.getElementById('sc-m-sigla').value = r.site_sigla || '';
         document.getElementById('sc-m-nomesite').value = r.site_nome || '';
         document.getElementById('sc-m-cidade').value = r.cidade || '';
@@ -6401,7 +6413,7 @@ async function scSalvar() {
         data,
         horario_agendado: document.getElementById('sc-m-horario').value || null,
         tecnico: document.getElementById('sc-m-tecnico').value.trim(),
-        n2_responsavel: document.getElementById('sc-m-n2').value.trim(),
+        n2_usuario_id: document.getElementById('sc-m-n2').value ? parseInt(document.getElementById('sc-m-n2').value, 10) : null,
         site_sigla: document.getElementById('sc-m-sigla').value.trim(),
         site_nome: document.getElementById('sc-m-nomesite').value.trim(),
         endereco: document.getElementById('sc-m-endereco').value.trim(),
