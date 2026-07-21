@@ -204,6 +204,10 @@
                 <span class="tab-icon"><i class="ph ph-crown-simple"></i></span>
                 <span class="lbl">Diretor</span>
             </button>
+            <button class="tab-btn" onclick="setTab('n2')" id="tb-n2">
+                <span class="tab-icon"><i class="ph ph-headset"></i></span>
+                <span class="lbl">N2</span>
+            </button>
         </div>
     </div>
 </div>
@@ -1345,6 +1349,52 @@
 
 </div>
 
+<!-- ════════════ N2 ════════════ -->
+<div id="tab-n2" class="tab-panel" style="display:none;flex-direction:column;gap:32px">
+
+    <!-- Primeiro Acesso -->
+    <div class="reveal">
+        <div style="background:linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899);border-radius:20px;padding:28px;color:white;position:relative;overflow:hidden">
+            <div style="position:absolute;top:-30px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
+            <div style="display:flex;align-items:flex-start;gap:16px;position:relative">
+                <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;backdrop-filter:blur(10px)">
+                    <i class="ph ph-headset" style="font-size:22px;color:white"></i>
+                </div>
+                <div style="flex:1">
+                    <h3 style="font-size:18px;font-weight:800;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Bem-vindo, N2</h3>
+                    <p style="font-size:14px;color:rgba(255,255,255,.75);line-height:1.7;margin-bottom:20px">Depois de trocar sua senha, você chega direto na sua tela de <strong style="color:white">Status Report</strong> — é lá que você registra e acompanha as atividades de campo (ARCOS, ZAMP, Câmeras IP e outros clientes).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Como funciona -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num"><i class="ph ph-list-checks" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Como funciona</div>
+                <div class="sec-hd-sub">Suas atividades, do jeito mais direto possível</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="info-row"><i class="ph ph-eye" style="color:#06D7E6"></i><div><strong>Minhas atividades</strong> mostra só o que está atribuído a você — nada de garimpar entre atividades de outras pessoas</div></div>
+                <div class="info-row"><i class="ph ph-plus-circle" style="color:#5B2EE0"></i><div><strong>Nova atividade</strong> já registra você como N2 responsável automaticamente</div></div>
+                <div class="info-row"><i class="ph ph-arrows-clockwise" style="color:#EC4899"></i><div>Pra mudar o status (Concluído, Improdutiva, etc.), usa o <strong>seletor direto na linha</strong> da atividade — não precisa abrir o formulário inteiro</div></div>
+                <div class="info-row"><i class="ph ph-note-pencil" style="color:#06D7E6"></i><div>Preencha <strong>Observações</strong> com o que aconteceu na visita, e <strong>Material</strong> se algo foi usado/deixado no site</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="reveal" style="text-align:center;padding:8px 0">
+        <a href="/n2" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;font-weight:700;font-size:14px;padding:12px 24px;border-radius:12px;text-decoration:none">
+            <i class="ph ph-arrow-right"></i> Ir para minhas atividades
+        </a>
+    </div>
+
+</div>
+
 <!-- Footer -->
 <div style="text-align:center;padding:32px 0 16px;font-size:12px;color:#C4C8D8">
     Faiston OPS · Torre de Controle · <span id="ano"></span>
@@ -1513,14 +1563,15 @@ document.getElementById('ano').textContent = new Date().getFullYear();
         funcionario: ['func'],
         gestor:      ['gestor'],
         diretor:     ['diretor'],
+        n2:          ['n2'],
         demo:        ['func', 'gestor'],
-        admin:       ['func', 'gestor', 'diretor']
+        admin:       ['func', 'gestor', 'diretor', 'n2']
     };
     // Aba padrão (ativa) de cada perfil
-    const perfilParaAba = { funcionario: 'func', gestor: 'gestor', demo: 'gestor', admin: 'gestor', diretor: 'diretor' };
+    const perfilParaAba = { funcionario: 'func', gestor: 'gestor', demo: 'gestor', admin: 'gestor', diretor: 'diretor', n2: 'n2' };
 
     // Sem perfil conhecido → mostra tudo (fallback para acesso anônimo)
-    const permitidas = perfilAbas[perfil] || ['func', 'gestor', 'diretor'];
+    const permitidas = perfilAbas[perfil] || ['func', 'gestor', 'diretor', 'n2'];
 
     // Esconde os botões das abas que não pertencem ao perfil
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -1543,7 +1594,7 @@ document.getElementById('ano').textContent = new Date().getFullYear();
     if (aba && document.getElementById('tb-' + aba)) setTab(aba);
 
     // Destino do botão de saída conforme o perfil
-    const destino = { funcionario: '/funcionario', gestor: '/dashboard', demo: '/dashboard', admin: '/dashboard', diretor: '/gestao' };
+    const destino = { funcionario: '/funcionario', gestor: '/dashboard', demo: '/dashboard', admin: '/dashboard', diretor: '/gestao', n2: '/n2' };
     if (perfil && destino[perfil]) {
         const cta = document.getElementById('hero-cta');
         const label = document.getElementById('hero-cta-label');

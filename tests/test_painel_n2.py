@@ -107,10 +107,12 @@ class TestPainelN2Resumo:
         assert resp.status_code == 403
 
     def test_resumo_lista_n2_com_contagens(self, admin_client, n2_user, cliente_teste):
-        # cria 2 atividades pro N2: uma concluída, uma pendente
+        # cria 2 atividades pro N2: uma concluída, uma pendente (status
+        # inicial é sempre "agendado" -- a concluída muda depois via PATCH)
         base = {"cliente_id": cliente_teste, "data": "2026-07-21"}
-        a1 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"], "status": "concluido"}).json()["id"]
-        a2 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"], "status": "agendado"}).json()["id"]
+        a1 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"]}).json()["id"]
+        a2 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"]}).json()["id"]
+        admin_client.patch(f"/api/status-campo/{a1}/status", json={"status": "concluido"})
         try:
             resp = admin_client.get("/api/painel-n2/resumo")
             assert resp.status_code == 200

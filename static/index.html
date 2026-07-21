@@ -23,6 +23,7 @@
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
     <style>
         /* ── Dark mode: Kanban cards ── */
@@ -103,26 +104,26 @@
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-user-focus text-lg"></i> Minhas Tarefas</div>
                     </a>
                 </div>
+                <a href="#" data-nav-mod="statuscampo" onclick="setModule('statuscampo'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-map-pin-line text-lg"></i> Status Report
+                </a>
+                <a href="#" data-nav-mod="painelN2" onclick="setModule('painelN2'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-headset text-lg"></i> Painel N2
+                </a>
             </nav>
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
             <nav class="flex flex-col gap-1">
                 <a href="#" onclick="abrirEquipeGestor(); return false;" id="link-equipe" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-users-three text-lg"></i> Minha Equipe
                 </a>
-                <a href="#" onclick="setModule('dashboard'); return false;" id="sidebar-link-dashboard" class="flex items-center gap-2.5 bg-faiston-cyan/10 text-faiston-cyan font-medium text-sm rounded-md p-2.5 border border-faiston-cyan/30">
+                <a href="#" data-nav-mod="dashboard" onclick="setModule('dashboard'); return false;" id="sidebar-link-dashboard" class="flex items-center gap-2.5 bg-faiston-cyan/10 text-faiston-cyan font-medium text-sm rounded-md p-2.5 border border-faiston-cyan/30">
                     <i class="ph ph-chart-line-up text-lg"></i> Dashboard
                 </a>
-                <a href="#" id="link-financeiro" onclick="setModule('financeiro'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                <a href="#" id="link-financeiro" data-nav-mod="financeiro" onclick="setModule('financeiro'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-currency-circle-dollar text-lg"></i> Financeiro
                 </a>
-                <a href="#" onclick="setModule('historico'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                <a href="#" data-nav-mod="historico" onclick="setModule('historico'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-lg"></i> Histórico
-                </a>
-                <a href="#" onclick="setModule('statuscampo'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-map-pin-line text-lg"></i> Status de Campo
-                </a>
-                <a href="#" onclick="setModule('painelN2'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-headset text-lg"></i> Painel N2
                 </a>
                 <a href="/apresentacao" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-presentation-chart text-lg"></i> Apresentação
@@ -136,7 +137,7 @@
                         <i class="ph ph-paper-plane-tilt text-base" id="icon-enviar-relatorio"></i>
                     </button>
                 </div>
-                <a href="#" id="link-admin" onclick="setModule('admin'); return false;" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                <a href="#" id="link-admin" data-nav-mod="admin" onclick="setModule('admin'); return false;" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-gear text-lg"></i> Admin
                 </a>
             </nav>
@@ -1554,7 +1555,7 @@
 
     <header class="flex justify-between items-start mb-5">
         <div>
-            <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Status de Campo</h2>
+            <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Status Report</h2>
             <p class="text-xs text-faiston-muted mt-0.5">Atividades técnicas por site/cliente — substitui a planilha STATUS_REPORT.xlsx</p>
         </div>
         <button onclick="scAbrirModalNovo()" id="sc-btn-novo" class="hidden flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
@@ -1589,7 +1590,8 @@
                 <option value="em_andamento">Em andamento</option>
                 <option value="concluido">Concluído</option>
                 <option value="parcial">Parcial</option>
-                <option value="improdutiva">Improdutiva</option>
+                <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                <option value="improdutiva_faiston">Improdutiva — Faiston</option>
                 <option value="cancelado">Cancelado</option>
             </select>
             <input type="date" id="sc-f-data-de" onchange="scBuscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
@@ -1605,6 +1607,12 @@
             <input type="date" id="sc-report-data" onchange="scCarregarReport()" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-faiston-cyan">
             <button onclick="scCopiarReport()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
                 <i class="ph ph-copy text-sm"></i> Copiar texto do report
+            </button>
+            <select id="sc-print-cliente" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Selecionar cliente pra imagem...</option>
+            </select>
+            <button onclick="scGerarPrint()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
+                <i class="ph ph-camera text-sm"></i> Copiar print
             </button>
             <span class="text-xs text-faiston-faint" id="sc-report-msg"></span>
         </div>
@@ -1699,7 +1707,8 @@
                         <option value="em_andamento">Em andamento</option>
                         <option value="concluido">Concluído</option>
                         <option value="parcial">Parcial</option>
-                        <option value="improdutiva">Improdutiva</option>
+                        <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                        <option value="improdutiva_faiston">Improdutiva — Faiston</option>
                         <option value="cancelado">Cancelado</option>
                     </select>
                 </div>
@@ -1707,20 +1716,39 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora chegada</label>
                     <input type="time" id="sc-m-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora término</label>
-                    <input type="time" id="sc-m-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Endereço</label>
                     <input type="text" id="sc-m-endereco" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Particularidades</label>
+                    <div class="flex gap-4 pt-1">
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="checkbox" id="sc-m-part-reversa" value="reversa"> Reversa
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="checkbox" id="sc-m-part-equip" value="equipamento_em_posse_do_cliente"> Equipamento em posse do cliente
+                        </label>
+                    </div>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Material</label>
+                    <div class="flex gap-4 pt-1 mb-2">
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="sc-m-material-radio" id="sc-m-material-sim" onchange="scToggleMaterialDetalhe()"> Utilizado
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="sc-m-material-radio" id="sc-m-material-nao" onchange="scToggleMaterialDetalhe()" checked> Não utilizado
+                        </label>
+                    </div>
+                    <textarea id="sc-m-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="hidden w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
                     <textarea id="sc-m-detalhamento" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 </div>
                 <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Observações</label>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Observações <span class="normal-case font-normal text-faiston-faint">(preenchido pelo N2)</span></label>
                     <textarea id="sc-m-observacoes" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 </div>
             </div>
@@ -1749,9 +1777,14 @@
                 <span class="text-sm font-bold text-faiston-dark">Escala</span>
                 <input type="date" id="pn2-escala-data" onchange="pn2CarregarEscala()" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-faiston-cyan">
             </div>
-            <button onclick="pn2AbrirModalEscala()" class="flex items-center gap-2 btn-grad text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
-                <i class="ph ph-plus text-sm"></i> Adicionar à escala
-            </button>
+            <div class="flex items-center gap-2">
+                <button onclick="pn2AbrirModalGerarEscala()" class="flex items-center gap-2 border border-faiston-purple/30 bg-faiston-purple/5 text-faiston-purple px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-faiston-purple/10 transition-colors">
+                    <i class="ph ph-magic-wand text-sm"></i> Gerar escala do dia
+                </button>
+                <button onclick="pn2AbrirModalEscala()" class="flex items-center gap-2 btn-grad text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
+                    <i class="ph ph-plus text-sm"></i> Adicionar à escala
+                </button>
+            </div>
         </div>
         <div id="pn2-escala-lista"></div>
     </div>
@@ -1840,6 +1873,43 @@
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="pn2FecharModalNovoN2()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="pn2SalvarNovoN2()" id="pn2-btn-salvar-n2" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Criar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL GERAR ESCALA DO DIA -->
+<div id="modal-gerar-escala" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark">Gerar escala do dia</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Até 3 atividades do mesmo cliente ficam com o mesmo N2; acima disso, divide entre outros N2 disponíveis.</p>
+            </div>
+            <button onclick="pn2FecharModalGerarEscala()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data</label>
+                <input type="date" id="pn2-ge-data" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Atividades do dia, por cliente</label>
+                    <button onclick="pn2AdicionarBlocoGE()" class="text-xs font-semibold text-faiston-purple hover:underline">+ adicionar cliente</button>
+                </div>
+                <div id="pn2-ge-blocos" class="flex flex-col gap-2"></div>
+            </div>
+            <div class="flex justify-center">
+                <button onclick="pn2GerarDistribuicao()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                    <i class="ph ph-magic-wand text-base"></i> Gerar distribuição
+                </button>
+            </div>
+            <div id="pn2-ge-preview"></div>
+            <div class="text-xs" id="pn2-ge-msg"></div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="pn2FecharModalGerarEscala()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="pn2SalvarDistribuicao()" id="pn2-btn-salvar-ge" class="hidden flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar escala</button>
         </div>
     </div>
 </div>
@@ -3837,6 +3907,19 @@ let _adminCarregado = false;
 let _statusCampoCarregado = false;
 let _painelN2Carregado = false;
 
+const NAV_ATIVO_CLASSES = ['bg-faiston-cyan/10', 'text-faiston-cyan', 'border', 'border-faiston-cyan/30'];
+const NAV_INATIVO_CLASSES = ['text-slate-500', 'hover:bg-slate-50', 'hover:text-slate-900'];
+
+function atualizarNavAtiva(mod) {
+    // Só mexe nas classes de cor/destaque -- a classe "hidden" (visibilidade
+    // por perfil, ex. link-admin) é controlada separadamente em init().
+    document.querySelectorAll('[data-nav-mod]').forEach(el => {
+        const ativo = el.dataset.navMod === mod;
+        NAV_ATIVO_CLASSES.forEach(c => el.classList.toggle(c, ativo));
+        NAV_INATIVO_CLASSES.forEach(c => el.classList.toggle(c, !ativo));
+    });
+}
+
 function setModule(mod, gestaoTab) {
     const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo','painelN2'];
     mods.forEach(m => {
@@ -3844,6 +3927,7 @@ function setModule(mod, gestaoTab) {
         if (el) el.classList.toggle('hidden', m !== mod);
     });
     _activeModule = mod;
+    atualizarNavAtiva(mod);
 
     // Lazy load data on first activation
     if (mod === 'gestao') {
@@ -6340,26 +6424,36 @@ async function corrigirTimeCarimbo(id, time_usuario) {
 let scClientes = [];
 let scEditandoId = null;
 let scBuscaTimer = null;
+let scReportPorCliente = {};
+let scReportDataAtual = '';
 
 const STATUS_CAMPO_LABEL = {
     agendado: 'Agendado', em_andamento: 'Em andamento', concluido: 'Concluído',
-    parcial: 'Parcial', improdutiva: 'Improdutiva', cancelado: 'Cancelado',
+    parcial: 'Parcial', improdutiva_cliente: 'Improdutiva — Cliente', improdutiva_faiston: 'Improdutiva — Faiston',
+    cancelado: 'Cancelado',
 };
 const STATUS_CAMPO_MAP = {
     'Agendado': 'text-amber-600 bg-amber-50 border-amber-200',
     'Em andamento': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
     'Concluído': 'text-emerald-600 bg-emerald-50 border-emerald-200',
     'Parcial': 'text-amber-600 bg-amber-50 border-amber-200',
-    'Improdutiva': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Improdutiva — Cliente': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Improdutiva — Faiston': 'text-faiston-magenta bg-faiston-magenta/10 border-faiston-magenta/30',
     'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
 };
+const PARTICULARIDADE_LABEL = { reversa: 'Reversa', equipamento_em_posse_do_cliente: 'Equip. c/ cliente' };
+
+function scToggleMaterialDetalhe() {
+    const usado = document.getElementById('sc-m-material-sim').checked;
+    document.getElementById('sc-m-material-detalhe').classList.toggle('hidden', !usado);
+}
 
 function scEsc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function scPodeEditar() {
-    return !!(window.ME && ['admin', 'gestor', 'demo'].includes(window.ME.perfil));
+    return !!(window.ME && ['admin', 'gestor', 'demo', 'diretor'].includes(window.ME.perfil));
 }
 
 function scStatusCell(r, podeEditar) {
@@ -6488,6 +6582,11 @@ async function scCarregarReport() {
 
         let texto = `STATUS REPORT — ${fmtDate(data)}\n\n`;
         const porCliente = rep.por_cliente || {};
+        scReportPorCliente = porCliente;
+        scReportDataAtual = data;
+        const selPrint = document.getElementById('sc-print-cliente');
+        selPrint.innerHTML = '<option value="">Selecionar cliente pra imagem...</option>' +
+            Object.keys(porCliente).map(nome => `<option value="${scEsc(nome)}">${scEsc(nome)}</option>`).join('');
         Object.keys(porCliente).forEach(nome => {
             const lista = porCliente[nome];
             texto += `*${nome}* (${lista.length})\n`;
@@ -6519,14 +6618,64 @@ async function scCopiarReport() {
     }
 }
 
+async function scGerarPrint() {
+    const msg = document.getElementById('sc-report-msg');
+    const nomeCliente = document.getElementById('sc-print-cliente').value;
+    if (!nomeCliente) { msg.textContent = 'Selecione um cliente primeiro.'; return; }
+    if (typeof html2canvas === 'undefined') { msg.textContent = 'Não foi possível gerar a imagem (html2canvas não carregou).'; return; }
+    const lista = scReportPorCliente[nomeCliente] || [];
+    msg.textContent = 'Gerando imagem...';
+
+    const card = document.createElement('div');
+    card.style.cssText = 'position:fixed;left:-9999px;top:0;width:480px;background:#ffffff;padding:24px;font-family:Inter,sans-serif;';
+    const linhas = lista.map(a => `
+        <div style="padding:10px 0;border-bottom:1px solid #E5E8F0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                <span style="font-weight:700;font-size:13px;color:#0B0D1F;">${scEsc(a.site)}</span>
+                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#F4F5FA;color:#5E647A;">${scEsc(STATUS_CAMPO_LABEL[a.status] || a.status)}</span>
+            </div>
+            <div style="font-size:11px;color:#5E647A;margin-top:3px;">
+                ${a.tecnico ? scEsc(a.tecnico) : ''}${a.horario_agendado ? ' · ' + scEsc(a.horario_agendado) : ''}${a.cidade ? ' · ' + scEsc(a.cidade) + (a.uf ? '/' + scEsc(a.uf) : '') : ''}
+            </div>
+            ${a.observacoes ? `<div style="font-size:11px;color:#9097AC;margin-top:3px;font-style:italic;">${scEsc(a.observacoes)}</div>` : ''}
+        </div>`).join('');
+    card.innerHTML = `
+        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#5B2EE0;margin-bottom:2px;">Status Report</div>
+        <div style="font-size:18px;font-weight:800;color:#0B0D1F;margin-bottom:2px;">${scEsc(nomeCliente)}</div>
+        <div style="font-size:11px;color:#9097AC;margin-bottom:12px;">${fmtDate(scReportDataAtual)} · ${lista.length} atividade(s)</div>
+        ${linhas || '<div style="font-size:12px;color:#9097AC;">Nenhuma atividade.</div>'}
+    `;
+    document.body.appendChild(card);
+    try {
+        const canvas = await html2canvas(card, { backgroundColor: '#ffffff', scale: 2 });
+        document.body.removeChild(card);
+        canvas.toBlob(async (blob) => {
+            try {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                msg.textContent = 'Imagem copiada — já pode colar!';
+            } catch (e) {
+                msg.textContent = 'Não foi possível copiar a imagem (navegador sem suporte). Clique com o botão direito e salve manualmente.';
+            }
+        }, 'image/png');
+    } catch (e) {
+        document.body.removeChild(card);
+        msg.textContent = 'Erro ao gerar a imagem.';
+    }
+}
+
 function scAbrirModalNovo() {
     if (!scPodeEditar()) return;
     scEditandoId = null;
     document.getElementById('sc-modal-titulo').textContent = 'Nova atividade';
     ['sc-m-cliente','sc-m-horario','sc-m-tecnico','sc-m-n2','sc-m-sigla','sc-m-nomesite',
-     'sc-m-cidade','sc-m-uf','sc-m-chegada','sc-m-termino','sc-m-endereco','sc-m-detalhamento','sc-m-observacoes']
+     'sc-m-cidade','sc-m-uf','sc-m-chegada','sc-m-endereco','sc-m-detalhamento','sc-m-observacoes','sc-m-material-detalhe']
         .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('sc-m-part-reversa').checked = false;
+    document.getElementById('sc-m-part-equip').checked = false;
+    document.getElementById('sc-m-material-nao').checked = true;
+    scToggleMaterialDetalhe();
     document.getElementById('sc-m-status').value = 'agendado';
+    document.getElementById('sc-m-status').disabled = true;
     document.getElementById('sc-m-data').value = document.getElementById('sc-report-data').value || new Date().toISOString().slice(0, 10);
     document.getElementById('modal-status-campo').classList.remove('hidden');
 }
@@ -6538,6 +6687,7 @@ async function scAbrirModalEditar(id) {
         if (!res.ok) { alert('Atividade não encontrada (pode já ter sido excluída).'); return; }
         const r = await res.json();
         scEditandoId = id;
+        document.getElementById('sc-m-status').disabled = false;
         document.getElementById('sc-modal-titulo').textContent = 'Editar atividade';
         document.getElementById('sc-m-cliente').value = r.cliente_id || '';
         document.getElementById('sc-m-data').value = r.data || '';
@@ -6550,10 +6700,16 @@ async function scAbrirModalEditar(id) {
         document.getElementById('sc-m-uf').value = r.uf || '';
         document.getElementById('sc-m-status').value = r.status || 'agendado';
         document.getElementById('sc-m-chegada').value = r.hora_chegada || '';
-        document.getElementById('sc-m-termino').value = r.hora_termino || '';
         document.getElementById('sc-m-endereco').value = r.endereco || '';
         document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
         document.getElementById('sc-m-observacoes').value = r.observacoes || '';
+        const particularidades = r.particularidades || [];
+        document.getElementById('sc-m-part-reversa').checked = particularidades.includes('reversa');
+        document.getElementById('sc-m-part-equip').checked = particularidades.includes('equipamento_em_posse_do_cliente');
+        document.getElementById('sc-m-material-sim').checked = !!r.material_utilizado;
+        document.getElementById('sc-m-material-nao').checked = !r.material_utilizado;
+        document.getElementById('sc-m-material-detalhe').value = r.material_detalhe || '';
+        scToggleMaterialDetalhe();
         document.getElementById('modal-status-campo').classList.remove('hidden');
     } catch (e) { alert('Erro ao carregar atividade para edição.'); }
 }
@@ -6579,10 +6735,15 @@ async function scSalvar() {
         cidade: document.getElementById('sc-m-cidade').value.trim(),
         uf: document.getElementById('sc-m-uf').value.trim(),
         hora_chegada: document.getElementById('sc-m-chegada').value || null,
-        hora_termino: document.getElementById('sc-m-termino').value || null,
         detalhamento_tecnico: document.getElementById('sc-m-detalhamento').value.trim(),
         status: document.getElementById('sc-m-status').value,
         observacoes: document.getElementById('sc-m-observacoes').value.trim(),
+        particularidades: [
+            document.getElementById('sc-m-part-reversa').checked ? 'reversa' : null,
+            document.getElementById('sc-m-part-equip').checked ? 'equipamento_em_posse_do_cliente' : null,
+        ].filter(Boolean),
+        material_utilizado: document.getElementById('sc-m-material-sim').checked,
+        material_detalhe: document.getElementById('sc-m-material-detalhe').value.trim(),
     };
     const btn = document.getElementById('sc-btn-salvar');
     btn.disabled = true;
@@ -6780,6 +6941,123 @@ async function pn2SalvarNovoN2() {
         await pn2Init();
     } catch (e) {
         alert('Erro de rede ao criar.');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GERADOR DE ESCALA DO DIA
+// ══════════════════════════════════════════════════════════════════
+let pn2GeBlocos = [];
+let pn2GeDistribuicao = [];
+
+function pn2AbrirModalGerarEscala() {
+    pn2GeBlocos = [{ cliente_id: '', quantidade: 1, horario: '', particularidade: '' }];
+    pn2GeDistribuicao = [];
+    document.getElementById('pn2-ge-data').value = document.getElementById('pn2-escala-data').value || new Date().toISOString().slice(0, 10);
+    document.getElementById('pn2-ge-preview').innerHTML = '';
+    document.getElementById('pn2-ge-msg').textContent = '';
+    document.getElementById('pn2-btn-salvar-ge').classList.add('hidden');
+    pn2RenderBlocosGE();
+    document.getElementById('modal-gerar-escala').classList.remove('hidden');
+}
+
+function pn2FecharModalGerarEscala() {
+    document.getElementById('modal-gerar-escala').classList.add('hidden');
+}
+
+function pn2RenderBlocosGE() {
+    const optsClientes = scClientes.map(c => `<option value="${c.id}">${scEsc(c.nome)}</option>`).join('');
+    document.getElementById('pn2-ge-blocos').innerHTML = pn2GeBlocos.map((b, i) => `
+        <div class="flex gap-2 items-center flex-wrap">
+            <select onchange="pn2GeBlocos[${i}].cliente_id = this.value" class="flex-1 min-w-[140px] border border-faiston-border rounded-lg px-2 py-2 text-xs bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="">Cliente...</option>
+                ${optsClientes.replace(`value="${b.cliente_id}"`, `value="${b.cliente_id}" selected`)}
+            </select>
+            <input type="number" min="1" value="${b.quantidade}" onchange="pn2GeBlocos[${i}].quantidade = parseInt(this.value)||1" placeholder="Qtd" title="Número de atividades" class="w-16 border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-purple">
+            <input type="time" value="${b.horario}" onchange="pn2GeBlocos[${i}].horario = this.value" class="w-24 border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-purple">
+            <input type="text" value="${scEsc(b.particularidade)}" onchange="pn2GeBlocos[${i}].particularidade = this.value" placeholder="Particularidade (opcional)" class="flex-1 min-w-[120px] border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-purple">
+            <button onclick="pn2RemoverBlocoGE(${i})" class="w-7 h-7 rounded-md hover:bg-red-50 inline-flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+        </div>`).join('');
+}
+
+function pn2AdicionarBlocoGE() {
+    pn2GeBlocos.push({ cliente_id: '', quantidade: 1, horario: '', particularidade: '' });
+    pn2RenderBlocosGE();
+}
+
+function pn2RemoverBlocoGE(i) {
+    pn2GeBlocos.splice(i, 1);
+    pn2RenderBlocosGE();
+}
+
+// Regra: até 3 atividades do mesmo cliente ficam com o mesmo N2; acima
+// disso, divide em grupos de até 3 e distribui entre os N2 disponíveis
+// (rotação simples, balanceando carga entre clientes diferentes também).
+function pn2GerarDistribuicao() {
+    const msg = document.getElementById('pn2-ge-msg');
+    const n2sAtivos = pn2Usuarios.filter(u => u.perfil === 'n2');
+    if (!n2sAtivos.length) { msg.textContent = 'Nenhum N2 cadastrado ainda.'; return; }
+    const blocosValidos = pn2GeBlocos.filter(b => b.cliente_id && b.quantidade > 0);
+    if (!blocosValidos.length) { msg.textContent = 'Adicione pelo menos um cliente com quantidade de atividades.'; return; }
+
+    let cursorN2 = 0;
+    const distribuicao = [];
+    blocosValidos.forEach(b => {
+        const clienteNome = (scClientes.find(c => String(c.id) === String(b.cliente_id)) || {}).nome || '?';
+        let restante = b.quantidade;
+        while (restante > 0) {
+            const qtdGrupo = Math.min(3, restante);
+            const n2 = n2sAtivos[cursorN2 % n2sAtivos.length];
+            cursorN2++;
+            distribuicao.push({
+                n2_usuario_id: n2.id, n2_nome: n2.nome, cliente_id: b.cliente_id, cliente_nome: clienteNome,
+                quantidade: qtdGrupo, horario: b.horario, particularidade: b.particularidade,
+            });
+            restante -= qtdGrupo;
+        }
+    });
+    pn2GeDistribuicao = distribuicao;
+    msg.textContent = '';
+    const optsN2 = n2sAtivos.map(u => `<option value="${u.id}">${scEsc(u.nome)}</option>`).join('');
+    document.getElementById('pn2-ge-preview').innerHTML = `
+        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Prévia (dá pra trocar o N2 antes de salvar)</label>
+        <div class="border border-faiston-border rounded-lg overflow-hidden">
+        ${distribuicao.map((d, i) => `
+            <div class="flex items-center gap-2 px-3 py-2 border-b border-faiston-border last:border-0 flex-wrap text-xs">
+                <select onchange="pn2GeDistribuicao[${i}].n2_usuario_id = parseInt(this.value)" class="border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
+                    ${optsN2.replace(`value="${d.n2_usuario_id}"`, `value="${d.n2_usuario_id}" selected`)}
+                </select>
+                <span class="font-semibold text-faiston-dark">${scEsc(d.cliente_nome)}</span>
+                <span class="text-faiston-muted">${d.quantidade} atividade(s)</span>
+                ${d.horario ? `<span class="text-faiston-muted">${scEsc(d.horario)}</span>` : ''}
+                ${d.particularidade ? `<span class="text-faiston-purple">${scEsc(d.particularidade)}</span>` : ''}
+            </div>`).join('')}
+        </div>`;
+    document.getElementById('pn2-btn-salvar-ge').classList.remove('hidden');
+}
+
+async function pn2SalvarDistribuicao() {
+    if (!pn2GeDistribuicao.length) return;
+    const data = document.getElementById('pn2-ge-data').value;
+    const btn = document.getElementById('pn2-btn-salvar-ge');
+    btn.disabled = true;
+    const msg = document.getElementById('pn2-ge-msg');
+    try {
+        for (const d of pn2GeDistribuicao) {
+            const atribuicao = `${d.cliente_nome} (${d.quantidade} atividade${d.quantidade > 1 ? 's' : ''})${d.particularidade ? ' — ' + d.particularidade : ''}`;
+            const res = await fetch('/api/escala-n2', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data, n2_usuario_id: d.n2_usuario_id, horario_entrada: d.horario || null, modalidade: 'presencial', atribuicao })
+            });
+            if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = 'Erro ao salvar: ' + (err.detail || res.status); btn.disabled = false; return; }
+        }
+        pn2FecharModalGerarEscala();
+        document.getElementById('pn2-escala-data').value = data;
+        await pn2CarregarEscala();
+    } catch (e) {
+        msg.textContent = 'Erro de rede ao salvar.';
     } finally {
         btn.disabled = false;
     }

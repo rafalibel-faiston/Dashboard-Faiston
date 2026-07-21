@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Status de Campo — N2</title>
+    <title>Status Report — N2</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
 <header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
     <div class="flex items-center gap-3">
         <i class="ph ph-map-pin-line text-faiston-purple text-lg"></i>
-        <span class="text-sm font-bold text-faiston-dark">Status de Campo</span>
+        <span class="text-sm font-bold text-faiston-dark">Status Report</span>
         <span class="text-xs text-faiston-faint">Painel N2</span>
     </div>
     <div class="flex items-center gap-3">
@@ -69,7 +69,8 @@
                 <option value="em_andamento">Em andamento</option>
                 <option value="concluido">Concluído</option>
                 <option value="parcial">Parcial</option>
-                <option value="improdutiva">Improdutiva</option>
+                <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                <option value="improdutiva_faiston">Improdutiva — Faiston</option>
                 <option value="cancelado">Cancelado</option>
             </select>
             <input type="date" id="f-data-de" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
@@ -142,7 +143,8 @@
                         <option value="em_andamento">Em andamento</option>
                         <option value="concluido">Concluído</option>
                         <option value="parcial">Parcial</option>
-                        <option value="improdutiva">Improdutiva</option>
+                        <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                        <option value="improdutiva_faiston">Improdutiva — Faiston</option>
                         <option value="cancelado">Cancelado</option>
                     </select>
                 </div>
@@ -150,13 +152,32 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora chegada</label>
                     <input type="time" id="m-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora término</label>
-                    <input type="time" id="m-termino" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Endereço</label>
                     <input type="text" id="m-endereco" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Particularidades</label>
+                    <div class="flex gap-4 pt-1">
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="checkbox" id="m-part-reversa" value="reversa"> Reversa
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="checkbox" id="m-part-equip" value="equipamento_em_posse_do_cliente"> Equipamento em posse do cliente
+                        </label>
+                    </div>
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Material</label>
+                    <div class="flex gap-4 pt-1 mb-2">
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="m-material-radio" id="m-material-sim" onchange="toggleMaterialDetalhe()"> Utilizado
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="m-material-radio" id="m-material-nao" onchange="toggleMaterialDetalhe()" checked> Não utilizado
+                        </label>
+                    </div>
+                    <textarea id="m-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="hidden w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
@@ -177,15 +198,23 @@
 
 <script src="/static/js/faiston-erros.js"></script>
 <script>
-const STATUS_LABEL = { agendado:'Agendado', em_andamento:'Em andamento', concluido:'Concluído', parcial:'Parcial', improdutiva:'Improdutiva', cancelado:'Cancelado' };
+const STATUS_LABEL = {
+    agendado:'Agendado', em_andamento:'Em andamento', concluido:'Concluído', parcial:'Parcial',
+    improdutiva_cliente:'Improdutiva — Cliente', improdutiva_faiston:'Improdutiva — Faiston', cancelado:'Cancelado',
+};
 const STATUS_MAP = {
     'Agendado': 'text-amber-600 bg-amber-50 border-amber-200',
     'Em andamento': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
     'Concluído': 'text-emerald-600 bg-emerald-50 border-emerald-200',
     'Parcial': 'text-amber-600 bg-amber-50 border-amber-200',
-    'Improdutiva': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Improdutiva — Cliente': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Improdutiva — Faiston': 'text-faiston-magenta bg-faiston-magenta/10 border-faiston-magenta/30',
     'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
 };
+function toggleMaterialDetalhe() {
+    const usado = document.getElementById('m-material-sim').checked;
+    document.getElementById('m-material-detalhe').classList.toggle('hidden', !usado);
+}
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
 function statusBadge(label) {
@@ -280,9 +309,14 @@ async function buscar() {
 function abrirModalNovo() {
     editandoId = null;
     document.getElementById('modal-titulo').textContent = 'Nova atividade';
-    ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-termino','m-endereco','m-detalhamento','m-observacoes']
+    ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-endereco','m-detalhamento','m-observacoes','m-material-detalhe']
         .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('m-part-reversa').checked = false;
+    document.getElementById('m-part-equip').checked = false;
+    document.getElementById('m-material-nao').checked = true;
+    toggleMaterialDetalhe();
     document.getElementById('m-status').value = 'agendado';
+    document.getElementById('m-status').disabled = true;
     document.getElementById('m-data').value = new Date().toISOString().slice(0, 10);
     document.getElementById('modal').classList.remove('hidden');
 }
@@ -293,6 +327,7 @@ async function abrirModalEditar(id) {
         if (!res.ok) { alert('Atividade não encontrada.'); return; }
         const r = await res.json();
         editandoId = id;
+        document.getElementById('m-status').disabled = false;
         document.getElementById('modal-titulo').textContent = 'Editar atividade';
         document.getElementById('m-cliente').value = r.cliente_id || '';
         document.getElementById('m-data').value = r.data || '';
@@ -304,10 +339,16 @@ async function abrirModalEditar(id) {
         document.getElementById('m-uf').value = r.uf || '';
         document.getElementById('m-status').value = r.status || 'agendado';
         document.getElementById('m-chegada').value = r.hora_chegada || '';
-        document.getElementById('m-termino').value = r.hora_termino || '';
         document.getElementById('m-endereco').value = r.endereco || '';
         document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
         document.getElementById('m-observacoes').value = r.observacoes || '';
+        const particularidades = r.particularidades || [];
+        document.getElementById('m-part-reversa').checked = particularidades.includes('reversa');
+        document.getElementById('m-part-equip').checked = particularidades.includes('equipamento_em_posse_do_cliente');
+        document.getElementById('m-material-sim').checked = !!r.material_utilizado;
+        document.getElementById('m-material-nao').checked = !r.material_utilizado;
+        document.getElementById('m-material-detalhe').value = r.material_detalhe || '';
+        toggleMaterialDetalhe();
         document.getElementById('modal').classList.remove('hidden');
     } catch (e) { alert('Erro ao carregar atividade.'); }
 }
@@ -332,10 +373,15 @@ async function salvar() {
         cidade: document.getElementById('m-cidade').value.trim(),
         uf: document.getElementById('m-uf').value.trim(),
         hora_chegada: document.getElementById('m-chegada').value || null,
-        hora_termino: document.getElementById('m-termino').value || null,
         detalhamento_tecnico: document.getElementById('m-detalhamento').value.trim(),
         status: document.getElementById('m-status').value,
         observacoes: document.getElementById('m-observacoes').value.trim(),
+        particularidades: [
+            document.getElementById('m-part-reversa').checked ? 'reversa' : null,
+            document.getElementById('m-part-equip').checked ? 'equipamento_em_posse_do_cliente' : null,
+        ].filter(Boolean),
+        material_utilizado: document.getElementById('m-material-sim').checked,
+        material_detalhe: document.getElementById('m-material-detalhe').value.trim(),
     };
     const btn = document.getElementById('btn-salvar');
     btn.disabled = true;

@@ -361,6 +361,13 @@ def setup_banco():
         # exibição do nome (mesmo padrão de comentarios_projeto.usuario_nome).
         cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS n2_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_n2 ON status_atividades(n2_usuario_id)")
+        # Particularidades (ex.: Reversa, Equipamento em posse do cliente) --
+        # lista aberta em vez de booleans fixos, pra não exigir migração toda
+        # vez que surgir uma nova. Material: se foi usado + detalhe em texto,
+        # preenchido pelo N2 quando "sim".
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS particularidades TEXT[] NOT NULL DEFAULT '{}'")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_utilizado BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_detalhe TEXT NOT NULL DEFAULT ''")
         # ── Escala N2 (plantão do dia: quem, horário, home/presencial) ──────
         cur.execute("""
             CREATE TABLE IF NOT EXISTS escala_n2 (
@@ -4865,7 +4872,9 @@ def gestao_listar_usuarios(faiston_token: str = Cookie(None)):
 
 # ── Status de Campo (despachos técnicos por site/cliente: ARCOS, ZAMP,
 #    HAVAN, Câmeras IP etc.) — substitui a planilha STATUS_REPORT.xlsx ──────
-STATUS_CAMPO_VALIDOS = ('agendado', 'em_andamento', 'concluido', 'parcial', 'improdutiva', 'cancelado')
+STATUS_CAMPO_VALIDOS = ('agendado', 'em_andamento', 'concluido', 'parcial',
+                         'improdutiva_cliente', 'improdutiva_faiston', 'cancelado')
+PARTICULARIDADES_VALIDAS = ('reversa', 'equipamento_em_posse_do_cliente')
 
 class StatusAtividadeModel(BaseModel):
     cliente_id: int
@@ -4884,6 +4893,9 @@ class StatusAtividadeModel(BaseModel):
     detalhamento_tecnico: str = ""
     status: str = "agendado"
     observacoes: str = ""
+    particularidades: List[str] = []
+    material_utilizado: bool = False
+    material_detalhe: str = ""
 
 def _resolver_n2(cur, n2_usuario_id, n2_responsavel_texto):
     """Se veio n2_usuario_id, busca o nome pra cachear em n2_responsavel
@@ -4945,7 +4957,8 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
             SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico,
                    a.n2_usuario_id, a.n2_responsavel,
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
-                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em
+                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em,
+                   a.particularidades, a.material_utilizado, a.material_detalhe
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE {' AND '.join(where)}
@@ -4957,7 +4970,8 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
         cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico",
                 "n2_usuario_id", "n2_responsavel",
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
-                "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em"]
+                "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em",
+                "particularidades", "material_utilizado", "material_detalhe"]
         out = []
         for r in rows:
             item = dict(zip(cols, r))
@@ -4966,6 +4980,7 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
                 item[k] = str(item[k])[:5] if item[k] else None
             for k in ("criado_em", "atualizado_em"):
                 item[k] = str(item[k])[:16] if item[k] else None
+            item["particularidades"] = item["particularidades"] or []
             out.append(item)
         return out
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -4980,7 +4995,8 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         cur.execute("""
             SELECT a.id, c.nome, a.site_sigla, a.site_nome, a.tecnico, a.status, a.observacoes,
-                   a.horario_agendado, a.cidade, a.uf, a.n2_responsavel
+                   a.horario_agendado, a.cidade, a.uf, a.n2_responsavel,
+                   a.particularidades, a.material_utilizado, a.material_detalhe
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.data = %s
@@ -4991,13 +5007,16 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
         contagem = {}
         por_cliente = {}
         for r in rows:
-            (aid, cliente_nome, sigla, nome_site, tecnico, status, obs, horario, cidade, uf, n2) = r
+            (aid, cliente_nome, sigla, nome_site, tecnico, status, obs, horario, cidade, uf, n2,
+             particularidades, material_utilizado, material_detalhe) = r
             cliente_nome = cliente_nome or "Sem cliente"
             contagem[status] = contagem.get(status, 0) + 1
             por_cliente.setdefault(cliente_nome, []).append({
                 "id": aid, "site": sigla or nome_site or "(sem site)", "tecnico": tecnico,
                 "status": status, "observacoes": obs, "horario_agendado": str(horario)[:5] if horario else None,
                 "cidade": cidade, "uf": uf, "n2_responsavel": n2,
+                "particularidades": particularidades or [], "material_utilizado": material_utilizado,
+                "material_detalhe": material_detalhe,
             })
         return {"data": data, "contagem": contagem, "por_cliente": por_cliente, "total": len(rows)}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -5014,7 +5033,8 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
             SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico,
                    a.n2_usuario_id, a.n2_responsavel,
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
-                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em
+                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em,
+                   a.particularidades, a.material_utilizado, a.material_detalhe
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.id = %s
@@ -5025,13 +5045,15 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
         cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico",
                 "n2_usuario_id", "n2_responsavel",
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
-                "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em"]
+                "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em",
+                "particularidades", "material_utilizado", "material_detalhe"]
         item = dict(zip(cols, r))
         item["data"] = str(item["data"]) if item["data"] else None
         for k in ("horario_agendado", "hora_chegada", "hora_termino"):
             item[k] = str(item[k])[:5] if item[k] else None
         for k in ("criado_em", "atualizado_em"):
             item[k] = str(item[k])[:16] if item[k] else None
+        item["particularidades"] = item["particularidades"] or []
         return item
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -5039,26 +5061,31 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
 @app.post("/api/status-campo")
 def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "n2"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
+        # Uma atividade não pode nascer já concluída/improdutiva -- status
+        # inicial é sempre "agendado", independente do que vier no corpo.
+        status = "agendado"
         # N2 só cria despacho atribuído a si mesmo -- ignora qualquer
         # n2_usuario_id que venha no corpo da requisição.
         n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
         n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
+        particularidades = [p for p in a.particularidades if p in PARTICULARIDADES_VALIDAS]
         cur.execute("""
             INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico,
                 n2_usuario_id, n2_responsavel,
                 site_sigla, site_nome, endereco, cidade, uf, hora_chegada, hora_termino,
-                detalhamento_tecnico, status, observacoes, criado_por)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                detalhamento_tecnico, status, observacoes, criado_por,
+                particularidades, material_utilizado, material_detalhe)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
         """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
-              a.detalhamento_tecnico, status, a.observacoes, sess["id"]))
+              a.detalhamento_tecnico, status, a.observacoes, sess["id"],
+              particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else ""))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -5068,7 +5095,7 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
 @app.put("/api/status-campo/{aid}")
 def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "n2"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -5078,18 +5105,21 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
         status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
         n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
         n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
+        particularidades = [p for p in a.particularidades if p in PARTICULARIDADES_VALIDAS]
         cur.execute("""
             UPDATE status_atividades SET
                 cliente_id=%s, data=%s, horario_agendado=%s, tecnico=%s,
                 n2_usuario_id=%s, n2_responsavel=%s,
                 site_sigla=%s, site_nome=%s, endereco=%s, cidade=%s, uf=%s,
                 hora_chegada=%s, hora_termino=%s, detalhamento_tecnico=%s, status=%s, observacoes=%s,
+                particularidades=%s, material_utilizado=%s, material_detalhe=%s,
                 atualizado_em=NOW()
             WHERE id=%s
         """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
-              a.detalhamento_tecnico, status, a.observacoes, aid))
+              a.detalhamento_tecnico, status, a.observacoes,
+              particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else "", aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except HTTPException: raise
@@ -5101,7 +5131,7 @@ class StatusCampoStatusModel(BaseModel):
 @app.patch("/api/status-campo/{aid}/status")
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "n2"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
     if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
@@ -5118,7 +5148,7 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
 @app.delete("/api/status-campo/{aid}")
 def deletar_status_campo(aid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "n2"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -5186,7 +5216,7 @@ def listar_escala_n2(data: str = "", faiston_token: str = Cookie(None)):
 @app.post("/api/escala-n2")
 def criar_escala_n2(e: EscalaN2Model, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     modalidade = e.modalidade if e.modalidade in MODALIDADES_ESCALA else "presencial"
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
@@ -5204,7 +5234,7 @@ def criar_escala_n2(e: EscalaN2Model, faiston_token: str = Cookie(None)):
 @app.put("/api/escala-n2/{eid}")
 def atualizar_escala_n2(eid: int, e: EscalaN2Model, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     modalidade = e.modalidade if e.modalidade in MODALIDADES_ESCALA else "presencial"
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
@@ -5221,7 +5251,7 @@ def atualizar_escala_n2(eid: int, e: EscalaN2Model, faiston_token: str = Cookie(
 @app.delete("/api/escala-n2/{eid}")
 def deletar_escala_n2(eid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -5235,7 +5265,7 @@ def deletar_escala_n2(eid: int, faiston_token: str = Cookie(None)):
 def painel_n2_resumo(faiston_token: str = Cookie(None)):
     """Lista de usuários N2 com contagem de atividades (total/concluído/pendente)."""
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:

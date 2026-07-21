@@ -114,8 +114,11 @@ class TestCRUD:
 
 class TestFiltrosEBusca:
     def test_filtro_por_status(self, admin_client, cliente_teste):
-        r1 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, status="concluido")).json()["id"]
-        r2 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, status="cancelado")).json()["id"]
+        # status inicial de criação é sempre "agendado" -- muda depois via PATCH
+        r1 = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        r2 = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        admin_client.patch(f"/api/status-campo/{r1}/status", json={"status": "concluido"})
+        admin_client.patch(f"/api/status-campo/{r2}/status", json={"status": "cancelado"})
         try:
             resp = admin_client.get("/api/status-campo", params={"data": "2026-07-20", "cliente_id": cliente_teste, "status": "concluido"})
             ids = [r["id"] for r in resp.json()]
@@ -151,9 +154,12 @@ class TestFiltrosEBusca:
 class TestReport:
     def test_report_agrupa_por_cliente_e_conta_status(self, admin_client, cliente_teste):
         data = "2026-07-19"
-        a1 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data, status="concluido")).json()["id"]
-        a2 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data, status="concluido")).json()["id"]
-        a3 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data, status="parcial")).json()["id"]
+        a1 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data)).json()["id"]
+        a2 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data)).json()["id"]
+        a3 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data)).json()["id"]
+        admin_client.patch(f"/api/status-campo/{a1}/status", json={"status": "concluido"})
+        admin_client.patch(f"/api/status-campo/{a2}/status", json={"status": "concluido"})
+        admin_client.patch(f"/api/status-campo/{a3}/status", json={"status": "parcial"})
         try:
             resp = admin_client.get("/api/status-campo/report", params={"data": data})
             assert resp.status_code == 200
