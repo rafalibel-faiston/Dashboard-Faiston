@@ -45,7 +45,9 @@ class TestStatusImprodutivaSplit:
     def test_ambos_valores_de_improdutiva_sao_aceitos(self, admin_client, cliente_teste, status):
         aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
         try:
-            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={"status": status})
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": status, "hora_termino": "17:00", "material_utilizado": False,
+            })
             assert resp.status_code == 200
             item = admin_client.get(f"/api/status-campo/{aid}").json()
             assert item["status"] == status

@@ -207,11 +207,70 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Observações</label>
                     <textarea id="m-observacoes" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Descrição do andamento</label>
+                    <textarea id="m-andamento" rows="2" placeholder="O que está acontecendo na atividade agora..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
             </div>
         </div>
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="fecharModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="salvar()" id="btn-salvar" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: descrever andamento (obrigatório ao marcar "Em andamento") -->
+<div id="modal-andamento" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">O que está acontecendo?</h3>
+        <p class="text-xs text-faiston-muted mb-3">Descreva rapidamente o andamento da atividade.</p>
+        <textarea id="ad-descricao" rows="4" placeholder="Ex.: aguardando liberação de acesso ao rack..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalAndamento()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="confirmarAndamento()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: finalizar atividade (obrigatório ao marcar concluido/parcial/improdutiva_*) -->
+<div id="modal-finalizar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Finalizar atividade</h3>
+        <p class="text-xs text-faiston-muted mb-4">Confirme os dados de encerramento antes de marcar como <span id="fz-status-label" class="font-semibold"></span>.</p>
+        <div class="flex flex-col gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora de saída *</label>
+                <input type="time" id="fz-saida" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Utilizou material? *</label>
+                <div class="flex gap-4 pt-1">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="radio" name="fz-material-radio" id="fz-material-sim" onchange="toggleFinalizarMaterial()"> Sim
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="radio" name="fz-material-radio" id="fz-material-nao" onchange="toggleFinalizarMaterial()" checked> Não
+                    </label>
+                </div>
+            </div>
+            <div id="fz-material-campos" class="hidden flex-col gap-2">
+                <textarea id="fz-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Quantidade</label>
+                        <input type="number" min="0" id="fz-material-qtd" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>
+                        <input type="number" min="0" step="0.01" id="fz-material-valor" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalFinalizar()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="confirmarFinalizar()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
         </div>
     </div>
 </div>
@@ -237,6 +296,10 @@ function toggleMaterialDetalhe() {
     campos.classList.toggle('hidden', !usado);
     campos.classList.toggle('flex', usado);
 }
+const STATUS_TERMINAIS = ['concluido', 'parcial', 'improdutiva_cliente', 'improdutiva_faiston'];
+let ultimaLista = [];
+let statusAlvoId = null;
+let statusAlvoNovo = null;
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
 function statusBadge(label) {
@@ -296,6 +359,7 @@ async function buscar() {
         const res = await fetch('/api/status-campo?' + params.toString());
         if (!res.ok) throw new Error();
         const rows = await res.json();
+        ultimaLista = rows;
         document.getElementById('count-label').textContent = `${rows.length} atividade(s)`;
         if (!rows.length) {
             lista.innerHTML = '<div class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade sua registrada ainda.</div>';
@@ -316,6 +380,7 @@ async function buscar() {
                     ${r.tecnico ? `<span>Técnico: ${esc(r.tecnico)}</span>` : ''}
                     ${r.cidade ? `<span>${esc(r.cidade)}${r.uf ? '/' + esc(r.uf) : ''}</span>` : ''}
                 </div>
+                ${r.status === 'em_andamento' && r.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-1.5"><i class="ph ph-info"></i> ${esc(r.andamento_descricao)}</div>` : ''}
                 ${r.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${esc(r.observacoes)}</div>` : ''}
                 <div class="flex gap-2 mt-2">
                     <button onclick="abrirModalEditar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Editar</button>
@@ -332,7 +397,7 @@ function abrirModalNovo() {
     editandoId = null;
     document.getElementById('modal-titulo').textContent = 'Nova atividade';
     ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-saida',
-     'm-endereco','m-detalhamento','m-observacoes','m-material-detalhe','m-material-qtd','m-material-valor','m-ticket']
+     'm-endereco','m-detalhamento','m-observacoes','m-andamento','m-material-detalhe','m-material-qtd','m-material-valor','m-ticket']
         .forEach(id => document.getElementById(id).value = '');
     document.getElementById('m-part-reversa').checked = false;
     document.getElementById('m-part-equip').checked = false;
@@ -366,6 +431,7 @@ async function abrirModalEditar(id) {
         document.getElementById('m-endereco').value = r.endereco || '';
         document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
         document.getElementById('m-observacoes').value = r.observacoes || '';
+        document.getElementById('m-andamento').value = r.andamento_descricao || '';
         document.getElementById('m-ticket').value = r.ticket || '';
         const particularidades = r.particularidades || [];
         document.getElementById('m-part-reversa').checked = particularidades.includes('reversa');
@@ -404,6 +470,7 @@ async function salvar() {
         detalhamento_tecnico: document.getElementById('m-detalhamento').value.trim(),
         status: document.getElementById('m-status').value,
         observacoes: document.getElementById('m-observacoes').value.trim(),
+        andamento_descricao: document.getElementById('m-andamento').value.trim(),
         ticket: document.getElementById('m-ticket').value.trim(),
         particularidades: [
             document.getElementById('m-part-reversa').checked ? 'reversa' : null,
@@ -441,14 +508,85 @@ async function excluir(id) {
     } catch (e) { alert('Erro de rede ao excluir.'); }
 }
 
-async function mudarStatus(id, novoStatus) {
+function mudarStatus(id, novoStatus) {
+    const row = ultimaLista.find(r => r.id === id);
+    if (novoStatus === 'em_andamento') { abrirModalAndamento(id, row); return; }
+    if (STATUS_TERMINAIS.includes(novoStatus)) { abrirModalFinalizar(id, novoStatus, row); return; }
+    aplicarMudancaStatus(id, { status: novoStatus });
+}
+
+async function aplicarMudancaStatus(id, body) {
     try {
         const res = await fetch(`/api/status-campo/${id}/status`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: novoStatus })
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
-        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao mudar status: ' + (err.detail || res.status)); await buscar(); return; }
-        await buscar();
-    } catch (e) { alert('Erro de rede ao mudar status.'); await buscar(); }
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao mudar status: ' + (err.detail || res.status)); }
+    } catch (e) { alert('Erro de rede ao mudar status.'); }
+    await buscar();
+}
+
+function abrirModalAndamento(id, row) {
+    statusAlvoId = id;
+    document.getElementById('ad-descricao').value = (row && row.andamento_descricao) || '';
+    document.getElementById('modal-andamento').classList.remove('hidden');
+}
+function fecharModalAndamento() {
+    document.getElementById('modal-andamento').classList.add('hidden');
+    statusAlvoId = null;
+    buscar(); // reseta o select da linha pro status real (o onchange já tinha mudado o valor exibido)
+}
+async function confirmarAndamento() {
+    const descricao = document.getElementById('ad-descricao').value.trim();
+    if (!descricao) { alert('Descreva o que está acontecendo.'); return; }
+    const id = statusAlvoId;
+    document.getElementById('modal-andamento').classList.add('hidden');
+    statusAlvoId = null;
+    await aplicarMudancaStatus(id, { status: 'em_andamento', andamento_descricao: descricao });
+}
+
+function toggleFinalizarMaterial() {
+    const usado = document.getElementById('fz-material-sim').checked;
+    const campos = document.getElementById('fz-material-campos');
+    campos.classList.toggle('hidden', !usado);
+    campos.classList.toggle('flex', usado);
+}
+function abrirModalFinalizar(id, novoStatus, row) {
+    statusAlvoId = id;
+    statusAlvoNovo = novoStatus;
+    document.getElementById('fz-status-label').textContent = STATUS_LABEL[novoStatus] || novoStatus;
+    document.getElementById('fz-saida').value = (row && row.hora_termino) || '';
+    const materialSim = !!(row && row.material_utilizado);
+    document.getElementById('fz-material-sim').checked = materialSim;
+    document.getElementById('fz-material-nao').checked = !materialSim;
+    document.getElementById('fz-material-detalhe').value = (row && row.material_detalhe) || '';
+    document.getElementById('fz-material-qtd').value = (row && row.material_quantidade) ?? '';
+    document.getElementById('fz-material-valor').value = (row && row.material_valor) ?? '';
+    toggleFinalizarMaterial();
+    document.getElementById('modal-finalizar').classList.remove('hidden');
+}
+function fecharModalFinalizar() {
+    document.getElementById('modal-finalizar').classList.add('hidden');
+    statusAlvoId = null; statusAlvoNovo = null;
+    buscar();
+}
+async function confirmarFinalizar() {
+    const saida = document.getElementById('fz-saida').value;
+    if (!saida) { alert('Informe a hora de saída.'); return; }
+    const materialSim = document.getElementById('fz-material-sim').checked;
+    const id = statusAlvoId;
+    const status = statusAlvoNovo;
+    document.getElementById('modal-finalizar').classList.add('hidden');
+    statusAlvoId = null; statusAlvoNovo = null;
+    await aplicarMudancaStatus(id, {
+        status,
+        hora_termino: saida,
+        material_utilizado: materialSim,
+        material_detalhe: materialSim ? document.getElementById('fz-material-detalhe').value.trim() : '',
+        material_quantidade: materialSim && document.getElementById('fz-material-qtd').value
+            ? parseInt(document.getElementById('fz-material-qtd').value, 10) : null,
+        material_valor: materialSim && document.getElementById('fz-material-valor').value
+            ? parseFloat(document.getElementById('fz-material-valor').value) : null,
+    });
 }
 
 function toggleTema() {

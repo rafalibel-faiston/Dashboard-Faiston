@@ -374,6 +374,10 @@ def setup_banco():
         # de planilha) -- e "hora_termino" passa a ser usada como "hora de
         # saída", preenchida pelo N2 ao finalizar (sem precisar de coluna nova).
         cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS ticket VARCHAR(100) DEFAULT ''")
+        # Descrição livre do que está acontecendo, preenchida pelo N2 ao
+        # mudar o status pra "em_andamento" (distinto de observacoes, que é
+        # a nota final de encerramento).
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS andamento_descricao TEXT NOT NULL DEFAULT ''")
         # ── Escala N2 (plantão do dia: quem, horário, home/presencial) ──────
         cur.execute("""
             CREATE TABLE IF NOT EXISTS escala_n2 (
@@ -4880,6 +4884,7 @@ def gestao_listar_usuarios(faiston_token: str = Cookie(None)):
 #    HAVAN, Câmeras IP etc.) — substitui a planilha STATUS_REPORT.xlsx ──────
 STATUS_CAMPO_VALIDOS = ('agendado', 'em_andamento', 'concluido', 'parcial',
                          'improdutiva_cliente', 'improdutiva_faiston', 'cancelado')
+STATUS_CAMPO_TERMINAIS = ('concluido', 'parcial', 'improdutiva_cliente', 'improdutiva_faiston')
 PARTICULARIDADES_VALIDAS = ('reversa', 'equipamento_em_posse_do_cliente')
 
 class StatusAtividadeModel(BaseModel):
@@ -4905,6 +4910,7 @@ class StatusAtividadeModel(BaseModel):
     material_quantidade: Optional[int] = None
     material_valor: Optional[float] = None
     ticket: str = ""
+    andamento_descricao: str = ""
 
 def _resolver_n2(cur, n2_usuario_id, n2_responsavel_texto):
     """Se veio n2_usuario_id, busca o nome pra cachear em n2_responsavel
@@ -4968,7 +4974,7 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
                    a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em,
                    a.particularidades, a.material_utilizado, a.material_detalhe,
-                   a.material_quantidade, a.material_valor, a.ticket
+                   a.material_quantidade, a.material_valor, a.ticket, a.andamento_descricao
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE {' AND '.join(where)}
@@ -4982,7 +4988,7 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
                 "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em",
                 "particularidades", "material_utilizado", "material_detalhe",
-                "material_quantidade", "material_valor", "ticket"]
+                "material_quantidade", "material_valor", "ticket", "andamento_descricao"]
         out = []
         for r in rows:
             item = dict(zip(cols, r))
@@ -5050,7 +5056,7 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
                    a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em,
                    a.particularidades, a.material_utilizado, a.material_detalhe,
-                   a.material_quantidade, a.material_valor, a.ticket
+                   a.material_quantidade, a.material_valor, a.ticket, a.andamento_descricao
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.id = %s
@@ -5063,7 +5069,7 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
                 "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
                 "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em",
                 "particularidades", "material_utilizado", "material_detalhe",
-                "material_quantidade", "material_valor", "ticket"]
+                "material_quantidade", "material_valor", "ticket", "andamento_descricao"]
         item = dict(zip(cols, r))
         item["data"] = str(item["data"]) if item["data"] else None
         for k in ("horario_agendado", "hora_chegada", "hora_termino"):
@@ -5097,15 +5103,15 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
                 site_sigla, site_nome, endereco, cidade, uf, hora_chegada, hora_termino,
                 detalhamento_tecnico, status, observacoes, criado_por,
                 particularidades, material_utilizado, material_detalhe,
-                material_quantidade, material_valor, ticket)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+                material_quantidade, material_valor, ticket, andamento_descricao)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
         """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
               a.detalhamento_tecnico, status, a.observacoes, sess["id"],
               particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else "",
               a.material_quantidade if a.material_utilizado else None,
-              a.material_valor if a.material_utilizado else None, a.ticket))
+              a.material_valor if a.material_utilizado else None, a.ticket, a.andamento_descricao))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -5133,7 +5139,7 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
                 site_sigla=%s, site_nome=%s, endereco=%s, cidade=%s, uf=%s,
                 hora_chegada=%s, hora_termino=%s, detalhamento_tecnico=%s, status=%s, observacoes=%s,
                 particularidades=%s, material_utilizado=%s, material_detalhe=%s,
-                material_quantidade=%s, material_valor=%s, ticket=%s,
+                material_quantidade=%s, material_valor=%s, ticket=%s, andamento_descricao=%s,
                 atualizado_em=NOW()
             WHERE id=%s
         """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
@@ -5142,7 +5148,7 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
               a.detalhamento_tecnico, status, a.observacoes,
               particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else "",
               a.material_quantidade if a.material_utilizado else None,
-              a.material_valor if a.material_utilizado else None, a.ticket, aid))
+              a.material_valor if a.material_utilizado else None, a.ticket, a.andamento_descricao, aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except HTTPException: raise
@@ -5150,19 +5156,49 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
 
 class StatusCampoStatusModel(BaseModel):
     status: str
+    andamento_descricao: Optional[str] = None
+    hora_termino: Optional[str] = None
+    material_utilizado: Optional[bool] = None
+    material_detalhe: Optional[str] = None
+    material_quantidade: Optional[int] = None
+    material_valor: Optional[float] = None
 
 @app.patch("/api/status-campo/{aid}/status")
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
     if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
+    # "em_andamento" exige uma descrição do que está acontecendo; os status
+    # terminais exigem confirmar a hora de saída (se houve material fica a
+    # critério do N2, mas o campo precisa vir preenchido explicitamente).
+    if body.status == "em_andamento" and not (body.andamento_descricao or "").strip():
+        raise HTTPException(status_code=400, detail="Descreva o que está acontecendo na atividade")
+    if body.status in STATUS_CAMPO_TERMINAIS:
+        if not body.hora_termino:
+            raise HTTPException(status_code=400, detail="Informe a hora de saída para finalizar a atividade")
+        if body.material_utilizado is None:
+            raise HTTPException(status_code=400, detail="Informe se houve utilização de material")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
         if not _pode_gerenciar_status_campo(sess, conn, aid):
             raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
         cur = conn.cursor()
-        cur.execute("UPDATE status_atividades SET status=%s, atualizado_em=NOW() WHERE id=%s", (body.status, aid))
+        sets = ["status=%s", "atualizado_em=NOW()"]
+        params = [body.status]
+        if body.status == "em_andamento":
+            sets.append("andamento_descricao=%s")
+            params.append(body.andamento_descricao.strip())
+        if body.status in STATUS_CAMPO_TERMINAIS:
+            material_ok = bool(body.material_utilizado)
+            sets += ["hora_termino=%s", "material_utilizado=%s", "material_detalhe=%s",
+                     "material_quantidade=%s", "material_valor=%s"]
+            params += [body.hora_termino, material_ok,
+                       (body.material_detalhe or "") if material_ok else "",
+                       body.material_quantidade if material_ok else None,
+                       body.material_valor if material_ok else None]
+        params.append(aid)
+        cur.execute(f"UPDATE status_atividades SET {', '.join(sets)} WHERE id=%s", params)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except HTTPException: raise

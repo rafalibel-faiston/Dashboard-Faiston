@@ -76,7 +76,9 @@ class TestCRUD:
             assert resp.json()["tecnico"] == "Outro Técnico"
 
             # patch de status isolado
-            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={"status": "parcial"})
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "parcial", "hora_termino": "17:30", "material_utilizado": False,
+            })
             assert resp.status_code == 200
             resp = admin_client.get(f"/api/status-campo/{aid}")
             assert resp.json()["status"] == "parcial"
@@ -117,7 +119,9 @@ class TestFiltrosEBusca:
         # status inicial de criação é sempre "agendado" -- muda depois via PATCH
         r1 = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
         r2 = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
-        admin_client.patch(f"/api/status-campo/{r1}/status", json={"status": "concluido"})
+        admin_client.patch(f"/api/status-campo/{r1}/status", json={
+            "status": "concluido", "hora_termino": "17:30", "material_utilizado": False,
+        })
         admin_client.patch(f"/api/status-campo/{r2}/status", json={"status": "cancelado"})
         try:
             resp = admin_client.get("/api/status-campo", params={"data": "2026-07-20", "cliente_id": cliente_teste, "status": "concluido"})
@@ -157,9 +161,10 @@ class TestReport:
         a1 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data)).json()["id"]
         a2 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data)).json()["id"]
         a3 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, data=data)).json()["id"]
-        admin_client.patch(f"/api/status-campo/{a1}/status", json={"status": "concluido"})
-        admin_client.patch(f"/api/status-campo/{a2}/status", json={"status": "concluido"})
-        admin_client.patch(f"/api/status-campo/{a3}/status", json={"status": "parcial"})
+        campos_finais = {"hora_termino": "17:30", "material_utilizado": False}
+        admin_client.patch(f"/api/status-campo/{a1}/status", json={"status": "concluido", **campos_finais})
+        admin_client.patch(f"/api/status-campo/{a2}/status", json={"status": "concluido", **campos_finais})
+        admin_client.patch(f"/api/status-campo/{a3}/status", json={"status": "parcial", **campos_finais})
         try:
             resp = admin_client.get("/api/status-campo/report", params={"data": data})
             assert resp.status_code == 200
@@ -254,7 +259,9 @@ class TestN2:
         aid = n2_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
         resp = n2_client.put(f"/api/status-campo/{aid}", json=_payload(cliente_teste, status="concluido"))
         assert resp.status_code == 200, resp.text
-        resp = n2_client.patch(f"/api/status-campo/{aid}/status", json={"status": "parcial"})
+        resp = n2_client.patch(f"/api/status-campo/{aid}/status", json={
+            "status": "parcial", "hora_termino": "17:30", "material_utilizado": False,
+        })
         assert resp.status_code == 200, resp.text
         resp = n2_client.delete(f"/api/status-campo/{aid}")
         assert resp.status_code == 200, resp.text
@@ -265,7 +272,9 @@ class TestN2:
         try:
             resp = n2_client.put(f"/api/status-campo/{aid}", json=_payload(cliente_teste, status="concluido"))
             assert resp.status_code == 403
-            resp = n2_client.patch(f"/api/status-campo/{aid}/status", json={"status": "concluido"})
+            resp = n2_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "concluido", "hora_termino": "17:30", "material_utilizado": False,
+            })
             assert resp.status_code == 403
             resp = n2_client.delete(f"/api/status-campo/{aid}")
             assert resp.status_code == 403

@@ -94,7 +94,9 @@ class TestPainelN2Resumo:
         base = {"cliente_id": cliente_teste, "data": "2026-07-21"}
         a1 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"]}).json()["id"]
         a2 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"]}).json()["id"]
-        admin_client.patch(f"/api/status-campo/{a1}/status", json={"status": "concluido"})
+        admin_client.patch(f"/api/status-campo/{a1}/status", json={
+            "status": "concluido", "hora_termino": "17:30", "material_utilizado": False,
+        })
         try:
             resp = admin_client.get("/api/painel-n2/resumo")
             assert resp.status_code == 200
