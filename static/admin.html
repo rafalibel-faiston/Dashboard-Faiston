@@ -292,6 +292,7 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Perfil</label>
                     <select id="u-perfil" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
                         <option value="funcionario">Funcionário</option>
+                        <option value="n2">N2</option>
                         <option value="gestor">Gestor</option>
                         <option value="diretor">Diretor</option>
                         <option value="demo">Demo</option>
@@ -331,6 +332,7 @@ const perfilConfig = {
     admin: { label: 'Admin', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
     gestor: { label: 'Gestor', cls: 'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20' },
     diretor: { label: 'Diretor', cls: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+    n2: { label: 'N2', cls: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
 };
 const statusCfg = {
@@ -513,8 +515,8 @@ async function carregarAtividade() {
     const uso       = resUso.ok   ? await resUso.json()   : null;
 
     // ── Online ──────────────────────────────────────────────────────
-    const perfilLabel = { admin:'Admin', gestor:'Gestor', funcionario:'Funcionário', demo:'Demo' };
-    const perfilColor = { admin:'text-red-600 bg-red-50', gestor:'text-faiston-purple bg-purple-50', funcionario:'text-cyan-600 bg-cyan-50', demo:'text-orange-600 bg-orange-50' };
+    const perfilLabel = { admin:'Admin', gestor:'Gestor', funcionario:'Funcionário', demo:'Demo', n2:'N2', diretor:'Diretor' };
+    const perfilColor = { admin:'text-red-600 bg-red-50', gestor:'text-faiston-purple bg-purple-50', funcionario:'text-cyan-600 bg-cyan-50', demo:'text-orange-600 bg-orange-50', n2:'text-cyan-700 bg-cyan-100', diretor:'text-indigo-600 bg-indigo-50' };
     const listaOnline = document.getElementById('lista-online');
     listaOnline.innerHTML = !online.length
         ? '<p class="text-sm text-faiston-muted">Nenhum usuário ativo no momento.</p>'

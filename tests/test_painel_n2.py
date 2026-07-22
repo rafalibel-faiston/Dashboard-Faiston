@@ -89,8 +89,9 @@ class TestPainelN2Resumo:
         assert resp.status_code == 403
 
     def test_resumo_lista_n2_com_contagens(self, admin_client, n2_user, cliente_teste):
-        # cria 2 atividades pro N2: uma concluída, uma pendente (status
-        # inicial é sempre "agendado" -- a concluída muda depois via PATCH)
+        # cria 2 atividades pro N2, ambas nesta semana/mês: uma concluída
+        # (sem hora_chegada -> não conta hora trabalhada), uma pendente
+        # (status inicial é sempre "agendado" -- a concluída muda via PATCH)
         base = {"cliente_id": cliente_teste, "data": "2026-07-21"}
         a1 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"]}).json()["id"]
         a2 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"]}).json()["id"]
@@ -101,12 +102,30 @@ class TestPainelN2Resumo:
             resp = admin_client.get("/api/painel-n2/resumo")
             assert resp.status_code == 200
             item = next(x for x in resp.json() if x["id"] == n2_user["id"])
-            assert item["total"] == 2
-            assert item["concluidas"] == 1
-            assert item["pendentes"] == 1
+            assert item["atividades_semana"] == 1
+            assert item["atividades_mes"] == 1
+            assert item["horas_semana"] == 0
+            assert item["horas_mes"] == 0
         finally:
             admin_client.delete(f"/api/status-campo/{a1}")
             admin_client.delete(f"/api/status-campo/{a2}")
+
+    def test_resumo_calcula_horas_trabalhadas_de_chegada_ate_saida(self, admin_client, n2_user, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json={
+            "cliente_id": cliente_teste, "data": "2026-07-21", "n2_usuario_id": n2_user["id"],
+            "hora_chegada": "14:00",
+        }).json()["id"]
+        admin_client.patch(f"/api/status-campo/{aid}/status", json={
+            "status": "concluido", "hora_termino": "16:30", "material_utilizado": False,
+        })
+        try:
+            resp = admin_client.get("/api/painel-n2/resumo")
+            assert resp.status_code == 200
+            item = next(x for x in resp.json() if x["id"] == n2_user["id"])
+            assert item["horas_semana"] == 2.5
+            assert item["horas_mes"] == 2.5
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
 
 
 class TestAtribuirLote:

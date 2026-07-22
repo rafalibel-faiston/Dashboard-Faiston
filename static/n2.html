@@ -104,7 +104,7 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Projeto/Cliente *</label>
-                    <select id="m-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                    <select id="m-cliente" onchange="atualizarCamposPorCliente()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
                         <option value="">Selecionar...</option>
                     </select>
                 </div>
@@ -121,12 +121,17 @@
                     <input type="text" id="m-tecnico" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Sigla do site</label>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="m-sigla-label">Sigla do site</label>
                     <input type="text" id="m-sigla" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do site</label>
                     <input type="text" id="m-nomesite" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Subprojeto</label>
+                    <input type="text" id="m-subprojeto" list="m-subprojeto-list" placeholder="Ex.: Migração de core" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <datalist id="m-subprojeto-list"></datalist>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cidade</label>
@@ -166,13 +171,19 @@
                 </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Particularidades</label>
-                    <div class="flex gap-4 pt-1">
+                    <div class="flex gap-4 pt-1 flex-wrap">
                         <label class="flex items-center gap-2 text-sm text-slate-600">
                             <input type="checkbox" id="m-part-reversa" value="reversa"> Reversa
                         </label>
                         <label class="flex items-center gap-2 text-sm text-slate-600">
                             <input type="checkbox" id="m-part-equip" value="equipamento_em_posse_do_cliente"> Equipamento em posse do cliente
                         </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="checkbox" id="m-part-removido" value="equipamento_removido" onchange="toggleEquipamentoRemovido()"> Equipamento removido
+                        </label>
+                    </div>
+                    <div id="m-removido-campo" class="hidden mt-2">
+                        <textarea id="m-removido-detalhe" rows="2" placeholder="Qual equipamento foi removido (modelo, serial...)" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                     </div>
                 </div>
                 <div class="col-span-2">
@@ -220,15 +231,130 @@
     </div>
 </div>
 
-<!-- MODAL: descrever andamento (obrigatório ao marcar "Em andamento") -->
+<!-- MODAL: descrever andamento (ao marcar "Em andamento" ou atualizar depois) -->
 <div id="modal-andamento" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h3 class="text-base font-bold text-faiston-dark mb-1">O que está acontecendo?</h3>
-        <p class="text-xs text-faiston-muted mb-3">Descreva rapidamente o andamento da atividade.</p>
-        <textarea id="ad-descricao" rows="4" placeholder="Ex.: aguardando liberação de acesso ao rack..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-base font-bold text-faiston-dark mb-1" id="ad-titulo">O que está acontecendo?</h3>
+        <p class="text-xs text-faiston-muted mb-3">Vá preenchendo conforme a atividade avança.</p>
+        <div class="flex flex-col gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Localização *</label>
+                <select id="ad-localizacao" onchange="adAtualizarEstagios()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                    <option value="">Selecionar...</option>
+                    <option value="deslocamento">Em deslocamento</option>
+                    <option value="no_local">No local</option>
+                </select>
+            </div>
+            <div id="ad-estagio-local" class="hidden flex-col gap-3">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Hora de chegada</label>
+                        <input type="time" id="ad-hora-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Acesso</label>
+                        <select id="ad-acesso" onchange="adAtualizarEstagios()" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                            <option value="">Selecionar...</option>
+                            <option value="com_acesso">Com acesso</option>
+                            <option value="verificando_acesso">Verificando acesso</option>
+                            <option value="sem_acesso">Sem acesso</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="ad-estagio-acesso" class="hidden flex-col gap-3">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Horário de início da atividade</label>
+                        <input type="time" id="ad-hora-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">O que está fazendo?</label>
+                        <select id="ad-tipo" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                            <option value="">Selecionar...</option>
+                            <option value="instalando">Instalando</option>
+                            <option value="trocando">Trocando</option>
+                            <option value="removendo">Removendo</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Detalhes (opcional)</label>
+                <textarea id="ad-descricao" rows="2" placeholder="Ex.: aguardando liberação de acesso ao rack..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            </div>
+        </div>
         <div class="flex gap-3 mt-4">
             <button onclick="fecharModalAndamento()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="confirmarAndamento()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: atualizar situação (localização/acesso/chegada -- separado do andamento) -->
+<div id="modal-atualizar-situacao" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Atualizar situação</h3>
+        <p class="text-xs text-faiston-muted mb-3">Onde você está agora e se consegue acessar o site.</p>
+        <div class="flex flex-col gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Localização *</label>
+                <select id="us-localizacao" onchange="usAtualizarEstagio()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                    <option value="">Selecionar...</option>
+                    <option value="deslocamento">Em deslocamento</option>
+                    <option value="no_local">No local</option>
+                </select>
+            </div>
+            <div id="us-estagio-local" class="hidden flex-col gap-2">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Hora de chegada</label>
+                        <input type="time" id="us-hora-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Acesso</label>
+                        <select id="us-acesso" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                            <option value="">Selecionar...</option>
+                            <option value="com_acesso">Com acesso</option>
+                            <option value="verificando_acesso">Verificando acesso</option>
+                            <option value="sem_acesso">Sem acesso</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalAtualizarSituacao()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="confirmarAtualizarSituacao()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: atualizar andamento (o que está sendo feito -- separado da situação) -->
+<div id="modal-atualizar-andamento" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Atualizar andamento</h3>
+        <p class="text-xs text-faiston-muted mb-3">O que está sendo feito tecnicamente agora.</p>
+        <div class="flex flex-col gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">O que está fazendo? *</label>
+                <select id="ua-tipo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                    <option value="">Selecionar...</option>
+                    <option value="instalando">Instalando</option>
+                    <option value="trocando">Trocando</option>
+                    <option value="removendo">Removendo</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Horário de início da atividade</label>
+                <input type="time" id="ua-hora-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Detalhes (opcional)</label>
+                <textarea id="ua-descricao" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalAtualizarAndamento()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="confirmarAtualizarAndamento()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
         </div>
     </div>
 </div>
@@ -267,11 +393,80 @@
                     </div>
                 </div>
             </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Equipamento</label>
+                <div class="flex gap-4 pt-1 flex-wrap">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="fz-equip-instalado" onchange="toggleFinalizarEquipamento('instalado')"> Instalado
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="fz-equip-removido" onchange="toggleFinalizarEquipamento('removido')"> Removido
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="fz-equip-nenhum" checked onchange="toggleFinalizarEquipamento('nenhum')"> Nenhum
+                    </label>
+                </div>
+                <div id="fz-instalado-campos" class="hidden mt-2">
+                    <input type="text" id="fz-instalado-serial" placeholder="Serial instalado" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div id="fz-removido-campos" class="hidden mt-2 flex flex-col gap-2">
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="fz-removido-posse" id="fz-removido-posse-tecnico" checked> Ficou com o técnico
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="fz-removido-posse" id="fz-removido-posse-cliente"> Ficou com o cliente
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="fz-removido-partnumber" placeholder="Partnumber" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                        <input type="text" id="fz-removido-serial" placeholder="Serial" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do cliente no local</label>
+                <input type="text" id="fz-contato-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Matrícula</label>
+                <input type="text" id="fz-contato-matricula" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">OBS</label>
+                <textarea id="fz-obs" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            </div>
         </div>
         <div class="flex gap-3 mt-4">
             <button onclick="fecharModalFinalizar()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="confirmarFinalizar()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
         </div>
+    </div>
+</div>
+
+<!-- MODAL: carimbo de encerramento (texto pronto pra copiar, gerado após finalizar) -->
+<div id="modal-carimbo-finalizacao" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Atividade finalizada</h3>
+        <p class="text-xs text-faiston-muted mb-3">Carimbo pronto pra copiar e enviar.</p>
+        <textarea id="fz-carimbo-texto" readonly rows="14" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-xs font-mono focus:outline-none resize-none bg-slate-50"></textarea>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalCarimboFinalizacao()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Fechar</button>
+            <button onclick="copiarCarimboFinalizacao()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5"><i class="ph ph-copy text-sm"></i> Copiar carimbo</button>
+        </div>
+        <span class="text-xs text-faiston-faint block mt-2" id="fz-carimbo-msg"></span>
+    </div>
+</div>
+
+<!-- MODAL: histórico de andamento (leitura) -->
+<div id="modal-historico" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-bold text-faiston-dark">Histórico de andamento</h3>
+            <button onclick="fecharModalHistorico()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="hist-situacao-atual" class="mb-3"></div>
+        <div id="hist-lista" class="flex flex-col gap-3"></div>
     </div>
 </div>
 
@@ -290,11 +485,63 @@ const STATUS_MAP = {
     'Improdutiva — Faiston': 'text-faiston-magenta bg-faiston-magenta/10 border-faiston-magenta/30',
     'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
 };
+const LOCALIZACAO_LABEL = { deslocamento: 'Em deslocamento', no_local: 'No local' };
+const ACESSO_LABEL = { com_acesso: 'Com acesso', verificando_acesso: 'Verificando acesso', sem_acesso: 'Sem acesso' };
+const ANDAMENTO_TIPO_LABEL = { instalando: 'Instalando', trocando: 'Trocando', removendo: 'Removendo' };
+function chipsSituacao(r) {
+    // Localização/acesso = onde o técnico está e se consegue acessar o
+    // site -- estado atual do técnico, diferente do andamento (o que está
+    // sendo feito tecnicamente). Mantido separado na exibição por causa
+    // disso, mesmo vindo do mesmo modal de preenchimento.
+    const chips = [];
+    if (r.localizacao) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700">${LOCALIZACAO_LABEL[r.localizacao] || r.localizacao}</span>`);
+    if (r.acesso) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-faiston-purple/10 text-faiston-purple">${ACESSO_LABEL[r.acesso] || r.acesso}</span>`);
+    if (r.hora_chegada) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Chegada ${esc(r.hora_chegada)}</span>`);
+    return chips.length ? `<div class="flex gap-1.5 flex-wrap">${chips.join('')}</div>` : '';
+}
+function chipsAndamentoTipo(r) {
+    const chips = [];
+    if (r.andamento_tipo) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-700">${ANDAMENTO_TIPO_LABEL[r.andamento_tipo] || r.andamento_tipo}</span>`);
+    if (r.hora_inicio_atividade) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Início ${esc(r.hora_inicio_atividade)}</span>`);
+    return chips.length ? `<div class="flex gap-1.5 flex-wrap">${chips.join('')}</div>` : '';
+}
+function chipsAndamento(r) {
+    const s = chipsSituacao(r), a = chipsAndamentoTipo(r);
+    if (!s && !a) return '';
+    return `<div class="flex flex-col gap-1.5 mt-1.5">${s}${a}</div>`;
+}
 function toggleMaterialDetalhe() {
     const usado = document.getElementById('m-material-sim').checked;
     const campos = document.getElementById('m-material-campos');
     campos.classList.toggle('hidden', !usado);
     campos.classList.toggle('flex', usado);
+}
+function toggleEquipamentoRemovido() {
+    const marcado = document.getElementById('m-part-removido').checked;
+    document.getElementById('m-removido-campo').classList.toggle('hidden', !marcado);
+}
+function labelSitePorNomeCliente(nomeCliente) {
+    const n = (nomeCliente || '').toLowerCase();
+    if (n.includes('arcos')) return 'Sigla';
+    if (n.includes('zamp')) return 'Número da loja';
+    if (n.includes('ntt')) return 'Junção';
+    return 'Sigla do site';
+}
+async function atualizarCamposPorCliente() {
+    const sel = document.getElementById('m-cliente');
+    const nomeCliente = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+    document.getElementById('m-sigla-label').textContent = labelSitePorNomeCliente(nomeCliente);
+
+    const clienteId = sel.value;
+    const datalist = document.getElementById('m-subprojeto-list');
+    datalist.innerHTML = '';
+    if (!clienteId) return;
+    try {
+        const res = await fetch('/api/status-campo/subprojetos?cliente_id=' + clienteId);
+        if (!res.ok) return;
+        const subs = await res.json();
+        datalist.innerHTML = subs.map(s => `<option value="${esc(s)}">`).join('');
+    } catch (e) {}
 }
 const STATUS_TERMINAIS = ['concluido', 'parcial', 'improdutiva_cliente', 'improdutiva_faiston'];
 let ultimaLista = [];
@@ -371,7 +618,7 @@ async function buscar() {
             return `<div class="px-5 py-3.5 border-b border-faiston-border last:border-0 hover:bg-slate-50/60">
                 <div class="flex items-center gap-3 flex-wrap">
                     <span class="text-xs font-bold text-faiston-purple">${esc(r.cliente_nome || '—')}</span>
-                    <span class="text-sm font-semibold flex-1 min-w-[120px]">${esc(r.site_sigla || r.site_nome || '(sem site)')}</span>
+                    <span class="text-sm font-semibold flex-1 min-w-[120px]">${esc(r.site_sigla || r.site_nome || '')}</span>
                     <select onchange="mudarStatus(${r.id}, this.value)" class="text-xs font-semibold border border-faiston-border rounded-full px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>
                 </div>
                 <div class="flex gap-4 flex-wrap text-xs text-faiston-muted mt-1.5">
@@ -380,10 +627,14 @@ async function buscar() {
                     ${r.tecnico ? `<span>Técnico: ${esc(r.tecnico)}</span>` : ''}
                     ${r.cidade ? `<span>${esc(r.cidade)}${r.uf ? '/' + esc(r.uf) : ''}</span>` : ''}
                 </div>
+                ${chipsAndamento(r)}
                 ${r.status === 'em_andamento' && r.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-1.5"><i class="ph ph-info"></i> ${esc(r.andamento_descricao)}</div>` : ''}
                 ${r.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${esc(r.observacoes)}</div>` : ''}
-                <div class="flex gap-2 mt-2">
+                <div class="flex gap-2 mt-2 flex-wrap">
                     <button onclick="abrirModalEditar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Editar</button>
+                    ${r.status === 'em_andamento' ? `<button onclick="abrirModalAtualizarSituacao(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-purple hover:underline">Atualizar situação</button>` : ''}
+                    ${r.status === 'em_andamento' ? `<button onclick="abrirModalAtualizarAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-cyan hover:underline">Atualizar andamento</button>` : ''}
+                    <button onclick="verHistoricoAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-muted hover:underline">Ver histórico</button>
                     <button onclick="excluir(${r.id})" class="text-xs font-semibold text-faiston-pink hover:underline">Excluir</button>
                 </div>
             </div>`;
@@ -397,15 +648,19 @@ function abrirModalNovo() {
     editandoId = null;
     document.getElementById('modal-titulo').textContent = 'Nova atividade';
     ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-saida',
-     'm-endereco','m-detalhamento','m-observacoes','m-andamento','m-material-detalhe','m-material-qtd','m-material-valor','m-ticket']
+     'm-endereco','m-detalhamento','m-observacoes','m-andamento','m-material-detalhe','m-material-qtd',
+     'm-material-valor','m-ticket','m-subprojeto','m-removido-detalhe']
         .forEach(id => document.getElementById(id).value = '');
     document.getElementById('m-part-reversa').checked = false;
     document.getElementById('m-part-equip').checked = false;
+    document.getElementById('m-part-removido').checked = false;
     document.getElementById('m-material-nao').checked = true;
     toggleMaterialDetalhe();
+    toggleEquipamentoRemovido();
     document.getElementById('m-status').value = 'agendado';
     document.getElementById('m-status').disabled = true;
     document.getElementById('m-data').value = new Date().toISOString().slice(0, 10);
+    atualizarCamposPorCliente();
     document.getElementById('modal').classList.remove('hidden');
 }
 
@@ -433,9 +688,14 @@ async function abrirModalEditar(id) {
         document.getElementById('m-observacoes').value = r.observacoes || '';
         document.getElementById('m-andamento').value = r.andamento_descricao || '';
         document.getElementById('m-ticket').value = r.ticket || '';
+        document.getElementById('m-subprojeto').value = r.subprojeto || '';
+        atualizarCamposPorCliente();
         const particularidades = r.particularidades || [];
         document.getElementById('m-part-reversa').checked = particularidades.includes('reversa');
         document.getElementById('m-part-equip').checked = particularidades.includes('equipamento_em_posse_do_cliente');
+        document.getElementById('m-part-removido').checked = particularidades.includes('equipamento_removido');
+        document.getElementById('m-removido-detalhe').value = r.equipamento_removido_detalhe || '';
+        toggleEquipamentoRemovido();
         document.getElementById('m-material-sim').checked = !!r.material_utilizado;
         document.getElementById('m-material-nao').checked = !r.material_utilizado;
         document.getElementById('m-material-detalhe').value = r.material_detalhe || '';
@@ -472,10 +732,14 @@ async function salvar() {
         observacoes: document.getElementById('m-observacoes').value.trim(),
         andamento_descricao: document.getElementById('m-andamento').value.trim(),
         ticket: document.getElementById('m-ticket').value.trim(),
+        subprojeto: document.getElementById('m-subprojeto').value.trim(),
         particularidades: [
             document.getElementById('m-part-reversa').checked ? 'reversa' : null,
             document.getElementById('m-part-equip').checked ? 'equipamento_em_posse_do_cliente' : null,
+            document.getElementById('m-part-removido').checked ? 'equipamento_removido' : null,
         ].filter(Boolean),
+        equipamento_removido_detalhe: document.getElementById('m-part-removido').checked
+            ? document.getElementById('m-removido-detalhe').value.trim() : '',
         material_utilizado: document.getElementById('m-material-sim').checked,
         material_detalhe: document.getElementById('m-material-detalhe').value.trim(),
         material_quantidade: document.getElementById('m-material-sim').checked && document.getElementById('m-material-qtd').value
@@ -516,18 +780,42 @@ function mudarStatus(id, novoStatus) {
 }
 
 async function aplicarMudancaStatus(id, body) {
+    let ok = false;
     try {
         const res = await fetch(`/api/status-campo/${id}/status`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
+        ok = res.ok;
         if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao mudar status: ' + (err.detail || res.status)); }
     } catch (e) { alert('Erro de rede ao mudar status.'); }
     await buscar();
+    return ok;
+}
+
+function adAtualizarEstagios() {
+    const local = document.getElementById('ad-localizacao').value === 'no_local';
+    const comAcesso = document.getElementById('ad-acesso').value === 'com_acesso';
+    const estagioLocal = document.getElementById('ad-estagio-local');
+    const estagioAcesso = document.getElementById('ad-estagio-acesso');
+    estagioLocal.classList.toggle('hidden', !local);
+    estagioLocal.classList.toggle('flex', local);
+    estagioAcesso.classList.toggle('hidden', !comAcesso);
+    estagioAcesso.classList.toggle('flex', comAcesso);
 }
 
 function abrirModalAndamento(id, row) {
+    // Só usado na transição inicial pra "em_andamento" -- fluxo escalonado
+    // completo (localização -> chegada+acesso -> início+tipo). Atualizações
+    // subsequentes usam os modais menores e separados abaixo (situação vs.
+    // andamento), não este.
     statusAlvoId = id;
-    document.getElementById('ad-descricao').value = (row && row.andamento_descricao) || '';
+    document.getElementById('ad-descricao').value = '';
+    document.getElementById('ad-localizacao').value = (row && row.localizacao) || '';
+    document.getElementById('ad-acesso').value = (row && row.acesso) || '';
+    document.getElementById('ad-hora-chegada').value = (row && row.hora_chegada) || '';
+    document.getElementById('ad-hora-inicio').value = (row && row.hora_inicio_atividade) || '';
+    document.getElementById('ad-tipo').value = (row && row.andamento_tipo) || '';
+    adAtualizarEstagios();
     document.getElementById('modal-andamento').classList.remove('hidden');
 }
 function fecharModalAndamento() {
@@ -536,12 +824,126 @@ function fecharModalAndamento() {
     buscar(); // reseta o select da linha pro status real (o onchange já tinha mudado o valor exibido)
 }
 async function confirmarAndamento() {
+    const localizacao = document.getElementById('ad-localizacao').value || null;
+    if (!localizacao) { alert('Selecione a localização.'); return; }
     const descricao = document.getElementById('ad-descricao').value.trim();
-    if (!descricao) { alert('Descreva o que está acontecendo.'); return; }
+    const acesso = document.getElementById('ad-acesso').value || null;
+    const horaChegada = document.getElementById('ad-hora-chegada').value || null;
+    const horaInicio = document.getElementById('ad-hora-inicio').value || null;
+    const tipo = document.getElementById('ad-tipo').value || null;
     const id = statusAlvoId;
     document.getElementById('modal-andamento').classList.add('hidden');
     statusAlvoId = null;
-    await aplicarMudancaStatus(id, { status: 'em_andamento', andamento_descricao: descricao });
+    await aplicarMudancaStatus(id, {
+        status: 'em_andamento', andamento_descricao: descricao, localizacao, acesso,
+        hora_chegada: horaChegada, hora_inicio_atividade: horaInicio, andamento_tipo: tipo,
+    });
+}
+
+// ── Atualizar situação (localização/acesso/chegada -- estado atual do
+//    técnico) -- separado de "Atualizar andamento" por serem informações
+//    diferentes: aqui é ONDE ele está, lá é O QUE ele está fazendo. ────────
+function usAtualizarEstagio() {
+    const local = document.getElementById('us-localizacao').value === 'no_local';
+    const estagio = document.getElementById('us-estagio-local');
+    estagio.classList.toggle('hidden', !local);
+    estagio.classList.toggle('flex', local);
+}
+function abrirModalAtualizarSituacao(id, row) {
+    statusAlvoId = id;
+    document.getElementById('us-localizacao').value = (row && row.localizacao) || '';
+    document.getElementById('us-acesso').value = (row && row.acesso) || '';
+    document.getElementById('us-hora-chegada').value = (row && row.hora_chegada) || '';
+    usAtualizarEstagio();
+    document.getElementById('modal-atualizar-situacao').classList.remove('hidden');
+}
+function fecharModalAtualizarSituacao() {
+    document.getElementById('modal-atualizar-situacao').classList.add('hidden');
+    statusAlvoId = null;
+}
+async function confirmarAtualizarSituacao() {
+    const localizacao = document.getElementById('us-localizacao').value || null;
+    if (!localizacao) { alert('Selecione a localização.'); return; }
+    const acesso = document.getElementById('us-acesso').value || null;
+    const horaChegada = document.getElementById('us-hora-chegada').value || null;
+    const id = statusAlvoId;
+    document.getElementById('modal-atualizar-situacao').classList.add('hidden');
+    statusAlvoId = null;
+    try {
+        const res = await fetch(`/api/status-campo/${id}/situacao`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ localizacao, acesso, hora_chegada: horaChegada }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao atualizar situação: ' + (err.detail || res.status)); }
+    } catch (e) { alert('Erro de rede ao atualizar situação.'); }
+    await buscar();
+}
+
+// ── Atualizar andamento (o que está sendo feito tecnicamente) ───────────
+function abrirModalAtualizarAndamento(id, row) {
+    statusAlvoId = id;
+    document.getElementById('ua-tipo').value = (row && row.andamento_tipo) || '';
+    document.getElementById('ua-hora-inicio').value = (row && row.hora_inicio_atividade) || '';
+    document.getElementById('ua-descricao').value = '';
+    document.getElementById('modal-atualizar-andamento').classList.remove('hidden');
+}
+function fecharModalAtualizarAndamento() {
+    document.getElementById('modal-atualizar-andamento').classList.add('hidden');
+    statusAlvoId = null;
+}
+async function confirmarAtualizarAndamento() {
+    const tipo = document.getElementById('ua-tipo').value || null;
+    if (!tipo) { alert('Selecione o que está sendo feito.'); return; }
+    const horaInicio = document.getElementById('ua-hora-inicio').value || null;
+    const descricao = document.getElementById('ua-descricao').value.trim();
+    const id = statusAlvoId;
+    document.getElementById('modal-atualizar-andamento').classList.add('hidden');
+    statusAlvoId = null;
+    try {
+        const res = await fetch(`/api/status-campo/${id}/andamento`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ descricao, hora_inicio_atividade: horaInicio, andamento_tipo: tipo }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao atualizar andamento: ' + (err.detail || res.status)); }
+    } catch (e) { alert('Erro de rede ao atualizar andamento.'); }
+    await buscar();
+}
+
+async function verHistoricoAndamento(id, row) {
+    const box = document.getElementById('hist-lista');
+    box.innerHTML = '<div class="text-center py-6 text-slate-300 text-sm">Carregando...</div>';
+    document.getElementById('modal-historico').classList.remove('hidden');
+    // Situação atual (localização/acesso/chegada) é estado, não histórico de
+    // andamento -- mostrada uma vez, fixa, à parte da lista de atualizações
+    // abaixo (que é sobre o que foi feito: tipo + descrição).
+    const situacao = document.getElementById('hist-situacao-atual');
+    const situacaoChips = chipsSituacao(row || {});
+    situacao.innerHTML = situacaoChips
+        ? `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Situação atual</div>${situacaoChips}`
+        : '';
+    try {
+        const res = await fetch(`/api/status-campo/${id}/andamento`);
+        if (!res.ok) throw new Error();
+        const hist = await res.json();
+        if (!hist.length) {
+            box.innerHTML = '<div class="text-center py-6 text-slate-300 text-sm">Nenhuma atualização registrada ainda.</div>';
+            return;
+        }
+        box.innerHTML = hist.map(h => `
+            <div class="border-l-2 border-faiston-purple/30 pl-3 py-1">
+                <div class="flex items-center gap-2 flex-wrap text-[11px] text-faiston-faint">
+                    <span>${esc(h.criado_em)}</span>
+                    ${h.andamento_tipo ? `<span class="px-1.5 py-0.5 rounded bg-fuchsia-50 text-fuchsia-700 font-semibold">${ANDAMENTO_TIPO_LABEL[h.andamento_tipo] || h.andamento_tipo}</span>` : ''}
+                    ${h.hora_inicio_atividade ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold">Início ${esc(h.hora_inicio_atividade)}</span>` : ''}
+                </div>
+                ${h.descricao ? `<div class="text-sm text-slate-700 mt-0.5">${esc(h.descricao)}</div>` : ''}
+            </div>`).join('');
+    } catch (e) {
+        box.innerHTML = '<div class="text-center py-6 text-red-400 text-sm">Erro ao carregar o histórico.</div>';
+    }
+}
+function fecharModalHistorico() {
+    document.getElementById('modal-historico').classList.add('hidden');
 }
 
 function toggleFinalizarMaterial() {
@@ -550,9 +952,24 @@ function toggleFinalizarMaterial() {
     campos.classList.toggle('hidden', !usado);
     campos.classList.toggle('flex', usado);
 }
+let atividadeAlvoRow = null;
+
+function toggleFinalizarEquipamento(opcao) {
+    const instalado = document.getElementById('fz-equip-instalado');
+    const removido = document.getElementById('fz-equip-removido');
+    const nenhum = document.getElementById('fz-equip-nenhum');
+    if (opcao === 'instalado' && instalado.checked) { removido.checked = false; nenhum.checked = false; }
+    if (opcao === 'removido' && removido.checked) { instalado.checked = false; nenhum.checked = false; }
+    if (opcao === 'nenhum' && nenhum.checked) { instalado.checked = false; removido.checked = false; }
+    if (!instalado.checked && !removido.checked && !nenhum.checked) nenhum.checked = true;
+    document.getElementById('fz-instalado-campos').classList.toggle('hidden', !instalado.checked);
+    document.getElementById('fz-removido-campos').classList.toggle('hidden', !removido.checked);
+}
+
 function abrirModalFinalizar(id, novoStatus, row) {
     statusAlvoId = id;
     statusAlvoNovo = novoStatus;
+    atividadeAlvoRow = row || null;
     document.getElementById('fz-status-label').textContent = STATUS_LABEL[novoStatus] || novoStatus;
     document.getElementById('fz-saida').value = (row && row.hora_termino) || '';
     const materialSim = !!(row && row.material_utilizado);
@@ -562,6 +979,20 @@ function abrirModalFinalizar(id, novoStatus, row) {
     document.getElementById('fz-material-qtd').value = (row && row.material_quantidade) ?? '';
     document.getElementById('fz-material-valor').value = (row && row.material_valor) ?? '';
     toggleFinalizarMaterial();
+    const particularidades = (row && row.particularidades) || [];
+    document.getElementById('fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
+    document.getElementById('fz-equip-removido').checked = particularidades.includes('equipamento_removido');
+    document.getElementById('fz-equip-nenhum').checked = !particularidades.includes('equipamento_instalado') && !particularidades.includes('equipamento_removido');
+    document.getElementById('fz-instalado-serial').value = (row && row.equipamento_instalado_serial) || '';
+    document.getElementById('fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
+    document.getElementById('fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
+    document.getElementById('fz-removido-partnumber').value = (row && row.equipamento_removido_partnumber) || '';
+    document.getElementById('fz-removido-serial').value = (row && row.equipamento_removido_serial) || '';
+    document.getElementById('fz-contato-nome').value = (row && row.contato_local_nome) || '';
+    document.getElementById('fz-contato-matricula').value = (row && row.contato_local_matricula) || '';
+    document.getElementById('fz-obs').value = (row && row.observacoes) || '';
+    document.getElementById('fz-instalado-campos').classList.toggle('hidden', !document.getElementById('fz-equip-instalado').checked);
+    document.getElementById('fz-removido-campos').classList.toggle('hidden', !document.getElementById('fz-equip-removido').checked);
     document.getElementById('modal-finalizar').classList.remove('hidden');
 }
 function fecharModalFinalizar() {
@@ -569,15 +1000,73 @@ function fecharModalFinalizar() {
     statusAlvoId = null; statusAlvoNovo = null;
     buscar();
 }
+
+function fmtDataCurta(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}`;
+}
+function labelStatusCurto(status) {
+    return (STATUS_LABEL[status] || status).split(' — ')[0];
+}
+function gerarCarimboFinalizacao(row, extras) {
+    const site = row.site_sigla || row.site_nome || '';
+    const cabecalho = [row.ticket, site, row.cidade, row.subprojeto]
+        .filter(v => v && String(v).trim())
+        .join(' - ') + (row.data ? ` ${fmtDataCurta(row.data)}` : '') + (row.horario_agendado ? ` às ${row.horario_agendado}` : '');
+    const linhas = [
+        cabecalho,
+        '',
+        `STATUS: ${labelStatusCurto(extras.status)}`,
+        '',
+        `Serial Instalado: ${extras.instalado ? (extras.serialInstalado || 'N/A') : 'N/A'}`,
+        extras.removido ? `Partnumber Removido: ${extras.removidoPartnumber || 'N/A'}` : null,
+        extras.removido ? `Serial Removido: ${extras.removidoSerial || 'N/A'}` : null,
+        extras.removido ? `Equipamento com: ${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}` : null,
+        '',
+        `HORÁRIO CHEGADA TÉCNICO: ${row.hora_chegada || 'N/A'}`,
+        `HORÁRIO SAÍDA TÉCNICO: ${extras.horaSaida}`,
+        '',
+        `CONTATO LOCAL: ${extras.contatoNome || 'N/A'}`,
+        `MATRICULA: ${extras.contatoMatricula || 'N/A'}`,
+        '',
+        `OBSERVAÇÃO: ${extras.observacoes || 'N/A'}`,
+        `Material utilizado: ${extras.materialUtilizado ? (extras.materialDetalhe || 'N/A') : 'N/A'}`,
+    ];
+    return linhas.filter(l => l !== null).join('\n');
+}
+function abrirModalCarimboFinalizacao(texto) {
+    document.getElementById('fz-carimbo-texto').value = texto;
+    document.getElementById('fz-carimbo-msg').textContent = '';
+    document.getElementById('modal-carimbo-finalizacao').classList.remove('hidden');
+}
+function fecharModalCarimboFinalizacao() {
+    document.getElementById('modal-carimbo-finalizacao').classList.add('hidden');
+}
+async function copiarCarimboFinalizacao() {
+    const msg = document.getElementById('fz-carimbo-msg');
+    try {
+        await navigator.clipboard.writeText(document.getElementById('fz-carimbo-texto').value);
+        msg.textContent = 'Copiado!';
+    } catch (e) {
+        msg.textContent = 'Não foi possível copiar — selecione o texto manualmente.';
+    }
+}
+
 async function confirmarFinalizar() {
     const saida = document.getElementById('fz-saida').value;
     if (!saida) { alert('Informe a hora de saída.'); return; }
     const materialSim = document.getElementById('fz-material-sim').checked;
+    const instalado = document.getElementById('fz-equip-instalado').checked;
+    const removido = document.getElementById('fz-equip-removido').checked;
+    const equipamentoStatus = [];
+    if (instalado) equipamentoStatus.push('equipamento_instalado');
+    if (removido) equipamentoStatus.push('equipamento_removido');
+    const removidoPosse = document.getElementById('fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
     const id = statusAlvoId;
     const status = statusAlvoNovo;
-    document.getElementById('modal-finalizar').classList.add('hidden');
-    statusAlvoId = null; statusAlvoNovo = null;
-    await aplicarMudancaStatus(id, {
+    const row = atividadeAlvoRow;
+    const body = {
         status,
         hora_termino: saida,
         material_utilizado: materialSim,
@@ -586,7 +1075,34 @@ async function confirmarFinalizar() {
             ? parseInt(document.getElementById('fz-material-qtd').value, 10) : null,
         material_valor: materialSim && document.getElementById('fz-material-valor').value
             ? parseFloat(document.getElementById('fz-material-valor').value) : null,
-    });
+        equipamento_status: equipamentoStatus,
+        equipamento_instalado_serial: document.getElementById('fz-instalado-serial').value.trim(),
+        equipamento_removido_partnumber: document.getElementById('fz-removido-partnumber').value.trim(),
+        equipamento_removido_serial: document.getElementById('fz-removido-serial').value.trim(),
+        equipamento_removido_posse: removidoPosse,
+        contato_local_nome: document.getElementById('fz-contato-nome').value.trim(),
+        contato_local_matricula: document.getElementById('fz-contato-matricula').value.trim(),
+        observacoes: document.getElementById('fz-obs').value.trim(),
+    };
+    document.getElementById('modal-finalizar').classList.add('hidden');
+    statusAlvoId = null; statusAlvoNovo = null;
+    const ok = await aplicarMudancaStatus(id, body);
+    if (ok && row) {
+        const texto = gerarCarimboFinalizacao(row, {
+            status, instalado, removido,
+            serialInstalado: body.equipamento_instalado_serial,
+            removidoPartnumber: body.equipamento_removido_partnumber,
+            removidoSerial: body.equipamento_removido_serial,
+            removidoPosse,
+            horaSaida: saida,
+            contatoNome: body.contato_local_nome,
+            contatoMatricula: body.contato_local_matricula,
+            observacoes: body.observacoes,
+            materialUtilizado: materialSim,
+            materialDetalhe: body.material_detalhe,
+        });
+        abrirModalCarimboFinalizacao(texto);
+    }
 }
 
 function toggleTema() {

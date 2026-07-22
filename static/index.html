@@ -70,6 +70,23 @@
                     </div>
                 </div>
                 <div class="flex flex-col">
+                    <a href="#" onclick="toggleN2(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
+                        <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-headset text-lg"></i> N2</div>
+                        <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-n2"></i>
+                    </a>
+                    <div class="flex flex-col pl-9 py-3 gap-3 relative" id="submenu-n2">
+                        <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
+                        <a href="#" data-nav-mod="statuscampo" onclick="setModule('statuscampo'); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan"></div>
+                            Status Report
+                        </a>
+                        <a href="#" data-nav-mod="painelN2" onclick="setModule('painelN2'); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div>
+                            Painel N2
+                        </a>
+                    </div>
+                </div>
+                <div class="flex flex-col">
                     <a href="#" onclick="toggleProjetos(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-folder-open text-lg"></i> Gestão de Projetos</div>
                         <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-projetos"></i>
@@ -98,18 +115,11 @@
                         </a>
                     </div>
                 </div>
-            </nav>
                 <div class="flex flex-col">
                     <a href="#" onclick="setModule('minhas'); return false;" class="flex items-center gap-2.5 btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-user-focus text-lg"></i> Minhas Tarefas</div>
                     </a>
                 </div>
-                <a href="#" data-nav-mod="statuscampo" onclick="setModule('statuscampo'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-map-pin-line text-lg"></i> Status Report
-                </a>
-                <a href="#" data-nav-mod="painelN2" onclick="setModule('painelN2'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-headset text-lg"></i> Painel N2
-                </a>
             </nav>
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
             <nav class="flex flex-col gap-1">
@@ -1605,9 +1615,6 @@
             <i class="ph ph-file-text text-faiston-purple"></i>
             <span class="text-sm font-bold text-faiston-dark">Report do dia</span>
             <input type="date" id="sc-report-data" onchange="scCarregarReport()" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-faiston-cyan">
-            <button onclick="scCopiarReport()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
-                <i class="ph ph-copy text-sm"></i> Copiar texto do report
-            </button>
             <select id="sc-print-cliente" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-faiston-cyan">
                 <option value="">Selecionar cliente pra imagem...</option>
             </select>
@@ -1617,15 +1624,21 @@
             <span class="text-xs text-faiston-faint" id="sc-report-msg"></span>
         </div>
         <div class="flex flex-wrap gap-2 mb-4" id="sc-report-pills"></div>
-        <pre id="sc-report-texto" class="text-xs bg-slate-50 border border-faiston-border rounded-lg p-4 whitespace-pre-wrap max-h-72 overflow-y-auto font-mono text-slate-700"></pre>
+        <div id="sc-report-visual" class="flex flex-col gap-4 max-h-[32rem] overflow-y-auto custom-scrollbar pr-1"></div>
     </div>
 
     <!-- TABELA -->
     <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border flex-wrap gap-2">
             <div class="flex items-center gap-2">
                 <span class="text-sm font-bold text-faiston-dark">Atividades</span>
                 <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="sc-count-label">carregando...</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-faiston-faint" id="sc-tabela-print-msg"></span>
+                <button onclick="scGerarPrintTabela()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
+                    <i class="ph ph-camera text-sm"></i> Copiar print
+                </button>
             </div>
         </div>
         <div class="overflow-x-auto custom-scrollbar">
@@ -1635,13 +1648,15 @@
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Data</th>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Projeto</th>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Site</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Subprojeto</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Cidade</th>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Técnico</th>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">N2</th>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                         <th class="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Ações</th>
                     </tr>
                 </thead>
-                <tbody id="sc-tabela-body"><tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Carregando...</td></tr></tbody>
+                <tbody id="sc-tabela-body"><tr><td colspan="9" class="text-center py-12 text-slate-300 text-sm">Carregando...</td></tr></tbody>
             </table>
         </div>
     </div>
@@ -1662,7 +1677,7 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Projeto/Cliente *</label>
-                    <select id="sc-m-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                    <select id="sc-m-cliente" onchange="scAtualizarCamposPorCliente()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
                         <option value="">Selecionar...</option>
                     </select>
                 </div>
@@ -1685,12 +1700,17 @@
                     </select>
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Sigla do site</label>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="sc-m-sigla-label">Sigla do site</label>
                     <input type="text" id="sc-m-sigla" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do site</label>
                     <input type="text" id="sc-m-nomesite" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Subprojeto</label>
+                    <input type="text" id="sc-m-subprojeto" list="sc-m-subprojeto-list" placeholder="Ex.: Migração de core" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <datalist id="sc-m-subprojeto-list"></datalist>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cidade</label>
@@ -1736,6 +1756,150 @@
     </div>
 </div>
 
+<!-- MODAL: descrever andamento (obrigatório ao marcar "Em andamento") -->
+<div id="modal-sc-andamento" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">O que está acontecendo?</h3>
+        <p class="text-xs text-faiston-muted mb-3">Descreva rapidamente o andamento da atividade.</p>
+        <div class="flex flex-col gap-3">
+            <textarea id="sc-ad-descricao" rows="3" placeholder="Ex.: aguardando liberação de acesso ao rack..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Localização</label>
+                    <select id="sc-ad-localizacao" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                        <option value="">—</option>
+                        <option value="deslocamento">Em deslocamento</option>
+                        <option value="no_local">No local</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Acesso</label>
+                    <select id="sc-ad-acesso" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                        <option value="">—</option>
+                        <option value="com_acesso">Com acesso</option>
+                        <option value="verificando_acesso">Verificando acesso</option>
+                        <option value="sem_acesso">Sem acesso</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="scFecharModalAndamento()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="scConfirmarAndamento()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: finalizar atividade (obrigatório ao marcar concluido/parcial/improdutiva_*) -->
+<div id="modal-sc-finalizar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Finalizar atividade</h3>
+        <p class="text-xs text-faiston-muted mb-4">Confirme os dados de encerramento antes de marcar como <span id="sc-fz-status-label" class="font-semibold"></span>.</p>
+        <div class="flex flex-col gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora de saída *</label>
+                <input type="time" id="sc-fz-saida" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Utilizou material? *</label>
+                <div class="flex gap-4 pt-1">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="radio" name="sc-fz-material-radio" id="sc-fz-material-sim" onchange="scToggleFinalizarMaterial()"> Sim
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="radio" name="sc-fz-material-radio" id="sc-fz-material-nao" onchange="scToggleFinalizarMaterial()" checked> Não
+                    </label>
+                </div>
+            </div>
+            <div id="sc-fz-material-campos" class="hidden flex-col gap-2">
+                <textarea id="sc-fz-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Quantidade</label>
+                        <input type="number" min="0" id="sc-fz-material-qtd" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>
+                        <input type="number" min="0" step="0.01" id="sc-fz-material-valor" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Equipamento</label>
+                <div class="flex gap-4 pt-1 flex-wrap">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="sc-fz-equip-instalado" onchange="scToggleFinalizarEquipamento('instalado')"> Instalado
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="sc-fz-equip-removido" onchange="scToggleFinalizarEquipamento('removido')"> Removido
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="sc-fz-equip-nenhum" checked onchange="scToggleFinalizarEquipamento('nenhum')"> Nenhum
+                    </label>
+                </div>
+                <div id="sc-fz-instalado-campos" class="hidden mt-2">
+                    <input type="text" id="sc-fz-instalado-serial" placeholder="Serial instalado" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div id="sc-fz-removido-campos" class="hidden mt-2 flex flex-col gap-2">
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="sc-fz-removido-posse" id="sc-fz-removido-posse-tecnico" checked> Ficou com o técnico
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="sc-fz-removido-posse" id="sc-fz-removido-posse-cliente"> Ficou com o cliente
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="sc-fz-removido-partnumber" placeholder="Partnumber" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                        <input type="text" id="sc-fz-removido-serial" placeholder="Serial" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do cliente no local</label>
+                <input type="text" id="sc-fz-contato-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Matrícula</label>
+                <input type="text" id="sc-fz-contato-matricula" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">OBS</label>
+                <textarea id="sc-fz-obs" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="scFecharModalFinalizar()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="scConfirmarFinalizar()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: carimbo de encerramento (texto pronto pra copiar, gerado após finalizar) -->
+<div id="modal-sc-carimbo-finalizacao" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Atividade finalizada</h3>
+        <p class="text-xs text-faiston-muted mb-3">Carimbo pronto pra copiar e enviar.</p>
+        <textarea id="sc-fz-carimbo-texto" readonly rows="14" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-xs font-mono focus:outline-none resize-none bg-slate-50"></textarea>
+        <div class="flex gap-3 mt-4">
+            <button onclick="scFecharModalCarimboFinalizacao()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Fechar</button>
+            <button onclick="scCopiarCarimboFinalizacao()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5"><i class="ph ph-copy text-sm"></i> Copiar carimbo</button>
+        </div>
+        <span class="text-xs text-faiston-faint block mt-2" id="sc-fz-carimbo-msg"></span>
+    </div>
+</div>
+
+<!-- MODAL: histórico de andamento (leitura) -->
+<div id="modal-sc-historico" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-bold text-faiston-dark">Histórico de andamento</h3>
+            <button onclick="scFecharModalHistorico()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="sc-hist-lista" class="flex flex-col gap-3"></div>
+    </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- MODULE: PAINEL DE CONTROLE DO N2                                 -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -1769,9 +1933,7 @@
     <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
         <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
             <span class="text-sm font-bold text-faiston-dark">Equipe N2</span>
-            <button onclick="pn2AbrirModalNovoN2()" class="flex items-center gap-2 btn-grad text-white px-3 py-1.5 rounded-lg text-xs font-semibold">
-                <i class="ph ph-user-plus text-sm"></i> Novo N2
-            </button>
+            <a href="#" onclick="setModule('admin'); return false;" class="text-xs font-semibold text-faiston-purple hover:underline">Gerenciar usuários no Admin</a>
         </div>
         <div id="pn2-equipe-lista"></div>
     </div>
@@ -1817,38 +1979,6 @@
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="pn2FecharModalEscala()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="pn2SalvarEscala()" id="pn2-btn-salvar-escala" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL NOVO N2 -->
-<div id="modal-novo-n2" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
-            <h2 class="text-lg font-bold text-faiston-dark">Novo N2</h2>
-            <button onclick="pn2FecharModalNovoN2()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
-        </div>
-        <div class="p-6 flex flex-col gap-4">
-            <div>
-                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome *</label>
-                <input type="text" id="pn2-n-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-            </div>
-            <div>
-                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Usuário (login) *</label>
-                <input type="text" id="pn2-n-usuario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-            </div>
-            <div>
-                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha inicial *</label>
-                <input type="text" id="pn2-n-senha" placeholder="Mínimo 6 caracteres" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-            </div>
-            <div>
-                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Email (opcional)</label>
-                <input type="email" id="pn2-n-email" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-            </div>
-        </div>
-        <div class="flex gap-3 p-6 pt-0">
-            <button onclick="pn2FecharModalNovoN2()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
-            <button onclick="pn2SalvarNovoN2()" id="pn2-btn-salvar-n2" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Criar</button>
         </div>
     </div>
 </div>
@@ -2204,6 +2334,7 @@ const cor_cyan='#06D7E6', cor_purple='#5B2EE0', cor_magenta='#EC4899', cor_dark=
 
 let projetosAberto = true;
 let backofficeAberto = true;
+let n2Aberto = true;
 function toggleBackoffice() {
     backofficeAberto = !backofficeAberto;
     const submenu = document.getElementById('submenu-backoffice');
@@ -2218,6 +2349,14 @@ function toggleProjetos() {
     const caret = document.getElementById('caret-projetos');
     submenu.style.display = projetosAberto ? '' : 'none';
     caret.style.transform = projetosAberto ? '' : 'rotate(-90deg)';
+}
+
+function toggleN2() {
+    n2Aberto = !n2Aberto;
+    const submenu = document.getElementById('submenu-n2');
+    const caret = document.getElementById('caret-n2');
+    submenu.style.display = n2Aberto ? '' : 'none';
+    caret.style.transform = n2Aberto ? '' : 'rotate(-90deg)';
 }
 
 // --- NOTIFICAÇÕES ---
@@ -2397,7 +2536,10 @@ document.addEventListener('click', e => {
 
 // ── MINHA EQUIPE (GESTOR) ────────────────────────────────────────────
 const eqPerfilCfg = {
+    admin:       { label: 'Admin',       cls: 'bg-purple-100 text-purple-700 border-purple-200' },
     gestor:      { label: 'Gestor',      cls: 'bg-faiston-purple/10 text-faiston-purple border-faiston-purple/20' },
+    diretor:     { label: 'Diretor',     cls: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+    n2:          { label: 'N2',          cls: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
     demo:        { label: 'Demo',        cls: 'bg-amber-50 text-amber-600 border-amber-200' },
 };
@@ -2452,8 +2594,19 @@ async function eqCarregarUsuarios() {
     }).join('');
 }
 
+function eqAtualizarOpcoesPerfil() {
+    // Gestor só pode criar funcionário/demo (regra já reforçada no backend);
+    // admin vê o mesmo leque completo da tela Admin > Novo Usuário.
+    const souAdmin = window.ME && window.ME.perfil === 'admin';
+    const opcoes = souAdmin
+        ? [['funcionario','Funcionário'],['n2','N2'],['gestor','Gestor'],['diretor','Diretor'],['demo','Demo'],['admin','Admin']]
+        : [['funcionario','Funcionário'],['demo','Demo']];
+    document.getElementById('eq-perfil').innerHTML = opcoes.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+}
+
 function eqOpenModalUser(id) {
     eqModalId = id;
+    eqAtualizarOpcoesPerfil();
     const isEdit = id !== null;
     document.getElementById('eq-modal-titulo').textContent = isEdit ? 'Editar Membro' : 'Novo Membro';
     document.getElementById('eq-btn-deletar').classList.toggle('hidden', !isEdit);
@@ -6402,6 +6555,10 @@ let scEditandoId = null;
 let scBuscaTimer = null;
 let scReportPorCliente = {};
 let scReportDataAtual = '';
+let scUltimaLista = [];
+let scStatusAlvoId = null;
+let scStatusAlvoNovo = null;
+const SC_STATUS_TERMINAIS = ['concluido', 'parcial', 'improdutiva_cliente', 'improdutiva_faiston'];
 // Campos que só o N2 preenche (ao finalizar) -- o formulário do admin não
 // tem controles pra eles, então precisam ser preservados ao salvar (o PUT
 // substitui o registro inteiro; sem isso, editar pelo admin apagaria o
@@ -6439,15 +6596,241 @@ function scStatusCell(r, podeEditar) {
     return `<select onchange="scMudarStatus(${r.id}, this.value)" class="text-xs font-semibold border border-faiston-border rounded-full px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>`;
 }
 
-async function scMudarStatus(id, novoStatus) {
+function scMudarStatus(id, novoStatus) {
+    const row = scUltimaLista.find(r => r.id === id);
+    if (novoStatus === 'em_andamento') { scAbrirModalAndamento(id, row); return; }
+    if (SC_STATUS_TERMINAIS.includes(novoStatus)) { scAbrirModalFinalizar(id, novoStatus, row); return; }
+    scAplicarMudancaStatus(id, { status: novoStatus });
+}
+
+async function scAplicarMudancaStatus(id, body) {
+    let ok = false;
     try {
         const res = await fetch(`/api/status-campo/${id}/status`, {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: novoStatus })
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
         });
-        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao mudar status: ' + (err.detail || res.status)); await scBuscar(); return; }
-        await scBuscar();
-        await scCarregarReport();
-    } catch (e) { alert('Erro de rede ao mudar status.'); await scBuscar(); }
+        ok = res.ok;
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao mudar status: ' + (err.detail || res.status)); }
+    } catch (e) { alert('Erro de rede ao mudar status.'); }
+    await scBuscar();
+    await scCarregarReport();
+    return ok;
+}
+
+function scAbrirModalAndamento(id, row) {
+    scStatusAlvoId = id;
+    document.getElementById('sc-ad-descricao').value = (row && row.andamento_descricao) || '';
+    document.getElementById('sc-ad-localizacao').value = (row && row.localizacao) || '';
+    document.getElementById('sc-ad-acesso').value = (row && row.acesso) || '';
+    document.getElementById('modal-sc-andamento').classList.remove('hidden');
+}
+function scFecharModalAndamento() {
+    document.getElementById('modal-sc-andamento').classList.add('hidden');
+    scStatusAlvoId = null;
+    scBuscar(); // reseta o select da linha pro status real
+}
+async function scConfirmarAndamento() {
+    const descricao = document.getElementById('sc-ad-descricao').value.trim();
+    if (!descricao) { alert('Descreva o que está acontecendo.'); return; }
+    const id = scStatusAlvoId;
+    document.getElementById('modal-sc-andamento').classList.add('hidden');
+    scStatusAlvoId = null;
+    await scAplicarMudancaStatus(id, {
+        status: 'em_andamento', andamento_descricao: descricao,
+        localizacao: document.getElementById('sc-ad-localizacao').value || null,
+        acesso: document.getElementById('sc-ad-acesso').value || null,
+    });
+}
+
+function scToggleFinalizarMaterial() {
+    const usado = document.getElementById('sc-fz-material-sim').checked;
+    const campos = document.getElementById('sc-fz-material-campos');
+    campos.classList.toggle('hidden', !usado);
+    campos.classList.toggle('flex', usado);
+}
+let scAtividadeAlvoRow = null;
+
+function scToggleFinalizarEquipamento(opcao) {
+    const instalado = document.getElementById('sc-fz-equip-instalado');
+    const removido = document.getElementById('sc-fz-equip-removido');
+    const nenhum = document.getElementById('sc-fz-equip-nenhum');
+    if (opcao === 'instalado' && instalado.checked) { removido.checked = false; nenhum.checked = false; }
+    if (opcao === 'removido' && removido.checked) { instalado.checked = false; nenhum.checked = false; }
+    if (opcao === 'nenhum' && nenhum.checked) { instalado.checked = false; removido.checked = false; }
+    if (!instalado.checked && !removido.checked && !nenhum.checked) nenhum.checked = true;
+    document.getElementById('sc-fz-instalado-campos').classList.toggle('hidden', !instalado.checked);
+    document.getElementById('sc-fz-removido-campos').classList.toggle('hidden', !removido.checked);
+}
+
+function scAbrirModalFinalizar(id, novoStatus, row) {
+    scStatusAlvoId = id;
+    scStatusAlvoNovo = novoStatus;
+    scAtividadeAlvoRow = row || null;
+    document.getElementById('sc-fz-status-label').textContent = STATUS_CAMPO_LABEL[novoStatus] || novoStatus;
+    document.getElementById('sc-fz-saida').value = (row && row.hora_termino) || '';
+    const materialSim = !!(row && row.material_utilizado);
+    document.getElementById('sc-fz-material-sim').checked = materialSim;
+    document.getElementById('sc-fz-material-nao').checked = !materialSim;
+    document.getElementById('sc-fz-material-detalhe').value = (row && row.material_detalhe) || '';
+    document.getElementById('sc-fz-material-qtd').value = (row && row.material_quantidade) ?? '';
+    document.getElementById('sc-fz-material-valor').value = (row && row.material_valor) ?? '';
+    scToggleFinalizarMaterial();
+    const particularidades = (row && row.particularidades) || [];
+    document.getElementById('sc-fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
+    document.getElementById('sc-fz-equip-removido').checked = particularidades.includes('equipamento_removido');
+    document.getElementById('sc-fz-equip-nenhum').checked = !particularidades.includes('equipamento_instalado') && !particularidades.includes('equipamento_removido');
+    document.getElementById('sc-fz-instalado-serial').value = (row && row.equipamento_instalado_serial) || '';
+    document.getElementById('sc-fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
+    document.getElementById('sc-fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
+    document.getElementById('sc-fz-removido-partnumber').value = (row && row.equipamento_removido_partnumber) || '';
+    document.getElementById('sc-fz-removido-serial').value = (row && row.equipamento_removido_serial) || '';
+    document.getElementById('sc-fz-contato-nome').value = (row && row.contato_local_nome) || '';
+    document.getElementById('sc-fz-contato-matricula').value = (row && row.contato_local_matricula) || '';
+    document.getElementById('sc-fz-obs').value = (row && row.observacoes) || '';
+    document.getElementById('sc-fz-instalado-campos').classList.toggle('hidden', !document.getElementById('sc-fz-equip-instalado').checked);
+    document.getElementById('sc-fz-removido-campos').classList.toggle('hidden', !document.getElementById('sc-fz-equip-removido').checked);
+    document.getElementById('modal-sc-finalizar').classList.remove('hidden');
+}
+function scFecharModalFinalizar() {
+    document.getElementById('modal-sc-finalizar').classList.add('hidden');
+    scStatusAlvoId = null; scStatusAlvoNovo = null;
+    scBuscar();
+}
+
+function scFmtDataCurta(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}`;
+}
+function scLabelStatusCurto(status) {
+    return (STATUS_CAMPO_LABEL[status] || status).split(' — ')[0];
+}
+function scGerarCarimboFinalizacao(row, extras) {
+    const site = row.site_sigla || row.site_nome || '';
+    const cabecalho = [row.ticket, site, row.cidade, row.subprojeto]
+        .filter(v => v && String(v).trim())
+        .join(' - ') + (row.data ? ` ${scFmtDataCurta(row.data)}` : '') + (row.horario_agendado ? ` às ${row.horario_agendado}` : '');
+    const linhas = [
+        cabecalho,
+        '',
+        `STATUS: ${scLabelStatusCurto(extras.status)}`,
+        '',
+        `Serial Instalado: ${extras.instalado ? (extras.serialInstalado || 'N/A') : 'N/A'}`,
+        extras.removido ? `Partnumber Removido: ${extras.removidoPartnumber || 'N/A'}` : null,
+        extras.removido ? `Serial Removido: ${extras.removidoSerial || 'N/A'}` : null,
+        extras.removido ? `Equipamento com: ${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}` : null,
+        '',
+        `HORÁRIO CHEGADA TÉCNICO: ${row.hora_chegada || 'N/A'}`,
+        `HORÁRIO SAÍDA TÉCNICO: ${extras.horaSaida}`,
+        '',
+        `CONTATO LOCAL: ${extras.contatoNome || 'N/A'}`,
+        `MATRICULA: ${extras.contatoMatricula || 'N/A'}`,
+        '',
+        `OBSERVAÇÃO: ${extras.observacoes || 'N/A'}`,
+        `Material utilizado: ${extras.materialUtilizado ? (extras.materialDetalhe || 'N/A') : 'N/A'}`,
+    ];
+    return linhas.filter(l => l !== null).join('\n');
+}
+function scAbrirModalCarimboFinalizacao(texto) {
+    document.getElementById('sc-fz-carimbo-texto').value = texto;
+    document.getElementById('sc-fz-carimbo-msg').textContent = '';
+    document.getElementById('modal-sc-carimbo-finalizacao').classList.remove('hidden');
+}
+function scFecharModalCarimboFinalizacao() {
+    document.getElementById('modal-sc-carimbo-finalizacao').classList.add('hidden');
+}
+async function scCopiarCarimboFinalizacao() {
+    const msg = document.getElementById('sc-fz-carimbo-msg');
+    try {
+        await navigator.clipboard.writeText(document.getElementById('sc-fz-carimbo-texto').value);
+        msg.textContent = 'Copiado!';
+    } catch (e) {
+        msg.textContent = 'Não foi possível copiar — selecione o texto manualmente.';
+    }
+}
+
+async function scConfirmarFinalizar() {
+    const saida = document.getElementById('sc-fz-saida').value;
+    if (!saida) { alert('Informe a hora de saída.'); return; }
+    const materialSim = document.getElementById('sc-fz-material-sim').checked;
+    const instalado = document.getElementById('sc-fz-equip-instalado').checked;
+    const removido = document.getElementById('sc-fz-equip-removido').checked;
+    const equipamentoStatus = [];
+    if (instalado) equipamentoStatus.push('equipamento_instalado');
+    if (removido) equipamentoStatus.push('equipamento_removido');
+    const removidoPosse = document.getElementById('sc-fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
+    const id = scStatusAlvoId;
+    const status = scStatusAlvoNovo;
+    const row = scAtividadeAlvoRow;
+    const body = {
+        status,
+        hora_termino: saida,
+        material_utilizado: materialSim,
+        material_detalhe: materialSim ? document.getElementById('sc-fz-material-detalhe').value.trim() : '',
+        material_quantidade: materialSim && document.getElementById('sc-fz-material-qtd').value
+            ? parseInt(document.getElementById('sc-fz-material-qtd').value, 10) : null,
+        material_valor: materialSim && document.getElementById('sc-fz-material-valor').value
+            ? parseFloat(document.getElementById('sc-fz-material-valor').value) : null,
+        equipamento_status: equipamentoStatus,
+        equipamento_instalado_serial: document.getElementById('sc-fz-instalado-serial').value.trim(),
+        equipamento_removido_partnumber: document.getElementById('sc-fz-removido-partnumber').value.trim(),
+        equipamento_removido_serial: document.getElementById('sc-fz-removido-serial').value.trim(),
+        equipamento_removido_posse: removidoPosse,
+        contato_local_nome: document.getElementById('sc-fz-contato-nome').value.trim(),
+        contato_local_matricula: document.getElementById('sc-fz-contato-matricula').value.trim(),
+        observacoes: document.getElementById('sc-fz-obs').value.trim(),
+    };
+    document.getElementById('modal-sc-finalizar').classList.add('hidden');
+    scStatusAlvoId = null; scStatusAlvoNovo = null;
+    const ok = await scAplicarMudancaStatus(id, body);
+    if (ok && row) {
+        const texto = scGerarCarimboFinalizacao(row, {
+            status, instalado, removido,
+            serialInstalado: body.equipamento_instalado_serial,
+            removidoPartnumber: body.equipamento_removido_partnumber,
+            removidoSerial: body.equipamento_removido_serial,
+            removidoPosse,
+            horaSaida: saida,
+            contatoNome: body.contato_local_nome,
+            contatoMatricula: body.contato_local_matricula,
+            observacoes: body.observacoes,
+            materialUtilizado: materialSim,
+            materialDetalhe: body.material_detalhe,
+        });
+        scAbrirModalCarimboFinalizacao(texto);
+    }
+}
+
+async function scAbrirModalAndamentoHistorico(id) {
+    const box = document.getElementById('sc-hist-lista');
+    box.innerHTML = '<div class="text-center py-6 text-slate-300 text-sm">Carregando...</div>';
+    document.getElementById('modal-sc-historico').classList.remove('hidden');
+    try {
+        const res = await fetch(`/api/status-campo/${id}/andamento`);
+        if (!res.ok) throw new Error();
+        const hist = await res.json();
+        if (!hist.length) {
+            box.innerHTML = '<div class="text-center py-6 text-slate-300 text-sm">Nenhuma atualização de andamento registrada.</div>';
+            return;
+        }
+        const localLabel = { deslocamento: 'Em deslocamento', no_local: 'No local' };
+        const acessoLabel = { com_acesso: 'Com acesso', verificando_acesso: 'Verificando acesso', sem_acesso: 'Sem acesso' };
+        box.innerHTML = hist.map(h => `
+            <div class="border-l-2 border-faiston-purple/30 pl-3 py-1">
+                <div class="flex items-center gap-2 flex-wrap text-[11px] text-faiston-faint">
+                    <span class="font-semibold text-faiston-dark">${scEsc(h.criado_por_nome || '—')}</span>
+                    <span>${scEsc(h.criado_em)}</span>
+                    ${h.localizacao ? `<span class="px-1.5 py-0.5 rounded bg-faiston-cyan/10 text-faiston-cyan font-semibold">${localLabel[h.localizacao] || h.localizacao}</span>` : ''}
+                    ${h.acesso ? `<span class="px-1.5 py-0.5 rounded bg-faiston-purple/10 text-faiston-purple font-semibold">${acessoLabel[h.acesso] || h.acesso}</span>` : ''}
+                </div>
+                <div class="text-sm text-slate-700 mt-0.5">${scEsc(h.descricao)}</div>
+            </div>`).join('');
+    } catch (e) {
+        box.innerHTML = '<div class="text-center py-6 text-red-400 text-sm">Erro ao carregar o histórico.</div>';
+    }
+}
+function scFecharModalHistorico() {
+    document.getElementById('modal-sc-historico').classList.add('hidden');
 }
 
 async function scInit() {
@@ -6513,21 +6896,26 @@ async function scBuscar() {
         const res = await fetch('/api/status-campo?' + params.toString());
         if (!res.ok) throw new Error('Erro ao buscar');
         const rows = await res.json();
+        scUltimaLista = rows;
         document.getElementById('sc-count-label').textContent = `${rows.length} atividade(s)`;
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</td></tr>';
             return;
         }
         const podeEditar = scPodeEditar();
         tbody.innerHTML = rows.map(r => {
-            const acoes = podeEditar ? `
+            const acoes = (podeEditar ? `
                 <button onclick="scAbrirModalEditar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Editar"><i class="ph ph-pencil-simple text-slate-400 text-sm"></i></button>
                 <button onclick="scExcluir(${r.id})" class="w-7 h-7 rounded-md hover:bg-red-50 inline-flex items-center justify-center" title="Excluir"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
-            ` : '';
+            ` : '') + `
+                <button onclick="scAbrirModalAndamentoHistorico(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Ver andamento"><i class="ph ph-clock-counter-clockwise text-slate-400 text-sm"></i></button>
+            `;
             return `<tr class="border-b border-faiston-border last:border-0 hover:bg-slate-50/60">
                 <td class="px-5 py-3 text-xs text-slate-500">${fmtDate(r.data)}</td>
                 <td class="px-5 py-3 text-sm font-medium text-faiston-dark">${scEsc(r.cliente_nome || '—')}</td>
                 <td class="px-5 py-3 text-sm text-slate-600">${scEsc(r.site_sigla || r.site_nome || '—')}</td>
+                <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.subprojeto || '—')}</td>
+                <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.cidade || '—')}${r.uf ? '/' + scEsc(r.uf) : ''}</td>
                 <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.tecnico || '—')}</td>
                 <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.n2_responsavel || '—')}</td>
                 <td class="px-5 py-3">${scStatusCell(r, podeEditar)}</td>
@@ -6535,8 +6923,43 @@ async function scBuscar() {
             </tr>`;
         }).join('');
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</td></tr>';
     }
+}
+
+const SC_LOCALIZACAO_LABEL = { deslocamento: 'Em deslocamento', no_local: 'No local' };
+const SC_ACESSO_LABEL = { com_acesso: 'Com acesso', verificando_acesso: 'Verificando acesso', sem_acesso: 'Sem acesso' };
+
+function scReportCardAtividade(a) {
+    const chips = [];
+    if (a.subprojeto) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${scEsc(a.subprojeto)}</span>`);
+    if (a.localizacao) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-faiston-cyan/10 text-faiston-cyan">${SC_LOCALIZACAO_LABEL[a.localizacao] || a.localizacao}</span>`);
+    if (a.acesso) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-faiston-purple/10 text-faiston-purple">${SC_ACESSO_LABEL[a.acesso] || a.acesso}</span>`);
+    if (a.ticket) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Ticket ${scEsc(a.ticket)}</span>`);
+    if (a.material_utilizado) {
+        const valor = a.material_valor != null ? ` · R$ ${Number(a.material_valor).toFixed(2)}` : '';
+        chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Material${a.material_quantidade != null ? ' x' + a.material_quantidade : ''}${valor}</span>`);
+    }
+    (a.particularidades || []).forEach(p => {
+        const label = { reversa: 'Reversa', equipamento_em_posse_do_cliente: 'Equip. c/ cliente', equipamento_removido: 'Equip. removido' }[p] || p;
+        chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-faiston-magenta/10 text-faiston-magenta">${label}</span>`);
+    });
+    return `
+        <div class="border border-faiston-border rounded-xl p-3">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <span class="text-sm font-bold text-faiston-dark">${scEsc(a.site)}</span>
+                ${statusBadge(STATUS_CAMPO_LABEL[a.status] || a.status, STATUS_CAMPO_MAP)}
+            </div>
+            <div class="flex gap-3 flex-wrap text-xs text-faiston-muted mt-1">
+                ${a.horario_agendado ? `<span>${scEsc(a.horario_agendado)}</span>` : ''}
+                ${a.tecnico ? `<span>${scEsc(a.tecnico)}</span>` : ''}
+                ${a.n2_responsavel ? `<span>N2: ${scEsc(a.n2_responsavel)}</span>` : ''}
+                ${a.cidade ? `<span>${scEsc(a.cidade)}${a.uf ? '/' + scEsc(a.uf) : ''}</span>` : ''}
+            </div>
+            ${chips.length ? `<div class="flex gap-1.5 flex-wrap mt-2">${chips.join('')}</div>` : ''}
+            ${a.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-2"><i class="ph ph-info"></i> ${scEsc(a.andamento_descricao)}</div>` : ''}
+            ${a.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${scEsc(a.observacoes)}</div>` : ''}
+        </div>`;
 }
 
 async function scCarregarReport() {
@@ -6555,41 +6978,30 @@ async function scCarregarReport() {
             ? entradas.map(([st, n]) => statusBadge(`${STATUS_CAMPO_LABEL[st] || st}: ${n}`, STATUS_CAMPO_MAP)).join('')
             : '<span class="text-xs text-faiston-faint">Nenhuma atividade nesta data.</span>';
 
-        let texto = `STATUS REPORT — ${fmtDate(data)}\n\n`;
         const porCliente = rep.por_cliente || {};
         scReportPorCliente = porCliente;
         scReportDataAtual = data;
         const selPrint = document.getElementById('sc-print-cliente');
         selPrint.innerHTML = '<option value="">Selecionar cliente pra imagem...</option>' +
             Object.keys(porCliente).map(nome => `<option value="${scEsc(nome)}">${scEsc(nome)}</option>`).join('');
-        Object.keys(porCliente).forEach(nome => {
-            const lista = porCliente[nome];
-            texto += `*${nome}* (${lista.length})\n`;
-            lista.forEach(a => {
-                texto += `- ${a.site}: ${STATUS_CAMPO_LABEL[a.status] || a.status}`;
-                if (a.tecnico) texto += ` | ${a.tecnico}`;
-                if (a.observacoes) texto += ` | ${a.observacoes}`;
-                texto += '\n';
-            });
-            texto += '\n';
-        });
-        if (!rep.total) texto += '(nenhuma atividade registrada nesta data)\n';
-        document.getElementById('sc-report-texto').textContent = texto;
+
+        const visual = document.getElementById('sc-report-visual');
+        const nomes = Object.keys(porCliente);
+        if (!nomes.length) {
+            visual.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm">Nenhuma atividade registrada nesta data.</div>';
+        } else {
+            visual.innerHTML = nomes.map(nome => {
+                const lista = porCliente[nome];
+                return `<div>
+                    <div class="text-xs font-bold text-faiston-purple uppercase tracking-wide mb-2">${scEsc(nome)} <span class="text-faiston-faint font-normal normal-case">(${lista.length})</span></div>
+                    <div class="flex flex-col gap-2">${lista.map(scReportCardAtividade).join('')}</div>
+                </div>`;
+            }).join('');
+        }
     } catch (e) {
         document.getElementById('sc-report-pills').innerHTML = '';
-        document.getElementById('sc-report-texto').textContent = '';
+        document.getElementById('sc-report-visual').innerHTML = '';
         msg.textContent = 'Erro ao carregar o report.';
-    }
-}
-
-async function scCopiarReport() {
-    const texto = document.getElementById('sc-report-texto').textContent;
-    const msg = document.getElementById('sc-report-msg');
-    try {
-        await navigator.clipboard.writeText(texto);
-        msg.textContent = 'Copiado!';
-    } catch (e) {
-        msg.textContent = 'Não foi possível copiar — selecione o texto manualmente.';
     }
 }
 
@@ -6638,17 +7050,98 @@ async function scGerarPrint() {
     }
 }
 
+async function scGerarPrintTabela() {
+    const msg = document.getElementById('sc-tabela-print-msg');
+    if (typeof html2canvas === 'undefined') { msg.textContent = 'Não foi possível gerar a imagem (html2canvas não carregou).'; return; }
+    const rows = scUltimaLista || [];
+    if (!rows.length) { msg.textContent = 'Nenhuma atividade pra imprimir.'; return; }
+    msg.textContent = 'Gerando imagem...';
+
+    const card = document.createElement('div');
+    card.style.cssText = 'position:fixed;left:-9999px;top:0;width:720px;background:#ffffff;padding:24px;font-family:Inter,sans-serif;';
+    const linhas = rows.map(r => `
+        <tr>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;white-space:nowrap;">${scEsc(fmtDate(r.data))}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:12px;font-weight:600;color:#0B0D1F;">${scEsc(r.cliente_nome || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${scEsc(r.site_sigla || r.site_nome || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${scEsc(r.subprojeto || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${scEsc(r.cidade || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${scEsc(r.n2_responsavel || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${scEsc(STATUS_CAMPO_LABEL[r.status] || r.status)}</td>
+        </tr>`).join('');
+    card.innerHTML = `
+        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#5B2EE0;margin-bottom:2px;">Status Report</div>
+        <div style="font-size:18px;font-weight:800;color:#0B0D1F;margin-bottom:12px;">Atividades (${rows.length})</div>
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Data</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Projeto</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Site</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Subprojeto</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Cidade</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">N2</th>
+                    <th style="text-align:right;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Status</th>
+                </tr>
+            </thead>
+            <tbody>${linhas}</tbody>
+        </table>
+    `;
+    document.body.appendChild(card);
+    try {
+        const canvas = await html2canvas(card, { backgroundColor: '#ffffff', scale: 2 });
+        document.body.removeChild(card);
+        canvas.toBlob(async (blob) => {
+            try {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                msg.textContent = 'Imagem copiada — já pode colar!';
+            } catch (e) {
+                msg.textContent = 'Não foi possível copiar a imagem (navegador sem suporte). Clique com o botão direito e salve manualmente.';
+            }
+        }, 'image/png');
+    } catch (e) {
+        document.body.removeChild(card);
+        msg.textContent = 'Erro ao gerar a imagem.';
+    }
+}
+
+function scLabelSitePorNomeCliente(nomeCliente) {
+    const n = (nomeCliente || '').toLowerCase();
+    if (n.includes('arcos')) return 'Sigla';
+    if (n.includes('zamp')) return 'Número da loja';
+    if (n.includes('ntt')) return 'Junção';
+    return 'Sigla do site';
+}
+
+async function scAtualizarCamposPorCliente() {
+    const sel = document.getElementById('sc-m-cliente');
+    const nomeCliente = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+    document.getElementById('sc-m-sigla-label').textContent = scLabelSitePorNomeCliente(nomeCliente);
+
+    const clienteId = sel.value;
+    const datalist = document.getElementById('sc-m-subprojeto-list');
+    datalist.innerHTML = '';
+    if (!clienteId) return;
+    try {
+        const res = await fetch('/api/status-campo/subprojetos?cliente_id=' + clienteId);
+        if (!res.ok) return;
+        const subs = await res.json();
+        datalist.innerHTML = subs.map(s => `<option value="${scEsc(s)}">`).join('');
+    } catch (e) {}
+}
+
 function scAbrirModalNovo() {
     if (!scPodeEditar()) return;
     scEditandoId = null;
     scCamposN2Preservados = {};
     document.getElementById('sc-modal-titulo').textContent = 'Nova atividade';
     ['sc-m-cliente','sc-m-horario','sc-m-tecnico','sc-m-n2','sc-m-sigla','sc-m-nomesite',
-     'sc-m-cidade','sc-m-uf','sc-m-endereco','sc-m-detalhamento','sc-m-ticket']
+     'sc-m-cidade','sc-m-uf','sc-m-endereco','sc-m-detalhamento','sc-m-ticket','sc-m-subprojeto']
         .forEach(id => document.getElementById(id).value = '');
     document.getElementById('sc-m-status').value = 'agendado';
     document.getElementById('sc-m-status').disabled = true;
     document.getElementById('sc-m-data').value = document.getElementById('sc-report-data').value || new Date().toISOString().slice(0, 10);
+    scAtualizarCamposPorCliente();
     document.getElementById('modal-status-campo').classList.remove('hidden');
 }
 
@@ -6664,6 +7157,8 @@ async function scAbrirModalEditar(id) {
             observacoes: r.observacoes || '', particularidades: r.particularidades || [],
             material_utilizado: !!r.material_utilizado, material_detalhe: r.material_detalhe || '',
             material_quantidade: r.material_quantidade ?? null, material_valor: r.material_valor ?? null,
+            andamento_descricao: r.andamento_descricao || '', localizacao: r.localizacao || null,
+            acesso: r.acesso || null, equipamento_removido_detalhe: r.equipamento_removido_detalhe || '',
         };
         document.getElementById('sc-m-status').disabled = false;
         document.getElementById('sc-modal-titulo').textContent = 'Editar atividade';
@@ -6680,6 +7175,8 @@ async function scAbrirModalEditar(id) {
         document.getElementById('sc-m-endereco').value = r.endereco || '';
         document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
         document.getElementById('sc-m-ticket').value = r.ticket || '';
+        document.getElementById('sc-m-subprojeto').value = r.subprojeto || '';
+        scAtualizarCamposPorCliente();
         document.getElementById('modal-status-campo').classList.remove('hidden');
     } catch (e) { alert('Erro ao carregar atividade para edição.'); }
 }
@@ -6707,6 +7204,7 @@ async function scSalvar() {
         detalhamento_tecnico: document.getElementById('sc-m-detalhamento').value.trim(),
         status: document.getElementById('sc-m-status').value,
         ticket: document.getElementById('sc-m-ticket').value.trim(),
+        subprojeto: document.getElementById('sc-m-subprojeto').value.trim(),
         // Preserva o que o N2 já preencheu -- este formulário não tem
         // controles pra esses campos (ver scCamposN2Preservados).
         ...scCamposN2Preservados,
@@ -6866,9 +7364,10 @@ async function pn2CarregarEquipe() {
         lista.innerHTML = rows.map(r => `
             <div class="flex items-center gap-3 px-5 py-3 border-b border-faiston-border last:border-0 flex-wrap">
                 <span class="text-sm font-semibold text-faiston-dark flex-1 min-w-[140px]">${scEsc(r.nome)}${!r.ativo ? ' <span class=\"text-xs text-slate-400\">(inativo)</span>' : ''}</span>
-                <span class="text-xs text-faiston-muted">${r.total} atividade(s)</span>
-                <span class="text-xs text-emerald-600">${r.concluidas} concluída(s)</span>
-                <span class="text-xs text-amber-600">${r.pendentes} pendente(s)</span>
+                <span class="text-xs text-faiston-muted" title="Atividades concluídas nesta semana">${r.atividades_semana} ativ. / semana</span>
+                <span class="text-xs text-faiston-cyan" title="Horas trabalhadas nesta semana (chegada → saída)">${r.horas_semana}h / semana</span>
+                <span class="text-xs text-faiston-muted" title="Atividades concluídas neste mês">${r.atividades_mes} ativ. / mês</span>
+                <span class="text-xs text-faiston-purple" title="Horas trabalhadas neste mês (chegada → saída)">${r.horas_mes}h / mês</span>
                 <button onclick="scFiltrarPorN2(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline ml-auto">Ver atividades</button>
             </div>`).join('');
     } catch (e) {
@@ -6876,41 +7375,8 @@ async function pn2CarregarEquipe() {
     }
 }
 
-function pn2AbrirModalNovoN2() {
-    ['pn2-n-nome','pn2-n-usuario','pn2-n-senha','pn2-n-email'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('modal-novo-n2').classList.remove('hidden');
-}
-
-function pn2FecharModalNovoN2() {
-    document.getElementById('modal-novo-n2').classList.add('hidden');
-}
-
-async function pn2SalvarNovoN2() {
-    const nome = document.getElementById('pn2-n-nome').value.trim();
-    const usuario = document.getElementById('pn2-n-usuario').value.trim();
-    const senha = document.getElementById('pn2-n-senha').value;
-    const email = document.getElementById('pn2-n-email').value.trim();
-    if (!nome || !usuario || !senha) { alert('Preencha nome, usuário e senha.'); return; }
-    if (senha.length < 6) { alert('A senha precisa ter no mínimo 6 caracteres.'); return; }
-    const btn = document.getElementById('pn2-btn-salvar-n2');
-    btn.disabled = true;
-    try {
-        const res = await fetch('/api/usuarios', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ usuario, senha, nome, perfil: 'n2', email })
-        });
-        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao criar: ' + (err.detail || res.status)); return; }
-        pn2FecharModalNovoN2();
-        // Novo N2 também precisa aparecer nos dropdowns já carregados
-        _painelN2Carregado = false;
-        _statusCampoCarregado = false;
-        await pn2Init();
-    } catch (e) {
-        alert('Erro de rede ao criar.');
-    } finally {
-        btn.disabled = false;
-    }
-}
+// Criação de N2 foi consolidada na tela Admin (Novo Usuário, perfil N2) --
+// ver #u-perfil em admin.html. Aqui fica só o resumo de leitura acima.
 
 // ══════════════════════════════════════════════════════════════════
 // GERADOR DE ESCALA DO DIA
@@ -6958,6 +7424,15 @@ function pn2RemoverBlocoGE(i) {
     pn2RenderBlocosGE();
 }
 
+// Atividade fora do horário comercial (antes das 08h ou às 18h ou depois)
+// -- N2 fica de home em vez de presencial. Sem horário definido no bloco,
+// assume presencial (não dá pra julgar sem saber a hora).
+function pn2ModalidadePorHorario(horario) {
+    if (!horario) return 'presencial';
+    const hora = parseInt(horario.split(':')[0], 10);
+    return (hora < 8 || hora >= 18) ? 'home' : 'presencial';
+}
+
 // Regra: até 3 atividades do mesmo cliente ficam com o mesmo N2; acima
 // disso, divide em grupos de até 3 e distribui entre os N2 disponíveis
 // (rotação simples, balanceando carga entre clientes diferentes também).
@@ -6980,6 +7455,7 @@ function pn2GerarDistribuicao() {
             distribuicao.push({
                 n2_usuario_id: n2.id, n2_nome: n2.nome, cliente_id: b.cliente_id, cliente_nome: clienteNome,
                 quantidade: qtdGrupo, horario: b.horario, particularidade: b.particularidade,
+                modalidade: pn2ModalidadePorHorario(b.horario),
             });
             restante -= qtdGrupo;
         }
@@ -6998,6 +7474,7 @@ function pn2GerarDistribuicao() {
                 <span class="font-semibold text-faiston-dark">${scEsc(d.cliente_nome)}</span>
                 <span class="text-faiston-muted">${d.quantidade} atividade(s)</span>
                 ${d.horario ? `<span class="text-faiston-muted">${scEsc(d.horario)}</span>` : ''}
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${d.modalidade === 'home' ? 'text-faiston-purple bg-faiston-purple/10 border-faiston-purple/20' : 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30'}">${d.modalidade === 'home' ? 'Home' : 'Presencial'}</span>
                 ${d.particularidade ? `<span class="text-faiston-purple">${scEsc(d.particularidade)}</span>` : ''}
             </div>`).join('')}
         </div>`;
@@ -7026,7 +7503,7 @@ async function pn2SalvarDistribuicao() {
             const atribuicao = `${d.cliente_nome} (${d.quantidade} atividade${d.quantidade > 1 ? 's' : ''})${d.particularidade ? ' — ' + d.particularidade : ''}`;
             const res = await fetch('/api/escala-n2', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ data, n2_usuario_id: d.n2_usuario_id, horario_entrada: d.horario || null, modalidade: 'presencial', atribuicao })
+                body: JSON.stringify({ data, n2_usuario_id: d.n2_usuario_id, horario_entrada: d.horario || null, modalidade: d.modalidade, atribuicao })
             });
             if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = 'Erro ao salvar: ' + (err.detail || res.status); btn.disabled = false; return; }
         }

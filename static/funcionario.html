@@ -247,6 +247,11 @@
             style="background:transparent;color:#9097AC;box-shadow:none">
             <i class="ph ph-folder-open text-base"></i> Projetos
         </button>
+        <button onclick="switchTab('statusreport')" id="tab-statusreport"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-map-pin-line text-base"></i> Status Report
+        </button>
     </div>
 
     <!-- VIEW: KANBAN -->
@@ -422,6 +427,35 @@
                 <p class="text-sm">Carregando...</p>
             </div>
         </div>
+    </div>
+
+    <!-- VIEW: STATUS REPORT (leitura) -->
+    <div id="view-statusreport-func" class="hidden">
+        <div class="mb-4">
+            <h2 class="text-base font-bold text-faiston-dark">Status Report</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Atividades de campo por site/cliente — visão de leitura.</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-faiston-border p-4 mb-4 flex items-center gap-3 flex-wrap">
+            <select id="fr-f-cliente" onchange="frBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os projetos</option>
+            </select>
+            <select id="fr-f-status" onchange="frBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os status</option>
+                <option value="agendado">Agendado</option>
+                <option value="em_andamento">Em andamento</option>
+                <option value="concluido">Concluído</option>
+                <option value="parcial">Parcial</option>
+                <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                <option value="improdutiva_faiston">Improdutiva — Faiston</option>
+                <option value="cancelado">Cancelado</option>
+            </select>
+            <input type="date" id="fr-f-data" onchange="frBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan">
+            <button onclick="frLimparFiltros()" class="text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1">
+                <i class="ph ph-x-circle"></i> Limpar
+            </button>
+            <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-auto" id="fr-count-label">carregando...</span>
+        </div>
+        <div id="fr-lista" class="flex flex-col gap-3"></div>
     </div>
 
     <!-- MODAL CARIMBO (criar/editar) -->
@@ -936,13 +970,103 @@ function switchTab(tab) {
     document.getElementById('tab-agenda').style.cssText   = tab==='agenda'   ? ACTIVE : INACTIVE;
     document.getElementById('tab-carimbos').style.cssText = tab==='carimbos' ? ACTIVE : INACTIVE;
     document.getElementById('tab-projetos').style.cssText = tab==='projetos' ? ACTIVE : INACTIVE;
+    document.getElementById('tab-statusreport').style.cssText = tab==='statusreport' ? ACTIVE : INACTIVE;
     document.getElementById('view-kanban-func').classList.toggle('hidden', tab !== 'kanban');
     document.getElementById('view-agenda-func').classList.toggle('hidden', tab !== 'agenda');
     document.getElementById('view-carimbos-func').classList.toggle('hidden', tab !== 'carimbos');
     document.getElementById('view-projetos-func').classList.toggle('hidden', tab !== 'projetos');
+    document.getElementById('view-statusreport-func').classList.toggle('hidden', tab !== 'statusreport');
     if (tab === 'agenda') renderAgenda();
     if (tab === 'carimbos') renderCarimbos();
     if (tab === 'projetos') renderProjetos();
+    if (tab === 'statusreport') frAbrir();
+}
+
+// ── STATUS REPORT (leitura, todos os perfis podem ver) ──────────────
+const FR_STATUS_LABEL = {
+    agendado: 'Agendado', em_andamento: 'Em andamento', concluido: 'Concluído',
+    parcial: 'Parcial', improdutiva_cliente: 'Improdutiva — Cliente', improdutiva_faiston: 'Improdutiva — Faiston',
+    cancelado: 'Cancelado',
+};
+const FR_STATUS_MAP = {
+    'Agendado': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Em andamento': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'Concluído': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    'Parcial': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Improdutiva — Cliente': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Improdutiva — Faiston': 'text-faiston-magenta bg-faiston-magenta/10 border-faiston-magenta/30',
+    'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
+};
+let frCarregado = false;
+
+async function frAbrir() {
+    if (frCarregado) { frBuscar(); return; }
+    frCarregado = true;
+    try {
+        const res = await fetch('/api/clientes');
+        if (res.ok) {
+            const clientes = await res.json();
+            document.getElementById('fr-f-cliente').insertAdjacentHTML('beforeend',
+                clientes.map(c => `<option value="${c.id}">${escHtmlC(c.nome)}</option>`).join(''));
+        }
+    } catch (e) {}
+    frBuscar();
+}
+
+function frLimparFiltros() {
+    document.getElementById('fr-f-cliente').value = '';
+    document.getElementById('fr-f-status').value = '';
+    document.getElementById('fr-f-data').value = '';
+    frBuscar();
+}
+
+function frCardAtividade(a) {
+    const chips = [];
+    if (a.subprojeto) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${escHtmlC(a.subprojeto)}</span>`);
+    if (a.ticket) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Ticket ${escHtmlC(a.ticket)}</span>`);
+    return `
+        <div class="bg-white border border-faiston-border rounded-xl p-4">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                    <span class="text-xs font-bold text-faiston-purple">${escHtmlC(a.cliente_nome || '—')}</span>
+                    <span class="text-sm font-semibold ml-2">${escHtmlC(a.site_sigla || a.site_nome || '(sem site)')}</span>
+                </div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${FR_STATUS_MAP[FR_STATUS_LABEL[a.status]] || 'text-slate-500 bg-slate-100 border-slate-200'}">${escHtmlC(FR_STATUS_LABEL[a.status] || a.status)}</span>
+            </div>
+            <div class="flex gap-3 flex-wrap text-xs text-faiston-muted mt-1.5">
+                <span>${fmtDataProj(a.data)}</span>
+                ${a.horario_agendado ? `<span>${escHtmlC(a.horario_agendado)}</span>` : ''}
+                ${a.tecnico ? `<span>Técnico: ${escHtmlC(a.tecnico)}</span>` : ''}
+                ${a.n2_responsavel ? `<span>N2: ${escHtmlC(a.n2_responsavel)}</span>` : ''}
+                ${a.cidade ? `<span>${escHtmlC(a.cidade)}${a.uf ? '/' + escHtmlC(a.uf) : ''}</span>` : ''}
+            </div>
+            ${chips.length ? `<div class="flex gap-1.5 flex-wrap mt-2">${chips.join('')}</div>` : ''}
+            ${a.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-2"><i class="ph ph-info"></i> ${escHtmlC(a.andamento_descricao)}</div>` : ''}
+            ${a.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${escHtmlC(a.observacoes)}</div>` : ''}
+        </div>`;
+}
+
+async function frBuscar() {
+    const params = new URLSearchParams();
+    const clienteId = document.getElementById('fr-f-cliente').value;
+    const status = document.getElementById('fr-f-status').value;
+    const data = document.getElementById('fr-f-data').value;
+    if (clienteId) params.set('cliente_id', clienteId);
+    if (status) params.set('status', status);
+    if (data) params.set('data', data);
+
+    const lista = document.getElementById('fr-lista');
+    try {
+        const res = await fetch('/api/status-campo?' + params.toString());
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        document.getElementById('fr-count-label').textContent = `${rows.length} atividade(s)`;
+        lista.innerHTML = rows.length
+            ? rows.map(frCardAtividade).join('')
+            : '<div class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</div>';
+    } catch (e) {
+        lista.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+    }
 }
 
 // ── TAREFAS ──────────────────────────────────────────────────────────
