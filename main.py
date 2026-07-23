@@ -5105,7 +5105,8 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
                    a.particularidades, a.material_utilizado, a.material_detalhe,
                    a.material_quantidade, a.material_valor, a.ticket,
                    a.andamento_descricao, a.localizacao, a.acesso, a.subprojeto,
-                   a.equipamento_removido_detalhe, a.andamento_tipo, a.andamento_equipamento
+                   a.equipamento_removido_detalhe, a.andamento_tipo, a.andamento_equipamento,
+                   a.hora_inicio_atividade
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.data = %s
@@ -5120,7 +5121,7 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
              particularidades, material_utilizado, material_detalhe,
              material_quantidade, material_valor, ticket,
              andamento_descricao, localizacao, acesso, subprojeto, equip_removido_detalhe,
-             andamento_tipo, andamento_equipamento) = r
+             andamento_tipo, andamento_equipamento, hora_inicio_atividade) = r
             cliente_nome = cliente_nome or "Sem cliente"
             contagem[status] = contagem.get(status, 0) + 1
             por_cliente.setdefault(cliente_nome, []).append({
@@ -5134,6 +5135,7 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
                 "localizacao": localizacao, "acesso": acesso, "subprojeto": subprojeto,
                 "equipamento_removido_detalhe": equip_removido_detalhe,
                 "andamento_tipo": andamento_tipo, "andamento_equipamento": andamento_equipamento,
+                "hora_inicio_atividade": str(hora_inicio_atividade)[:5] if hora_inicio_atividade else None,
             })
         return {"data": data, "contagem": contagem, "por_cliente": por_cliente, "total": len(rows)}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

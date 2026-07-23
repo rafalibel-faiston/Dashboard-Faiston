@@ -6970,7 +6970,7 @@ async function scBuscar() {
                 <td class="px-5 py-3 text-sm text-slate-600">${scEsc(r.site_sigla || r.site_nome || '—')}</td>
                 <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.subprojeto || '—')}</td>
                 <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.cidade || '—')}${r.uf ? '/' + scEsc(r.uf) : ''}</td>
-                <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.tecnico || '—')}</td>
+                <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.tecnico || '—')}${r.hora_inicio_atividade ? `<div class="text-fuchsia-700 font-semibold mt-0.5">Início ${scEsc(r.hora_inicio_atividade)}</div>` : ''}</td>
                 <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.n2_responsavel || '—')}</td>
                 <td class="px-5 py-3">${scStatusCell(r, podeEditar)}</td>
                 <td class="px-5 py-3 text-right whitespace-nowrap">${acoes}</td>
@@ -6993,6 +6993,7 @@ function scBannerAndamentoTipo(a) {
         <i class="ph ph-wrench text-fuchsia-800 text-lg"></i>
         <span class="text-base font-extrabold text-fuchsia-800">${scEsc(label)}${a.andamento_equipamento ? ':' : ''}</span>
         ${a.andamento_equipamento ? `<span class="text-base font-extrabold text-slate-900">${scEsc(a.andamento_equipamento)}</span>` : ''}
+        ${a.hora_inicio_atividade ? `<span class="text-xs font-semibold text-fuchsia-700 bg-white/60 px-2 py-0.5 rounded-full">Início ${scEsc(a.hora_inicio_atividade)}</span>` : ''}
     </div>`;
 }
 function scReportCardAtividade(a) {

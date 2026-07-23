@@ -20,6 +20,7 @@
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link rel="stylesheet" href="css/style.css">
     <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
     <style>
@@ -53,40 +54,61 @@
 
     <div class="flex items-center justify-between mb-5">
         <div>
-            <h2 class="text-xl font-bold text-faiston-dark">Minhas atividades</h2>
-            <p class="text-xs text-faiston-muted mt-0.5">Atividades de campo onde você é o N2 responsável</p>
+            <h2 class="text-xl font-bold text-faiston-dark" id="n2-titulo">Minhas atividades</h2>
+            <p class="text-xs text-faiston-muted mt-0.5" id="n2-subtitulo">Atividades de campo onde você é o N2 responsável</p>
         </div>
         <button onclick="abrirModalNovo()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
             <i class="ph ph-plus text-base"></i> Nova atividade
         </button>
     </div>
 
-    <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <select id="f-status" onchange="buscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
-                <option value="">Todos os status</option>
-                <option value="agendado">Agendado</option>
-                <option value="em_andamento">Em andamento</option>
-                <option value="concluido">Concluído</option>
-                <option value="parcial">Parcial</option>
-                <option value="improdutiva_cliente">Improdutiva — Cliente</option>
-                <option value="improdutiva_faiston">Improdutiva — Faiston</option>
-                <option value="cancelado">Cancelado</option>
-            </select>
-            <input type="date" id="f-data-de" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
-            <input type="date" id="f-data-ate" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
-            <button onclick="limparFiltros()" class="text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1 justify-center">
-                <i class="ph ph-x-circle"></i> Limpar
-            </button>
+    <div class="flex gap-2 mb-5">
+        <button onclick="mostrarAbaN2('minhas')" id="n2-tab-minhas" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Minhas atividades</button>
+        <button onclick="mostrarAbaN2('geral')" id="n2-tab-geral" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Atividades em geral</button>
+        <button onclick="mostrarAbaN2('print')" id="n2-tab-print" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Print</button>
+    </div>
+
+    <div id="n2-view-lista">
+        <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <select id="f-status" onchange="buscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                    <option value="">Todos os status</option>
+                    <option value="agendado">Agendado</option>
+                    <option value="em_andamento">Em andamento</option>
+                    <option value="concluido">Concluído</option>
+                    <option value="parcial">Parcial</option>
+                    <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                    <option value="improdutiva_faiston">Improdutiva — Faiston</option>
+                    <option value="cancelado">Cancelado</option>
+                </select>
+                <input type="date" id="f-data-de" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
+                <input type="date" id="f-data-ate" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
+                <button onclick="limparFiltros()" class="text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1 justify-center">
+                    <i class="ph ph-x-circle"></i> Limpar
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+                <span class="text-sm font-bold text-faiston-dark">Atividades</span>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
+            </div>
+            <div id="lista"></div>
         </div>
     </div>
 
-    <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
-            <span class="text-sm font-bold text-faiston-dark">Atividades</span>
-            <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
+    <div id="n2-view-print" class="hidden">
+        <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <div class="flex items-center gap-3 mb-4 flex-wrap">
+                <span class="text-sm font-bold text-faiston-dark">Print da lista atual</span>
+                <span class="text-xs text-faiston-muted" id="print-count-label">(a última lista vista em "Minhas atividades" ou "Atividades em geral")</span>
+            </div>
+            <button onclick="gerarPrintLista()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
+                <i class="ph ph-camera text-sm"></i> Copiar print
+            </button>
+            <span class="text-xs text-faiston-faint ml-2" id="print-msg"></span>
         </div>
-        <div id="lista"></div>
     </div>
 </main>
 
@@ -588,7 +610,7 @@ async function init() {
         }
     } catch(e) {}
 
-    buscar();
+    mostrarAbaN2('minhas');
 }
 
 async function logout() {
@@ -603,8 +625,34 @@ function limparFiltros() {
     buscar();
 }
 
+let n2AbaAtual = 'minhas';
+
+function mostrarAbaN2(aba) {
+    n2AbaAtual = aba;
+    const tabs = { minhas: 'n2-tab-minhas', geral: 'n2-tab-geral', print: 'n2-tab-print' };
+    Object.entries(tabs).forEach(([k, id]) => {
+        const ativo = k === aba;
+        document.getElementById(id).className = 'text-sm font-semibold px-4 py-2 rounded-lg transition-colors ' +
+            (ativo ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
+    });
+    document.getElementById('n2-view-lista').classList.toggle('hidden', aba === 'print');
+    document.getElementById('n2-view-print').classList.toggle('hidden', aba !== 'print');
+    if (aba === 'minhas') {
+        document.getElementById('n2-titulo').textContent = 'Minhas atividades';
+        document.getElementById('n2-subtitulo').textContent = 'Atividades de campo onde você é o N2 responsável';
+        buscar();
+    } else if (aba === 'geral') {
+        document.getElementById('n2-titulo').textContent = 'Atividades em geral';
+        document.getElementById('n2-subtitulo').textContent = 'Todas as atividades de campo, de todos os N2';
+        buscar();
+    } else {
+        document.getElementById('print-count-label').textContent =
+            `${(ultimaLista || []).length} atividade(s) — a última lista vista em "Minhas atividades" ou "Atividades em geral"`;
+    }
+}
+
 async function buscar() {
-    const params = new URLSearchParams({ apenas_meu: 'true' });
+    const params = new URLSearchParams(n2AbaAtual === 'minhas' ? { apenas_meu: 'true' } : {});
     const status = document.getElementById('f-status').value;
     const dataDe = document.getElementById('f-data-de').value;
     const dataAte = document.getElementById('f-data-ate').value;
@@ -653,6 +701,57 @@ async function buscar() {
         }).join('');
     } catch (e) {
         lista.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+    }
+}
+
+async function gerarPrintLista() {
+    const msg = document.getElementById('print-msg');
+    if (typeof html2canvas === 'undefined') { msg.textContent = 'Não foi possível gerar a imagem (html2canvas não carregou).'; return; }
+    const rows = ultimaLista || [];
+    if (!rows.length) { msg.textContent = 'Nenhuma atividade pra imprimir.'; return; }
+    msg.textContent = 'Gerando imagem...';
+
+    const card = document.createElement('div');
+    card.style.cssText = 'position:fixed;left:-9999px;top:0;width:640px;background:#ffffff;padding:24px;font-family:Inter,sans-serif;';
+    const linhas = rows.map(r => `
+        <tr>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;white-space:nowrap;">${esc(fmtDate(r.data))}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:12px;font-weight:600;color:#0B0D1F;">${esc(r.cliente_nome || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.site_sigla || r.site_nome || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.n2_responsavel || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${esc(STATUS_LABEL[r.status] || r.status)}</td>
+        </tr>`).join('');
+    card.innerHTML = `
+        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#5B2EE0;margin-bottom:2px;">Status Report</div>
+        <div style="font-size:18px;font-weight:800;color:#0B0D1F;margin-bottom:12px;">${n2AbaAtual === 'geral' ? 'Atividades em geral' : 'Minhas atividades'} (${rows.length})</div>
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Data</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Projeto</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Site</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">N2</th>
+                    <th style="text-align:right;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Status</th>
+                </tr>
+            </thead>
+            <tbody>${linhas}</tbody>
+        </table>
+    `;
+    document.body.appendChild(card);
+    try {
+        const canvas = await html2canvas(card, { backgroundColor: '#ffffff', scale: 2 });
+        document.body.removeChild(card);
+        canvas.toBlob(async (blob) => {
+            try {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                msg.textContent = 'Imagem copiada — já pode colar!';
+            } catch (e) {
+                msg.textContent = 'Não foi possível copiar a imagem (navegador sem suporte). Clique com o botão direito e salve manualmente.';
+            }
+        }, 'image/png');
+    } catch (e) {
+        document.body.removeChild(card);
+        msg.textContent = 'Erro ao gerar a imagem.';
     }
 }
 
