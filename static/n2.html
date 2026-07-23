@@ -344,6 +344,10 @@
                 </select>
             </div>
             <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">O que está instalando/trocando/removendo? *</label>
+                <input type="text" id="ua-equipamento" placeholder="Ex.: Switch Catalyst 9300" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
                 <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Horário de início da atividade</label>
                 <input type="time" id="ua-hora-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
             </div>
@@ -397,19 +401,17 @@
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Equipamento</label>
                 <div class="flex gap-4 pt-1 flex-wrap">
                     <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" id="fz-equip-instalado" onchange="toggleFinalizarEquipamento('instalado')"> Instalado
+                        <input type="checkbox" id="fz-equip-instalado" onchange="fzToggleEquipamento()"> Instalado
                     </label>
                     <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" id="fz-equip-removido" onchange="toggleFinalizarEquipamento('removido')"> Removido
-                    </label>
-                    <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" id="fz-equip-nenhum" checked onchange="toggleFinalizarEquipamento('nenhum')"> Nenhum
+                        <input type="checkbox" id="fz-equip-removido" onchange="fzToggleEquipamento()"> Removido
                     </label>
                 </div>
-                <div id="fz-instalado-campos" class="hidden mt-2">
-                    <input type="text" id="fz-instalado-serial" placeholder="Serial instalado" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                <div id="fz-instalado-campos" class="hidden mt-2 flex-col gap-2">
+                    <div id="fz-instalado-lista" class="flex flex-col gap-2"></div>
+                    <button type="button" onclick="fzAdicionarItem('instalado')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento instalado</button>
                 </div>
-                <div id="fz-removido-campos" class="hidden mt-2 flex flex-col gap-2">
+                <div id="fz-removido-campos" class="hidden mt-2 flex-col gap-2">
                     <div class="flex gap-4">
                         <label class="flex items-center gap-2 text-sm text-slate-600">
                             <input type="radio" name="fz-removido-posse" id="fz-removido-posse-tecnico" checked> Ficou com o técnico
@@ -418,10 +420,8 @@
                             <input type="radio" name="fz-removido-posse" id="fz-removido-posse-cliente"> Ficou com o cliente
                         </label>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="text" id="fz-removido-partnumber" placeholder="Partnumber" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                        <input type="text" id="fz-removido-serial" placeholder="Serial" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                    </div>
+                    <div id="fz-removido-lista" class="flex flex-col gap-2"></div>
+                    <button type="button" onclick="fzAdicionarItem('removido')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento removido</button>
                 </div>
             </div>
             <div>
@@ -501,9 +501,20 @@ function chipsSituacao(r) {
 }
 function chipsAndamentoTipo(r) {
     const chips = [];
-    if (r.andamento_tipo) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-fuchsia-50 text-fuchsia-700">${ANDAMENTO_TIPO_LABEL[r.andamento_tipo] || r.andamento_tipo}</span>`);
     if (r.hora_inicio_atividade) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Início ${esc(r.hora_inicio_atividade)}</span>`);
     return chips.length ? `<div class="flex gap-1.5 flex-wrap">${chips.join('')}</div>` : '';
+}
+// Banner bem evidente do que está sendo feito -- tipo (categoria) + o
+// equipamento específico juntos, em destaque, em vez de escondidos num
+// chip pequeno igual os outros. É o que o usuário pediu pra ficar claro.
+function bannerAndamentoTipo(r) {
+    if (!r.andamento_tipo) return '';
+    const label = ANDAMENTO_TIPO_LABEL[r.andamento_tipo] || r.andamento_tipo;
+    return `<div class="mt-1.5 px-3 py-2 rounded-lg bg-fuchsia-50 border border-fuchsia-200 flex items-center gap-2">
+        <i class="ph ph-wrench text-fuchsia-700"></i>
+        <span class="text-sm font-bold text-fuchsia-700">${esc(label)}${r.andamento_equipamento ? ':' : ''}</span>
+        ${r.andamento_equipamento ? `<span class="text-sm text-fuchsia-900">${esc(r.andamento_equipamento)}</span>` : ''}
+    </div>`;
 }
 function chipsAndamento(r) {
     const s = chipsSituacao(r), a = chipsAndamentoTipo(r);
@@ -628,6 +639,7 @@ async function buscar() {
                     ${r.cidade ? `<span>${esc(r.cidade)}${r.uf ? '/' + esc(r.uf) : ''}</span>` : ''}
                 </div>
                 ${chipsAndamento(r)}
+                ${r.status === 'em_andamento' ? bannerAndamentoTipo(r) : ''}
                 ${r.status === 'em_andamento' && r.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-1.5"><i class="ph ph-info"></i> ${esc(r.andamento_descricao)}</div>` : ''}
                 ${r.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${esc(r.observacoes)}</div>` : ''}
                 <div class="flex gap-2 mt-2 flex-wrap">
@@ -883,6 +895,7 @@ async function confirmarAtualizarSituacao() {
 function abrirModalAtualizarAndamento(id, row) {
     statusAlvoId = id;
     document.getElementById('ua-tipo').value = (row && row.andamento_tipo) || '';
+    document.getElementById('ua-equipamento').value = (row && row.andamento_equipamento) || '';
     document.getElementById('ua-hora-inicio').value = (row && row.hora_inicio_atividade) || '';
     document.getElementById('ua-descricao').value = '';
     document.getElementById('modal-atualizar-andamento').classList.remove('hidden');
@@ -894,6 +907,8 @@ function fecharModalAtualizarAndamento() {
 async function confirmarAtualizarAndamento() {
     const tipo = document.getElementById('ua-tipo').value || null;
     if (!tipo) { alert('Selecione o que está sendo feito.'); return; }
+    const equipamento = document.getElementById('ua-equipamento').value.trim();
+    if (!equipamento) { alert('Diga o que está sendo instalado/trocado/removido.'); return; }
     const horaInicio = document.getElementById('ua-hora-inicio').value || null;
     const descricao = document.getElementById('ua-descricao').value.trim();
     const id = statusAlvoId;
@@ -902,7 +917,7 @@ async function confirmarAtualizarAndamento() {
     try {
         const res = await fetch(`/api/status-campo/${id}/andamento`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ descricao, hora_inicio_atividade: horaInicio, andamento_tipo: tipo }),
+            body: JSON.stringify({ descricao, hora_inicio_atividade: horaInicio, andamento_tipo: tipo, andamento_equipamento: equipamento }),
         });
         if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao atualizar andamento: ' + (err.detail || res.status)); }
     } catch (e) { alert('Erro de rede ao atualizar andamento.'); }
@@ -933,9 +948,9 @@ async function verHistoricoAndamento(id, row) {
             <div class="border-l-2 border-faiston-purple/30 pl-3 py-1">
                 <div class="flex items-center gap-2 flex-wrap text-[11px] text-faiston-faint">
                     <span>${esc(h.criado_em)}</span>
-                    ${h.andamento_tipo ? `<span class="px-1.5 py-0.5 rounded bg-fuchsia-50 text-fuchsia-700 font-semibold">${ANDAMENTO_TIPO_LABEL[h.andamento_tipo] || h.andamento_tipo}</span>` : ''}
                     ${h.hora_inicio_atividade ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold">Início ${esc(h.hora_inicio_atividade)}</span>` : ''}
                 </div>
+                ${h.andamento_tipo ? `<div class="text-sm font-bold text-fuchsia-700 mt-0.5">${esc(ANDAMENTO_TIPO_LABEL[h.andamento_tipo] || h.andamento_tipo)}${h.andamento_equipamento ? ': ' + esc(h.andamento_equipamento) : ''}</div>` : ''}
                 ${h.descricao ? `<div class="text-sm text-slate-700 mt-0.5">${esc(h.descricao)}</div>` : ''}
             </div>`).join('');
     } catch (e) {
@@ -954,19 +969,49 @@ function toggleFinalizarMaterial() {
 }
 let atividadeAlvoRow = null;
 
-function toggleFinalizarEquipamento(opcao) {
-    const instalado = document.getElementById('fz-equip-instalado');
-    const removido = document.getElementById('fz-equip-removido');
-    const nenhum = document.getElementById('fz-equip-nenhum');
-    if (opcao === 'instalado' && instalado.checked) { removido.checked = false; nenhum.checked = false; }
-    if (opcao === 'removido' && removido.checked) { instalado.checked = false; nenhum.checked = false; }
-    if (opcao === 'nenhum' && nenhum.checked) { instalado.checked = false; removido.checked = false; }
-    if (!instalado.checked && !removido.checked && !nenhum.checked) nenhum.checked = true;
-    document.getElementById('fz-instalado-campos').classList.toggle('hidden', !instalado.checked);
-    document.getElementById('fz-removido-campos').classList.toggle('hidden', !removido.checked);
+// Instalado e Removido não são mais mutuamente exclusivos -- uma atividade
+// pode envolver os dois ao mesmo tempo (troca de equipamento, por exemplo).
+// Cada um vira uma lista de partnumber+serial, já que pode ter mais de uma
+// unidade instalada/removida na mesma visita.
+let fzInstaladoItems = [];
+let fzRemovidoItems = [];
+
+function fzToggleEquipamento() {
+    const instalado = document.getElementById('fz-equip-instalado').checked;
+    const removido = document.getElementById('fz-equip-removido').checked;
+    const camposInstalado = document.getElementById('fz-instalado-campos');
+    const camposRemovido = document.getElementById('fz-removido-campos');
+    camposInstalado.classList.toggle('hidden', !instalado);
+    camposInstalado.classList.toggle('flex', instalado);
+    camposRemovido.classList.toggle('hidden', !removido);
+    camposRemovido.classList.toggle('flex', removido);
+    if (instalado && !fzInstaladoItems.length) fzAdicionarItem('instalado');
+    if (removido && !fzRemovidoItems.length) fzAdicionarItem('removido');
+}
+function fzItens(tipo) { return tipo === 'instalado' ? fzInstaladoItems : fzRemovidoItems; }
+function fzRenderLista(tipo) {
+    const itens = fzItens(tipo);
+    const container = document.getElementById(`fz-${tipo}-lista`);
+    container.innerHTML = itens.length ? itens.map((it, i) => `
+        <div class="flex gap-2 items-center">
+            <input type="text" value="${esc(it.partnumber)}" placeholder="Partnumber" oninput="fzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="text" value="${esc(it.serial)}" placeholder="Serial" oninput="fzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <button type="button" onclick="fzRemoverItem('${tipo}', ${i})" class="w-8 h-8 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+        </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
+}
+function fzAdicionarItem(tipo) {
+    fzItens(tipo).push({ partnumber: '', serial: '' });
+    fzRenderLista(tipo);
+}
+function fzRemoverItem(tipo, i) {
+    fzItens(tipo).splice(i, 1);
+    fzRenderLista(tipo);
+}
+function fzAtualizarItem(tipo, i, campo, valor) {
+    fzItens(tipo)[i][campo] = valor;
 }
 
-function abrirModalFinalizar(id, novoStatus, row) {
+async function abrirModalFinalizar(id, novoStatus, row) {
     statusAlvoId = id;
     statusAlvoNovo = novoStatus;
     atividadeAlvoRow = row || null;
@@ -982,17 +1027,28 @@ function abrirModalFinalizar(id, novoStatus, row) {
     const particularidades = (row && row.particularidades) || [];
     document.getElementById('fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
     document.getElementById('fz-equip-removido').checked = particularidades.includes('equipamento_removido');
-    document.getElementById('fz-equip-nenhum').checked = !particularidades.includes('equipamento_instalado') && !particularidades.includes('equipamento_removido');
-    document.getElementById('fz-instalado-serial').value = (row && row.equipamento_instalado_serial) || '';
     document.getElementById('fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
     document.getElementById('fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
-    document.getElementById('fz-removido-partnumber').value = (row && row.equipamento_removido_partnumber) || '';
-    document.getElementById('fz-removido-serial').value = (row && row.equipamento_removido_serial) || '';
     document.getElementById('fz-contato-nome').value = (row && row.contato_local_nome) || '';
     document.getElementById('fz-contato-matricula').value = (row && row.contato_local_matricula) || '';
     document.getElementById('fz-obs').value = (row && row.observacoes) || '';
-    document.getElementById('fz-instalado-campos').classList.toggle('hidden', !document.getElementById('fz-equip-instalado').checked);
-    document.getElementById('fz-removido-campos').classList.toggle('hidden', !document.getElementById('fz-equip-removido').checked);
+
+    // Busca a lista completa de equipamentos (não vem no cache da listagem)
+    // pra prefill correto ao reabrir/editar uma atividade já finalizada antes.
+    fzInstaladoItems = []; fzRemovidoItems = [];
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (res.ok) {
+            const full = await res.json();
+            (full.equipamentos || []).forEach(e => {
+                if (e.tipo === 'instalado') fzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+                if (e.tipo === 'removido') fzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+            });
+        }
+    } catch (e) { /* segue com listas vazias se falhar */ }
+    fzRenderLista('instalado');
+    fzRenderLista('removido');
+    fzToggleEquipamento();
     document.getElementById('modal-finalizar').classList.remove('hidden');
 }
 function fecharModalFinalizar() {
@@ -1009,6 +1065,12 @@ function fmtDataCurta(iso) {
 function labelStatusCurto(status) {
     return (STATUS_LABEL[status] || status).split(' — ')[0];
 }
+function fzLinhasItens(itens) {
+    // Uma atividade pode ter mais de uma unidade instalada/removida --
+    // lista cada uma numa linha própria em vez de um único PN/Serial.
+    if (!itens.length) return ['N/A'];
+    return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'}`);
+}
 function gerarCarimboFinalizacao(row, extras) {
     const site = row.site_sigla || row.site_nome || '';
     const cabecalho = [row.ticket, site, row.cidade, row.subprojeto]
@@ -1019,10 +1081,10 @@ function gerarCarimboFinalizacao(row, extras) {
         '',
         `STATUS: ${labelStatusCurto(extras.status)}`,
         '',
-        `Serial Instalado: ${extras.instalado ? (extras.serialInstalado || 'N/A') : 'N/A'}`,
-        extras.removido ? `Partnumber Removido: ${extras.removidoPartnumber || 'N/A'}` : null,
-        extras.removido ? `Serial Removido: ${extras.removidoSerial || 'N/A'}` : null,
-        extras.removido ? `Equipamento com: ${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}` : null,
+        extras.instalado ? 'Instalado:' : 'Instalado: N/A',
+        ...(extras.instalado ? fzLinhasItens(extras.instaladoItens).map(l => `  ${l}`) : []),
+        extras.removido ? `Removido (${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}):` : 'Removido: N/A',
+        ...(extras.removido ? fzLinhasItens(extras.removidoItens).map(l => `  ${l}`) : []),
         '',
         `HORÁRIO CHEGADA TÉCNICO: ${row.hora_chegada || 'N/A'}`,
         `HORÁRIO SAÍDA TÉCNICO: ${extras.horaSaida}`,
@@ -1063,6 +1125,8 @@ async function confirmarFinalizar() {
     if (instalado) equipamentoStatus.push('equipamento_instalado');
     if (removido) equipamentoStatus.push('equipamento_removido');
     const removidoPosse = document.getElementById('fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
+    const instaladoItens = instalado ? fzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
+    const removidoItens = removido ? fzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
     const id = statusAlvoId;
     const status = statusAlvoNovo;
     const row = atividadeAlvoRow;
@@ -1076,9 +1140,8 @@ async function confirmarFinalizar() {
         material_valor: materialSim && document.getElementById('fz-material-valor').value
             ? parseFloat(document.getElementById('fz-material-valor').value) : null,
         equipamento_status: equipamentoStatus,
-        equipamento_instalado_serial: document.getElementById('fz-instalado-serial').value.trim(),
-        equipamento_removido_partnumber: document.getElementById('fz-removido-partnumber').value.trim(),
-        equipamento_removido_serial: document.getElementById('fz-removido-serial').value.trim(),
+        equipamentos_instalados: instaladoItens,
+        equipamentos_removidos: removidoItens,
         equipamento_removido_posse: removidoPosse,
         contato_local_nome: document.getElementById('fz-contato-nome').value.trim(),
         contato_local_matricula: document.getElementById('fz-contato-matricula').value.trim(),
@@ -1090,9 +1153,7 @@ async function confirmarFinalizar() {
     if (ok && row) {
         const texto = gerarCarimboFinalizacao(row, {
             status, instalado, removido,
-            serialInstalado: body.equipamento_instalado_serial,
-            removidoPartnumber: body.equipamento_removido_partnumber,
-            removidoSerial: body.equipamento_removido_serial,
+            instaladoItens, removidoItens,
             removidoPosse,
             horaSaida: saida,
             contatoNome: body.contato_local_nome,

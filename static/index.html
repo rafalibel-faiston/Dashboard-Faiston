@@ -1828,19 +1828,17 @@
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Equipamento</label>
                 <div class="flex gap-4 pt-1 flex-wrap">
                     <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" id="sc-fz-equip-instalado" onchange="scToggleFinalizarEquipamento('instalado')"> Instalado
+                        <input type="checkbox" id="sc-fz-equip-instalado" onchange="scFzToggleEquipamento()"> Instalado
                     </label>
                     <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" id="sc-fz-equip-removido" onchange="scToggleFinalizarEquipamento('removido')"> Removido
-                    </label>
-                    <label class="flex items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" id="sc-fz-equip-nenhum" checked onchange="scToggleFinalizarEquipamento('nenhum')"> Nenhum
+                        <input type="checkbox" id="sc-fz-equip-removido" onchange="scFzToggleEquipamento()"> Removido
                     </label>
                 </div>
-                <div id="sc-fz-instalado-campos" class="hidden mt-2">
-                    <input type="text" id="sc-fz-instalado-serial" placeholder="Serial instalado" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                <div id="sc-fz-instalado-campos" class="hidden mt-2 flex-col gap-2">
+                    <div id="sc-fz-instalado-lista" class="flex flex-col gap-2"></div>
+                    <button type="button" onclick="scFzAdicionarItem('instalado')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento instalado</button>
                 </div>
-                <div id="sc-fz-removido-campos" class="hidden mt-2 flex flex-col gap-2">
+                <div id="sc-fz-removido-campos" class="hidden mt-2 flex-col gap-2">
                     <div class="flex gap-4">
                         <label class="flex items-center gap-2 text-sm text-slate-600">
                             <input type="radio" name="sc-fz-removido-posse" id="sc-fz-removido-posse-tecnico" checked> Ficou com o técnico
@@ -1849,10 +1847,8 @@
                             <input type="radio" name="sc-fz-removido-posse" id="sc-fz-removido-posse-cliente"> Ficou com o cliente
                         </label>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="text" id="sc-fz-removido-partnumber" placeholder="Partnumber" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                        <input type="text" id="sc-fz-removido-serial" placeholder="Serial" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                    </div>
+                    <div id="sc-fz-removido-lista" class="flex flex-col gap-2"></div>
+                    <button type="button" onclick="scFzAdicionarItem('removido')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento removido</button>
                 </div>
             </div>
             <div>
@@ -6650,19 +6646,45 @@ function scToggleFinalizarMaterial() {
 }
 let scAtividadeAlvoRow = null;
 
-function scToggleFinalizarEquipamento(opcao) {
-    const instalado = document.getElementById('sc-fz-equip-instalado');
-    const removido = document.getElementById('sc-fz-equip-removido');
-    const nenhum = document.getElementById('sc-fz-equip-nenhum');
-    if (opcao === 'instalado' && instalado.checked) { removido.checked = false; nenhum.checked = false; }
-    if (opcao === 'removido' && removido.checked) { instalado.checked = false; nenhum.checked = false; }
-    if (opcao === 'nenhum' && nenhum.checked) { instalado.checked = false; removido.checked = false; }
-    if (!instalado.checked && !removido.checked && !nenhum.checked) nenhum.checked = true;
-    document.getElementById('sc-fz-instalado-campos').classList.toggle('hidden', !instalado.checked);
-    document.getElementById('sc-fz-removido-campos').classList.toggle('hidden', !removido.checked);
+let scFzInstaladoItems = [];
+let scFzRemovidoItems = [];
+
+function scFzToggleEquipamento() {
+    const instalado = document.getElementById('sc-fz-equip-instalado').checked;
+    const removido = document.getElementById('sc-fz-equip-removido').checked;
+    const camposInstalado = document.getElementById('sc-fz-instalado-campos');
+    const camposRemovido = document.getElementById('sc-fz-removido-campos');
+    camposInstalado.classList.toggle('hidden', !instalado);
+    camposInstalado.classList.toggle('flex', instalado);
+    camposRemovido.classList.toggle('hidden', !removido);
+    camposRemovido.classList.toggle('flex', removido);
+    if (instalado && !scFzInstaladoItems.length) scFzAdicionarItem('instalado');
+    if (removido && !scFzRemovidoItems.length) scFzAdicionarItem('removido');
+}
+function scFzItens(tipo) { return tipo === 'instalado' ? scFzInstaladoItems : scFzRemovidoItems; }
+function scFzRenderLista(tipo) {
+    const itens = scFzItens(tipo);
+    const container = document.getElementById(`sc-fz-${tipo}-lista`);
+    container.innerHTML = itens.length ? itens.map((it, i) => `
+        <div class="flex gap-2 items-center">
+            <input type="text" value="${scEsc(it.partnumber)}" placeholder="Partnumber" oninput="scFzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="text" value="${scEsc(it.serial)}" placeholder="Serial" oninput="scFzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <button type="button" onclick="scFzRemoverItem('${tipo}', ${i})" class="w-8 h-8 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+        </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
+}
+function scFzAdicionarItem(tipo) {
+    scFzItens(tipo).push({ partnumber: '', serial: '' });
+    scFzRenderLista(tipo);
+}
+function scFzRemoverItem(tipo, i) {
+    scFzItens(tipo).splice(i, 1);
+    scFzRenderLista(tipo);
+}
+function scFzAtualizarItem(tipo, i, campo, valor) {
+    scFzItens(tipo)[i][campo] = valor;
 }
 
-function scAbrirModalFinalizar(id, novoStatus, row) {
+async function scAbrirModalFinalizar(id, novoStatus, row) {
     scStatusAlvoId = id;
     scStatusAlvoNovo = novoStatus;
     scAtividadeAlvoRow = row || null;
@@ -6678,17 +6700,26 @@ function scAbrirModalFinalizar(id, novoStatus, row) {
     const particularidades = (row && row.particularidades) || [];
     document.getElementById('sc-fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
     document.getElementById('sc-fz-equip-removido').checked = particularidades.includes('equipamento_removido');
-    document.getElementById('sc-fz-equip-nenhum').checked = !particularidades.includes('equipamento_instalado') && !particularidades.includes('equipamento_removido');
-    document.getElementById('sc-fz-instalado-serial').value = (row && row.equipamento_instalado_serial) || '';
     document.getElementById('sc-fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
     document.getElementById('sc-fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
-    document.getElementById('sc-fz-removido-partnumber').value = (row && row.equipamento_removido_partnumber) || '';
-    document.getElementById('sc-fz-removido-serial').value = (row && row.equipamento_removido_serial) || '';
     document.getElementById('sc-fz-contato-nome').value = (row && row.contato_local_nome) || '';
     document.getElementById('sc-fz-contato-matricula').value = (row && row.contato_local_matricula) || '';
     document.getElementById('sc-fz-obs').value = (row && row.observacoes) || '';
-    document.getElementById('sc-fz-instalado-campos').classList.toggle('hidden', !document.getElementById('sc-fz-equip-instalado').checked);
-    document.getElementById('sc-fz-removido-campos').classList.toggle('hidden', !document.getElementById('sc-fz-equip-removido').checked);
+
+    scFzInstaladoItems = []; scFzRemovidoItems = [];
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (res.ok) {
+            const full = await res.json();
+            (full.equipamentos || []).forEach(e => {
+                if (e.tipo === 'instalado') scFzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+                if (e.tipo === 'removido') scFzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+            });
+        }
+    } catch (e) { /* segue com listas vazias se falhar */ }
+    scFzRenderLista('instalado');
+    scFzRenderLista('removido');
+    scFzToggleEquipamento();
     document.getElementById('modal-sc-finalizar').classList.remove('hidden');
 }
 function scFecharModalFinalizar() {
@@ -6705,6 +6736,10 @@ function scFmtDataCurta(iso) {
 function scLabelStatusCurto(status) {
     return (STATUS_CAMPO_LABEL[status] || status).split(' — ')[0];
 }
+function scFzLinhasItens(itens) {
+    if (!itens.length) return ['N/A'];
+    return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'}`);
+}
 function scGerarCarimboFinalizacao(row, extras) {
     const site = row.site_sigla || row.site_nome || '';
     const cabecalho = [row.ticket, site, row.cidade, row.subprojeto]
@@ -6715,10 +6750,10 @@ function scGerarCarimboFinalizacao(row, extras) {
         '',
         `STATUS: ${scLabelStatusCurto(extras.status)}`,
         '',
-        `Serial Instalado: ${extras.instalado ? (extras.serialInstalado || 'N/A') : 'N/A'}`,
-        extras.removido ? `Partnumber Removido: ${extras.removidoPartnumber || 'N/A'}` : null,
-        extras.removido ? `Serial Removido: ${extras.removidoSerial || 'N/A'}` : null,
-        extras.removido ? `Equipamento com: ${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}` : null,
+        extras.instalado ? 'Instalado:' : 'Instalado: N/A',
+        ...(extras.instalado ? scFzLinhasItens(extras.instaladoItens).map(l => `  ${l}`) : []),
+        extras.removido ? `Removido (${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}):` : 'Removido: N/A',
+        ...(extras.removido ? scFzLinhasItens(extras.removidoItens).map(l => `  ${l}`) : []),
         '',
         `HORÁRIO CHEGADA TÉCNICO: ${row.hora_chegada || 'N/A'}`,
         `HORÁRIO SAÍDA TÉCNICO: ${extras.horaSaida}`,
@@ -6759,6 +6794,8 @@ async function scConfirmarFinalizar() {
     if (instalado) equipamentoStatus.push('equipamento_instalado');
     if (removido) equipamentoStatus.push('equipamento_removido');
     const removidoPosse = document.getElementById('sc-fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
+    const instaladoItens = instalado ? scFzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
+    const removidoItens = removido ? scFzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
     const id = scStatusAlvoId;
     const status = scStatusAlvoNovo;
     const row = scAtividadeAlvoRow;
@@ -6772,9 +6809,8 @@ async function scConfirmarFinalizar() {
         material_valor: materialSim && document.getElementById('sc-fz-material-valor').value
             ? parseFloat(document.getElementById('sc-fz-material-valor').value) : null,
         equipamento_status: equipamentoStatus,
-        equipamento_instalado_serial: document.getElementById('sc-fz-instalado-serial').value.trim(),
-        equipamento_removido_partnumber: document.getElementById('sc-fz-removido-partnumber').value.trim(),
-        equipamento_removido_serial: document.getElementById('sc-fz-removido-serial').value.trim(),
+        equipamentos_instalados: instaladoItens,
+        equipamentos_removidos: removidoItens,
         equipamento_removido_posse: removidoPosse,
         contato_local_nome: document.getElementById('sc-fz-contato-nome').value.trim(),
         contato_local_matricula: document.getElementById('sc-fz-contato-matricula').value.trim(),
@@ -6786,9 +6822,7 @@ async function scConfirmarFinalizar() {
     if (ok && row) {
         const texto = scGerarCarimboFinalizacao(row, {
             status, instalado, removido,
-            serialInstalado: body.equipamento_instalado_serial,
-            removidoPartnumber: body.equipamento_removido_partnumber,
-            removidoSerial: body.equipamento_removido_serial,
+            instaladoItens, removidoItens,
             removidoPosse,
             horaSaida: saida,
             contatoNome: body.contato_local_nome,
@@ -6815,15 +6849,17 @@ async function scAbrirModalAndamentoHistorico(id) {
         }
         const localLabel = { deslocamento: 'Em deslocamento', no_local: 'No local' };
         const acessoLabel = { com_acesso: 'Com acesso', verificando_acesso: 'Verificando acesso', sem_acesso: 'Sem acesso' };
+        const tipoLabel = { instalando: 'Instalando', trocando: 'Trocando', removendo: 'Removendo' };
         box.innerHTML = hist.map(h => `
             <div class="border-l-2 border-faiston-purple/30 pl-3 py-1">
                 <div class="flex items-center gap-2 flex-wrap text-[11px] text-faiston-faint">
                     <span class="font-semibold text-faiston-dark">${scEsc(h.criado_por_nome || '—')}</span>
                     <span>${scEsc(h.criado_em)}</span>
-                    ${h.localizacao ? `<span class="px-1.5 py-0.5 rounded bg-faiston-cyan/10 text-faiston-cyan font-semibold">${localLabel[h.localizacao] || h.localizacao}</span>` : ''}
+                    ${h.localizacao ? `<span class="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 font-semibold">${localLabel[h.localizacao] || h.localizacao}</span>` : ''}
                     ${h.acesso ? `<span class="px-1.5 py-0.5 rounded bg-faiston-purple/10 text-faiston-purple font-semibold">${acessoLabel[h.acesso] || h.acesso}</span>` : ''}
                 </div>
-                <div class="text-sm text-slate-700 mt-0.5">${scEsc(h.descricao)}</div>
+                ${h.andamento_tipo ? `<div class="text-sm font-bold text-fuchsia-700 mt-0.5">${scEsc(tipoLabel[h.andamento_tipo] || h.andamento_tipo)}${h.andamento_equipamento ? ': ' + scEsc(h.andamento_equipamento) : ''}</div>` : ''}
+                ${h.descricao ? `<div class="text-sm text-slate-700 mt-0.5">${scEsc(h.descricao)}</div>` : ''}
             </div>`).join('');
     } catch (e) {
         box.innerHTML = '<div class="text-center py-6 text-red-400 text-sm">Erro ao carregar o histórico.</div>';
