@@ -76,15 +76,32 @@
                     </a>
                     <div class="flex flex-col pl-9 py-3 gap-3 relative" id="submenu-n2">
                         <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
-                        <a href="#" data-nav-mod="statuscampo" onclick="setModule('statuscampo'); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
-                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan"></div>
-                            Status Report
-                        </a>
                         <a href="#" data-nav-mod="painelN2" onclick="pn2AbrirGeral(); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div>
                             Painel N2
                         </a>
                         <div id="lista-n2-sidebar" class="flex flex-col gap-3 mt-1"></div>
+                    </div>
+                </div>
+                <div class="flex flex-col">
+                    <a href="#" onclick="toggleCronogramaAtividades(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
+                        <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-calendar-check text-lg"></i> Cronograma de Atividades</div>
+                        <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-cronograma-atividades"></i>
+                    </a>
+                    <div class="flex flex-col pl-9 py-3 gap-3 relative" id="submenu-cronograma-atividades">
+                        <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
+                        <a href="#" data-nav-mod="painelN2" onclick="pn2AbrirGeral(); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div>
+                            Escala
+                        </a>
+                        <a href="#" data-nav-mod="statuscampo" onclick="scAbrirCronograma(); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan"></div>
+                            Cronograma
+                        </a>
+                        <a href="#" data-nav-mod="statuscampo" onclick="setModule('statuscampo'); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-magenta"></div>
+                            Status Report
+                        </a>
                     </div>
                 </div>
                 <div class="flex flex-col">
@@ -2411,6 +2428,7 @@ const cor_cyan='#06D7E6', cor_purple='#5B2EE0', cor_magenta='#EC4899', cor_dark=
 let projetosAberto = true;
 let backofficeAberto = true;
 let n2Aberto = true;
+let cronogramaAtividadesAberto = true;
 function toggleBackoffice() {
     backofficeAberto = !backofficeAberto;
     const submenu = document.getElementById('submenu-backoffice');
@@ -2433,6 +2451,22 @@ function toggleN2() {
     const caret = document.getElementById('caret-n2');
     submenu.style.display = n2Aberto ? '' : 'none';
     caret.style.transform = n2Aberto ? '' : 'rotate(-90deg)';
+}
+
+function toggleCronogramaAtividades() {
+    cronogramaAtividadesAberto = !cronogramaAtividadesAberto;
+    const submenu = document.getElementById('submenu-cronograma-atividades');
+    const caret = document.getElementById('caret-cronograma-atividades');
+    submenu.style.display = cronogramaAtividadesAberto ? '' : 'none';
+    caret.style.transform = cronogramaAtividadesAberto ? '' : 'rotate(-90deg)';
+}
+
+function scAbrirCronograma() {
+    // Atalho "Cronograma" do menu lateral -- mesma tela de Status Report,
+    // só que sempre pousando na aba Cronograma (mesmo se a última visita
+    // tiver ficado no Histórico).
+    setModule('statuscampo');
+    if (_statusCampoCarregado) scMudarModoAtividades('cronograma');
 }
 
 // --- NOTIFICAÇÕES ---
