@@ -209,29 +209,6 @@
     </div>
 </div>
 
-<!-- MODAL: duplicar atividade (mesmo local, novo atendimento) -->
-<div id="modal-duplicar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h3 class="text-base font-bold text-faiston-dark mb-1">Duplicar atividade</h3>
-        <p class="text-xs text-faiston-muted mb-4">Escolha o que aproveitar da atividade original -- útil quando tem mais de um atendimento no mesmo local (ex.: Arcos). Data e status sempre começam em branco/agendado na cópia.</p>
-        <div class="flex flex-col gap-2" id="dup-campos">
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-cliente" checked> Projeto/Cliente</label>
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-tecnico" checked> Técnico</label>
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-sigla" checked> Sigla/Tipo de loja</label>
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-nomesite" checked> Nome do site</label>
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-subprojeto" checked> Subprojeto</label>
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-endereco" checked> Endereço/Cidade/UF</label>
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-horario"> Horário agendado</label>
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-ticket"> Ticket</label>
-            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-detalhamento"> Detalhamento técnico</label>
-        </div>
-        <div class="flex gap-3 mt-4">
-            <button onclick="fecharModalDuplicar()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
-            <button onclick="confirmarDuplicar()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Duplicar</button>
-        </div>
-    </div>
-</div>
-
 <!-- MODAL: descrever andamento (ao marcar "Em andamento" ou atualizar depois) -->
 <div id="modal-andamento" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -681,7 +658,6 @@ async function buscar() {
                 ${r.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${esc(r.observacoes)}</div>` : ''}
                 <div class="flex gap-2 mt-2 flex-wrap">
                     <button onclick="abrirModalEditar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Editar</button>
-                    <button onclick="abrirModalDuplicar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Duplicar</button>
                     ${r.status === 'em_andamento' ? `<button onclick="abrirModalAtualizarSituacao(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-purple hover:underline">Atualizar situação</button>` : ''}
                     ${r.status === 'em_andamento' ? `<button onclick="abrirModalAtualizarAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-cyan hover:underline">Atualizar andamento</button>` : ''}
                     <button onclick="verHistoricoAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-muted hover:underline">Ver histórico</button>
@@ -909,44 +885,6 @@ async function salvar() {
     } finally {
         btn.disabled = false;
     }
-}
-
-let dupOrigem = null;
-
-async function abrirModalDuplicar(id) {
-    try {
-        const res = await fetch(`/api/status-campo/${id}`);
-        if (!res.ok) { alert('Atividade não encontrada.'); return; }
-        dupOrigem = await res.json();
-        document.getElementById('modal-duplicar').classList.remove('hidden');
-    } catch (e) { alert('Erro ao carregar atividade.'); }
-}
-
-function fecharModalDuplicar() {
-    document.getElementById('modal-duplicar').classList.add('hidden');
-    dupOrigem = null;
-}
-
-function confirmarDuplicar() {
-    const r = dupOrigem;
-    if (!r) return;
-    const marcado = id => document.getElementById(id).checked;
-    fecharModalDuplicar();
-    abrirModalNovo();
-    if (marcado('dup-cliente')) document.getElementById('m-cliente').value = r.cliente_id || '';
-    if (marcado('dup-tecnico')) document.getElementById('m-tecnico').value = r.tecnico || '';
-    if (marcado('dup-sigla')) document.getElementById('m-sigla').value = r.site_sigla || '';
-    if (marcado('dup-nomesite')) document.getElementById('m-nomesite').value = r.site_nome || '';
-    if (marcado('dup-subprojeto')) document.getElementById('m-subprojeto').value = r.subprojeto || '';
-    if (marcado('dup-endereco')) {
-        document.getElementById('m-endereco').value = r.endereco || '';
-        document.getElementById('m-cidade').value = r.cidade || '';
-        document.getElementById('m-uf').value = r.uf || '';
-    }
-    if (marcado('dup-horario')) document.getElementById('m-horario').value = r.horario_agendado || '';
-    if (marcado('dup-ticket')) document.getElementById('m-ticket').value = r.ticket || '';
-    if (marcado('dup-detalhamento')) document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
-    atualizarCamposPorCliente();
 }
 
 async function excluir(id) {
