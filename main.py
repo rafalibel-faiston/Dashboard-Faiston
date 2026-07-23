@@ -5633,6 +5633,11 @@ def atribuir_lote_status_campo(body: AtribuirLoteModel, faiston_token: str = Coo
     plantão sem vínculo real com as atividades."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    try:
+        if datetime.strptime(body.data, "%Y-%m-%d").date() < date.today():
+            raise HTTPException(status_code=400, detail="Não é possível gerar escala pra uma data que já passou")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:

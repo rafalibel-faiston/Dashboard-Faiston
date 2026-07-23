@@ -2,6 +2,13 @@
 Testes do Painel de Controle do N2: escala do dia (/api/escala-n2) e
 resumo da equipe (/api/painel-n2/resumo).
 """
+from datetime import date, timedelta
+
+# Data fixa no futuro (nunca no passado) -- atribuir-lote agora rejeita
+# data < hoje, e um valor hardcoded viraria passado com o tempo.
+DATA_TESTE = (date.today() + timedelta(days=1)).isoformat()
+
+
 class TestEscalaN2:
     def test_listar_sem_login_retorna_401(self, app):
         from fastapi.testclient import TestClient
@@ -14,11 +21,11 @@ class TestEscalaN2:
         client = TestClient(app)
         resp = client.post("/api/login", json={"usuario": n2_user["usuario"], "senha": n2_user["senha"]})
         assert resp.status_code == 200
-        resp = client.post("/api/escala-n2", json={"data": "2026-07-21", "n2_usuario_id": n2_user["id"]})
+        resp = client.post("/api/escala-n2", json={"data": DATA_TESTE, "n2_usuario_id": n2_user["id"]})
         assert resp.status_code == 403
 
     def test_criar_listar_editar_e_excluir(self, admin_client, n2_user):
-        data = "2026-07-21"
+        data = DATA_TESTE
         resp = admin_client.post("/api/escala-n2", json={
             "data": data, "n2_usuario_id": n2_user["id"], "horario_entrada": "07:00",
             "modalidade": "home", "atribuicao": "ARCOS - vistoria",
@@ -53,12 +60,12 @@ class TestEscalaN2:
 
     def test_modalidade_invalida_cai_para_presencial(self, admin_client, n2_user):
         resp = admin_client.post("/api/escala-n2", json={
-            "data": "2026-07-21", "n2_usuario_id": n2_user["id"], "modalidade": "modalidade-invalida",
+            "data": DATA_TESTE, "n2_usuario_id": n2_user["id"], "modalidade": "modalidade-invalida",
         })
         assert resp.status_code == 200
         eid = resp.json()["id"]
         try:
-            item = next(x for x in admin_client.get("/api/escala-n2", params={"data": "2026-07-21"}).json() if x["id"] == eid)
+            item = next(x for x in admin_client.get("/api/escala-n2", params={"data": DATA_TESTE}).json() if x["id"] == eid)
             assert item["modalidade"] == "presencial"
         finally:
             admin_client.delete(f"/api/escala-n2/{eid}")
@@ -92,7 +99,7 @@ class TestPainelN2Resumo:
         # cria 2 atividades pro N2, ambas nesta semana/mês: uma concluída
         # (sem hora_chegada -> não conta hora trabalhada), uma pendente
         # (status inicial é sempre "agendado" -- a concluída muda via PATCH)
-        base = {"cliente_id": cliente_teste, "data": "2026-07-21"}
+        base = {"cliente_id": cliente_teste, "data": DATA_TESTE}
         a1 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"]}).json()["id"]
         a2 = admin_client.post("/api/status-campo", json={**base, "n2_usuario_id": n2_user["id"]}).json()["id"]
         admin_client.patch(f"/api/status-campo/{a1}/status", json={
@@ -112,7 +119,7 @@ class TestPainelN2Resumo:
 
     def test_resumo_calcula_horas_trabalhadas_de_chegada_ate_saida(self, admin_client, n2_user, cliente_teste):
         aid = admin_client.post("/api/status-campo", json={
-            "cliente_id": cliente_teste, "data": "2026-07-21", "n2_usuario_id": n2_user["id"],
+            "cliente_id": cliente_teste, "data": DATA_TESTE, "n2_usuario_id": n2_user["id"],
             "hora_chegada": "14:00",
         }).json()["id"]
         admin_client.patch(f"/api/status-campo/{aid}/status", json={
@@ -142,12 +149,12 @@ class TestAtribuirLote:
         resp = client.post("/api/login", json={"usuario": n2_user["usuario"], "senha": n2_user["senha"]})
         assert resp.status_code == 200
         resp = client.post("/api/status-campo/atribuir-lote", json={
-            "cliente_id": cliente_teste, "data": "2026-07-21", "quantidade": 1, "n2_usuario_id": n2_user["id"],
+            "cliente_id": cliente_teste, "data": DATA_TESTE, "quantidade": 1, "n2_usuario_id": n2_user["id"],
         })
         assert resp.status_code == 403
 
     def test_atribui_apenas_as_sem_n2_ate_a_quantidade_pedida(self, admin_client, n2_user, cliente_teste):
-        data = "2026-07-21"
+        data = DATA_TESTE
         # 3 atividades sem N2 + 1 já com N2 definido (não deve ser tocada)
         sem_n2 = [
             admin_client.post("/api/status-campo", json={"cliente_id": cliente_teste, "data": data}).json()["id"]
@@ -181,7 +188,7 @@ class TestAtribuirLote:
     def test_atividade_atribuida_aparece_para_o_n2(self, admin_client, app, n2_user, cliente_teste):
         """Prova fim-a-fim do fix: depois do atribuir-lote, a atividade
         aparece na listagem do próprio N2 (GET /api/status-campo?n2_usuario_id=)."""
-        data = "2026-07-21"
+        data = DATA_TESTE
         aid = admin_client.post("/api/status-campo", json={"cliente_id": cliente_teste, "data": data}).json()["id"]
         try:
             resp = admin_client.post("/api/status-campo/atribuir-lote", json={
@@ -201,7 +208,7 @@ class TestAtribuirLote:
             admin_client.delete(f"/api/status-campo/{aid}")
 
     def test_quantidade_maior_que_disponivel_atribui_so_as_existentes(self, admin_client, n2_user, cliente_teste):
-        data = "2026-07-21"
+        data = DATA_TESTE
         aid = admin_client.post("/api/status-campo", json={"cliente_id": cliente_teste, "data": data}).json()["id"]
         try:
             resp = admin_client.post("/api/status-campo/atribuir-lote", json={

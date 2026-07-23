@@ -1646,6 +1646,10 @@
                 </button>
             </div>
         </div>
+        <div class="flex gap-2 px-5 pt-4">
+            <button onclick="scMudarModoAtividades('cronograma')" id="sc-modo-cronograma" class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Cronograma</button>
+            <button onclick="scMudarModoAtividades('historico')" id="sc-modo-historico" class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Histórico</button>
+        </div>
         <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-sm">
                 <thead>
@@ -6915,7 +6919,7 @@ async function scInit() {
 
     const hoje = new Date().toISOString().slice(0, 10);
     document.getElementById('sc-report-data').value = hoje;
-    await scBuscar();
+    scMudarModoAtividades('cronograma');
     await scCarregarReport();
 }
 
@@ -6934,14 +6938,38 @@ function scLimparFiltros() {
     scBuscar();
 }
 
+// Cronograma nunca mostra atividade com data já passada -- planilhas
+// importadas trazem histórico junto, e isso não pode se misturar com o
+// que é agenda/escala real. Histórico é a única aba que vê o passado.
+let scModoAtividades = 'cronograma';
+
+function scHojeISO() { return new Date().toISOString().slice(0, 10); }
+function scOntemISO() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+
+function scMudarModoAtividades(modo) {
+    scModoAtividades = modo;
+    document.getElementById('sc-modo-cronograma').className = 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ' +
+        (modo === 'cronograma' ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
+    document.getElementById('sc-modo-historico').className = 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ' +
+        (modo === 'historico' ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
+    scBuscar();
+}
+
 async function scBuscar() {
     const params = new URLSearchParams();
     const texto = document.getElementById('sc-f-texto').value.trim();
     const cliente_id = document.getElementById('sc-f-cliente').value;
     const n2_usuario_id = document.getElementById('sc-f-n2').value;
     const status = document.getElementById('sc-f-status').value;
-    const data_de = document.getElementById('sc-f-data-de').value;
-    const data_ate = document.getElementById('sc-f-data-ate').value;
+    let data_de = document.getElementById('sc-f-data-de').value;
+    let data_ate = document.getElementById('sc-f-data-ate').value;
+    if (scModoAtividades === 'cronograma') {
+        // nunca deixa passado entrar no cronograma, mesmo que o filtro de
+        // data manual tente puxar mais pra trás
+        if (!data_de || data_de < scHojeISO()) data_de = scHojeISO();
+    } else {
+        if (!data_ate || data_ate > scOntemISO()) data_ate = scOntemISO();
+    }
     if (texto) params.set('texto', texto);
     if (cliente_id) params.set('cliente_id', cliente_id);
     if (n2_usuario_id) params.set('n2_usuario_id', n2_usuario_id);
