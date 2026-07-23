@@ -1105,22 +1105,38 @@ function fzRenderLista(tipo) {
     const itens = fzItens(tipo);
     const container = document.getElementById(`fz-${tipo}-lista`);
     container.innerHTML = itens.length ? itens.map((it, i) => `
-        <div class="flex gap-2 items-center">
-            <input type="text" value="${esc(it.partnumber)}" placeholder="Partnumber" oninput="fzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
-            <input type="text" value="${esc(it.serial)}" placeholder="Serial" oninput="fzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
-            <button type="button" onclick="fzRemoverItem('${tipo}', ${i})" class="w-8 h-8 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+        <div class="flex gap-2 items-center flex-wrap">
+            <input type="text" value="${esc(it.partnumber)}" placeholder="Partnumber" oninput="fzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="text" value="${esc(it.serial)}" placeholder="Serial" oninput="fzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            ${it.fotoUrl ? `<img src="${it.fotoUrl}" class="w-9 h-9 rounded-md object-cover border border-faiston-border flex-shrink-0">` : ''}
+            <label class="w-9 h-9 rounded-md hover:bg-slate-100 flex items-center justify-center flex-shrink-0 cursor-pointer" title="Foto de referência (fica só nesta tela, não é enviada nem salva)">
+                <input type="file" accept="image/*" capture="environment" class="hidden" onchange="fzAnexarFoto('${tipo}', ${i}, this.files[0])">
+                <i class="ph ph-camera text-slate-400 text-sm"></i>
+            </label>
+            <button type="button" onclick="fzRemoverItem('${tipo}', ${i})" class="w-9 h-9 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
         </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
 }
 function fzAdicionarItem(tipo) {
-    fzItens(tipo).push({ partnumber: '', serial: '' });
+    fzItens(tipo).push({ partnumber: '', serial: '', fotoUrl: null });
     fzRenderLista(tipo);
 }
 function fzRemoverItem(tipo, i) {
-    fzItens(tipo).splice(i, 1);
+    const itens = fzItens(tipo);
+    if (itens[i] && itens[i].fotoUrl) URL.revokeObjectURL(itens[i].fotoUrl);
+    itens.splice(i, 1);
     fzRenderLista(tipo);
 }
 function fzAtualizarItem(tipo, i, campo, valor) {
     fzItens(tipo)[i][campo] = valor;
+}
+function fzAnexarFoto(tipo, i, file) {
+    // Foto é só apoio visual pra digitar o serial/partnumber -- nunca sai
+    // do navegador (não é enviada nem salva), por isso um object URL local.
+    if (!file) return;
+    const itens = fzItens(tipo);
+    if (itens[i].fotoUrl) URL.revokeObjectURL(itens[i].fotoUrl);
+    itens[i].fotoUrl = URL.createObjectURL(file);
+    fzRenderLista(tipo);
 }
 
 async function abrirModalFinalizar(id, novoStatus, row) {
@@ -1166,6 +1182,7 @@ async function abrirModalFinalizar(id, novoStatus, row) {
 function fecharModalFinalizar() {
     document.getElementById('modal-finalizar').classList.add('hidden');
     statusAlvoId = null; statusAlvoNovo = null;
+    [...fzInstaladoItems, ...fzRemovidoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
     buscar();
 }
 
@@ -1237,8 +1254,11 @@ async function confirmarFinalizar() {
     if (instalado) equipamentoStatus.push('equipamento_instalado');
     if (removido) equipamentoStatus.push('equipamento_removido');
     const removidoPosse = document.getElementById('fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
-    const instaladoItens = instalado ? fzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
-    const removidoItens = removido ? fzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
+    // Foto é só apoio visual local -- nunca vai no payload pro backend.
+    const semFoto = it => ({ partnumber: it.partnumber, serial: it.serial });
+    const instaladoItens = instalado ? fzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
+    const removidoItens = removido ? fzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
+    [...fzInstaladoItems, ...fzRemovidoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
     const id = statusAlvoId;
     const status = statusAlvoNovo;
     const row = atividadeAlvoRow;

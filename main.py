@@ -461,6 +461,25 @@ def setup_banco():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_escala_n2_data ON escala_n2(data)")
+
+        # ── Bloqueios de agenda (férias, afastamento, recorrência semanal) ──
+        # Vale pra qualquer funcionário do sistema -- usado tanto pra
+        # atividades de campo (N2) quanto pra tarefas em geral.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS funcionario_bloqueios (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                tipo VARCHAR(20) NOT NULL,
+                data_inicio DATE,
+                data_fim DATE,
+                dia_semana SMALLINT,
+                hora_inicio TIME,
+                hora_fim TIME,
+                descricao VARCHAR(200) DEFAULT '',
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_funcionario_bloqueios_usuario ON funcionario_bloqueios(usuario_id)")
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -1322,6 +1341,108 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+BLOQUEIO_TIPOS_VALIDOS = ('ferias', 'afastamento', 'recorrente')
+
+class BloqueioModel(BaseModel):
+    tipo: str  # 'ferias' | 'afastamento' | 'recorrente'
+    data_inicio: Optional[str] = None
+    data_fim: Optional[str] = None
+    dia_semana: Optional[int] = None  # 0=segunda .. 6=domingo (igual date.weekday())
+    hora_inicio: Optional[str] = None
+    hora_fim: Optional[str] = None
+    descricao: str = ""
+
+@app.get("/api/usuarios/{uid}/bloqueios")
+def listar_bloqueios(uid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, tipo, data_inicio, data_fim, dia_semana, hora_inicio, hora_fim, descricao
+            FROM funcionario_bloqueios WHERE usuario_id=%s ORDER BY data_inicio NULLS LAST, dia_semana NULLS LAST
+        """, (uid,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{
+            "id": r[0], "tipo": r[1],
+            "data_inicio": str(r[2]) if r[2] else None, "data_fim": str(r[3]) if r[3] else None,
+            "dia_semana": r[4], "hora_inicio": str(r[5])[:5] if r[5] else None,
+            "hora_fim": str(r[6])[:5] if r[6] else None, "descricao": r[7],
+        } for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/usuarios/{uid}/bloqueios")
+def criar_bloqueio(uid: int, b: BloqueioModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    if b.tipo not in BLOQUEIO_TIPOS_VALIDOS: raise HTTPException(status_code=400, detail="Tipo de bloqueio inválido")
+    if b.tipo in ("ferias", "afastamento") and not (b.data_inicio and b.data_fim):
+        raise HTTPException(status_code=400, detail="Informe data de início e fim")
+    if b.tipo == "recorrente" and b.dia_semana is None:
+        raise HTTPException(status_code=400, detail="Informe o dia da semana")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM usuarios WHERE id=%s", (uid,))
+        if not cur.fetchone(): raise HTTPException(status_code=404, detail="Funcionário não encontrado")
+        cur.execute("""
+            INSERT INTO funcionario_bloqueios (usuario_id, tipo, data_inicio, data_fim, dia_semana, hora_inicio, hora_fim, descricao)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (uid, b.tipo, b.data_inicio or None, b.data_fim or None, b.dia_semana,
+              b.hora_inicio or None, b.hora_fim or None, b.descricao))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/bloqueios/{bid}")
+def deletar_bloqueio(bid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM funcionario_bloqueios WHERE id=%s", (bid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+def _bloqueio_ativo(cur, usuario_id, data_str, hora_str=None):
+    """Retorna a descrição do bloqueio ativo desse funcionário nessa
+    data/horário, ou None se estiver livre -- checado antes de criar/editar
+    atividades de campo, escala e tarefas (ponto 4 do feedback: férias,
+    afastamento médico ou recorrência semanal, ex. tratamento toda terça)."""
+    if not usuario_id or not data_str:
+        return None
+    try:
+        data = datetime.strptime(data_str[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    cur.execute("""
+        SELECT tipo, data_inicio, data_fim, dia_semana, hora_inicio, hora_fim, descricao
+        FROM funcionario_bloqueios WHERE usuario_id=%s
+    """, (usuario_id,))
+    for tipo, di, df, dia_semana, hi, hf, descricao in cur.fetchall():
+        if tipo in ("ferias", "afastamento"):
+            if di and df and di <= data <= df:
+                return descricao or ("Férias" if tipo == "ferias" else "Afastamento")
+        elif tipo == "recorrente" and dia_semana is not None and dia_semana == data.weekday():
+            if hora_str and hi and hf:
+                try:
+                    hora = datetime.strptime(hora_str[:5], "%H:%M").time()
+                    if not (hi <= hora <= hf):
+                        continue
+                except ValueError:
+                    pass
+            return descricao or "Recorrência semanal"
+    return None
+
 # --- HISTÓRICO DE TAREFAS (resumo diário) ---
 HIST_STATUS_LABEL = {"aberto": "Aberto", "em_andamento": "Em andamento",
                      "concluido": "Concluído", "revisao": "Em revisão"}
@@ -1489,6 +1610,10 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
             cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (t.funcionario_id,))
             if cur.fetchone():
                 uid = t.funcionario_id
+        data_checar = t.data_agendamento or t.data_prazo
+        bloqueio = _bloqueio_ativo(cur, uid, data_checar, t.hora_prazo)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"Funcionário indisponível nesta data: {bloqueio}")
         cur.execute(
             "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id, data_prazo, data_agendamento, hora_prazo) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
@@ -1506,6 +1631,7 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
                 sess["id"], destinatario_id=hid)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/tarefas/{tid}")
@@ -5215,6 +5341,9 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
         # n2_usuario_id que venha no corpo da requisição.
         n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
         n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
+        bloqueio = _bloqueio_ativo(cur, n2_uid, a.data, a.horario_agendado)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
         particularidades = [p for p in a.particularidades if p in PARTICULARIDADES_VALIDAS]
         localizacao = a.localizacao if a.localizacao in LOCALIZACAO_VALIDOS else None
         acesso = a.acesso if a.acesso in ACESSO_VALIDOS else None
@@ -5272,6 +5401,9 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
         status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
         n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
         n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
+        bloqueio = _bloqueio_ativo(cur, n2_uid, a.data, a.horario_agendado)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
         particularidades = [p for p in a.particularidades if p in PARTICULARIDADES_VALIDAS]
         localizacao = a.localizacao if a.localizacao in LOCALIZACAO_VALIDOS else None
         acesso = a.acesso if a.acesso in ACESSO_VALIDOS else None
@@ -5602,6 +5734,9 @@ def criar_escala_n2(e: EscalaN2Model, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
+        bloqueio = _bloqueio_ativo(cur, e.n2_usuario_id, e.data, e.horario_entrada)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
         cur.execute("""
             INSERT INTO escala_n2 (data, n2_usuario_id, horario_entrada, modalidade, atribuicao)
             VALUES (%s,%s,%s,%s,%s) RETURNING id
@@ -5609,6 +5744,7 @@ def criar_escala_n2(e: EscalaN2Model, faiston_token: str = Cookie(None)):
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e2: raise HTTPException(status_code=500, detail=str(e2))
 
 @app.put("/api/escala-n2/{eid}")
@@ -5620,12 +5756,16 @@ def atualizar_escala_n2(eid: int, e: EscalaN2Model, faiston_token: str = Cookie(
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
+        bloqueio = _bloqueio_ativo(cur, e.n2_usuario_id, e.data, e.horario_entrada)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
         cur.execute("""
             UPDATE escala_n2 SET data=%s, n2_usuario_id=%s, horario_entrada=%s, modalidade=%s, atribuicao=%s, atualizado_em=NOW()
             WHERE id=%s
         """, (e.data, e.n2_usuario_id, e.horario_entrada or None, modalidade, e.atribuicao, eid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e2: raise HTTPException(status_code=500, detail=str(e2))
 
 @app.delete("/api/escala-n2/{eid}")
@@ -5664,6 +5804,9 @@ def atribuir_lote_status_campo(body: AtribuirLoteModel, faiston_token: str = Coo
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
+        bloqueio = _bloqueio_ativo(cur, body.n2_usuario_id, body.data)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data: {bloqueio}")
         _, n2_nome = _resolver_n2(cur, body.n2_usuario_id, "")
         cur.execute("""
             UPDATE status_atividades SET n2_usuario_id=%s, n2_responsavel=%s, atualizado_em=NOW()

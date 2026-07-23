@@ -327,6 +327,66 @@
     </div>
 </div>
 
+<!-- MODAL: bloqueios de agenda (férias/afastamento/recorrência) -->
+<div id="modal-bloqueios" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h3 class="text-lg font-bold text-faiston-dark">Bloqueios de agenda</h3>
+                <p class="text-xs text-faiston-muted mt-0.5" id="bloq-nome-func"></p>
+            </div>
+            <button onclick="fecharModalBloqueios()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <p class="text-xs text-faiston-muted">Enquanto um bloqueio estiver ativo, não é possível criar/editar atividade de campo, escala ou tarefa pra esse funcionário na data/horário bloqueado.</p>
+            <div id="bloq-lista" class="flex flex-col gap-2"></div>
+            <div class="border-t border-faiston-border pt-4">
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Novo bloqueio</label>
+                <select id="bloq-tipo" onchange="bloqAtualizarCampos()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple mb-2">
+                    <option value="ferias">Férias</option>
+                    <option value="afastamento">Afastamento médico</option>
+                    <option value="recorrente">Recorrência semanal</option>
+                </select>
+                <div id="bloq-campos-data" class="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">De</label>
+                        <input type="date" id="bloq-data-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Até</label>
+                        <input type="date" id="bloq-data-fim" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+                <div id="bloq-campos-recorrente" class="hidden grid grid-cols-3 gap-2 mb-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Dia da semana</label>
+                        <select id="bloq-dia-semana" class="w-full border border-faiston-border rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                            <option value="0">Segunda</option>
+                            <option value="1">Terça</option>
+                            <option value="2">Quarta</option>
+                            <option value="3">Quinta</option>
+                            <option value="4">Sexta</option>
+                            <option value="5">Sábado</option>
+                            <option value="6">Domingo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Das</label>
+                        <input type="time" id="bloq-hora-inicio" class="w-full border border-faiston-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Às</label>
+                        <input type="time" id="bloq-hora-fim" class="w-full border border-faiston-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+                <input type="text" id="bloq-descricao" placeholder="Descrição (opcional, ex.: tratamento semanal)" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple mb-2">
+                <button onclick="salvarBloqueio()" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Adicionar bloqueio</button>
+                <span class="text-xs text-red-500 block mt-1.5" id="bloq-msg"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const perfilConfig = {
     admin: { label: 'Admin', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
@@ -433,6 +493,7 @@ async function carregarUsuarios() {
             <td class="px-5 py-3">
                 <div class="flex items-center gap-1 justify-end">
                     ${u.email ? `<button onclick="reenviarEmail(${u.id})" title="Reenviar email de acesso" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors"><i class="ph ph-envelope"></i></button>` : ''}
+                    <button onclick="abrirModalBloqueios(${u.id}, '${u.nome.replace(/'/g, "\\'")}')" title="Bloqueios de agenda (férias/afastamento/recorrência)" class="w-8 h-8 rounded-lg hover:bg-amber-50 flex items-center justify-center text-faiston-faint hover:text-amber-600 transition-colors"><i class="ph ph-calendar-x"></i></button>
                     <button onclick="editarUsuario(${u.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>
                     <button onclick="deletarUsuario(${u.id})" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-trash"></i></button>
                 </div>
@@ -664,6 +725,107 @@ function editarUsuario(id) {
 
 function closeModalUser() {
     document.getElementById('modal-user').classList.add('hidden');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BLOQUEIOS DE AGENDA (férias, afastamento, recorrência semanal)
+// ══════════════════════════════════════════════════════════════════
+let bloqUsuarioId = null;
+const BLOQ_DIA_LABEL = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const BLOQ_TIPO_LABEL = { ferias: 'Férias', afastamento: 'Afastamento médico', recorrente: 'Recorrência semanal' };
+
+function fmtDataBR(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+}
+
+function bloqAtualizarCampos() {
+    const recorrente = document.getElementById('bloq-tipo').value === 'recorrente';
+    document.getElementById('bloq-campos-data').classList.toggle('hidden', recorrente);
+    document.getElementById('bloq-campos-recorrente').classList.toggle('hidden', !recorrente);
+}
+
+async function abrirModalBloqueios(uid, nome) {
+    bloqUsuarioId = uid;
+    document.getElementById('bloq-nome-func').textContent = nome;
+    document.getElementById('bloq-tipo').value = 'ferias';
+    document.getElementById('bloq-data-inicio').value = '';
+    document.getElementById('bloq-data-fim').value = '';
+    document.getElementById('bloq-dia-semana').value = '0';
+    document.getElementById('bloq-hora-inicio').value = '';
+    document.getElementById('bloq-hora-fim').value = '';
+    document.getElementById('bloq-descricao').value = '';
+    document.getElementById('bloq-msg').textContent = '';
+    bloqAtualizarCampos();
+    document.getElementById('modal-bloqueios').classList.remove('hidden');
+    await carregarBloqueios();
+}
+
+function fecharModalBloqueios() {
+    document.getElementById('modal-bloqueios').classList.add('hidden');
+    bloqUsuarioId = null;
+}
+
+async function carregarBloqueios() {
+    const lista = document.getElementById('bloq-lista');
+    lista.innerHTML = '<p class="text-xs text-slate-300">Carregando...</p>';
+    try {
+        const res = await fetch(`/api/usuarios/${bloqUsuarioId}/bloqueios`);
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        if (!rows.length) {
+            lista.innerHTML = '<p class="text-xs text-slate-300 italic">Nenhum bloqueio cadastrado.</p>';
+            return;
+        }
+        lista.innerHTML = rows.map(b => {
+            const periodo = b.tipo === 'recorrente'
+                ? `Toda ${BLOQ_DIA_LABEL[b.dia_semana]}${b.hora_inicio ? ` das ${b.hora_inicio} às ${b.hora_fim}` : ' (dia todo)'}`
+                : `${fmtDataBR(b.data_inicio)} até ${fmtDataBR(b.data_fim)}`;
+            return `<div class="flex items-center gap-3 px-3 py-2.5 border border-faiston-border rounded-lg flex-wrap">
+                <div class="flex-1 min-w-[160px]">
+                    <span class="text-xs font-semibold text-faiston-dark">${BLOQ_TIPO_LABEL[b.tipo] || b.tipo}</span>
+                    <div class="text-xs text-faiston-muted">${periodo}</div>
+                    ${b.descricao ? `<div class="text-[11px] text-faiston-faint italic mt-0.5">${b.descricao}</div>` : ''}
+                </div>
+                <button onclick="excluirBloqueio(${b.id})" class="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        lista.innerHTML = '<p class="text-xs text-red-400">Erro ao carregar bloqueios.</p>';
+    }
+}
+
+async function salvarBloqueio() {
+    const tipo = document.getElementById('bloq-tipo').value;
+    const msg = document.getElementById('bloq-msg');
+    const payload = {
+        tipo,
+        data_inicio: document.getElementById('bloq-data-inicio').value || null,
+        data_fim: document.getElementById('bloq-data-fim').value || null,
+        dia_semana: tipo === 'recorrente' ? parseInt(document.getElementById('bloq-dia-semana').value, 10) : null,
+        hora_inicio: document.getElementById('bloq-hora-inicio').value || null,
+        hora_fim: document.getElementById('bloq-hora-fim').value || null,
+        descricao: document.getElementById('bloq-descricao').value.trim(),
+    };
+    try {
+        const res = await fetch(`/api/usuarios/${bloqUsuarioId}/bloqueios`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = err.detail || 'Erro ao salvar.'; return; }
+        msg.textContent = '';
+        document.getElementById('bloq-descricao').value = '';
+        await carregarBloqueios();
+    } catch (e) { msg.textContent = 'Erro de rede ao salvar.'; }
+}
+
+async function excluirBloqueio(id) {
+    if (!confirm('Remover este bloqueio?')) return;
+    try {
+        const res = await fetch(`/api/bloqueios/${id}`, { method: 'DELETE' });
+        if (!res.ok) { alert('Erro ao remover.'); return; }
+        await carregarBloqueios();
+    } catch (e) { alert('Erro de rede ao remover.'); }
 }
 
 async function salvarUsuario() {

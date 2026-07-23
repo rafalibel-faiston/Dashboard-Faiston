@@ -80,7 +80,7 @@
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan"></div>
                             Status Report
                         </a>
-                        <a href="#" data-nav-mod="painelN2" onclick="setModule('painelN2'); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                        <a href="#" data-nav-mod="painelN2" onclick="pn2AbrirGeral(); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div>
                             Painel N2
                         </a>
@@ -1976,6 +1976,14 @@
         <p class="text-xs text-faiston-muted mt-0.5">Escala do dia e acompanhamento da equipe de N2</p>
     </header>
 
+    <div id="pn2-filtro-banner" class="hidden flex items-center gap-2 mb-4 px-4 py-2.5 rounded-lg bg-faiston-purple/5 border border-faiston-purple/20">
+        <i class="ph ph-funnel text-faiston-purple text-sm"></i>
+        <span class="text-xs font-semibold text-faiston-dark">Filtrado por: <span id="pn2-filtro-nome" class="text-faiston-purple"></span></span>
+        <button onclick="pn2LimparFiltroIndividual()" class="ml-auto text-xs font-semibold text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1">
+            <i class="ph ph-x-circle"></i> Ver todos
+        </button>
+    </div>
+
     <!-- ESCALA DO DIA -->
     <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden mb-6" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
         <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border flex-wrap gap-2">
@@ -3100,7 +3108,7 @@ async function popularSidebarN2() {
         const rows = await res.json();
         const ativos = rows.filter(u => u.ativo !== false);
         lista.innerHTML = ativos.map(u => `
-            <a href="#" onclick="scFiltrarPorN2(${u.id}); return false;"
+            <a href="#" onclick="pn2FiltrarIndividual(${u.id}, '${u.nome.replace(/'/g, "\\'")}'); return false;"
                class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
                 <div class="absolute -left-[14px] w-1.5 h-1.5 rounded-full bg-faiston-cyan"></div>
                 ${scEsc(u.nome.split(' ')[0])}
@@ -7640,6 +7648,42 @@ async function scExcluir(id) {
 let pn2Usuarios = [];
 let pn2EditandoEscalaId = null;
 let pn2EscalaAtual = [];
+// Filtro individual (aberto a partir do menu lateral, ver popularSidebarN2)
+// -- restringe escala + equipe a um único N2, sem duplicar as duas telas.
+let pn2FiltroN2Id = null;
+let pn2FiltroN2Nome = '';
+
+function pn2FiltrarIndividual(id, nome) {
+    pn2FiltroN2Id = id;
+    pn2FiltroN2Nome = nome;
+    setModule('painelN2');
+    pn2AtualizarBannerFiltro();
+    pn2CarregarEscala();
+    pn2CarregarEquipe();
+}
+
+function pn2LimparFiltroIndividual() {
+    pn2FiltroN2Id = null;
+    pn2AtualizarBannerFiltro();
+    pn2CarregarEscala();
+    pn2CarregarEquipe();
+}
+
+function pn2AbrirGeral() {
+    // Link "Painel N2" normal do menu -- sempre visão geral, mesmo se
+    // a última coisa vista tiver sido um filtro individual.
+    pn2FiltroN2Id = null;
+    setModule('painelN2');
+    pn2AtualizarBannerFiltro();
+    if (_painelN2Carregado) { pn2CarregarEscala(); pn2CarregarEquipe(); }
+}
+
+function pn2AtualizarBannerFiltro() {
+    const el = document.getElementById('pn2-filtro-banner');
+    if (!el) return;
+    el.classList.toggle('hidden', !pn2FiltroN2Id);
+    if (pn2FiltroN2Id) document.getElementById('pn2-filtro-nome').textContent = pn2FiltroN2Nome || '';
+}
 
 async function pn2Init() {
     try {
@@ -7664,8 +7708,9 @@ async function pn2CarregarEscala() {
         if (!res.ok) throw new Error();
         const rows = await res.json();
         pn2EscalaAtual = rows;
-        if (!rows.length) {
-            lista.innerHTML = '<div class="text-center py-10 text-slate-300 text-sm">Ninguém escalado nesta data ainda.</div>';
+        const visiveis = pn2FiltroN2Id ? rows.filter(r => r.n2_usuario_id === pn2FiltroN2Id) : rows;
+        if (!visiveis.length) {
+            lista.innerHTML = `<div class="text-center py-10 text-slate-300 text-sm">${pn2FiltroN2Id ? 'Ninguém escalado nesta data.' : 'Ninguém escalado nesta data ainda.'}</div>`;
             return;
         }
         const MODALIDADE_LABEL = { presencial: 'Presencial', home: 'Home', externo: 'Externo' };
@@ -7674,7 +7719,7 @@ async function pn2CarregarEscala() {
             externo: 'text-amber-600 bg-amber-50 border-amber-200',
             presencial: 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
         };
-        lista.innerHTML = rows.map(r => `
+        lista.innerHTML = visiveis.map(r => `
             <div class="flex items-center gap-3 px-5 py-3 border-b border-faiston-border last:border-0 flex-wrap">
                 <span class="text-sm font-semibold text-faiston-dark flex-1 min-w-[140px]">${scEsc(r.n2_nome)}</span>
                 ${r.horario_entrada ? `<span class="text-xs text-faiston-muted">Entrada: ${scEsc(r.horario_entrada)}</span>` : ''}
@@ -7759,11 +7804,12 @@ async function pn2CarregarEquipe() {
         const res = await fetch('/api/painel-n2/resumo');
         if (!res.ok) throw new Error();
         const rows = await res.json();
-        if (!rows.length) {
-            lista.innerHTML = '<div class="text-center py-10 text-slate-300 text-sm">Nenhum N2 cadastrado ainda.</div>';
+        const visiveis = pn2FiltroN2Id ? rows.filter(r => r.id === pn2FiltroN2Id) : rows;
+        if (!visiveis.length) {
+            lista.innerHTML = `<div class="text-center py-10 text-slate-300 text-sm">${pn2FiltroN2Id ? 'N2 não encontrado.' : 'Nenhum N2 cadastrado ainda.'}</div>`;
             return;
         }
-        lista.innerHTML = rows.map(r => `
+        lista.innerHTML = visiveis.map(r => `
             <div class="flex items-center gap-3 px-5 py-3 border-b border-faiston-border last:border-0 flex-wrap">
                 <span class="text-sm font-semibold text-faiston-dark flex-1 min-w-[140px]">${scEsc(r.nome)}${!r.ativo ? ' <span class=\"text-xs text-slate-400\">(inativo)</span>' : ''}</span>
                 <span class="text-xs text-faiston-muted" title="Atividades concluídas nesta semana">${r.atividades_semana} ativ. / semana</span>
