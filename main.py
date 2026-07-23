@@ -5757,10 +5757,14 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
             v = r[idx] if idx is not None and idx < len(r) else None
             return v
 
+        def corta(v, tam):
+            return str(v or '').strip()[:tam]
+
         importadas = 0
         puladas_sem_cliente = {}
         puladas_sem_status = 0
         puladas_sem_data = 0
+        puladas_erro = 0
         for r in rows[hi + 1:]:
             cliente_raw = str(get(r, 'cliente') or '').strip()
             projeto_raw = str(get(r, 'projeto') or '').strip()
@@ -5784,21 +5788,31 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
                 continue
             horario_raw = get(r, 'horario_agendado')
             horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
-            cur.execute("""
-                INSERT INTO status_atividades
-                    (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
-                     site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (cid, data_val, horario_val, str(get(r, 'tecnico') or '').strip(),
-                  str(get(r, 'n2_responsavel') or '').strip(), str(get(r, 'site') or '').strip(),
-                  str(get(r, 'endereco') or '').strip(), str(get(r, 'cidade') or '').strip(),
-                  str(get(r, 'uf') or '').strip()[:2], str(get(r, 'subprojeto') or '').strip(),
-                  str(get(r, 'ticket') or '').strip(), status_mapeado,
-                  str(get(r, 'observacoes') or '').strip(), sess["id"]))
-            importadas += 1
+            # Savepoint por linha -- planilhas reais têm valor fora do
+            # padrão de vez em quando (campo longo demais etc.); sem isso,
+            # uma linha ruim aborta a transação inteira e nada é salvo.
+            cur.execute("SAVEPOINT linha_import")
+            try:
+                cur.execute("""
+                    INSERT INTO status_atividades
+                        (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+                         site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (cid, data_val, horario_val, corta(get(r, 'tecnico'), 150),
+                      corta(get(r, 'n2_responsavel'), 150), corta(get(r, 'site'), 150),
+                      str(get(r, 'endereco') or '').strip(), corta(get(r, 'cidade'), 100),
+                      corta(get(r, 'uf'), 2), corta(get(r, 'subprojeto'), 150),
+                      corta(get(r, 'ticket'), 100), status_mapeado,
+                      str(get(r, 'observacoes') or '').strip(), sess["id"]))
+                cur.execute("RELEASE SAVEPOINT linha_import")
+                importadas += 1
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT linha_import")
+                puladas_erro += 1
         conn.commit(); cur.close(); conn.close()
         return {
             "sucesso": True, "importadas": importadas, "aba_usada": sname,
+            "puladas_erro": puladas_erro,
             "puladas_sem_cliente": [{"nome": k, "ocorrencias": v}
                                      for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
             "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
