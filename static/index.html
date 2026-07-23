@@ -84,6 +84,7 @@
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div>
                             Painel N2
                         </a>
+                        <div id="lista-n2-sidebar" class="flex flex-col gap-3 mt-1"></div>
                     </div>
                 </div>
                 <div class="flex flex-col">
@@ -1769,6 +1770,26 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
                     <textarea id="sc-m-detalhamento" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 </div>
+                <div class="col-span-2" id="sc-nv-equip-secao">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Equipamento a instalar/remover (opcional)</label>
+                    <p class="text-[11px] text-faiston-faint mb-1.5">Só preencha se já souber de antemão -- caso contrário, o N2 registra isso ao finalizar a atividade.</p>
+                    <div class="flex gap-4 pt-1 flex-wrap">
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="checkbox" id="sc-nv-equip-instalado" onchange="scNvToggleEquipamento()"> Instalado
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="checkbox" id="sc-nv-equip-removido" onchange="scNvToggleEquipamento()"> Removido
+                        </label>
+                    </div>
+                    <div id="sc-nv-instalado-campos" class="hidden mt-2 flex-col gap-2">
+                        <div id="sc-nv-instalado-lista" class="flex flex-col gap-2"></div>
+                        <button type="button" onclick="scNvAdicionarItem('instalado')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento instalado</button>
+                    </div>
+                    <div id="sc-nv-removido-campos" class="hidden mt-2 flex-col gap-2">
+                        <div id="sc-nv-removido-lista" class="flex flex-col gap-2"></div>
+                        <button type="button" onclick="scNvAdicionarItem('removido')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento removido</button>
+                    </div>
+                </div>
                 <div class="col-span-2 text-xs text-faiston-faint bg-slate-50 border border-faiston-border rounded-lg px-3 py-2.5">
                     <i class="ph ph-info text-sm"></i> Chegada/saída, particularidades, material e observações são preenchidos pelo próprio N2 ao finalizar a atividade.
                 </div>
@@ -2869,6 +2890,7 @@ async function init() {
 
     // Funcionários são populados dentro de popularSidebarFuncionarios()
     // chamado automaticamente após carregarDados() retornar os dados
+    await popularSidebarN2();
     // Verifica notificações a cada 15 segundos
     await verificarNaoLidas();
     setInterval(verificarNaoLidas, 15000);
@@ -3063,6 +3085,27 @@ function filtrarAreaSidebar(area) {
     if (areaFiltro) mostrarToastFiltro(`Área: ${areaFiltro}`, '🏢');
     carregarDados(clienteAtivo);
     return false;
+}
+
+async function popularSidebarN2() {
+    // Lista cada N2 no menu lateral, igual o Backoffice já faz com os
+    // funcionários -- clicar no nome abre o Painel N2 filtrado só nele
+    // (reaproveita scFiltrarPorN2, mesma função do botão "Ver atividades"
+    // dentro do Painel N2 -- ver pn2CarregarEquipe).
+    const lista = document.getElementById('lista-n2-sidebar');
+    if (!lista) return;
+    try {
+        const res = await fetch('/api/painel-n2/resumo');
+        if (!res.ok) return;
+        const rows = await res.json();
+        const ativos = rows.filter(u => u.ativo !== false);
+        lista.innerHTML = ativos.map(u => `
+            <a href="#" onclick="scFiltrarPorN2(${u.id}); return false;"
+               class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                <div class="absolute -left-[14px] w-1.5 h-1.5 rounded-full bg-faiston-cyan"></div>
+                ${scEsc(u.nome.split(' ')[0])}
+            </a>`).join('');
+    } catch (e) {}
 }
 
 function popularSidebarFuncionarios(hpf) {
@@ -7389,6 +7432,51 @@ async function scConfirmarImportar() {
     }
 }
 
+let scNvInstaladoItems = [];
+let scNvRemovidoItems = [];
+
+function scNvItens(tipo) { return tipo === 'instalado' ? scNvInstaladoItems : scNvRemovidoItems; }
+function scNvRenderLista(tipo) {
+    const itens = scNvItens(tipo);
+    const container = document.getElementById(`sc-nv-${tipo}-lista`);
+    container.innerHTML = itens.length ? itens.map((it, i) => `
+        <div class="flex gap-2 items-center">
+            <input type="text" value="${scEsc(it.partnumber)}" placeholder="Partnumber" oninput="scNvAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="text" value="${scEsc(it.serial)}" placeholder="Serial" oninput="scNvAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <button type="button" onclick="scNvRemoverItem('${tipo}', ${i})" class="w-8 h-8 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+        </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
+}
+function scNvAdicionarItem(tipo) {
+    scNvItens(tipo).push({ partnumber: '', serial: '' });
+    scNvRenderLista(tipo);
+}
+function scNvRemoverItem(tipo, i) {
+    scNvItens(tipo).splice(i, 1);
+    scNvRenderLista(tipo);
+}
+function scNvAtualizarItem(tipo, i, campo, valor) {
+    scNvItens(tipo)[i][campo] = valor;
+}
+function scNvToggleEquipamento() {
+    const instalado = document.getElementById('sc-nv-equip-instalado').checked;
+    const removido = document.getElementById('sc-nv-equip-removido').checked;
+    const camposInstalado = document.getElementById('sc-nv-instalado-campos');
+    const camposRemovido = document.getElementById('sc-nv-removido-campos');
+    camposInstalado.classList.toggle('hidden', !instalado);
+    camposInstalado.classList.toggle('flex', instalado);
+    camposRemovido.classList.toggle('hidden', !removido);
+    camposRemovido.classList.toggle('flex', removido);
+    if (instalado && !scNvInstaladoItems.length) scNvAdicionarItem('instalado');
+    if (removido && !scNvRemovidoItems.length) scNvAdicionarItem('removido');
+}
+function scNvResetEquipamento() {
+    scNvInstaladoItems = [];
+    scNvRemovidoItems = [];
+    document.getElementById('sc-nv-equip-instalado').checked = false;
+    document.getElementById('sc-nv-equip-removido').checked = false;
+    scNvToggleEquipamento();
+}
+
 function scAbrirModalNovo() {
     if (!scPodeEditar()) return;
     scEditandoId = null;
@@ -7400,6 +7488,8 @@ function scAbrirModalNovo() {
     document.getElementById('sc-m-status').value = 'agendado';
     document.getElementById('sc-m-status').disabled = true;
     document.getElementById('sc-m-data').value = document.getElementById('sc-report-data').value || new Date().toISOString().slice(0, 10);
+    scNvResetEquipamento();
+    document.getElementById('sc-nv-equip-secao').classList.remove('hidden');
     scAtualizarCamposPorCliente();
     document.getElementById('modal-status-campo').classList.remove('hidden');
 }
@@ -7435,6 +7525,10 @@ async function scAbrirModalEditar(id) {
         document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
         document.getElementById('sc-m-ticket').value = r.ticket || '';
         document.getElementById('sc-m-subprojeto').value = r.subprojeto || '';
+        // Equipamento a instalar/remover é só pra criação -- editar já tem o
+        // fluxo de finalização pra isso, não duplica aqui.
+        scNvResetEquipamento();
+        document.getElementById('sc-nv-equip-secao').classList.add('hidden');
         scAtualizarCamposPorCliente();
         document.getElementById('modal-status-campo').classList.remove('hidden');
     } catch (e) { alert('Erro ao carregar atividade para edição.'); }
@@ -7464,6 +7558,10 @@ async function scSalvar() {
         status: document.getElementById('sc-m-status').value,
         ticket: document.getElementById('sc-m-ticket').value.trim(),
         subprojeto: document.getElementById('sc-m-subprojeto').value.trim(),
+        // Só é considerado na criação (endpoint de edição ignora) -- ver
+        // scNvResetEquipamento/sc-nv-equip-secao.
+        equipamentos_instalados: scNvInstaladoItems,
+        equipamentos_removidos: scNvRemovidoItems,
         // Preserva o que o N2 já preencheu -- este formulário não tem
         // controles pra esses campos (ver scCamposN2Preservados).
         ...scCamposN2Preservados,

@@ -4983,6 +4983,10 @@ STATUS_CAMPO_COLS = ["id", "cliente_id", "cliente_nome", "data", "horario_agenda
         "equipamento_removido_serial", "contato_local_nome", "contato_local_matricula",
         "hora_inicio_atividade", "andamento_tipo", "andamento_equipamento"]
 
+class EquipamentoItem(BaseModel):
+    partnumber: str = ""
+    serial: str = ""
+
 class StatusAtividadeModel(BaseModel):
     cliente_id: int
     data: str
@@ -5011,6 +5015,11 @@ class StatusAtividadeModel(BaseModel):
     acesso: Optional[str] = None
     subprojeto: str = ""
     equipamento_removido_detalhe: str = ""
+    # Opcional, preenchido só na tela de criação do painel principal (admin)
+    # quando o equipamento a instalar/remover já é conhecido de antemão --
+    # mesma tabela/formato usado na finalização (ver EquipamentoItem acima).
+    equipamentos_instalados: List[EquipamentoItem] = []
+    equipamentos_removidos: List[EquipamentoItem] = []
 
 def _resolver_n2(cur, n2_usuario_id, n2_responsavel_texto):
     """Se veio n2_usuario_id, busca o nome pra cachear em n2_responsavel
@@ -5209,6 +5218,17 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
         particularidades = [p for p in a.particularidades if p in PARTICULARIDADES_VALIDAS]
         localizacao = a.localizacao if a.localizacao in LOCALIZACAO_VALIDOS else None
         acesso = a.acesso if a.acesso in ACESSO_VALIDOS else None
+        # Serial a instalar/remover é opcional e só existe na tela de criação
+        # do painel principal -- se veio preenchido, garante que a
+        # particularidade correspondente também reflita isso.
+        instalados = [(it.partnumber.strip(), it.serial.strip()) for it in a.equipamentos_instalados
+                      if it.partnumber.strip() or it.serial.strip()]
+        removidos = [(it.partnumber.strip(), it.serial.strip()) for it in a.equipamentos_removidos
+                     if it.partnumber.strip() or it.serial.strip()]
+        if instalados and 'equipamento_instalado' not in particularidades:
+            particularidades.append('equipamento_instalado')
+        if removidos and 'equipamento_removido' not in particularidades:
+            particularidades.append('equipamento_removido')
         cur.execute("""
             INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico,
                 n2_usuario_id, n2_responsavel,
@@ -5228,6 +5248,12 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
               localizacao, acesso, a.subprojeto,
               a.equipamento_removido_detalhe if 'equipamento_removido' in particularidades else ""))
         new_id = cur.fetchone()[0]
+        itens = [(new_id, 'instalado', pn, sn) for pn, sn in instalados] + \
+                [(new_id, 'removido', pn, sn) for pn, sn in removidos]
+        if itens:
+            cur.executemany(
+                "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
+                itens)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
     except HTTPException: raise
@@ -5273,10 +5299,6 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
         return {"sucesso": True}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
-
-class EquipamentoItem(BaseModel):
-    partnumber: str = ""
-    serial: str = ""
 
 class StatusCampoStatusModel(BaseModel):
     status: str
