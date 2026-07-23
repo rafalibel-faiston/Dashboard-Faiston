@@ -2662,11 +2662,115 @@ async function eqCarregarUsuarios() {
             <td class="px-5 py-3">
                 <div class="flex items-center gap-1 justify-end">
                     ${u.email && canEdit ? `<button onclick="eqReenviarEmail(${u.id},'${u.nome}','${u.email}')" title="Reenviar e-mail de acesso" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors"><i class="ph ph-envelope"></i></button>` : ''}
+                    <button onclick="eqAbrirModalBloqueios(${u.id}, '${u.nome.replace(/'/g, "\\'")}')" title="Bloqueios de agenda (férias/afastamento/recorrência)" class="w-8 h-8 rounded-lg hover:bg-amber-50 flex items-center justify-center text-faiston-faint hover:text-amber-600 transition-colors"><i class="ph ph-calendar-x"></i></button>
                     ${canEdit ? `<button onclick="eqOpenModalUser(${u.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>` : ''}
                 </div>
             </td>
         </tr>`;
     }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BLOQUEIOS DE AGENDA (férias, afastamento, recorrência semanal) --
+// mesma feature/endpoints do Admin > Bloqueios de Agenda, disponível
+// aqui também porque gestor não acessa a tela /admin.
+// ══════════════════════════════════════════════════════════════════
+let eqBloqUsuarioId = null;
+const EQ_BLOQ_DIA_LABEL = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+const EQ_BLOQ_TIPO_LABEL = { ferias: 'Férias', afastamento: 'Afastamento médico', recorrente: 'Recorrência semanal' };
+
+function eqFmtDataBR(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+}
+
+function eqBloqAtualizarCampos() {
+    const recorrente = document.getElementById('eq-bloq-tipo').value === 'recorrente';
+    document.getElementById('eq-bloq-campos-data').classList.toggle('hidden', recorrente);
+    document.getElementById('eq-bloq-campos-recorrente').classList.toggle('hidden', !recorrente);
+}
+
+async function eqAbrirModalBloqueios(uid, nome) {
+    eqBloqUsuarioId = uid;
+    document.getElementById('eq-bloq-nome-func').textContent = nome;
+    document.getElementById('eq-bloq-tipo').value = 'ferias';
+    document.getElementById('eq-bloq-data-inicio').value = '';
+    document.getElementById('eq-bloq-data-fim').value = '';
+    document.getElementById('eq-bloq-dia-semana').value = '0';
+    document.getElementById('eq-bloq-hora-inicio').value = '';
+    document.getElementById('eq-bloq-hora-fim').value = '';
+    document.getElementById('eq-bloq-descricao').value = '';
+    document.getElementById('eq-bloq-msg').textContent = '';
+    eqBloqAtualizarCampos();
+    document.getElementById('modal-eq-bloqueios').classList.remove('hidden');
+    await eqCarregarBloqueios();
+}
+
+function eqFecharModalBloqueios() {
+    document.getElementById('modal-eq-bloqueios').classList.add('hidden');
+    eqBloqUsuarioId = null;
+}
+
+async function eqCarregarBloqueios() {
+    const lista = document.getElementById('eq-bloq-lista');
+    lista.innerHTML = '<p class="text-xs text-slate-300">Carregando...</p>';
+    try {
+        const res = await fetch(`/api/usuarios/${eqBloqUsuarioId}/bloqueios`);
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        if (!rows.length) {
+            lista.innerHTML = '<p class="text-xs text-slate-300 italic">Nenhum bloqueio cadastrado.</p>';
+            return;
+        }
+        lista.innerHTML = rows.map(b => {
+            const periodo = b.tipo === 'recorrente'
+                ? `Toda ${EQ_BLOQ_DIA_LABEL[b.dia_semana]}${b.hora_inicio ? ` das ${b.hora_inicio} às ${b.hora_fim}` : ' (dia todo)'}`
+                : `${eqFmtDataBR(b.data_inicio)} até ${eqFmtDataBR(b.data_fim)}`;
+            return `<div class="flex items-center gap-3 px-3 py-2.5 border border-faiston-border rounded-lg flex-wrap">
+                <div class="flex-1 min-w-[160px]">
+                    <span class="text-xs font-semibold text-faiston-dark">${EQ_BLOQ_TIPO_LABEL[b.tipo] || b.tipo}</span>
+                    <div class="text-xs text-faiston-muted">${periodo}</div>
+                    ${b.descricao ? `<div class="text-[11px] text-faiston-faint italic mt-0.5">${b.descricao}</div>` : ''}
+                </div>
+                <button onclick="eqExcluirBloqueio(${b.id})" class="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        lista.innerHTML = '<p class="text-xs text-red-400">Erro ao carregar bloqueios.</p>';
+    }
+}
+
+async function eqSalvarBloqueio() {
+    const tipo = document.getElementById('eq-bloq-tipo').value;
+    const msg = document.getElementById('eq-bloq-msg');
+    const payload = {
+        tipo,
+        data_inicio: document.getElementById('eq-bloq-data-inicio').value || null,
+        data_fim: document.getElementById('eq-bloq-data-fim').value || null,
+        dia_semana: tipo === 'recorrente' ? parseInt(document.getElementById('eq-bloq-dia-semana').value, 10) : null,
+        hora_inicio: document.getElementById('eq-bloq-hora-inicio').value || null,
+        hora_fim: document.getElementById('eq-bloq-hora-fim').value || null,
+        descricao: document.getElementById('eq-bloq-descricao').value.trim(),
+    };
+    try {
+        const res = await fetch(`/api/usuarios/${eqBloqUsuarioId}/bloqueios`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = err.detail || 'Erro ao salvar.'; return; }
+        msg.textContent = '';
+        document.getElementById('eq-bloq-descricao').value = '';
+        await eqCarregarBloqueios();
+    } catch (e) { msg.textContent = 'Erro de rede ao salvar.'; }
+}
+
+async function eqExcluirBloqueio(id) {
+    if (!confirm('Remover este bloqueio?')) return;
+    try {
+        const res = await fetch(`/api/bloqueios/${id}`, { method: 'DELETE' });
+        if (!res.ok) { alert('Erro ao remover.'); return; }
+        await eqCarregarBloqueios();
+    } catch (e) { alert('Erro de rede ao remover.'); }
 }
 
 function eqAtualizarOpcoesPerfil() {
@@ -8156,6 +8260,67 @@ async function pn2SalvarDistribuicao() {
             <button id="eq-btn-deletar" onclick="eqDeletarUsuario()" class="hidden px-4 py-2.5 rounded-lg border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 transition-colors">Remover</button>
             <button onclick="eqCloseModalUser()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button id="eq-btn-salvar" onclick="eqSalvarUsuario()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: bloqueios de agenda (férias/afastamento/recorrência) -- acessível
+     tanto por Admin quanto por Minha Equipe (gestor), ver ponto 4 do feedback -->
+<div id="modal-eq-bloqueios" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4" style="background:rgba(13,15,35,0.5);backdrop-filter:blur(4px)" onclick="if(event.target===this)eqFecharModalBloqueios()">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h3 class="text-lg font-bold text-faiston-dark">Bloqueios de agenda</h3>
+                <p class="text-xs text-faiston-muted mt-0.5" id="eq-bloq-nome-func"></p>
+            </div>
+            <button onclick="eqFecharModalBloqueios()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <p class="text-xs text-faiston-muted">Enquanto um bloqueio estiver ativo, não é possível criar/editar atividade de campo, escala ou tarefa pra esse funcionário na data/horário bloqueado.</p>
+            <div id="eq-bloq-lista" class="flex flex-col gap-2"></div>
+            <div class="border-t border-faiston-border pt-4">
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Novo bloqueio</label>
+                <select id="eq-bloq-tipo" onchange="eqBloqAtualizarCampos()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple mb-2">
+                    <option value="ferias">Férias</option>
+                    <option value="afastamento">Afastamento médico</option>
+                    <option value="recorrente">Recorrência semanal</option>
+                </select>
+                <div id="eq-bloq-campos-data" class="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">De</label>
+                        <input type="date" id="eq-bloq-data-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Até</label>
+                        <input type="date" id="eq-bloq-data-fim" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+                <div id="eq-bloq-campos-recorrente" class="hidden grid grid-cols-3 gap-2 mb-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Dia da semana</label>
+                        <select id="eq-bloq-dia-semana" class="w-full border border-faiston-border rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                            <option value="0">Segunda</option>
+                            <option value="1">Terça</option>
+                            <option value="2">Quarta</option>
+                            <option value="3">Quinta</option>
+                            <option value="4">Sexta</option>
+                            <option value="5">Sábado</option>
+                            <option value="6">Domingo</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Das</label>
+                        <input type="time" id="eq-bloq-hora-inicio" class="w-full border border-faiston-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Às</label>
+                        <input type="time" id="eq-bloq-hora-fim" class="w-full border border-faiston-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+                <input type="text" id="eq-bloq-descricao" placeholder="Descrição (opcional, ex.: tratamento semanal)" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple mb-2">
+                <button onclick="eqSalvarBloqueio()" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Adicionar bloqueio</button>
+                <span class="text-xs text-red-500 block mt-1.5" id="eq-bloq-msg"></span>
+            </div>
         </div>
     </div>
 </div>
