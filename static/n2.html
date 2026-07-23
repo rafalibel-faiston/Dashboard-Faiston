@@ -62,10 +62,10 @@
         </button>
     </div>
 
-    <div class="flex gap-2 mb-5">
+    <div class="flex gap-2 mb-5 flex-wrap">
         <button onclick="mostrarAbaN2('minhas')" id="n2-tab-minhas" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Minhas atividades</button>
         <button onclick="mostrarAbaN2('geral')" id="n2-tab-geral" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Atividades em geral</button>
-        <button onclick="mostrarAbaN2('print')" id="n2-tab-print" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Print</button>
+        <button onclick="mostrarAbaN2('print')" id="n2-tab-print" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Enviar Status Report</button>
     </div>
 
     <div id="n2-view-lista">
@@ -99,15 +99,25 @@
     </div>
 
     <div id="n2-view-print" class="hidden">
+        <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <p class="text-xs text-faiston-muted mb-3">Selecione o cliente pra ver e enviar o print com <strong>todas as atividades dele</strong> no dia — não só as suas.</p>
+            <div class="grid grid-cols-2 gap-3">
+                <select id="print-cliente" onchange="carregarPrintCliente()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                    <option value="">Selecionar cliente...</option>
+                </select>
+                <input type="date" id="print-data" onchange="carregarPrintCliente()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan">
+            </div>
+        </div>
         <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
             <div class="flex items-center gap-3 mb-4 flex-wrap">
-                <span class="text-sm font-bold text-faiston-dark">Print da lista atual</span>
-                <span class="text-xs text-faiston-muted" id="print-count-label">(a última lista vista em "Minhas atividades" ou "Atividades em geral")</span>
+                <span class="text-sm font-bold text-faiston-dark">Status Report do cliente</span>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="print-count-label">selecione um cliente</span>
+                <button onclick="gerarPrintLista()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
+                    <i class="ph ph-camera text-sm"></i> Copiar print
+                </button>
+                <span class="text-xs text-faiston-faint" id="print-msg"></span>
             </div>
-            <button onclick="gerarPrintLista()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
-                <i class="ph ph-camera text-sm"></i> Copiar print
-            </button>
-            <span class="text-xs text-faiston-faint ml-2" id="print-msg"></span>
+            <div id="print-lista" class="flex flex-col gap-2"></div>
         </div>
     </div>
 </main>
@@ -605,8 +615,9 @@ async function init() {
         const res = await fetch('/api/clientes');
         if (res.ok) {
             const clientes = await res.json();
-            document.getElementById('m-cliente').insertAdjacentHTML('beforeend',
-                clientes.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join(''));
+            const opts = clientes.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join('');
+            document.getElementById('m-cliente').insertAdjacentHTML('beforeend', opts);
+            document.getElementById('print-cliente').insertAdjacentHTML('beforeend', opts);
         }
     } catch(e) {}
 
@@ -646,8 +657,12 @@ function mostrarAbaN2(aba) {
         document.getElementById('n2-subtitulo').textContent = 'Todas as atividades de campo, de todos os N2';
         buscar();
     } else {
-        document.getElementById('print-count-label').textContent =
-            `${(ultimaLista || []).length} atividade(s) — a última lista vista em "Minhas atividades" ou "Atividades em geral"`;
+        document.getElementById('n2-titulo').textContent = 'Enviar Status Report';
+        document.getElementById('n2-subtitulo').textContent = 'Print com todas as atividades do cliente, não só as suas';
+        if (!document.getElementById('print-data').value) {
+            document.getElementById('print-data').value = new Date().toISOString().slice(0, 10);
+        }
+        carregarPrintCliente();
     }
 }
 
@@ -704,32 +719,74 @@ async function buscar() {
     }
 }
 
+let printLista = [];
+
+async function carregarPrintCliente() {
+    const clienteId = document.getElementById('print-cliente').value;
+    const data = document.getElementById('print-data').value;
+    const box = document.getElementById('print-lista');
+    const countLabel = document.getElementById('print-count-label');
+    if (!clienteId) {
+        printLista = [];
+        box.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm">Selecione um cliente.</div>';
+        countLabel.textContent = 'selecione um cliente';
+        return;
+    }
+    // Sem apenas_meu/n2_usuario_id de propósito -- o report precisa cobrir
+    // TODAS as atividades do cliente no dia, não só as do N2 logado.
+    const params = new URLSearchParams({ cliente_id: clienteId });
+    if (data) params.set('data', data);
+    try {
+        const res = await fetch('/api/status-campo?' + params.toString());
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        printLista = rows;
+        countLabel.textContent = `${rows.length} atividade(s)`;
+        if (!rows.length) {
+            box.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm">Nenhuma atividade deste cliente nesta data.</div>';
+            return;
+        }
+        box.innerHTML = rows.map(r => `
+            <div class="px-3 py-2 border border-faiston-border rounded-lg flex items-center gap-3 flex-wrap text-xs">
+                <span class="font-semibold text-faiston-dark flex-1 min-w-[100px]">${esc(r.site_sigla || r.site_nome || '—')}</span>
+                <span class="text-faiston-muted">${esc(r.tecnico || '—')}</span>
+                <span class="text-faiston-muted">N2: ${esc(r.n2_responsavel || '—')}</span>
+                <span class="font-semibold text-faiston-purple">${esc(STATUS_LABEL[r.status] || r.status)}</span>
+            </div>`).join('');
+    } catch (e) {
+        printLista = [];
+        box.innerHTML = '<div class="text-center py-8 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+    }
+}
+
 async function gerarPrintLista() {
     const msg = document.getElementById('print-msg');
     if (typeof html2canvas === 'undefined') { msg.textContent = 'Não foi possível gerar a imagem (html2canvas não carregou).'; return; }
-    const rows = ultimaLista || [];
-    if (!rows.length) { msg.textContent = 'Nenhuma atividade pra imprimir.'; return; }
+    const rows = printLista || [];
+    if (!rows.length) { msg.textContent = 'Selecione um cliente com atividades primeiro.'; return; }
+    const clienteSel = document.getElementById('print-cliente');
+    const clienteNome = clienteSel.selectedOptions[0] ? clienteSel.selectedOptions[0].textContent : '';
+    const data = document.getElementById('print-data').value;
     msg.textContent = 'Gerando imagem...';
 
     const card = document.createElement('div');
     card.style.cssText = 'position:fixed;left:-9999px;top:0;width:640px;background:#ffffff;padding:24px;font-family:Inter,sans-serif;';
     const linhas = rows.map(r => `
         <tr>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;white-space:nowrap;">${esc(fmtDate(r.data))}</td>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:12px;font-weight:600;color:#0B0D1F;">${esc(r.cliente_nome || '—')}</td>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.site_sigla || r.site_nome || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:12px;font-weight:600;color:#0B0D1F;">${esc(r.site_sigla || r.site_nome || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.tecnico || '—')}</td>
             <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.n2_responsavel || '—')}</td>
             <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${esc(STATUS_LABEL[r.status] || r.status)}</td>
         </tr>`).join('');
     card.innerHTML = `
         <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#5B2EE0;margin-bottom:2px;">Status Report</div>
-        <div style="font-size:18px;font-weight:800;color:#0B0D1F;margin-bottom:12px;">${n2AbaAtual === 'geral' ? 'Atividades em geral' : 'Minhas atividades'} (${rows.length})</div>
+        <div style="font-size:18px;font-weight:800;color:#0B0D1F;margin-bottom:2px;">${esc(clienteNome)}</div>
+        <div style="font-size:11px;color:#9097AC;margin-bottom:12px;">${esc(fmtDate(data))} · ${rows.length} atividade(s)</div>
         <table style="width:100%;border-collapse:collapse;">
             <thead>
                 <tr>
-                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Data</th>
-                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Projeto</th>
                     <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Site</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Técnico</th>
                     <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">N2</th>
                     <th style="text-align:right;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Status</th>
                 </tr>
