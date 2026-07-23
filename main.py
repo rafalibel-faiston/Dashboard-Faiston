@@ -667,44 +667,7 @@ def montar_kpis(cur, hoje, time_filter: str, concluidas_hoje: int) -> str:
              f'{card("⚠️", em_risco, "Em risco do prazo", "#EF4444" if em_risco else "#9AA0AE", "#FDECEC" if em_risco else "#F1F2F6")}'
              f'</tr></table>')
 
-    # Detalhe do que está em risco — lista acionável (atrasadas + vencendo hoje)
-    risco_html = ""
-    if em_risco:
-        cur.execute(f"""
-            SELECT t.id, t.descricao, t.data_prazo, t.hora_prazo, t.status
-            {base} AND t.data_prazo IS NOT NULL AND t.data_prazo <= %s
-            ORDER BY t.data_prazo ASC, t.hora_prazo ASC NULLS LAST
-            LIMIT 8""", params + [hoje])
-        linhas = cur.fetchall()
-        itens = []
-        for i, (tid, desc, prazo, hora, status) in enumerate(linhas):
-            atrasada = prazo and prazo < hoje
-            tag_cor, tag_bg, tag_txt = (("#DC2626", "#FDECEC", "Atrasada") if atrasada
-                                        else ("#B45309", "#FEF3DC", "Vence hoje"))
-            prazo_fmt = _hist_fmt("data_prazo", str(prazo)) if prazo else "—"
-            hora_fmt = f' às {str(hora)[:5]}' if hora else ""
-            borda = "" if i == len(linhas) - 1 else ";border-bottom:1px solid #F4ECEE"
-            itens.append(
-                f'<tr><td style="padding:11px 0{borda}">'
-                f'<span style="display:inline-block;background:{tag_bg};color:{tag_cor};font-size:10px;'
-                f'font-weight:800;letter-spacing:.3px;padding:3px 8px;border-radius:6px;margin-right:8px;'
-                f'text-transform:uppercase">{tag_txt}</span>'
-                f'<strong style="color:#11131C;font-size:13.5px">{desc or "(sem descrição)"}</strong>'
-                f'<div style="margin-top:4px;color:#9AA0AE;font-size:11px;font-weight:500">'
-                f'#{tid} &nbsp;·&nbsp; prazo {prazo_fmt}{hora_fmt} &nbsp;·&nbsp; '
-                f'{HIST_STATUS_LABEL.get(status, status)}</div></td></tr>')
-        sufixo = ' <span style="color:#C99;font-weight:500">· 8 mais urgentes</span>' if em_risco > 8 else ""
-        risco_html = (
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            f'style="margin:0 0 24px;background:#fff;border:1px solid #F4D7D7;border-radius:14px">'
-            f'<tr><td style="background:#FEF4F4;border-radius:14px 14px 0 0;border-bottom:1px solid #F4D7D7;'
-            f'padding:12px 18px"><span style="font-size:11.5px;font-weight:800;'
-            f'letter-spacing:.8px;text-transform:uppercase;color:#DC2626">⚠ Atenção ao prazo</span>'
-            f'<span style="font-size:11px;color:#C28A8A;font-weight:600">&nbsp; {em_risco} tarefa(s){sufixo}</span></td></tr>'
-            f'<tr><td style="padding:2px 18px 14px"><table role="presentation" width="100%" '
-            f'cellpadding="0" cellspacing="0">{"".join(itens)}</table></td></tr></table>')
-
-    return cards + risco_html
+    return cards
 
 
 def montar_resumo_por_pessoa(cur, inicio, fim, time_filter: str = None) -> str:
@@ -749,37 +712,63 @@ def montar_resumo_por_pessoa(cur, inicio, fim, time_filter: str = None) -> str:
     # Quem produziu mais primeiro: concluídas desc, depois em andamento desc
     ordenado = sorted(pessoas.items(),
                       key=lambda kv: (-kv[1]["concluidas"], -kv[1]["andamento"], (kv[0] or "").lower()))
-    linhas = []
+    medalhas = {0: "🥇", 1: "🥈", 2: "🥉"}
+    cards = []
     for i, (nome, d) in enumerate(ordenado):
-        borda = "" if i == len(ordenado) - 1 else ";border-bottom:1px solid #EEF0F6"
+        concl, andam = d["concluidas"], d["andamento"]
         inicial = (nome or "?").strip()[:1].upper()
-        linhas.append(
-            f'<tr><td style="padding:11px 4px{borda}">'
+        medal = medalhas.get(i, "")
+        medal_html = (f'&nbsp;<span style="font-size:13px;vertical-align:middle">{medal}</span>'
+                      if medal and concl else "")
+
+        # Barra de proporção: concluídas (verde) vs em andamento (roxo)
+        tot = concl + andam
+        if tot:
+            w_concl = int(round(concl / tot * 100))
+            seg_concl = (f'<td style="height:6px;background:#0E9F6E;font-size:0;line-height:0;'
+                         f'width:{w_concl}%;border-radius:4px 0 0 4px">&nbsp;</td>' if concl else '')
+            seg_andam = (f'<td style="height:6px;background:#8B5CF6;font-size:0;line-height:0;'
+                         f'width:{100 - w_concl}%;border-radius:{"0 4px 4px 0" if concl else "4px"}">&nbsp;</td>'
+                         if andam else '')
+            barra = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                     f'style="margin-top:12px"><tr>{seg_concl}{seg_andam}</tr></table>')
+        else:
+            barra = ('<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                     'style="margin-top:12px"><tr><td style="height:6px;background:#EEF0F6;'
+                     'border-radius:4px;font-size:0;line-height:0">&nbsp;</td></tr></table>')
+
+        def _stat(valor, rotulo, cor):
+            return (f'<span style="display:inline-block;text-align:center;margin-left:16px;vertical-align:middle">'
+                    f'<span style="display:block;font-size:20px;font-weight:800;color:{cor};line-height:1">{valor}</span>'
+                    f'<span style="display:block;font-size:9px;font-weight:700;color:#8A90A2;'
+                    f'text-transform:uppercase;letter-spacing:.4px;margin-top:3px">{rotulo}</span></span>')
+
+        cards.append(
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'style="margin:0 0 10px;background:#fff;border:1px solid #ECEEF4;border-radius:14px">'
+            f'<tr><td style="padding:14px 18px">'
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
             f'<td style="vertical-align:middle">'
-            f'<span style="display:inline-block;width:30px;height:30px;background:#EEE8FE;color:#5B2EE0;'
-            f'border-radius:9px;text-align:center;line-height:30px;font-size:13px;font-weight:800;'
-            f'margin-right:10px;vertical-align:middle">{inicial}</span>'
-            f'<span style="font-size:13.5px;font-weight:700;color:#11131C;vertical-align:middle">{nome or "—"}</span></td>'
+            f'<span style="display:inline-block;width:34px;height:34px;'
+            f'background:linear-gradient(135deg,#5B2EE0,#B826C9);color:#fff;border-radius:10px;'
+            f'text-align:center;line-height:34px;font-size:14px;font-weight:800;margin-right:11px;'
+            f'vertical-align:middle">{inicial}</span>'
+            f'<span style="font-size:14px;font-weight:700;color:#11131C;vertical-align:middle">{nome or "—"}</span>'
+            f'{medal_html}</td>'
             f'<td align="right" style="vertical-align:middle;white-space:nowrap">'
-            f'<span style="display:inline-block;background:#E3F6EE;color:#0E9F6E;font-size:11px;font-weight:800;'
-            f'padding:4px 9px;border-radius:7px;margin-left:6px">✅ {d["concluidas"]} concl.</span>'
-            f'<span style="display:inline-block;background:#EEE8FE;color:#5B2EE0;font-size:11px;font-weight:800;'
-            f'padding:4px 9px;border-radius:7px;margin-left:6px">🚀 {d["andamento"]} em and.</span>'
-            f'</td></tr></table></td></tr>')
+            f'{_stat(concl, "Concluídas", "#0E9F6E")}{_stat(andam, "Em andamento", "#5B2EE0")}'
+            f'</td></tr></table>{barra}</td></tr></table>')
 
     eyebrow = ('<p style="margin:0 0 12px;font-size:11px;font-weight:800;letter-spacing:1.4px;'
-               'text-transform:uppercase;color:#A78BFA">Por pessoa</p>')
-    return (f'{eyebrow}'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            f'style="margin:0 0 22px;background:#fff;border:1px solid #ECEEF4;border-radius:14px">'
-            f'<tr><td style="padding:6px 16px 8px"><table role="presentation" width="100%" '
-            f'cellpadding="0" cellspacing="0">{"".join(linhas)}</table></td></tr></table>')
+               'text-transform:uppercase;color:#A78BFA">Status por profissional</p>')
+    return f'{eyebrow}<div style="margin:0 0 22px">{"".join(cards)}</div>'
 
 
 def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
-    """Monta (html, total) com as alterações do período, agrupadas por projeto.
-    `inicio`/`fim` são timestamps; `time_filter` restringe ao time do dono da tarefa."""
+    """Monta (html, total) com o status geral do dia: painel-resumo (KPIs) +
+    status por profissional (concluídas hoje e em andamento agora). `total` é o
+    nº de alterações do período (usado como gate de envio); `time_filter`
+    restringe ao time do dono da tarefa."""
     q = """SELECT COALESCE(NULLIF(projeto_nome,''),'Sem projeto') AS proj,
                   tarefa_id, tarefa_desc, autor_nome, acao, campo,
                   valor_antigo, valor_novo, criado_em
@@ -793,132 +782,12 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
     cur.execute(q, params)
     rows = cur.fetchall()
 
-    # Agrupa: projeto → tarefa → lista de eventos
-    projetos = {}
-    for proj, tid, desc, autor, acao, campo, antigo, novo, quando in rows:
-        p = projetos.setdefault(proj, {})
-        t = p.setdefault(tid, {"desc": desc, "eventos": []})
-        if desc:
-            t["desc"] = desc  # mantém a descrição mais recente
-        t["eventos"].append((autor, acao, campo, antigo, novo, quando))
-
     total = len(rows)
-
-    def label_campo(campo):
-        return dict(HIST_CAMPOS).get(campo, campo.replace("_", " ").capitalize())
-
-    blocos = []
-    for proj, tarefas in projetos.items():
-        linhas_tarefa = []
-        for tid, info in tarefas.items():
-            # Eventos de criação/exclusão da tarefa (destaque próprio)
-            marcos = []        # (acao, autor, hora)
-            # Alterações de campo: colapsa repetições do mesmo campo no período,
-            # mantendo o valor ANTERIOR original e o valor FINAL (net change).
-            ordem_campos = []
-            mudancas = {}      # campo -> {antigo, novo, autores:set, hora}
-            for autor, acao, campo, antigo, novo, quando in info["eventos"]:
-                hora = str(quando)[11:16] if quando else ""
-                if acao in ("criou", "excluiu"):
-                    marcos.append((acao, autor or "—", hora))
-                    continue
-                if campo not in mudancas:
-                    mudancas[campo] = {"antigo": antigo, "novo": novo,
-                                       "autores": set(), "hora": hora}
-                    ordem_campos.append(campo)
-                else:
-                    mudancas[campo]["novo"] = novo   # mantém o estado final
-                    mudancas[campo]["hora"] = hora
-                if autor:
-                    mudancas[campo]["autores"].add(autor)
-
-            # Autor(es) e horário representativos da tarefa no período
-            autores_all, hora_ult = set(), ""
-            for autor, acao, campo, antigo, novo, quando in info["eventos"]:
-                if autor:
-                    autores_all.add(autor)
-                h = str(quando)[11:16] if quando else ""
-                if h:
-                    hora_ult = h   # rows vêm em ordem cronológica → fica o mais recente
-            criada = any(a == "criou" for a, _au, _h in marcos)
-            excluida = any(a == "excluiu" for a, _au, _h in marcos)
-
-            # Alterações líquidas (ignora as que voltaram ao valor original)
-            net, status_final = [], None
-            for campo in ordem_campos:
-                m = mudancas[campo]
-                de = _hist_fmt(campo, m["antigo"])
-                para = _hist_fmt(campo, m["novo"])
-                if de == para:
-                    continue
-                if campo == "status":
-                    status_final = para
-                net.append((label_campo(campo), de, para))
-
-            if not (criada or excluida or net):
-                continue  # nada relevante para esta tarefa
-
-            def _tag(txt, cor, bg):
-                return (f'<span style="display:inline-block;background:{bg};color:{cor};font-size:10px;'
-                        f'font-weight:800;letter-spacing:.3px;text-transform:uppercase;padding:3px 8px;'
-                        f'border-radius:6px;margin-right:8px;vertical-align:middle">{txt}</span>')
-            id_pill = (f'<span style="display:inline-block;font-family:ui-monospace,Menlo,Consolas,monospace;'
-                       f'font-size:10.5px;font-weight:700;color:#7C84A0;background:#F1F2F6;padding:2px 7px;'
-                       f'border-radius:5px;margin-right:8px;vertical-align:middle">#{tid}</span>')
-            titulo_t = (f'<span style="font-size:14px;font-weight:700;color:#11131C;vertical-align:middle">'
-                        f'{(info["desc"] or "(sem descrição)")}</span>')
-            meta_html = (f'<div style="margin-top:6px;color:#AEB3C2;font-size:11px">'
-                         f'{", ".join(sorted(autores_all)) or "—"} · {hora_ult}</div>')
-
-            if excluida:
-                cabecalho = _tag("Excluída", "#DC2626", "#FDECEC") + id_pill + titulo_t
-                corpo_t = ""
-            elif criada:
-                # Tarefa nova: uma linha só, sem repetir o "Aberto → ..." inicial
-                resumo = ("criada" + (f' já em <strong style="color:#11131C">{status_final}</strong>'
-                                       if status_final else ""))
-                cabecalho = _tag("Nova", "#0E9F6E", "#E3F6EE") + id_pill + titulo_t
-                corpo_t = f'<div style="margin-top:6px;color:#6B7280;font-size:12.5px">{resumo}</div>'
-            else:
-                cabecalho = id_pill + titulo_t
-                linhas_ch = []
-                for lbl, de, para in net:
-                    linhas_ch.append(
-                        f'<div style="margin-top:8px">'
-                        f'<span style="display:inline-block;background:#EEE8FE;color:#5B2EE0;font-size:10.5px;'
-                        f'font-weight:700;padding:2px 9px;border-radius:6px;margin-right:8px">{lbl}</span>'
-                        f'<span style="color:#9AA0AE;font-size:13px;text-decoration:line-through">{de}</span> '
-                        f'<span style="color:#5B2EE0;font-weight:700;font-size:13px">&rarr;</span> '
-                        f'<strong style="color:#11131C;font-size:13px">{para}</strong></div>')
-                corpo_t = "".join(linhas_ch)
-
-            linhas_tarefa.append(
-                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0">'
-                f'<tr><td style="padding:13px 16px">{cabecalho}{corpo_t}{meta_html}</td></tr></table>')
-        if not linhas_tarefa:
-            continue
-        sep = '<tr><td style="border-top:1px solid #EEF0F6;font-size:0;line-height:0">&nbsp;</td></tr>'
-        corpo_tarefas = sep.join(f'<tr><td>{lt}</td></tr>' for lt in linhas_tarefa)
-        blocos.append(
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-            f'style="margin:0 0 18px;background:#fff;border:1px solid #ECEEF4;border-radius:14px">'
-            f'<tr><td style="background:#F8F9FC;border-radius:14px 14px 0 0;border-bottom:1px solid #EEF0F6;padding:12px 16px">'
-            f'<span style="font-size:12px;font-weight:800;letter-spacing:.3px;color:#5B2EE0">📁 {proj}</span>'
-            f'<span style="font-size:11px;color:#9AA0AE;font-weight:600">&nbsp; {len(linhas_tarefa)} tarefa(s)</span></td></tr>'
-            f'<tr><td style="padding:4px 4px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
-            f'{corpo_tarefas}</table></td></tr></table>')
-
-    detalhes = "".join(blocos) if blocos else (
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        'style="background:#FBFBFE;border:1px solid #ECEEF4;border-radius:14px">'
-        '<tr><td align="center" style="padding:30px 20px">'
-        '<div style="font-size:26px;margin-bottom:6px">🌙</div>'
-        '<p style="color:#6B7280;font-size:14px;font-weight:600;margin:0">Nenhuma alteração registrada hoje</p>'
-        '<p style="color:#AEB3C2;font-size:12px;margin:4px 0 0">Dia tranquilo por aqui.</p></td></tr></table>')
-
-    # Painel-resumo (KPIs + alertas de prazo) no topo do corpo
+    # Tarefas concluídas hoje (status → 'concluido'), para o painel-resumo geral.
     concluidas_hoje = len({tid for _proj, tid, _d, _a, acao, campo, _ant, novo, _q in rows
                            if acao == "alterou" and campo == "status" and novo == "concluido"})
+
+    # Painel-resumo geral (KPIs) no topo do corpo
     hoje = inicio.date() if hasattr(inicio, "date") else inicio
     try:
         kpis = montar_kpis(cur, hoje, time_filter, concluidas_hoje)
@@ -926,18 +795,23 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
         print(f"[resumo-diario] KPIs indisponíveis: {e}")
         kpis = ""
 
-    # Quebra por pessoa: quem concluiu quantas e quem está com quantas em andamento
+    # Status por profissional: quantas cada um concluiu e quantas estão em andamento
     try:
         por_pessoa = montar_resumo_por_pessoa(cur, inicio, fim, time_filter)
     except Exception as e:
-        print(f"[resumo-diario] Quebra por pessoa indisponível: {e}")
+        print(f"[resumo-diario] Status por profissional indisponível: {e}")
         por_pessoa = ""
 
-    if blocos:
-        detalhes = ('<p style="margin:0 0 14px;font-size:11px;font-weight:800;letter-spacing:1.4px;'
-                    'text-transform:uppercase;color:#A78BFA">Alterações do dia</p>') + detalhes
+    if not por_pessoa:
+        por_pessoa = (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="background:#FBFBFE;border:1px solid #ECEEF4;border-radius:14px">'
+            '<tr><td align="center" style="padding:30px 20px">'
+            '<div style="font-size:26px;margin-bottom:6px">🌙</div>'
+            '<p style="color:#6B7280;font-size:14px;font-weight:600;margin:0">Nenhuma atividade por profissional hoje</p>'
+            '<p style="color:#AEB3C2;font-size:12px;margin:4px 0 0">Dia tranquilo por aqui.</p></td></tr></table>')
 
-    corpo = kpis + por_pessoa + detalhes
+    corpo = kpis + por_pessoa
     return corpo, total
 
 
