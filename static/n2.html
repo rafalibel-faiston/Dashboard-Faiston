@@ -105,7 +105,7 @@
                 <select id="print-cliente" onchange="carregarPrintCliente()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
                     <option value="">Selecionar cliente...</option>
                 </select>
-                <input type="date" id="print-data" onchange="carregarPrintCliente()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan">
+                <input type="date" id="print-data" onchange="printDataMudou()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan">
             </div>
         </div>
         <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
@@ -156,8 +156,8 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="m-sigla-label">Sigla do site</label>
                     <input type="text" id="m-sigla" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do site</label>
+                <div id="m-nomesite-campo" class="hidden">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="m-nomesite-label">Nome do site</label>
                     <input type="text" id="m-nomesite" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
@@ -189,76 +189,45 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Ticket</label>
                     <input type="text" id="m-ticket" placeholder="Nº do ticket" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora chegada</label>
-                    <input type="time" id="m-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora de saída</label>
-                    <input type="time" id="m-saida" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Endereço</label>
                     <input type="text" id="m-endereco" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Particularidades</label>
-                    <div class="flex gap-4 pt-1 flex-wrap">
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="checkbox" id="m-part-reversa" value="reversa"> Reversa
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="checkbox" id="m-part-equip" value="equipamento_em_posse_do_cliente"> Equipamento em posse do cliente
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="checkbox" id="m-part-removido" value="equipamento_removido" onchange="toggleEquipamentoRemovido()"> Equipamento removido
-                        </label>
-                    </div>
-                    <div id="m-removido-campo" class="hidden mt-2">
-                        <textarea id="m-removido-detalhe" rows="2" placeholder="Qual equipamento foi removido (modelo, serial...)" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
-                    </div>
-                </div>
-                <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Material</label>
-                    <div class="flex gap-4 pt-1 mb-2">
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="m-material-radio" id="m-material-sim" onchange="toggleMaterialDetalhe()"> Utilizado
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="m-material-radio" id="m-material-nao" onchange="toggleMaterialDetalhe()" checked> Não utilizado
-                        </label>
-                    </div>
-                    <div id="m-material-campos" class="hidden flex-col gap-2">
-                        <textarea id="m-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none mb-2"></textarea>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Quantidade</label>
-                                <input type="number" min="0" id="m-material-qtd" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
-                            </div>
-                            <div>
-                                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>
-                                <input type="number" min="0" step="0.01" id="m-material-valor" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
                     <textarea id="m-detalhamento" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 </div>
-                <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Observações</label>
-                    <textarea id="m-observacoes" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
-                </div>
-                <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Descrição do andamento</label>
-                    <textarea id="m-andamento" rows="2" placeholder="O que está acontecendo na atividade agora..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                <div class="col-span-2 text-xs text-faiston-faint bg-slate-50 border border-faiston-border rounded-lg px-3 py-2.5">
+                    <i class="ph ph-info text-sm"></i> Chegada/saída, particularidades, material, observações e andamento são preenchidos nos passos seguintes (Atualizar situação, Atualizar andamento, Finalizar atividade).
                 </div>
             </div>
         </div>
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="fecharModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="salvar()" id="btn-salvar" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: duplicar atividade (mesmo local, novo atendimento) -->
+<div id="modal-duplicar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Duplicar atividade</h3>
+        <p class="text-xs text-faiston-muted mb-4">Escolha o que aproveitar da atividade original -- útil quando tem mais de um atendimento no mesmo local (ex.: Arcos). Data e status sempre começam em branco/agendado na cópia.</p>
+        <div class="flex flex-col gap-2" id="dup-campos">
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-cliente" checked> Projeto/Cliente</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-tecnico" checked> Técnico</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-sigla" checked> Sigla/Tipo de loja</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-nomesite" checked> Nome do site</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-subprojeto" checked> Subprojeto</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-endereco" checked> Endereço/Cidade/UF</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-horario"> Horário agendado</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-ticket"> Ticket</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="dup-detalhamento"> Detalhamento técnico</label>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalDuplicar()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="confirmarDuplicar()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Duplicar</button>
         </div>
     </div>
 </div>
@@ -517,6 +486,10 @@ const STATUS_MAP = {
     'Improdutiva — Faiston': 'text-faiston-magenta bg-faiston-magenta/10 border-faiston-magenta/30',
     'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
 };
+function statusLabel(status, clienteNome) {
+    if (status === 'improdutiva_cliente' && clienteNome) return `Improdutiva — ${clienteNome}`;
+    return STATUS_LABEL[status] || status;
+}
 const LOCALIZACAO_LABEL = { deslocamento: 'Em deslocamento', no_local: 'No local' };
 const ACESSO_LABEL = { com_acesso: 'Com acesso', verificando_acesso: 'Verificando acesso', sem_acesso: 'Sem acesso' };
 const ANDAMENTO_TIPO_LABEL = { instalando: 'Instalando', trocando: 'Trocando', removendo: 'Removendo' };
@@ -526,7 +499,11 @@ function chipsSituacao(r) {
     // sendo feito tecnicamente). Mantido separado na exibição por causa
     // disso, mesmo vindo do mesmo modal de preenchimento.
     const chips = [];
-    if (r.localizacao) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700">${LOCALIZACAO_LABEL[r.localizacao] || r.localizacao}</span>`);
+    if (r.localizacao === 'deslocamento') {
+        chips.push(`<span class="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">${LOCALIZACAO_LABEL.deslocamento}</span>`);
+    } else if (r.localizacao) {
+        chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700">${LOCALIZACAO_LABEL[r.localizacao] || r.localizacao}</span>`);
+    }
     if (r.acesso) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-faiston-purple/10 text-faiston-purple">${ACESSO_LABEL[r.acesso] || r.acesso}</span>`);
     if (r.hora_chegada) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Chegada ${esc(r.hora_chegada)}</span>`);
     return chips.length ? `<div class="flex gap-1.5 flex-wrap">${chips.join('')}</div>` : '';
@@ -553,16 +530,6 @@ function chipsAndamento(r) {
     if (!s && !a) return '';
     return `<div class="flex flex-col gap-1.5 mt-1.5">${s}${a}</div>`;
 }
-function toggleMaterialDetalhe() {
-    const usado = document.getElementById('m-material-sim').checked;
-    const campos = document.getElementById('m-material-campos');
-    campos.classList.toggle('hidden', !usado);
-    campos.classList.toggle('flex', usado);
-}
-function toggleEquipamentoRemovido() {
-    const marcado = document.getElementById('m-part-removido').checked;
-    document.getElementById('m-removido-campo').classList.toggle('hidden', !marcado);
-}
 function labelSitePorNomeCliente(nomeCliente) {
     const n = (nomeCliente || '').toLowerCase();
     if (n.includes('arcos')) return 'Sigla';
@@ -574,6 +541,11 @@ async function atualizarCamposPorCliente() {
     const sel = document.getElementById('m-cliente');
     const nomeCliente = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
     document.getElementById('m-sigla-label').textContent = labelSitePorNomeCliente(nomeCliente);
+    // "Nome do site" só faz sentido pra Arcos -- lá vira "Tipo de loja".
+    // Pros outros clientes o campo fica escondido (não é usado).
+    const ehArcos = (nomeCliente || '').toLowerCase().includes('arcos');
+    document.getElementById('m-nomesite-campo').classList.toggle('hidden', !ehArcos);
+    if (ehArcos) document.getElementById('m-nomesite-label').textContent = 'Tipo de loja';
 
     const clienteId = sel.value;
     const datalist = document.getElementById('m-subprojeto-list');
@@ -617,9 +589,11 @@ async function init() {
             const clientes = await res.json();
             const opts = clientes.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join('');
             document.getElementById('m-cliente').insertAdjacentHTML('beforeend', opts);
-            document.getElementById('print-cliente').insertAdjacentHTML('beforeend', opts);
         }
     } catch(e) {}
+    // print-cliente é populado à parte, só com quem tem atividade no dia
+    // selecionado (ver popularPrintClientesDoDia) -- não faz sentido listar
+    // cliente sem nada pra imprimir naquela data.
 
     mostrarAbaN2('minhas');
 }
@@ -662,7 +636,7 @@ function mostrarAbaN2(aba) {
         if (!document.getElementById('print-data').value) {
             document.getElementById('print-data').value = new Date().toISOString().slice(0, 10);
         }
-        carregarPrintCliente();
+        printDataMudou();
     }
 }
 
@@ -707,6 +681,7 @@ async function buscar() {
                 ${r.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${esc(r.observacoes)}</div>` : ''}
                 <div class="flex gap-2 mt-2 flex-wrap">
                     <button onclick="abrirModalEditar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Editar</button>
+                    <button onclick="abrirModalDuplicar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Duplicar</button>
                     ${r.status === 'em_andamento' ? `<button onclick="abrirModalAtualizarSituacao(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-purple hover:underline">Atualizar situação</button>` : ''}
                     ${r.status === 'em_andamento' ? `<button onclick="abrirModalAtualizarAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-cyan hover:underline">Atualizar andamento</button>` : ''}
                     <button onclick="verHistoricoAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-muted hover:underline">Ver histórico</button>
@@ -720,6 +695,31 @@ async function buscar() {
 }
 
 let printLista = [];
+
+async function popularPrintClientesDoDia() {
+    // Só lista cliente que realmente tem atividade na data escolhida --
+    // listar todos os clientes cadastrados aqui só gerava print vazio.
+    const data = document.getElementById('print-data').value;
+    const sel = document.getElementById('print-cliente');
+    const atual = sel.value;
+    if (!data) return;
+    try {
+        const res = await fetch('/api/status-campo?data=' + data);
+        if (!res.ok) return;
+        const rows = await res.json();
+        const vistos = new Map();
+        rows.forEach(r => { if (r.cliente_id && !vistos.has(r.cliente_id)) vistos.set(r.cliente_id, r.cliente_nome || ''); });
+        const opts = [...vistos.entries()]
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .map(([id, nome]) => `<option value="${id}">${esc(nome)}</option>`).join('');
+        sel.innerHTML = '<option value="">Selecionar cliente...</option>' + opts;
+        if (vistos.has(parseInt(atual, 10))) sel.value = atual;
+    } catch (e) {}
+}
+
+function printDataMudou() {
+    popularPrintClientesDoDia().then(carregarPrintCliente);
+}
 
 async function carregarPrintCliente() {
     const clienteId = document.getElementById('print-cliente').value;
@@ -749,9 +749,10 @@ async function carregarPrintCliente() {
         box.innerHTML = rows.map(r => `
             <div class="px-3 py-2 border border-faiston-border rounded-lg flex items-center gap-3 flex-wrap text-xs">
                 <span class="font-semibold text-faiston-dark flex-1 min-w-[100px]">${esc(r.site_sigla || r.site_nome || '—')}</span>
+                ${r.subprojeto ? `<span class="text-faiston-muted">${esc(r.subprojeto)}</span>` : ''}
                 <span class="text-faiston-muted">${esc(r.tecnico || '—')}</span>
                 <span class="text-faiston-muted">N2: ${esc(r.n2_responsavel || '—')}</span>
-                <span class="font-semibold text-faiston-purple">${esc(STATUS_LABEL[r.status] || r.status)}</span>
+                <span class="font-semibold text-faiston-purple">${esc(statusLabel(r.status, r.cliente_nome))}</span>
             </div>`).join('');
     } catch (e) {
         printLista = [];
@@ -774,9 +775,10 @@ async function gerarPrintLista() {
     const linhas = rows.map(r => `
         <tr>
             <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:12px;font-weight:600;color:#0B0D1F;">${esc(r.site_sigla || r.site_nome || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.subprojeto || '—')}</td>
             <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.tecnico || '—')}</td>
             <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.n2_responsavel || '—')}</td>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${esc(STATUS_LABEL[r.status] || r.status)}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${esc(statusLabel(r.status, r.cliente_nome))}</td>
         </tr>`).join('');
     card.innerHTML = `
         <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#5B2EE0;margin-bottom:2px;">Status Report</div>
@@ -786,6 +788,7 @@ async function gerarPrintLista() {
             <thead>
                 <tr>
                     <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Site</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Subprojeto</th>
                     <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Técnico</th>
                     <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">N2</th>
                     <th style="text-align:right;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Status</th>
@@ -812,19 +815,18 @@ async function gerarPrintLista() {
     }
 }
 
+// Campos que só existem no fluxo de situação/andamento/finalização, não
+// neste modal de criar/editar -- preservados como vieram ao editar, igual
+// o mesmo padrão já usado no Painel (ver scCamposN2Preservados).
+let camposN2Preservados = {};
+
 function abrirModalNovo() {
     editandoId = null;
+    camposN2Preservados = {};
     document.getElementById('modal-titulo').textContent = 'Nova atividade';
-    ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf','m-chegada','m-saida',
-     'm-endereco','m-detalhamento','m-observacoes','m-andamento','m-material-detalhe','m-material-qtd',
-     'm-material-valor','m-ticket','m-subprojeto','m-removido-detalhe']
+    ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf',
+     'm-endereco','m-detalhamento','m-ticket','m-subprojeto']
         .forEach(id => document.getElementById(id).value = '');
-    document.getElementById('m-part-reversa').checked = false;
-    document.getElementById('m-part-equip').checked = false;
-    document.getElementById('m-part-removido').checked = false;
-    document.getElementById('m-material-nao').checked = true;
-    toggleMaterialDetalhe();
-    toggleEquipamentoRemovido();
     document.getElementById('m-status').value = 'agendado';
     document.getElementById('m-status').disabled = true;
     document.getElementById('m-data').value = new Date().toISOString().slice(0, 10);
@@ -838,6 +840,14 @@ async function abrirModalEditar(id) {
         if (!res.ok) { alert('Atividade não encontrada.'); return; }
         const r = await res.json();
         editandoId = id;
+        camposN2Preservados = {
+            hora_chegada: r.hora_chegada || null, hora_termino: r.hora_termino || null,
+            observacoes: r.observacoes || '', particularidades: r.particularidades || [],
+            material_utilizado: !!r.material_utilizado, material_detalhe: r.material_detalhe || '',
+            material_quantidade: r.material_quantidade ?? null, material_valor: r.material_valor ?? null,
+            andamento_descricao: r.andamento_descricao || '', localizacao: r.localizacao || null,
+            acesso: r.acesso || null, equipamento_removido_detalhe: r.equipamento_removido_detalhe || '',
+        };
         document.getElementById('m-status').disabled = false;
         document.getElementById('modal-titulo').textContent = 'Editar atividade';
         document.getElementById('m-cliente').value = r.cliente_id || '';
@@ -849,27 +859,11 @@ async function abrirModalEditar(id) {
         document.getElementById('m-cidade').value = r.cidade || '';
         document.getElementById('m-uf').value = r.uf || '';
         document.getElementById('m-status').value = r.status || 'agendado';
-        document.getElementById('m-chegada').value = r.hora_chegada || '';
-        document.getElementById('m-saida').value = r.hora_termino || '';
         document.getElementById('m-endereco').value = r.endereco || '';
         document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
-        document.getElementById('m-observacoes').value = r.observacoes || '';
-        document.getElementById('m-andamento').value = r.andamento_descricao || '';
         document.getElementById('m-ticket').value = r.ticket || '';
         document.getElementById('m-subprojeto').value = r.subprojeto || '';
         atualizarCamposPorCliente();
-        const particularidades = r.particularidades || [];
-        document.getElementById('m-part-reversa').checked = particularidades.includes('reversa');
-        document.getElementById('m-part-equip').checked = particularidades.includes('equipamento_em_posse_do_cliente');
-        document.getElementById('m-part-removido').checked = particularidades.includes('equipamento_removido');
-        document.getElementById('m-removido-detalhe').value = r.equipamento_removido_detalhe || '';
-        toggleEquipamentoRemovido();
-        document.getElementById('m-material-sim').checked = !!r.material_utilizado;
-        document.getElementById('m-material-nao').checked = !r.material_utilizado;
-        document.getElementById('m-material-detalhe').value = r.material_detalhe || '';
-        document.getElementById('m-material-qtd').value = r.material_quantidade ?? '';
-        document.getElementById('m-material-valor').value = r.material_valor ?? '';
-        toggleMaterialDetalhe();
         document.getElementById('modal').classList.remove('hidden');
     } catch (e) { alert('Erro ao carregar atividade.'); }
 }
@@ -893,27 +887,13 @@ async function salvar() {
         endereco: document.getElementById('m-endereco').value.trim(),
         cidade: document.getElementById('m-cidade').value.trim(),
         uf: document.getElementById('m-uf').value.trim(),
-        hora_chegada: document.getElementById('m-chegada').value || null,
-        hora_termino: document.getElementById('m-saida').value || null,
         detalhamento_tecnico: document.getElementById('m-detalhamento').value.trim(),
         status: document.getElementById('m-status').value,
-        observacoes: document.getElementById('m-observacoes').value.trim(),
-        andamento_descricao: document.getElementById('m-andamento').value.trim(),
         ticket: document.getElementById('m-ticket').value.trim(),
         subprojeto: document.getElementById('m-subprojeto').value.trim(),
-        particularidades: [
-            document.getElementById('m-part-reversa').checked ? 'reversa' : null,
-            document.getElementById('m-part-equip').checked ? 'equipamento_em_posse_do_cliente' : null,
-            document.getElementById('m-part-removido').checked ? 'equipamento_removido' : null,
-        ].filter(Boolean),
-        equipamento_removido_detalhe: document.getElementById('m-part-removido').checked
-            ? document.getElementById('m-removido-detalhe').value.trim() : '',
-        material_utilizado: document.getElementById('m-material-sim').checked,
-        material_detalhe: document.getElementById('m-material-detalhe').value.trim(),
-        material_quantidade: document.getElementById('m-material-sim').checked && document.getElementById('m-material-qtd').value
-            ? parseInt(document.getElementById('m-material-qtd').value, 10) : null,
-        material_valor: document.getElementById('m-material-sim').checked && document.getElementById('m-material-valor').value
-            ? parseFloat(document.getElementById('m-material-valor').value) : null,
+        // Preserva o que já foi preenchido via situação/andamento/finalização
+        // -- este formulário não tem controles pra esses campos.
+        ...camposN2Preservados,
     };
     const btn = document.getElementById('btn-salvar');
     btn.disabled = true;
@@ -929,6 +909,44 @@ async function salvar() {
     } finally {
         btn.disabled = false;
     }
+}
+
+let dupOrigem = null;
+
+async function abrirModalDuplicar(id) {
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (!res.ok) { alert('Atividade não encontrada.'); return; }
+        dupOrigem = await res.json();
+        document.getElementById('modal-duplicar').classList.remove('hidden');
+    } catch (e) { alert('Erro ao carregar atividade.'); }
+}
+
+function fecharModalDuplicar() {
+    document.getElementById('modal-duplicar').classList.add('hidden');
+    dupOrigem = null;
+}
+
+function confirmarDuplicar() {
+    const r = dupOrigem;
+    if (!r) return;
+    const marcado = id => document.getElementById(id).checked;
+    fecharModalDuplicar();
+    abrirModalNovo();
+    if (marcado('dup-cliente')) document.getElementById('m-cliente').value = r.cliente_id || '';
+    if (marcado('dup-tecnico')) document.getElementById('m-tecnico').value = r.tecnico || '';
+    if (marcado('dup-sigla')) document.getElementById('m-sigla').value = r.site_sigla || '';
+    if (marcado('dup-nomesite')) document.getElementById('m-nomesite').value = r.site_nome || '';
+    if (marcado('dup-subprojeto')) document.getElementById('m-subprojeto').value = r.subprojeto || '';
+    if (marcado('dup-endereco')) {
+        document.getElementById('m-endereco').value = r.endereco || '';
+        document.getElementById('m-cidade').value = r.cidade || '';
+        document.getElementById('m-uf').value = r.uf || '';
+    }
+    if (marcado('dup-horario')) document.getElementById('m-horario').value = r.horario_agendado || '';
+    if (marcado('dup-ticket')) document.getElementById('m-ticket').value = r.ticket || '';
+    if (marcado('dup-detalhamento')) document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
+    atualizarCamposPorCliente();
 }
 
 async function excluir(id) {
@@ -1171,7 +1189,7 @@ async function abrirModalFinalizar(id, novoStatus, row) {
     statusAlvoId = id;
     statusAlvoNovo = novoStatus;
     atividadeAlvoRow = row || null;
-    document.getElementById('fz-status-label').textContent = STATUS_LABEL[novoStatus] || novoStatus;
+    document.getElementById('fz-status-label').textContent = statusLabel(novoStatus, row && row.cliente_nome);
     document.getElementById('fz-saida').value = (row && row.hora_termino) || '';
     const materialSim = !!(row && row.material_utilizado);
     document.getElementById('fz-material-sim').checked = materialSim;

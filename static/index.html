@@ -1728,8 +1728,8 @@
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="sc-m-sigla-label">Sigla do site</label>
                     <input type="text" id="sc-m-sigla" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do site</label>
+                <div id="sc-m-nomesite-campo" class="hidden">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="sc-m-nomesite-label">Nome do site</label>
                     <input type="text" id="sc-m-nomesite" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
@@ -1777,6 +1777,30 @@
         <div class="flex gap-3 p-6 pt-0">
             <button onclick="scFecharModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
             <button onclick="scSalvar()" id="sc-btn-salvar" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: duplicar atividade (mesmo local, novo atendimento) -->
+<div id="modal-sc-duplicar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Duplicar atividade</h3>
+        <p class="text-xs text-faiston-muted mb-4">Escolha o que aproveitar da atividade original -- útil quando tem mais de um atendimento no mesmo local (ex.: Arcos). Data e status sempre começam em branco/agendado na cópia.</p>
+        <div class="flex flex-col gap-2">
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-cliente" checked> Projeto/Cliente</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-n2" checked> N2 responsável</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-tecnico" checked> Técnico</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-sigla" checked> Sigla/Tipo de loja</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-nomesite" checked> Nome do site</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-subprojeto" checked> Subprojeto</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-endereco" checked> Endereço/Cidade/UF</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-horario"> Horário agendado</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-ticket"> Ticket</label>
+            <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="sc-dup-detalhamento"> Detalhamento técnico</label>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="scFecharModalDuplicar()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="scConfirmarDuplicar()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Duplicar</button>
         </div>
     </div>
 </div>
@@ -4169,9 +4193,10 @@ const STATUS_CT = {
     'DEBOOKING':      'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
 };
 
-function statusBadge(label, map) {
+function statusBadge(label, map, displayText) {
     const cls = map[label] || 'text-slate-500 bg-slate-100 border-slate-200';
-    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}">${label || '—'}</span>`;
+    const texto = displayText != null ? displayText : label;
+    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}">${texto || '—'}</span>`;
 }
 
 function fmtDate(d) {
@@ -6610,9 +6635,14 @@ function scPodeEditar() {
     return !!(window.ME && ['admin', 'gestor', 'demo', 'diretor'].includes(window.ME.perfil));
 }
 
+function scStatusLabel(status, clienteNome) {
+    if (status === 'improdutiva_cliente' && clienteNome) return `Improdutiva — ${clienteNome}`;
+    return STATUS_CAMPO_LABEL[status] || status;
+}
+
 function scStatusCell(r, podeEditar) {
-    const label = STATUS_CAMPO_LABEL[r.status] || r.status;
-    if (!podeEditar) return statusBadge(label, STATUS_CAMPO_MAP);
+    const label = scStatusLabel(r.status, r.cliente_nome);
+    if (!podeEditar) return statusBadge(STATUS_CAMPO_LABEL[r.status] || r.status, STATUS_CAMPO_MAP, label);
     const opts = Object.entries(STATUS_CAMPO_LABEL)
         .map(([k, l]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${l}</option>`).join('');
     return `<select onchange="scMudarStatus(${r.id}, this.value)" class="text-xs font-semibold border border-faiston-border rounded-full px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>`;
@@ -6714,7 +6744,7 @@ async function scAbrirModalFinalizar(id, novoStatus, row) {
     scStatusAlvoId = id;
     scStatusAlvoNovo = novoStatus;
     scAtividadeAlvoRow = row || null;
-    document.getElementById('sc-fz-status-label').textContent = STATUS_CAMPO_LABEL[novoStatus] || novoStatus;
+    document.getElementById('sc-fz-status-label').textContent = scStatusLabel(novoStatus, row && row.cliente_nome);
     document.getElementById('sc-fz-saida').value = (row && row.hora_termino) || '';
     const materialSim = !!(row && row.material_utilizado);
     document.getElementById('sc-fz-material-sim').checked = materialSim;
@@ -7068,6 +7098,7 @@ function scRenderTabelaAtividades(rows) {
         if (scGruposColapsados.has(dataAtual)) return;
         const acoes = (podeEditar ? `
             <button onclick="scAbrirModalEditar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Editar"><i class="ph ph-pencil-simple text-slate-400 text-sm"></i></button>
+            <button onclick="scAbrirModalDuplicar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Duplicar"><i class="ph ph-copy text-slate-400 text-sm"></i></button>
             <button onclick="scExcluir(${r.id})" class="w-7 h-7 rounded-md hover:bg-red-50 inline-flex items-center justify-center" title="Excluir"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
         ` : '') + `
             <button onclick="scAbrirModalAndamentoHistorico(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Ver andamento"><i class="ph ph-clock-counter-clockwise text-slate-400 text-sm"></i></button>
@@ -7100,7 +7131,7 @@ function scBannerAndamentoTipo(a) {
         ${a.hora_inicio_atividade ? `<span class="text-xs font-semibold text-fuchsia-700 bg-white/60 px-2 py-0.5 rounded-full">Início ${scEsc(a.hora_inicio_atividade)}</span>` : ''}
     </div>`;
 }
-function scReportCardAtividade(a) {
+function scReportCardAtividade(a, clienteNome) {
     const chips = [];
     if (a.subprojeto) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${scEsc(a.subprojeto)}</span>`);
     if (a.localizacao) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700">${SC_LOCALIZACAO_LABEL[a.localizacao] || a.localizacao}</span>`);
@@ -7118,7 +7149,7 @@ function scReportCardAtividade(a) {
         <div class="border border-faiston-border rounded-xl p-3">
             <div class="flex items-center justify-between gap-2 flex-wrap">
                 <span class="text-sm font-bold text-faiston-dark">${scEsc(a.site)}</span>
-                ${statusBadge(STATUS_CAMPO_LABEL[a.status] || a.status, STATUS_CAMPO_MAP)}
+                ${statusBadge(STATUS_CAMPO_LABEL[a.status] || a.status, STATUS_CAMPO_MAP, scStatusLabel(a.status, clienteNome))}
             </div>
             <div class="flex gap-3 flex-wrap text-xs text-faiston-muted mt-1">
                 ${a.horario_agendado ? `<span>${scEsc(a.horario_agendado)}</span>` : ''}
@@ -7165,7 +7196,7 @@ async function scCarregarReport() {
                 const lista = porCliente[nome];
                 return `<div>
                     <div class="text-xs font-bold text-faiston-purple uppercase tracking-wide mb-2">${scEsc(nome)} <span class="text-faiston-faint font-normal normal-case">(${lista.length})</span></div>
-                    <div class="flex flex-col gap-2">${lista.map(scReportCardAtividade).join('')}</div>
+                    <div class="flex flex-col gap-2">${lista.map(a => scReportCardAtividade(a, nome)).join('')}</div>
                 </div>`;
             }).join('');
         }
@@ -7190,10 +7221,10 @@ async function scGerarPrint() {
         <div style="padding:10px 0;border-bottom:1px solid #E5E8F0;">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
                 <span style="font-weight:700;font-size:13px;color:#0B0D1F;">${scEsc(a.site)}</span>
-                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#F4F5FA;color:#5E647A;">${scEsc(STATUS_CAMPO_LABEL[a.status] || a.status)}</span>
+                <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#F4F5FA;color:#5E647A;">${scEsc(scStatusLabel(a.status, nomeCliente))}</span>
             </div>
             <div style="font-size:11px;color:#5E647A;margin-top:3px;">
-                ${a.tecnico ? scEsc(a.tecnico) : ''}${a.horario_agendado ? ' · ' + scEsc(a.horario_agendado) : ''}${a.cidade ? ' · ' + scEsc(a.cidade) + (a.uf ? '/' + scEsc(a.uf) : '') : ''}
+                ${a.subprojeto ? scEsc(a.subprojeto) + ' · ' : ''}${a.tecnico ? scEsc(a.tecnico) : ''}${a.horario_agendado ? ' · ' + scEsc(a.horario_agendado) : ''}${a.cidade ? ' · ' + scEsc(a.cidade) + (a.uf ? '/' + scEsc(a.uf) : '') : ''}
             </div>
             ${a.observacoes ? `<div style="font-size:11px;color:#9097AC;margin-top:3px;font-style:italic;">${scEsc(a.observacoes)}</div>` : ''}
         </div>`).join('');
@@ -7238,7 +7269,7 @@ async function scGerarPrintTabela() {
             <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${scEsc(r.subprojeto || '—')}</td>
             <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${scEsc(r.cidade || '—')}</td>
             <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${scEsc(r.n2_responsavel || '—')}</td>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${scEsc(STATUS_CAMPO_LABEL[r.status] || r.status)}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${scEsc(scStatusLabel(r.status, r.cliente_nome))}</td>
         </tr>`).join('');
     card.innerHTML = `
         <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#5B2EE0;margin-bottom:2px;">Status Report</div>
@@ -7288,6 +7319,11 @@ async function scAtualizarCamposPorCliente() {
     const sel = document.getElementById('sc-m-cliente');
     const nomeCliente = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
     document.getElementById('sc-m-sigla-label').textContent = scLabelSitePorNomeCliente(nomeCliente);
+    // "Nome do site" só faz sentido pra Arcos -- lá vira "Tipo de loja".
+    // Pros outros clientes o campo fica escondido (não é usado).
+    const ehArcos = (nomeCliente || '').toLowerCase().includes('arcos');
+    document.getElementById('sc-m-nomesite-campo').classList.toggle('hidden', !ehArcos);
+    if (ehArcos) document.getElementById('sc-m-nomesite-label').textContent = 'Tipo de loja';
 
     const clienteId = sel.value;
     const datalist = document.getElementById('sc-m-subprojeto-list');
@@ -7447,6 +7483,46 @@ async function scSalvar() {
     } finally {
         btn.disabled = false;
     }
+}
+
+let scDupOrigem = null;
+
+async function scAbrirModalDuplicar(id) {
+    if (!scPodeEditar()) return;
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (!res.ok) { alert('Atividade não encontrada.'); return; }
+        scDupOrigem = await res.json();
+        document.getElementById('modal-sc-duplicar').classList.remove('hidden');
+    } catch (e) { alert('Erro ao carregar atividade.'); }
+}
+
+function scFecharModalDuplicar() {
+    document.getElementById('modal-sc-duplicar').classList.add('hidden');
+    scDupOrigem = null;
+}
+
+function scConfirmarDuplicar() {
+    const r = scDupOrigem;
+    if (!r) return;
+    const marcado = id => document.getElementById(id).checked;
+    scFecharModalDuplicar();
+    scAbrirModalNovo();
+    if (marcado('sc-dup-cliente')) document.getElementById('sc-m-cliente').value = r.cliente_id || '';
+    if (marcado('sc-dup-n2')) document.getElementById('sc-m-n2').value = r.n2_usuario_id || '';
+    if (marcado('sc-dup-tecnico')) document.getElementById('sc-m-tecnico').value = r.tecnico || '';
+    if (marcado('sc-dup-sigla')) document.getElementById('sc-m-sigla').value = r.site_sigla || '';
+    if (marcado('sc-dup-nomesite')) document.getElementById('sc-m-nomesite').value = r.site_nome || '';
+    if (marcado('sc-dup-subprojeto')) document.getElementById('sc-m-subprojeto').value = r.subprojeto || '';
+    if (marcado('sc-dup-endereco')) {
+        document.getElementById('sc-m-endereco').value = r.endereco || '';
+        document.getElementById('sc-m-cidade').value = r.cidade || '';
+        document.getElementById('sc-m-uf').value = r.uf || '';
+    }
+    if (marcado('sc-dup-horario')) document.getElementById('sc-m-horario').value = r.horario_agendado || '';
+    if (marcado('sc-dup-ticket')) document.getElementById('sc-m-ticket').value = r.ticket || '';
+    if (marcado('sc-dup-detalhamento')) document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
+    scAtualizarCamposPorCliente();
 }
 
 async function scExcluir(id) {
