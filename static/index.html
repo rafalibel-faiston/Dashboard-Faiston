@@ -362,6 +362,7 @@
                 </div>
             </div>
             <div id="chart-producao" style="min-height:260px;"></div>
+            <div id="chart-producao-obs" class="flex flex-col gap-1 mt-2"></div>
         </div>
         <!-- Status da Fila -->
         <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
@@ -2618,17 +2619,52 @@ const eqPerfilCfg = {
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
     demo:        { label: 'Demo',        cls: 'bg-amber-50 text-amber-600 border-amber-200' },
 };
+const EQ_CARGO_LABEL = { analista: 'Analista', backoffice: 'Backoffice', n2: 'N2' };
 let eqUsuarios = [], eqModalId = null;
 
 async function abrirEquipeGestor() {
     document.getElementById('modal-equipe').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    eqMudarView('membros');
     await eqCarregarUsuarios();
 }
 
 function fecharEquipeGestor() {
     document.getElementById('modal-equipe').classList.add('hidden');
     document.body.style.overflow = '';
+}
+
+function eqMudarView(view) {
+    document.getElementById('eq-view-membros').classList.toggle('hidden', view !== 'membros');
+    document.getElementById('eq-view-bloqueios').classList.toggle('hidden', view !== 'bloqueios');
+    document.getElementById('eq-view-tab-membros').className = 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ' +
+        (view === 'membros' ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
+    document.getElementById('eq-view-tab-bloqueios').className = 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ' +
+        (view === 'bloqueios' ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
+    if (view === 'bloqueios') eqCarregarTabelaBloqueios();
+}
+
+function eqCarregarTabelaBloqueios() {
+    const tb = document.getElementById('equipe-tabela-bloqueios');
+    if (!eqUsuarios.length) {
+        tb.innerHTML = '<tr><td colspan="3" class="text-center py-12 text-slate-400 text-sm">Carregando...</td></tr>';
+        return;
+    }
+    tb.innerHTML = eqUsuarios.map(u => {
+        const pc = eqPerfilCfg[u.perfil] || eqPerfilCfg.funcionario;
+        return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold">${u.nome.charAt(0)}</div>
+                    <span class="font-medium text-faiston-dark">${u.nome}</span>
+                </div>
+            </td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
+            <td class="px-5 py-3 text-right">
+                <button onclick="eqAbrirModalBloqueios(${u.id}, '${u.nome.replace(/'/g, "\\'")}')" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors">Gerenciar bloqueios</button>
+            </td>
+        </tr>`;
+    }).join('');
 }
 
 async function eqCarregarUsuarios() {
@@ -2657,12 +2693,14 @@ async function eqCarregarUsuarios() {
                 </div>
             </td>
             <td class="px-5 py-3 text-slate-500 font-mono text-xs">${u.usuario}</td>
-            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
+            <td class="px-5 py-3">
+                <span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span>
+                ${u.perfil === 'funcionario' && u.cargo ? `<div class="text-[10px] text-slate-400 mt-1">${EQ_CARGO_LABEL[u.cargo] || u.cargo}</div>` : ''}
+            </td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md ${u.ativo ? 'bg-faiston-cyan/10 text-faiston-cyan border border-faiston-cyan/30' : 'bg-red-100 text-red-600 border border-red-200'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
             <td class="px-5 py-3">
                 <div class="flex items-center gap-1 justify-end">
                     ${u.email && canEdit ? `<button onclick="eqReenviarEmail(${u.id},'${u.nome}','${u.email}')" title="Reenviar e-mail de acesso" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors"><i class="ph ph-envelope"></i></button>` : ''}
-                    <button onclick="eqAbrirModalBloqueios(${u.id}, '${u.nome.replace(/'/g, "\\'")}')" title="Bloqueios de agenda (férias/afastamento/recorrência)" class="w-8 h-8 rounded-lg hover:bg-amber-50 flex items-center justify-center text-faiston-faint hover:text-amber-600 transition-colors"><i class="ph ph-calendar-x"></i></button>
                     ${canEdit ? `<button onclick="eqOpenModalUser(${u.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>` : ''}
                 </div>
             </td>
@@ -2783,6 +2821,11 @@ function eqAtualizarOpcoesPerfil() {
     document.getElementById('eq-perfil').innerHTML = opcoes.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
 }
 
+function eqAtualizarCargo() {
+    const ehFuncionario = document.getElementById('eq-perfil').value === 'funcionario';
+    document.getElementById('eq-wrap-cargo').classList.toggle('hidden', !ehFuncionario);
+}
+
 function eqOpenModalUser(id) {
     eqModalId = id;
     eqAtualizarOpcoesPerfil();
@@ -2800,15 +2843,18 @@ function eqOpenModalUser(id) {
         document.getElementById('eq-email').value = u.email || '';
         document.getElementById('eq-usuario').value = u.usuario;
         document.getElementById('eq-perfil').value = u.perfil;
+        document.getElementById('eq-cargo').value = u.cargo || 'analista';
         document.getElementById('eq-ativo').checked = u.ativo;
     } else {
         document.getElementById('eq-nome').value = '';
         document.getElementById('eq-email').value = '';
         document.getElementById('eq-usuario').value = '';
         document.getElementById('eq-perfil').value = 'funcionario';
+        document.getElementById('eq-cargo').value = 'analista';
         document.getElementById('eq-ativo').checked = true;
     }
     document.getElementById('eq-senha').value = '';
+    eqAtualizarCargo();
     document.getElementById('modal-equipe-user').classList.remove('hidden');
     setTimeout(() => document.getElementById('eq-nome').focus(), 50);
 }
@@ -2824,6 +2870,7 @@ async function eqSalvarUsuario() {
     const senha   = document.getElementById('eq-senha').value;
     const email   = document.getElementById('eq-email').value.trim();
     const perfil  = document.getElementById('eq-perfil').value;
+    const cargo   = perfil === 'funcionario' ? document.getElementById('eq-cargo').value : '';
     const ativo   = document.getElementById('eq-ativo').checked;
     if (!nome || (!eqModalId && (!usuario || !senha))) { alert('Preencha todos os campos obrigatórios.'); return; }
     const btn = document.getElementById('eq-btn-salvar');
@@ -2831,9 +2878,9 @@ async function eqSalvarUsuario() {
     try {
         let res;
         if (eqModalId) {
-            res = await fetch(`/api/usuarios/${eqModalId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({nome, perfil, senha, ativo, email, time: ''}) });
+            res = await fetch(`/api/usuarios/${eqModalId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({nome, perfil, senha, ativo, email, time: '', cargo}) });
         } else {
-            res = await fetch('/api/usuarios', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({usuario, senha, nome, perfil, email, time: ''}) });
+            res = await fetch('/api/usuarios', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({usuario, senha, nome, perfil, email, time: '', cargo}) });
         }
         const data = await res.json();
         if (!res.ok) { alert(data.detail || 'Erro ao salvar'); return; }
@@ -3630,9 +3677,25 @@ function renderCharts(data) {
         ],
         legend: { show: false },
         grid: { ...grid, padding: { left: 4, right: 4 } },
-        tooltip: { ...tt, shared: true, intersect: false }
+        tooltip: {
+            ...tt, shared: true, intersect: false,
+            custom: function({ dataPointIndex }) {
+                const item = hpf[dataPointIndex] || {};
+                let html = `<div style="padding:8px 12px;font-family:Inter,sans-serif;">
+                    <div style="font-weight:700;margin-bottom:2px;">${item.nome || ''}</div>
+                    <div style="font-size:12px;">Tarefas: ${item.tarefas || 0} · Horas: ${item.horas || 0}h</div>`;
+                if (item.dias_trabalhados) html += `<div style="font-size:12px;">Dias trabalhados: ${item.dias_trabalhados} · ${item.horas_por_dia}h/dia</div>`;
+                if (item.obs) html += `<div style="font-size:11px;color:#D97706;margin-top:4px;max-width:220px;white-space:normal;">⚠️ ${item.obs}</div>`;
+                return html + '</div>';
+            }
+        }
     });
     charts['producao'].render();
+    const obsBox = document.getElementById('chart-producao-obs');
+    const comObs = hpf.filter(f => f.obs);
+    obsBox.innerHTML = comObs.length ? comObs.map(f =>
+        `<div class="text-[11px] text-amber-600 flex items-start gap-1"><i class="ph ph-warning-circle mt-0.5"></i><span><strong>${f.nome.split(' ')[0]}:</strong> ${f.obs}</span></div>`
+    ).join('') : '';
 
     // 2. Donut status
     destroyChart('status');
@@ -7914,13 +7977,17 @@ async function pn2CarregarEquipe() {
             return;
         }
         lista.innerHTML = visiveis.map(r => `
-            <div class="flex items-center gap-3 px-5 py-3 border-b border-faiston-border last:border-0 flex-wrap">
-                <span class="text-sm font-semibold text-faiston-dark flex-1 min-w-[140px]">${scEsc(r.nome)}${!r.ativo ? ' <span class=\"text-xs text-slate-400\">(inativo)</span>' : ''}</span>
-                <span class="text-xs text-faiston-muted" title="Atividades concluídas nesta semana">${r.atividades_semana} ativ. / semana</span>
-                <span class="text-xs text-faiston-cyan" title="Horas trabalhadas nesta semana (chegada → saída)">${r.horas_semana}h / semana</span>
-                <span class="text-xs text-faiston-muted" title="Atividades concluídas neste mês">${r.atividades_mes} ativ. / mês</span>
-                <span class="text-xs text-faiston-purple" title="Horas trabalhadas neste mês (chegada → saída)">${r.horas_mes}h / mês</span>
-                <button onclick="scFiltrarPorN2(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline ml-auto">Ver atividades</button>
+            <div class="px-5 py-3 border-b border-faiston-border last:border-0">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span class="text-sm font-semibold text-faiston-dark flex-1 min-w-[140px]">${scEsc(r.nome)}${!r.ativo ? ' <span class=\"text-xs text-slate-400\">(inativo)</span>' : ''}</span>
+                    <span class="text-xs text-faiston-muted" title="Atividades concluídas nesta semana">${r.atividades_semana} ativ. / semana</span>
+                    <span class="text-xs text-faiston-cyan" title="Horas trabalhadas nesta semana (chegada → saída)">${r.horas_semana}h / semana</span>
+                    <span class="text-xs text-faiston-muted" title="Atividades concluídas neste mês">${r.atividades_mes} ativ. / mês</span>
+                    <span class="text-xs text-faiston-purple" title="Horas trabalhadas neste mês (chegada → saída)">${r.horas_mes}h / mês</span>
+                    ${r.horas_por_dia_mes != null ? `<span class="text-xs text-faiston-muted" title="Horas por dia trabalhado no mês (dias de férias/afastamento/recorrência descontados)">${r.horas_por_dia_mes}h/dia útil</span>` : ''}
+                    <button onclick="scFiltrarPorN2(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline ml-auto">Ver atividades</button>
+                </div>
+                ${r.obs ? `<div class="text-[11px] text-amber-600 flex items-start gap-1 mt-1.5"><i class="ph ph-warning-circle mt-0.5"></i><span>${scEsc(r.obs)}</span></div>` : ''}
             </div>`).join('');
     } catch (e) {
         lista.innerHTML = '<div class="text-center py-10 text-red-400 text-sm">Erro ao carregar a equipe.</div>';
@@ -8197,19 +8264,38 @@ async function pn2SalvarDistribuicao() {
                 </button>
             </div>
         </div>
+        <div class="flex gap-2 px-6 pt-4 flex-shrink-0">
+            <button onclick="eqMudarView('membros')" id="eq-view-tab-membros" class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Membros</button>
+            <button onclick="eqMudarView('bloqueios')" id="eq-view-tab-bloqueios" class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Bloqueios de Agenda</button>
+        </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar">
-            <table class="w-full text-sm">
-                <thead class="sticky top-0 bg-white">
-                    <tr class="border-b border-faiston-border bg-slate-50">
-                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
-                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Usuário</th>
-                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Perfil</th>
-                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                        <th class="px-5 py-3"></th>
-                    </tr>
-                </thead>
-                <tbody id="equipe-tabela"></tbody>
-            </table>
+            <div id="eq-view-membros">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-white">
+                        <tr class="border-b border-faiston-border bg-slate-50">
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Usuário</th>
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Perfil</th>
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                            <th class="px-5 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="equipe-tabela"></tbody>
+                </table>
+            </div>
+            <div id="eq-view-bloqueios" class="hidden">
+                <p class="text-xs text-faiston-muted px-5 pt-3 pb-1">Férias, afastamento médico ou recorrência semanal -- bloqueia de verdade a criação/edição de atividade, escala ou tarefa naquela data/horário.</p>
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-white">
+                        <tr class="border-b border-faiston-border bg-slate-50">
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
+                            <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Perfil</th>
+                            <th class="px-5 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="equipe-tabela-bloqueios"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -8238,11 +8324,19 @@ async function pn2SalvarDistribuicao() {
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Perfil</label>
-                    <select id="eq-perfil" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                    <select id="eq-perfil" onchange="eqAtualizarCargo()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
                         <option value="funcionario">Funcionário</option>
                         <option value="demo">Demo</option>
                     </select>
                 </div>
+            </div>
+            <div id="eq-wrap-cargo" class="hidden">
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cargo</label>
+                <select id="eq-cargo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                    <option value="analista">Analista</option>
+                    <option value="backoffice">Backoffice</option>
+                    <option value="n2">N2</option>
+                </select>
             </div>
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha <span id="eq-senha-hint" class="normal-case font-normal text-faiston-faint"></span></label>

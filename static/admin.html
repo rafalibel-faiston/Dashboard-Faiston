@@ -313,7 +313,7 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Perfil</label>
-                    <select id="u-perfil" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
+                    <select id="u-perfil" onchange="uAtualizarCargo()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
                         <option value="funcionario">Funcionário</option>
                         <option value="n2">N2</option>
                         <option value="gestor">Gestor</option>
@@ -322,6 +322,14 @@
                         <option value="admin">Admin</option>
                     </select>
                 </div>
+            </div>
+            <div id="wrap-cargo" class="hidden">
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cargo</label>
+                <select id="u-cargo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
+                    <option value="analista">Analista</option>
+                    <option value="backoffice">Backoffice</option>
+                    <option value="n2">N2</option>
+                </select>
             </div>
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Time</label>
@@ -418,6 +426,7 @@ const perfilConfig = {
     n2: { label: 'N2', cls: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
 };
+const CARGO_LABEL = { analista: 'Analista', backoffice: 'Backoffice', n2: 'N2' };
 const statusCfg = {
     aberto: 'bg-slate-100 text-slate-600',
     em_andamento: 'bg-faiston-cyan/10 text-faiston-cyan',
@@ -529,7 +538,10 @@ async function carregarUsuarios() {
                 </div>
             </td>
             <td class="px-5 py-3 text-slate-500 font-mono text-xs">${u.usuario}</td>
-            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
+            <td class="px-5 py-3">
+                <span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span>
+                ${u.perfil === 'funcionario' && u.cargo ? `<div class="text-[10px] text-slate-400 mt-1">${CARGO_LABEL[u.cargo] || u.cargo}</div>` : ''}
+            </td>
             <td class="px-5 py-3">
                 <span class="text-xs font-semibold px-2 py-1 rounded-md bg-slate-100 text-slate-500 border border-slate-200">${u.time || 'Projetos'}</span>
             </td>
@@ -541,7 +553,6 @@ async function carregarUsuarios() {
             <td class="px-5 py-3">
                 <div class="flex items-center gap-1 justify-end">
                     ${u.email ? `<button onclick="reenviarEmail(${u.id})" title="Reenviar email de acesso" class="w-8 h-8 rounded-lg hover:bg-faiston-purple/10 flex items-center justify-center text-faiston-faint hover:text-faiston-purple transition-colors"><i class="ph ph-envelope"></i></button>` : ''}
-                    <button onclick="abrirModalBloqueios(${u.id}, '${u.nome.replace(/'/g, "\\'")}')" title="Bloqueios de agenda (férias/afastamento/recorrência)" class="w-8 h-8 rounded-lg hover:bg-amber-50 flex items-center justify-center text-faiston-faint hover:text-amber-600 transition-colors"><i class="ph ph-calendar-x"></i></button>
                     <button onclick="editarUsuario(${u.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>
                     <button onclick="deletarUsuario(${u.id})" class="w-8 h-8 rounded-lg hover:bg-faiston-pink/10 flex items-center justify-center text-faiston-faint hover:text-faiston-pink transition-colors"><i class="ph ph-trash"></i></button>
                 </div>
@@ -734,6 +745,11 @@ async function limparTodasTarefas() {
     carregarTarefas();
 }
 
+function uAtualizarCargo() {
+    const ehFuncionario = document.getElementById('u-perfil').value === 'funcionario';
+    document.getElementById('wrap-cargo').classList.toggle('hidden', !ehFuncionario);
+}
+
 function openModalUser() {
     document.getElementById('modal-user-title').textContent = 'Novo Usuário';
     document.getElementById('edit-uid').value = '';
@@ -742,11 +758,13 @@ function openModalUser() {
     document.getElementById('u-senha').value = '';
     document.getElementById('u-email').value = '';
     document.getElementById('u-perfil').value = 'funcionario';
+    document.getElementById('u-cargo').value = 'analista';
     document.getElementById('u-ativo').checked = true;
     document.getElementById('senha-hint').textContent = '';
     document.getElementById('wrap-ativo').classList.add('hidden');
     document.getElementById('wrap-email').classList.remove('hidden');
     document.getElementById('u-usuario').disabled = false;
+    uAtualizarCargo();
     document.getElementById('modal-user').classList.remove('hidden');
 }
 
@@ -761,6 +779,7 @@ function editarUsuario(id) {
     document.getElementById('u-senha').value = '';
     document.getElementById('u-email').value = u.email || '';
     document.getElementById('u-perfil').value = u.perfil;
+    document.getElementById('u-cargo').value = u.cargo || 'analista';
     document.getElementById('u-time').value = u.time || 'Projetos';
     document.getElementById('u-ativo').checked = u.ativo;
     document.getElementById('senha-hint').textContent = '(deixe em branco para não alterar)';
@@ -768,6 +787,7 @@ function editarUsuario(id) {
     document.getElementById('wrap-ativo').classList.add('flex');
     document.getElementById('wrap-email').classList.remove('hidden');
     document.getElementById('email-hint').textContent = '(salvo no cadastro)';
+    uAtualizarCargo();
     document.getElementById('modal-user').classList.remove('hidden');
 }
 
@@ -883,6 +903,7 @@ async function salvarUsuario() {
     const senha = document.getElementById('u-senha').value;
     const email = document.getElementById('u-email').value.trim();
     const perfil = document.getElementById('u-perfil').value;
+    const cargo = perfil === 'funcionario' ? document.getElementById('u-cargo').value : '';
     const ativo = document.getElementById('u-ativo').checked;
     const time = document.getElementById('u-time').value;
 
@@ -898,13 +919,13 @@ async function salvarUsuario() {
             res = await fetch(`/api/usuarios/${uid}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome, perfil, senha, ativo, email, time })
+                body: JSON.stringify({ nome, perfil, senha, ativo, email, time, cargo })
             });
         } else {
             res = await fetch('/api/usuarios', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ usuario, senha, nome, perfil, email, time })
+                body: JSON.stringify({ usuario, senha, nome, perfil, email, time, cargo })
             });
         }
         const data = await res.json();

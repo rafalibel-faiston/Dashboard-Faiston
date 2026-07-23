@@ -164,6 +164,7 @@ def setup_banco():
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acesso TIMESTAMP DEFAULT NULL")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT ''")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo VARCHAR(20) DEFAULT ''")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tarefas (
                 id SERIAL PRIMARY KEY,
@@ -494,6 +495,8 @@ class LoginRequest(BaseModel):
 
 TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada']
 
+CARGO_VALIDOS = ('analista', 'backoffice', 'n2')
+
 class NovoUsuario(BaseModel):
     usuario: str
     senha: str
@@ -501,6 +504,7 @@ class NovoUsuario(BaseModel):
     perfil: str
     email: str = ""
     time: str = "Projetos"
+    cargo: str = ""  # só se aplica quando perfil == 'funcionario'
 
 class AtualizarUsuario(BaseModel):
     nome: str
@@ -509,6 +513,7 @@ class AtualizarUsuario(BaseModel):
     ativo: bool = True
     email: str = ""
     time: str = "Projetos"
+    cargo: str = ""  # só se aplica quando perfil == 'funcionario'
 
 class TarefaModel(BaseModel):
     descricao: str
@@ -1221,12 +1226,12 @@ def listar_usuarios(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         if sess["perfil"] == "admin":
-            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso, COALESCE(cargo,'') FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
         else:
-            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (sess.get("time","Projetos"),))
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso, COALESCE(cargo,'') FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (sess.get("time","Projetos"),))
         rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5]), "email": r[6], "time": r[7],
-                 "primeiro_acesso": bool(r[8]), "ultimo_acesso": str(r[9])[:19] if r[9] else None} for r in rows]
+                 "primeiro_acesso": bool(r[8]), "ultimo_acesso": str(r[9])[:19] if r[9] else None, "cargo": r[10]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/funcionarios")
@@ -1254,12 +1259,13 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
     if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "n2"): raise HTTPException(status_code=400, detail="Perfil inválido")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
+    cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso, time) VALUES (%s, %s, %s, %s, %s, TRUE, %s) RETURNING id",
-                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email, time_val))
+        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso, time, cargo) VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s) RETURNING id",
+                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email, time_val, cargo_val))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         tem_email = bool(u.email)
@@ -1287,16 +1293,17 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
         if u.perfil not in ("funcionario", "demo"):
             raise HTTPException(status_code=403, detail="Gestores só podem definir perfil funcionário/demo")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
+    cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
         if u.senha:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE, time=%s WHERE id=%s",
-                        (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), time_val, uid))
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE, time=%s, cargo=%s WHERE id=%s",
+                        (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), time_val, cargo_val, uid))
         else:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s WHERE id=%s",
-                        (u.nome, u.perfil, u.ativo, u.email, time_val, uid))
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s, cargo=%s WHERE id=%s",
+                        (u.nome, u.perfil, u.ativo, u.email, time_val, cargo_val, uid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1442,6 +1449,48 @@ def _bloqueio_ativo(cur, usuario_id, data_str, hora_str=None):
                     pass
             return descricao or "Recorrência semanal"
     return None
+
+def _dias_bloqueados_periodo(cur, usuario_id, data_inicio_str, data_fim_str):
+    """Conta quantos dias desse período o funcionário estava de férias,
+    afastado ou numa recorrência semanal, pra virar 'dias trabalhados' nos
+    dashboards (ponto 2 do feedback) -- produtividade calculada só com os
+    dias em que a pessoa realmente estava disponível pra trabalhar, e uma
+    nota (obs) avisando que a produtividade tende a cair nesse período."""
+    if not usuario_id or not data_inicio_str or not data_fim_str:
+        return 0, []
+    try:
+        d0 = datetime.strptime(str(data_inicio_str)[:10], "%Y-%m-%d").date()
+        d1 = datetime.strptime(str(data_fim_str)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return 0, []
+    if d0 > d1:
+        return 0, []
+    cur.execute("""
+        SELECT tipo, data_inicio, data_fim, dia_semana, descricao
+        FROM funcionario_bloqueios WHERE usuario_id=%s
+    """, (usuario_id,))
+    dias_bloqueados = set()
+    notas = []
+    for tipo, di, df, dia_semana, descricao in cur.fetchall():
+        if tipo in ("ferias", "afastamento") and di and df:
+            ini, fim = max(di, d0), min(df, d1)
+            if ini <= fim:
+                d = ini
+                while d <= fim:
+                    dias_bloqueados.add(d)
+                    d += timedelta(days=1)
+                notas.append(descricao or ("Férias" if tipo == "ferias" else "Afastamento"))
+        elif tipo == "recorrente" and dia_semana is not None:
+            achou = False
+            d = d0
+            while d <= d1:
+                if d.weekday() == dia_semana:
+                    dias_bloqueados.add(d)
+                    achou = True
+                d += timedelta(days=1)
+            if achou:
+                notas.append(descricao or "Recorrência semanal")
+    return len(dias_bloqueados), notas
 
 # --- HISTÓRICO DE TAREFAS (resumo diário) ---
 HIST_STATUS_LABEL = {"aberto": "Aberto", "em_andamento": "Em andamento",
@@ -2073,13 +2122,35 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             func_params = params
         func_filtro = "WHERE " + " AND ".join(func_conds)
         cur.execute(
-            f"SELECT u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas, "
+            f"SELECT u.id, u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas, "
             f"COALESCE(u.time,'Projetos') as area "
             f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
-            f"{func_filtro} GROUP BY u.nome, u.time ORDER BY SUM(t.segundos) DESC",
+            f"{func_filtro} GROUP BY u.id, u.nome, u.time ORDER BY SUM(t.segundos) DESC",
             func_params
         )
-        horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2], "time": r[3]} for r in cur.fetchall()]
+        horas_por_func_rows = cur.fetchall()
+        # Dias trabalhados = dias do período filtrado menos os dias de
+        # férias/afastamento/recorrência daquele funcionário -- produtividade
+        # (horas/tarefas por dia) fica mais justa, e uma obs avisa quando a
+        # pessoa ficou fora de parte do período (ponto 2 do feedback).
+        dias_periodo = None
+        if data_inicio and data_fim:
+            try:
+                dias_periodo = (datetime.strptime(data_fim, "%Y-%m-%d").date()
+                                 - datetime.strptime(data_inicio, "%Y-%m-%d").date()).days + 1
+            except ValueError:
+                dias_periodo = None
+        horas_por_func = []
+        for uid, nome, segundos, qtd_tarefas, area in horas_por_func_rows:
+            item = {"nome": nome, "horas": round(segundos/3600, 1), "tarefas": qtd_tarefas, "time": area}
+            if dias_periodo:
+                dias_bloq, notas = _dias_bloqueados_periodo(cur, uid, data_inicio, data_fim)
+                dias_trabalhados = max(1, dias_periodo - dias_bloq)
+                item["dias_trabalhados"] = dias_trabalhados
+                item["horas_por_dia"] = round(segundos/3600 / dias_trabalhados, 2)
+                if dias_bloq:
+                    item["obs"] = f"{dias_bloq} dia(s) fora no período ({', '.join(sorted(set(notas)))}) — produtividade tende a ser menor"
+            horas_por_func.append(item)
 
         # Taxa de conclusão por cliente — respeita todos os filtros
         cur.execute(
@@ -6022,11 +6093,26 @@ def painel_n2_resumo(faiston_token: str = Cookie(None)):
                 FROM status_atividades WHERE n2_usuario_id = %s
             """, (uid,))
             ativ_semana, ativ_mes, horas_semana, horas_mes = cur.fetchone()
-            out.append({
+            # Dias trabalhados = dias do período menos férias/afastamento/
+            # recorrência -- produtividade mais justa, com obs quando a
+            # pessoa ficou fora de parte do período (ponto 2 do feedback).
+            hoje = date.today()
+            inicio_semana = hoje - timedelta(days=hoje.weekday())
+            inicio_mes = hoje.replace(day=1)
+            dias_bloq_semana, _ = _dias_bloqueados_periodo(cur, uid, str(inicio_semana), str(hoje))
+            dias_bloq_mes, notas_mes = _dias_bloqueados_periodo(cur, uid, str(inicio_mes), str(hoje))
+            dias_trab_semana = max(1, (hoje - inicio_semana).days + 1 - dias_bloq_semana)
+            dias_trab_mes = max(1, (hoje - inicio_mes).days + 1 - dias_bloq_mes)
+            item = {
                 "id": uid, "nome": nome, "ativo": ativo,
                 "atividades_semana": ativ_semana, "atividades_mes": ativ_mes,
                 "horas_semana": round(float(horas_semana), 1), "horas_mes": round(float(horas_mes), 1),
-            })
+                "dias_trabalhados_semana": dias_trab_semana, "dias_trabalhados_mes": dias_trab_mes,
+                "horas_por_dia_mes": round(float(horas_mes) / dias_trab_mes, 2),
+            }
+            if dias_bloq_mes:
+                item["obs"] = f"{dias_bloq_mes} dia(s) fora no mês ({', '.join(sorted(set(notas_mes)))}) — produtividade tende a ser menor"
+            out.append(item)
         cur.close(); conn.close()
         return out
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
