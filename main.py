@@ -5105,7 +5105,7 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
                    a.particularidades, a.material_utilizado, a.material_detalhe,
                    a.material_quantidade, a.material_valor, a.ticket,
                    a.andamento_descricao, a.localizacao, a.acesso, a.subprojeto,
-                   a.equipamento_removido_detalhe
+                   a.equipamento_removido_detalhe, a.andamento_tipo, a.andamento_equipamento
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.data = %s
@@ -5119,11 +5119,12 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
             (aid, cliente_nome, sigla, nome_site, tecnico, status, obs, horario, cidade, uf, n2,
              particularidades, material_utilizado, material_detalhe,
              material_quantidade, material_valor, ticket,
-             andamento_descricao, localizacao, acesso, subprojeto, equip_removido_detalhe) = r
+             andamento_descricao, localizacao, acesso, subprojeto, equip_removido_detalhe,
+             andamento_tipo, andamento_equipamento) = r
             cliente_nome = cliente_nome or "Sem cliente"
             contagem[status] = contagem.get(status, 0) + 1
             por_cliente.setdefault(cliente_nome, []).append({
-                "id": aid, "site": sigla or nome_site or "(sem site)", "tecnico": tecnico,
+                "id": aid, "site": sigla or nome_site or "", "tecnico": tecnico,
                 "status": status, "observacoes": obs, "horario_agendado": str(horario)[:5] if horario else None,
                 "cidade": cidade, "uf": uf, "n2_responsavel": n2,
                 "particularidades": particularidades or [], "material_utilizado": material_utilizado,
@@ -5132,6 +5133,7 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
                 "ticket": ticket, "andamento_descricao": andamento_descricao,
                 "localizacao": localizacao, "acesso": acesso, "subprojeto": subprojeto,
                 "equipamento_removido_detalhe": equip_removido_detalhe,
+                "andamento_tipo": andamento_tipo, "andamento_equipamento": andamento_equipamento,
             })
         return {"data": data, "contagem": contagem, "por_cliente": por_cliente, "total": len(rows)}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

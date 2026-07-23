@@ -510,10 +510,10 @@ function chipsAndamentoTipo(r) {
 function bannerAndamentoTipo(r) {
     if (!r.andamento_tipo) return '';
     const label = ANDAMENTO_TIPO_LABEL[r.andamento_tipo] || r.andamento_tipo;
-    return `<div class="mt-1.5 px-3 py-2 rounded-lg bg-fuchsia-50 border border-fuchsia-200 flex items-center gap-2">
-        <i class="ph ph-wrench text-fuchsia-700"></i>
-        <span class="text-sm font-bold text-fuchsia-700">${esc(label)}${r.andamento_equipamento ? ':' : ''}</span>
-        ${r.andamento_equipamento ? `<span class="text-sm text-fuchsia-900">${esc(r.andamento_equipamento)}</span>` : ''}
+    return `<div class="mt-1.5 px-3 py-2 rounded-lg bg-fuchsia-50 border border-fuchsia-200 flex items-center gap-2 flex-wrap">
+        <i class="ph ph-wrench text-fuchsia-800 text-lg"></i>
+        <span class="text-base font-extrabold text-fuchsia-800">${esc(label)}${r.andamento_equipamento ? ':' : ''}</span>
+        ${r.andamento_equipamento ? `<span class="text-base font-extrabold text-slate-900">${esc(r.andamento_equipamento)}</span>` : ''}
     </div>`;
 }
 function chipsAndamento(r) {
