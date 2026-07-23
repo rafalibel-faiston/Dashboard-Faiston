@@ -227,10 +227,24 @@ def setup_banco():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_hist_criado ON tarefa_historico(criado_em)")
         cur.execute("SELECT id FROM usuarios WHERE usuario = 'admin'")
         if not cur.fetchone():
+            # Nunca nasce com senha fixa. Usa ADMIN_INITIAL_PASSWORD se definida,
+            # senão gera uma aleatória forte (impressa no log 1x). Em ambos os casos
+            # exige troca no primeiro acesso (primeiro_acesso=TRUE).
+            admin_pwd = os.environ.get("ADMIN_INITIAL_PASSWORD", "").strip()
+            gerada = admin_pwd == ""
+            if gerada:
+                admin_pwd = secrets.token_urlsafe(12)
             cur.execute(
-                "INSERT INTO usuarios (usuario, senha_hash, nome, perfil) VALUES (%s, %s, %s, %s)",
-                ('admin', hash_senha('admin123'), 'Administrador', 'admin')
+                "INSERT INTO usuarios (usuario, senha_hash, nome, perfil, primeiro_acesso) "
+                "VALUES (%s, %s, %s, %s, TRUE)",
+                ('admin', hash_senha(admin_pwd), 'Administrador', 'admin')
             )
+            if gerada:
+                print(f"[setup] Usuário 'admin' criado com senha TEMPORÁRIA gerada: {admin_pwd}  "
+                      f"— troca obrigatória no primeiro acesso.")
+            else:
+                print("[setup] Usuário 'admin' criado a partir de ADMIN_INITIAL_PASSWORD "
+                      "— troca obrigatória no primeiro acesso.")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS configuracoes (
                 chave VARCHAR(100) PRIMARY KEY,
@@ -903,8 +917,47 @@ def enviar_resumo_diario(dia=None) -> dict:
         return {"sucesso": False, "erro": str(e)}
 
 # --- AUTH ---
+# ── Rate limiting de login (in-memory; processo único no Railway) ─────────────
+import time as _time
+from collections import deque as _deque
+_LOGIN_FAILS: dict = {}          # chave (ip:.. / user:..) -> deque[timestamps de falha]
+_LOGIN_WINDOW_S = 300            # janela deslizante de 5 minutos
+_LOGIN_MAX_FAILS = 8             # falhas por janela antes de bloquear temporariamente
+
+def _login_ip(request: Request) -> str:
+    """IP real do cliente — respeita X-Forwarded-For atrás do proxy do Railway."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "?"
+
+def _login_bloqueado(chaves) -> bool:
+    agora = _time.time()
+    for k in chaves:
+        dq = _LOGIN_FAILS.get(k)
+        if not dq:
+            continue
+        while dq and agora - dq[0] > _LOGIN_WINDOW_S:
+            dq.popleft()
+        if len(dq) >= _LOGIN_MAX_FAILS:
+            return True
+    return False
+
+def _login_registrar_falha(chaves):
+    agora = _time.time()
+    for k in chaves:
+        _LOGIN_FAILS.setdefault(k, _deque()).append(agora)
+
+def _login_limpar(chaves):
+    for k in chaves:
+        _LOGIN_FAILS.pop(k, None)
+
 @app.post("/api/login")
-def login(req: LoginRequest, response: Response):
+def login(req: LoginRequest, response: Response, request: Request):
+    chaves = (f"ip:{_login_ip(request)}", f"user:{(req.usuario or '').strip().lower()}")
+    if _login_bloqueado(chaves):
+        raise HTTPException(status_code=429,
+                            detail="Muitas tentativas de login. Aguarde alguns minutos e tente novamente.")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -912,7 +965,10 @@ def login(req: LoginRequest, response: Response):
         cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos') FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
                     (req.usuario, hash_senha(req.senha)))
         row = cur.fetchone()
-        if not row: raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
+        if not row:
+            cur.close(); conn.close()
+            _login_registrar_falha(chaves)
+            raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
         token = secrets.token_hex(32)
         cur.execute("""
             INSERT INTO sessoes (token, usuario_id, nome, perfil, time_usuario, pagina, expira_em)
@@ -921,10 +977,12 @@ def login(req: LoginRequest, response: Response):
         # Registra o último acesso (data/hora do login bem-sucedido)
         cur.execute("UPDATE usuarios SET ultimo_acesso = NOW() WHERE id = %s", (row[0],))
         conn.commit(); cur.close(); conn.close()
+        _login_limpar(chaves)  # login OK zera o contador de falhas
         response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
         return {"sucesso": True, "perfil": row[2], "nome": row[1], "primeiro_acesso": bool(row[3])}
     except HTTPException: raise
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Erro ao processar login")
 
 @app.post("/api/logout")
 def logout(response: Response, faiston_token: str = Cookie(None)):
