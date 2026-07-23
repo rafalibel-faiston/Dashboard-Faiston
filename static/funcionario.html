@@ -69,9 +69,22 @@
         /* Scrollbar dark */
         [data-theme="dark"] .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
         /* Modais */
-        [data-theme="dark"] #modal > div,
-        [data-theme="dark"] #modal-comentarios > div { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #modal > div { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
         [data-theme="dark"] #lista-comentarios .bg-slate-50 { background-color: rgba(255,255,255,0.04) !important; }
+        /* Drawer de comentários */
+        [data-theme="dark"] #drawer-comentarios { background-color: #0F0F1C !important; border-left: 1px solid rgba(255,255,255,0.07); }
+        [data-theme="dark"] #drawer-comentarios .border-faiston-border { border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #drawer-comentarios .text-faiston-dark { color: #F1F2F8 !important; }
+        [data-theme="dark"] #drawer-comentarios input,
+        [data-theme="dark"] #drawer-comentarios textarea { background-color: rgba(255,255,255,0.04) !important; color: #F1F2F8 !important; }
+        [data-theme="dark"] #drawer-comentarios .coment-bubble { background-color: rgba(255,255,255,0.04) !important; border-color: rgba(255,255,255,0.07) !important; }
+        [data-theme="dark"] #drawer-comentarios .coment-bubble p { color: #D6D8E4 !important; }
+        [data-theme="dark"] #drawer-comentarios button:hover.bg-slate-100,
+        [data-theme="dark"] #drawer-comentarios .hover\:bg-slate-100:hover { background-color: rgba(255,255,255,0.06) !important; }
+        /* Card com comentários abertos */
+        .task-card.coment-ativa { border-color: #5B2EE0 !important; box-shadow: 0 0 0 3px rgba(91,46,224,0.14); }
+        @keyframes coment-in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        .coment-bubble.novo { animation: coment-in 260ms cubic-bezier(0.2,0.8,0.2,1) both; }
         /* Notas widget */
         [data-theme="dark"] #notas-collapsed,
         [data-theme="dark"] #notas-expanded  { background-color: #11111E !important; border-color: rgba(255,255,255,0.07) !important; }
@@ -554,30 +567,41 @@
     </div>
 </div>
 
-<!-- MODAL COMENTÁRIOS -->
-<div id="modal-comentarios" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:85vh">
-        <div class="flex items-center justify-between p-5 border-b border-faiston-border">
-            <div>
-                <h2 class="text-base font-bold text-faiston-dark">Comentários</h2>
-                <p class="text-xs text-slate-400 mt-0.5 max-w-xs truncate" id="comentario-tarefa-nome"></p>
+<!-- DRAWER COMENTÁRIOS (painel lateral) -->
+<div id="drawer-bg" class="hidden fixed inset-0 bg-black/30 z-40 opacity-0 transition-opacity duration-300" onclick="fecharComentarios()" style="backdrop-filter:blur(2px)"></div>
+<aside id="drawer-comentarios" class="fixed top-0 right-0 bottom-0 z-50 w-full max-w-[420px] bg-white shadow-2xl flex flex-col translate-x-full transition-transform duration-300 ease-out">
+    <!-- Header -->
+    <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-faiston-border flex-shrink-0">
+        <div class="min-w-0">
+            <div class="flex items-center gap-2">
+                <span class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white flex-shrink-0"><i class="ph ph-chat-circle-dots text-base"></i></span>
+                <div class="min-w-0">
+                    <h2 class="text-sm font-bold text-faiston-dark leading-tight flex items-center gap-2">Comentários
+                        <span id="coment-count" class="hidden text-[10px] font-bold text-faiston-purple bg-faiston-purple/10 px-1.5 py-0.5 rounded-full"></span>
+                    </h2>
+                    <p class="text-[11px] text-faiston-faint leading-tight"><span class="font-mono" id="coment-tarefa-id"></span> <span id="comentario-tarefa-nome" class="truncate"></span></p>
+                </div>
             </div>
-            <button onclick="fecharComentarios()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-slate-500"></i></button>
         </div>
-        <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-3" id="lista-comentarios">
-            <div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda</div>
-        </div>
-        <div class="p-4 border-t border-faiston-border">
-            <div class="flex gap-2">
-                <input type="text" id="input-comentario" placeholder="Adicionar comentário..." onkeydown="if(event.key==='Enter') enviarComentario()"
-                    class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
-                <button onclick="enviarComentario()" class="bg-gradient-to-r from-faiston-purple to-faiston-cyan text-white px-4 py-2 rounded-lg text-sm font-semibold">
-                    <i class="ph ph-paper-plane-tilt"></i>
-                </button>
-            </div>
+        <button onclick="fecharComentarios()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center flex-shrink-0" title="Fechar (Esc)"><i class="ph ph-x text-slate-500"></i></button>
+    </div>
+    <!-- Lista -->
+    <div class="flex-1 overflow-y-auto custom-scrollbar px-5 py-4 flex flex-col gap-3" id="lista-comentarios">
+        <div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda</div>
+    </div>
+    <!-- Input -->
+    <div class="px-4 py-3 border-t border-faiston-border flex-shrink-0">
+        <div class="flex gap-2 items-end">
+            <textarea id="input-comentario" rows="1" placeholder="Escreva um comentário… (Enter envia, Shift+Enter quebra linha)"
+                oninput="autoGrowComent(this)"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarComentario();}"
+                class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan transition-all resize-none max-h-32 leading-snug"></textarea>
+            <button id="btn-enviar-coment" onclick="enviarComentario()" class="btn-grad text-white w-10 h-10 rounded-lg text-sm font-semibold flex items-center justify-center flex-shrink-0" title="Enviar">
+                <i class="ph ph-paper-plane-tilt"></i>
+            </button>
         </div>
     </div>
-</div>
+</aside>
 
 <!-- MODAL NOTA EXPANDIDA -->
 <div id="modal-nota-expand" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(13,15,35,0.65);backdrop-filter:blur(6px)" onclick="if(event.target===this)fecharModalNota()">
@@ -1428,51 +1452,112 @@ async function onColDrop(e, newStatus) {
     if (tabAtiva === 'agenda') renderAgenda();
 }
 
-// ── COMENTÁRIOS ──────────────────────────────────────────────────────
+// ── COMENTÁRIOS (drawer lateral) ─────────────────────────────────────
 let tarefaAtualId = null;
 
-async function abrirComentarios(tarefaId, nome) {
-    tarefaAtualId = tarefaId;
-    document.getElementById('comentario-tarefa-nome').textContent = nome;
-    document.getElementById('modal-comentarios').classList.remove('hidden');
-    document.getElementById('input-comentario').focus();
-    await carregarComentarios();
+function _fmtDataComent(iso){
+    try { return new Date(iso.replace(' ','T')+'-03:00').toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}); }
+    catch(e){ return ''; }
 }
 
-function fecharComentarios() { document.getElementById('modal-comentarios').classList.add('hidden'); tarefaAtualId=null; }
+function autoGrowComent(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,128)+'px'; }
 
-async function carregarComentarios() {
-    if (!tarefaAtualId) return;
-    const res = await fetch(`/api/tarefas/${tarefaAtualId}/comentarios`);
-    if (!res.ok) return;
-    const comentarios = await res.json();
-    const lista = document.getElementById('lista-comentarios');
-    if (!comentarios.length) { lista.innerHTML='<div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda</div>'; return; }
-    lista.innerHTML = comentarios.map(c=>{
-        const data=new Date(c.criado_em.replace(' ','T') + '-03:00').toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
-        return `<div class="bg-slate-50 rounded-xl p-3 border border-faiston-border">
-            <div class="flex items-center justify-between mb-1.5">
-                <div class="flex items-center gap-2">
-                    <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-[10px] font-bold">${c.autor.charAt(0)}</div>
-                    <span class="text-xs font-semibold text-faiston-dark">${c.autor}</span>
-                </div>
-                <span class="text-[10px] text-slate-400">${data}</span>
+function _marcarCardAtivo(tarefaId){
+    document.querySelectorAll('.task-card.coment-ativa').forEach(c=>c.classList.remove('coment-ativa'));
+    const card=document.querySelector(`.task-card[data-task-id="${tarefaId}"]`);
+    if(card) card.classList.add('coment-ativa');
+}
+
+async function abrirComentarios(tarefaId, nome) {
+    const jaAberto = !document.getElementById('drawer-comentarios').classList.contains('translate-x-full');
+    tarefaAtualId = tarefaId;
+    document.getElementById('comentario-tarefa-nome').textContent = nome || '';
+    document.getElementById('coment-tarefa-id').textContent = '#'+tarefaId;
+    _marcarCardAtivo(tarefaId);
+
+    const bg = document.getElementById('drawer-bg');
+    const drawer = document.getElementById('drawer-comentarios');
+    bg.classList.remove('hidden');
+    requestAnimationFrame(()=>{ bg.classList.remove('opacity-0'); drawer.classList.remove('translate-x-full'); });
+
+    // Troca ao vivo entre tickets: limpa a contagem e mostra skeleton
+    document.getElementById('coment-count').classList.add('hidden');
+    await carregarComentarios(!jaAberto);
+    if (window.innerWidth > 640) setTimeout(()=>document.getElementById('input-comentario').focus(), jaAberto?0:280);
+}
+
+function fecharComentarios() {
+    const bg = document.getElementById('drawer-bg');
+    const drawer = document.getElementById('drawer-comentarios');
+    drawer.classList.add('translate-x-full');
+    bg.classList.add('opacity-0');
+    setTimeout(()=>bg.classList.add('hidden'), 300);
+    document.querySelectorAll('.task-card.coment-ativa').forEach(c=>c.classList.remove('coment-ativa'));
+    tarefaAtualId = null;
+}
+
+function _renderBubble(c, novo){
+    const inicial = (c.autor||'?').charAt(0).toUpperCase();
+    return `<div class="coment-bubble bg-slate-50 rounded-xl p-3 border border-faiston-border ${novo?'novo':''}">
+        <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-lg bg-gradient-to-tr from-faiston-purple to-faiston-cyan flex items-center justify-center text-white text-[10px] font-bold">${escHtmlC(inicial)}</div>
+                <span class="text-xs font-semibold text-faiston-dark">${escHtmlC(c.autor)}</span>
             </div>
-            <p class="text-sm text-slate-700 leading-relaxed">${c.texto}</p>
-        </div>`;
-    }).join('');
+            <span class="text-[10px] text-slate-400">${escHtmlC(_fmtDataComent(c.criado_em))}</span>
+        </div>
+        <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">${escHtmlC(c.texto)}</p>
+    </div>`;
+}
+
+async function carregarComentarios(comSkeleton) {
+    if (!tarefaAtualId) return;
+    const lista = document.getElementById('lista-comentarios');
+    const alvo = tarefaAtualId;
+    if (comSkeleton) {
+        lista.innerHTML = [0,1].map(()=>`<div class="bg-slate-50 rounded-xl p-3 border border-faiston-border animate-pulse"><div class="h-3 w-24 bg-slate-200 rounded mb-2"></div><div class="h-3 w-full bg-slate-200 rounded"></div></div>`).join('');
+    }
+    let comentarios;
+    try {
+        const res = await fetch(`/api/tarefas/${alvo}/comentarios`);
+        if (!res.ok) { if(alvo===tarefaAtualId) lista.innerHTML='<div class="text-center text-red-400 text-sm py-8">Erro ao carregar</div>'; return; }
+        comentarios = await res.json();
+    } catch(e){ if(alvo===tarefaAtualId) lista.innerHTML='<div class="text-center text-red-400 text-sm py-8">Erro de conexão</div>'; return; }
+    if (alvo !== tarefaAtualId) return; // trocou de ticket enquanto carregava
+
+    const cnt = document.getElementById('coment-count');
+    if (comentarios.length) { cnt.textContent = comentarios.length; cnt.classList.remove('hidden'); }
+    else cnt.classList.add('hidden');
+
+    if (!comentarios.length) { lista.innerHTML='<div class="text-center text-slate-400 text-sm py-8"><i class="ph ph-chat-circle text-3xl mb-2 block"></i>Nenhum comentário ainda.<br>Seja o primeiro a comentar.</div>'; return; }
+    lista.innerHTML = comentarios.map(c=>_renderBubble(c,false)).join('');
     lista.scrollTop = lista.scrollHeight;
 }
 
 async function enviarComentario() {
-    const input=document.getElementById('input-comentario');
-    const texto=input.value.trim();
-    if (!texto||!tarefaAtualId) return;
-    const res=await fetch(`/api/tarefas/${tarefaAtualId}/comentarios`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
-    if (res.ok) { input.value=''; await carregarComentarios(); }
+    const input = document.getElementById('input-comentario');
+    const btn = document.getElementById('btn-enviar-coment');
+    const texto = input.value.trim();
+    if (!texto || !tarefaAtualId) return;
+    const alvo = tarefaAtualId;
+    const lista = document.getElementById('lista-comentarios');
+
+    // Envio otimista: mostra o comentário na hora
+    if (lista.querySelector('.text-slate-400')) lista.innerHTML='';
+    const nomeAtual = (document.getElementById('user-nome')?.textContent || 'Você').trim();
+    const optimista = _renderBubble({autor:nomeAtual, texto, criado_em:new Date().toISOString().slice(0,19).replace('T',' ')}, true);
+    lista.insertAdjacentHTML('beforeend', optimista);
+    lista.scrollTop = lista.scrollHeight;
+    input.value=''; input.style.height='auto'; btn.disabled=true; btn.classList.add('opacity-60');
+
+    try {
+        const res = await fetch(`/api/tarefas/${alvo}/comentarios`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texto})});
+        if (res.ok) { if(alvo===tarefaAtualId) await carregarComentarios(false); }
+        else { input.value=texto; if(alvo===tarefaAtualId) await carregarComentarios(false); alert('Não foi possível enviar o comentário.'); }
+    } catch(e){ input.value=texto; if(alvo===tarefaAtualId) await carregarComentarios(false); alert('Erro de conexão ao enviar.'); }
+    finally { btn.disabled=false; btn.classList.remove('opacity-60'); }
 }
 
-document.getElementById('modal-comentarios').addEventListener('click',e=>{ if(e.target===document.getElementById('modal-comentarios')) fecharComentarios(); });
 document.getElementById('modal').addEventListener('click',e=>{ if(e.target===document.getElementById('modal')) closeModal(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') { closeModal(); fecharComentarios(); } });
 
