@@ -495,7 +495,7 @@ class LoginRequest(BaseModel):
 
 TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada']
 
-CARGO_VALIDOS = ('analista', 'backoffice', 'n2')
+CARGO_VALIDOS = ('analista', 'backoffice')
 
 class NovoUsuario(BaseModel):
     usuario: str

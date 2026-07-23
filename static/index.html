@@ -2619,7 +2619,7 @@ const eqPerfilCfg = {
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
     demo:        { label: 'Demo',        cls: 'bg-amber-50 text-amber-600 border-amber-200' },
 };
-const EQ_CARGO_LABEL = { analista: 'Analista', backoffice: 'Backoffice', n2: 'N2' };
+const EQ_CARGO_LABEL = { analista: 'Analista', backoffice: 'Backoffice' };
 let eqUsuarios = [], eqModalId = null;
 
 async function abrirEquipeGestor() {
@@ -8335,7 +8335,6 @@ async function pn2SalvarDistribuicao() {
                 <select id="eq-cargo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
                     <option value="analista">Analista</option>
                     <option value="backoffice">Backoffice</option>
-                    <option value="n2">N2</option>
                 </select>
             </div>
             <div>
