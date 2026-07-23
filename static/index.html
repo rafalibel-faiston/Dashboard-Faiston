@@ -1568,9 +1568,14 @@
             <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Status Report</h2>
             <p class="text-xs text-faiston-muted mt-0.5">Atividades técnicas por site/cliente — substitui a planilha STATUS_REPORT.xlsx</p>
         </div>
-        <button onclick="scAbrirModalNovo()" id="sc-btn-novo" class="hidden flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
-            <i class="ph ph-plus text-base"></i> Nova atividade
-        </button>
+        <div class="flex items-center gap-2">
+            <button onclick="scAbrirModalImportar()" id="sc-btn-importar" class="hidden flex items-center gap-2 border border-faiston-purple/30 bg-faiston-purple/5 text-faiston-purple px-4 py-2 rounded-lg text-sm font-semibold hover:bg-faiston-purple/10 transition-colors">
+                <i class="ph ph-file-arrow-up text-base"></i> Importar planilha
+            </button>
+            <button onclick="scAbrirModalNovo()" id="sc-btn-novo" class="hidden flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                <i class="ph ph-plus text-base"></i> Nova atividade
+            </button>
+        </div>
     </header>
 
     <!-- FILTROS -->
@@ -1661,6 +1666,20 @@
     </div>
 </div>
 </div><!-- /mod-statuscampo -->
+
+<!-- MODAL: importar planilha de cronograma/atividades -->
+<div id="modal-sc-importar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-1">
+            <h2 class="text-lg font-bold text-faiston-dark">Importar planilha</h2>
+            <button onclick="scFecharModalImportar()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <p class="text-xs text-faiston-muted mb-4">Aceita uma planilha de cronograma/atividades (ex.: exportada de outro controle). Só as colunas que já existem no sistema são importadas — Cliente, Subprojeto, Cidade/UF, Técnico, Agendamento/Horário, Status, N2 Responsável, Ticket, Observação. Linhas cujo cliente não bate com nenhum cadastrado ficam de fora e aparecem no resumo.</p>
+        <input type="file" id="sc-importar-arquivo" accept=".xlsx" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2.5 mb-3">
+        <button onclick="scConfirmarImportar()" id="sc-importar-btn" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Importar</button>
+        <div id="sc-importar-resultado" class="mt-4"></div>
+    </div>
+</div>
 
 <!-- MODAL NOVA/EDITAR ATIVIDADE -->
 <div id="modal-status-campo" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
@@ -1964,6 +1983,7 @@
                 <select id="pn2-e-modalidade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
                     <option value="presencial">Presencial</option>
                     <option value="home">Home</option>
+                    <option value="externo">Externo</option>
                 </select>
             </div>
             <div>
@@ -6869,7 +6889,10 @@ function scFecharModalHistorico() {
 }
 
 async function scInit() {
-    if (scPodeEditar()) document.getElementById('sc-btn-novo').classList.remove('hidden');
+    if (scPodeEditar()) {
+        document.getElementById('sc-btn-novo').classList.remove('hidden');
+        document.getElementById('sc-btn-importar').classList.remove('hidden');
+    }
     try {
         const res = await fetch('/api/clientes');
         if (res.ok) {
@@ -7197,6 +7220,57 @@ async function scAtualizarCamposPorCliente() {
     } catch (e) {}
 }
 
+function scAbrirModalImportar() {
+    if (!scPodeEditar()) return;
+    document.getElementById('sc-importar-arquivo').value = '';
+    document.getElementById('sc-importar-resultado').innerHTML = '';
+    document.getElementById('modal-sc-importar').classList.remove('hidden');
+}
+function scFecharModalImportar() {
+    document.getElementById('modal-sc-importar').classList.add('hidden');
+}
+async function scConfirmarImportar() {
+    const input = document.getElementById('sc-importar-arquivo');
+    const resultado = document.getElementById('sc-importar-resultado');
+    if (!input.files.length) { resultado.innerHTML = '<p class="text-xs text-red-500">Selecione um arquivo .xlsx primeiro.</p>'; return; }
+    const btn = document.getElementById('sc-importar-btn');
+    btn.disabled = true; btn.textContent = 'Importando...';
+    resultado.innerHTML = '';
+    try {
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+        const res = await fetch('/api/status-campo/importar-planilha', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) {
+            resultado.innerHTML = `<p class="text-xs text-red-500">${scEsc(data.detail || 'Erro ao importar.')}</p>`;
+            return;
+        }
+        const semCliente = data.puladas_sem_cliente || [];
+        resultado.innerHTML = `
+            <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 font-semibold mb-2">
+                ${data.importadas} atividade(s) importada(s) da aba "${scEsc(data.aba_usada)}"
+            </div>
+            ${data.puladas_sem_status ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_status} linha(s) puladas — status não reconhecido.</div>` : ''}
+            ${data.puladas_sem_data ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_data} linha(s) puladas — sem data válida.</div>` : ''}
+            ${semCliente.length ? `
+                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-3 mb-1.5">Sem cliente correspondente (${semCliente.length})</div>
+                <div class="border border-faiston-border rounded-lg overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">
+                    ${semCliente.map(s => `<div class="flex items-center justify-between px-3 py-1.5 border-b border-faiston-border last:border-0 text-xs">
+                        <span class="text-slate-600">${scEsc(s.nome)}</span>
+                        <span class="text-slate-400">${s.ocorrencias}×</span>
+                    </div>`).join('')}
+                </div>
+                <p class="text-[11px] text-faiston-faint mt-1.5">Cadastre o cliente com esse nome (ou ajuste o nome existente) e importe de novo.</p>
+            ` : ''}
+        `;
+        await scBuscar();
+    } catch (e) {
+        resultado.innerHTML = '<p class="text-xs text-red-500">Erro de rede ao importar.</p>';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Importar';
+    }
+}
+
 function scAbrirModalNovo() {
     if (!scPodeEditar()) return;
     scEditandoId = null;
@@ -7338,12 +7412,17 @@ async function pn2CarregarEscala() {
             lista.innerHTML = '<div class="text-center py-10 text-slate-300 text-sm">Ninguém escalado nesta data ainda.</div>';
             return;
         }
-        const MODALIDADE_LABEL = { presencial: 'Presencial', home: 'Home' };
+        const MODALIDADE_LABEL = { presencial: 'Presencial', home: 'Home', externo: 'Externo' };
+        const MODALIDADE_CLS = {
+            home: 'text-faiston-purple bg-faiston-purple/10 border-faiston-purple/20',
+            externo: 'text-amber-600 bg-amber-50 border-amber-200',
+            presencial: 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+        };
         lista.innerHTML = rows.map(r => `
             <div class="flex items-center gap-3 px-5 py-3 border-b border-faiston-border last:border-0 flex-wrap">
                 <span class="text-sm font-semibold text-faiston-dark flex-1 min-w-[140px]">${scEsc(r.n2_nome)}</span>
                 ${r.horario_entrada ? `<span class="text-xs text-faiston-muted">Entrada: ${scEsc(r.horario_entrada)}</span>` : ''}
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${r.modalidade === 'home' ? 'text-faiston-purple bg-faiston-purple/10 border-faiston-purple/20' : 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30'}">${MODALIDADE_LABEL[r.modalidade] || r.modalidade}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${MODALIDADE_CLS[r.modalidade] || MODALIDADE_CLS.presencial}">${MODALIDADE_LABEL[r.modalidade] || r.modalidade}</span>
                 <span class="text-xs text-slate-500">${scEsc(r.atribuicao || '—')}</span>
                 <div class="flex gap-1 ml-auto">
                     <button onclick="pn2AbrirModalEscala(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Editar"><i class="ph ph-pencil-simple text-slate-400 text-sm"></i></button>

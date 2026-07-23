@@ -5536,7 +5536,7 @@ def listar_usuarios_n2(faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 # ── Painel de Controle do N2 ─────────────────────────────────────────────────
-MODALIDADES_ESCALA = ('presencial', 'home')
+MODALIDADES_ESCALA = ('presencial', 'home', 'externo')
 
 class EscalaN2Model(BaseModel):
     data: str
@@ -5653,6 +5653,159 @@ def atribuir_lote_status_campo(body: AtribuirLoteModel, faiston_token: str = Coo
         return {"sucesso": True, "atribuidas": len(ids), "ids": ids}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ── Importação de planilha de cronograma/atividades ─────────────────────────
+# Mapeia só as colunas que já existem no sistema (cliente, subprojeto,
+# cidade/UF, técnico, agendamento/horário, status, N2 responsável, ticket,
+# observação) -- ignora de propósito colunas sensíveis/sem equivalente
+# (RG/CPF/telefone, valores financeiros, KM, HE, seriais, estoque etc.).
+_SC_IMPORT_HEADERS = {
+    'CLIENTE': 'cliente', 'PROJETO': 'projeto', 'SUBPROJETO': 'subprojeto',
+    'RESPONSAVEL': 'n2_responsavel', 'LOCALIDADE/ITASK': 'site', 'LOCALIDADE': 'site',
+    'ENDERECO': 'endereco', 'CIDADE': 'cidade', 'UF': 'uf',
+    'AGENDAMENTO': 'data', 'HORARIO': 'horario_agendado', 'TECNICO': 'tecnico',
+    'TICKET ATENDIMENTO': 'ticket', 'STATUS ATIVIDADE': 'status_raw', 'OBSERVACAO': 'observacoes',
+}
+
+def _sc_strip_acentos(s):
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFKD', str(s)) if not unicodedata.combining(c))
+
+def _sc_norm_header(h):
+    import re as _re
+    if h is None: return ""
+    s = _sc_strip_acentos(str(h)).strip().upper()
+    return _re.sub(r'\s+', ' ', s)
+
+def _sc_norm_nome(s):
+    import re as _re
+    s = _sc_strip_acentos(str(s or '')).strip().upper()
+    s = _re.sub(r'[^A-Z0-9 ]', ' ', s)
+    return _re.sub(r'\s+', ' ', s).strip()
+
+def _sc_mapear_status(raw):
+    u = _sc_strip_acentos(str(raw or '')).upper()
+    if 'CONCLUID' in u: return 'concluido'
+    if 'PARCIAL' in u: return 'parcial'
+    if 'IMPRODUTIV' in u: return 'improdutiva_cliente'
+    if 'CANCELAD' in u: return 'cancelado'
+    if 'ANDAMENTO' in u: return 'em_andamento'
+    if 'AGENDAD' in u: return 'agendado'
+    return None
+
+def _sc_find_sheet_and_header(wb):
+    """Escaneia todas as abas procurando a que tem mais colunas reconhecidas
+    (CLIENTE, STATUS ATIVIDADE, TECNICO etc.) nas primeiras linhas -- a
+    planilha real pode ter várias abas de resumo/tabela dinâmica junto,
+    só a aba com o log linha-a-linha interessa."""
+    melhor = None
+    for sname in wb.sheetnames:
+        ws = wb[sname]
+        for i, r in enumerate(ws.iter_rows(max_row=10, values_only=True)):
+            normed = {_sc_norm_header(c) for c in r if c is not None}
+            hits = len(normed & set(_SC_IMPORT_HEADERS.keys()))
+            if hits >= 3 and (melhor is None or hits > melhor[2]):
+                melhor = (sname, i, hits)
+    return melhor
+
+@app.post("/api/status-campo/importar-planilha")
+async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_token: str = Cookie(None)):
+    """Importa atividades de uma planilha externa (ex.: cronograma geral),
+    mapeando só as colunas que já existem no sistema. Cliente/Projeto da
+    planilha são casados por nome aproximado contra os clientes já
+    cadastrados -- o que não bate fica de fora e é reportado, não cria
+    cliente novo sozinho nem adivinha."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    global _OPENPYXL_OK, openpyxl
+    if not _OPENPYXL_OK:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
+        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        content = await file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+        achado = _sc_find_sheet_and_header(wb)
+        if not achado:
+            raise HTTPException(status_code=400,
+                detail="Nenhuma aba reconhecida (esperado colunas como CLIENTE, STATUS ATIVIDADE, TECNICO etc.)")
+        sname, hi, _ = achado
+        rows = list(wb[sname].iter_rows(values_only=True))
+        headers = rows[hi]
+        col = {}
+        for idx, h in enumerate(headers):
+            key = _SC_IMPORT_HEADERS.get(_sc_norm_header(h))
+            if key and key not in col: col[key] = idx
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM clientes WHERE ativo = TRUE")
+        clientes_norm = [(_sc_norm_nome(nome), cid) for cid, nome in cur.fetchall()]
+
+        def buscar_cliente(cliente_raw, projeto_raw):
+            for cand in (cliente_raw, projeto_raw, f"{cliente_raw} {projeto_raw}".strip()):
+                nn = _sc_norm_nome(cand)
+                if not nn: continue
+                for norm_nome, cid in clientes_norm:
+                    if norm_nome and (nn == norm_nome or nn in norm_nome or norm_nome in nn):
+                        return cid
+            return None
+
+        def get(r, field):
+            idx = col.get(field)
+            v = r[idx] if idx is not None and idx < len(r) else None
+            return v
+
+        importadas = 0
+        puladas_sem_cliente = {}
+        puladas_sem_status = 0
+        puladas_sem_data = 0
+        for r in rows[hi + 1:]:
+            cliente_raw = str(get(r, 'cliente') or '').strip()
+            projeto_raw = str(get(r, 'projeto') or '').strip()
+            if not cliente_raw and not projeto_raw:
+                continue
+            data_raw = get(r, 'data')
+            if isinstance(data_raw, datetime): data_val = data_raw.date().isoformat()
+            elif isinstance(data_raw, date): data_val = data_raw.isoformat()
+            else: data_val = None
+            if not data_val:
+                puladas_sem_data += 1
+                continue
+            cid = buscar_cliente(cliente_raw, projeto_raw)
+            if not cid:
+                chave = f"{cliente_raw} {projeto_raw}".strip()
+                puladas_sem_cliente[chave] = puladas_sem_cliente.get(chave, 0) + 1
+                continue
+            status_mapeado = _sc_mapear_status(get(r, 'status_raw'))
+            if not status_mapeado:
+                puladas_sem_status += 1
+                continue
+            horario_raw = get(r, 'horario_agendado')
+            horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
+            cur.execute("""
+                INSERT INTO status_atividades
+                    (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+                     site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (cid, data_val, horario_val, str(get(r, 'tecnico') or '').strip(),
+                  str(get(r, 'n2_responsavel') or '').strip(), str(get(r, 'site') or '').strip(),
+                  str(get(r, 'endereco') or '').strip(), str(get(r, 'cidade') or '').strip(),
+                  str(get(r, 'uf') or '').strip()[:2], str(get(r, 'subprojeto') or '').strip(),
+                  str(get(r, 'ticket') or '').strip(), status_mapeado,
+                  str(get(r, 'observacoes') or '').strip(), sess["id"]))
+            importadas += 1
+        conn.commit(); cur.close(); conn.close()
+        return {
+            "sucesso": True, "importadas": importadas, "aba_usada": sname,
+            "puladas_sem_cliente": [{"nome": k, "ocorrencias": v}
+                                     for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
+            "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
+        }
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao importar planilha: {str(e)}")
 
 @app.get("/api/painel-n2/resumo")
 def painel_n2_resumo(faiston_token: str = Cookie(None)):
