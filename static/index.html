@@ -168,6 +168,9 @@
                 <a href="#" id="link-admin" data-nav-mod="admin" onclick="setModule('admin'); return false;" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-gear text-lg"></i> Admin
                 </a>
+                <a href="#" id="link-area-dev" data-nav-mod="areaDev" onclick="setModule('areaDev'); return false;" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-terminal-window text-lg"></i> Área de Dev
+                </a>
             </nav>
         </div>
     </div>
@@ -2355,6 +2358,7 @@
                         <option value="diretor">Diretor</option>
                         <option value="demo">Demo</option>
                         <option value="admin">Admin</option>
+                        <option value="dev">Dev</option>
                     </select>
                 </div>
             </div>
@@ -2386,6 +2390,15 @@
 </div>
 
 </div><!-- /mod-admin -->
+
+<!-- MODULE: ÁREA DE DEV                                              -->
+<div id="mod-areaDev" class="hidden flex-1 overflow-y-auto custom-scrollbar">
+<div class="max-w-full mx-auto px-6 py-8">
+    <h2 class="text-2xl font-bold text-faiston-dark tracking-tight mb-0.5">Área de Dev</h2>
+    <p class="text-xs text-faiston-muted mb-6">Diagnóstico técnico — versão em produção, saúde do banco, usuários/perfis e logs de erro recentes</p>
+    <div id="dev-conteudo"></div>
+</div>
+</div><!-- /mod-areaDev -->
 
 </main>
 
@@ -3044,8 +3057,9 @@ async function init() {
         document.getElementById('sidebar-nome').textContent = me.nome;
         document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'admin') {
-            document.getElementById('sidebar-perfil').textContent = 'Administrador';
+            document.getElementById('sidebar-perfil').textContent = (me.perfil_real === 'dev') ? 'Dev' : 'Administrador';
             document.getElementById('link-admin').classList.remove('hidden');
+            document.getElementById('link-area-dev').classList.remove('hidden');
         } else if (me.perfil === 'demo') {
             document.getElementById('sidebar-perfil').textContent = 'Demo';
             document.getElementById('demo-toggle-bar').classList.remove('hidden');
@@ -4348,7 +4362,7 @@ function atualizarNavAtiva(mod) {
 }
 
 function setModule(mod, gestaoTab) {
-    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo','painelN2'];
+    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo','painelN2','areaDev'];
     mods.forEach(m => {
         const el = document.getElementById('mod-' + m);
         if (el) el.classList.toggle('hidden', m !== mod);
@@ -4397,6 +4411,92 @@ function setModule(mod, gestaoTab) {
         if (!_statusCampoCarregado) { _statusCampoCarregado = true; scInit(); }
     } else if (mod === 'painelN2') {
         if (!_painelN2Carregado) { _painelN2Carregado = true; pn2Init(); }
+    } else if (mod === 'areaDev') {
+        devCarregarDiagnostico();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ÁREA DE DEV
+// ══════════════════════════════════════════════════════════════════
+async function devCarregarDiagnostico() {
+    const el = document.getElementById('dev-conteudo');
+    el.innerHTML = '<p class="text-sm text-faiston-muted">Carregando...</p>';
+    try {
+        const [resDiag, resUsuarios] = await Promise.all([
+            fetch('/api/admin/diagnostico'),
+            fetch('/api/usuarios')
+        ]);
+        if (!resDiag.ok) throw new Error('Falha ao buscar diagnóstico');
+        const d = await resDiag.json();
+        const usuarios = resUsuarios.ok ? await resUsuarios.json() : [];
+
+        const perfilLabel = {admin:'Admin', gestor:'Gestor', funcionario:'Funcionário', diretor:'Diretor', demo:'Demo', n2:'N2', dev:'Dev'};
+        const porPerfil = {};
+        usuarios.forEach(u => { porPerfil[u.perfil] = (porPerfil[u.perfil] || 0) + 1; });
+        const chipsPerfil = Object.keys(porPerfil).map(p =>
+            `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-faiston-cyan/10 text-faiston-cyan mr-1.5 mb-1.5 inline-block">${perfilLabel[p] || p}: ${porPerfil[p]}</span>`
+        ).join('');
+        const linhasUsuarios = usuarios.map(u => `
+            <tr class="border-b border-faiston-border last:border-0">
+                <td class="py-1.5 pr-3">${u.nome}</td>
+                <td class="py-1.5 pr-3">${perfilLabel[u.perfil] || u.perfil}</td>
+                <td class="py-1.5 pr-3 text-faiston-muted">${u.time || '—'}</td>
+                <td class="py-1.5">${u.ativo ? '<span class="text-emerald-600">ativo</span>' : '<span class="text-faiston-faint">inativo</span>'}</td>
+            </tr>`).join('');
+
+        const banco = d.banco || {};
+        const contagens = banco.contagens || {};
+        const bancoStatusHtml = banco.ok
+            ? `<span class="text-emerald-600 font-semibold">● conectado</span> <span class="text-faiston-muted">(${banco.latencia_ms} ms)</span>`
+            : `<span class="text-faiston-pink font-semibold">● offline</span> <span class="text-faiston-muted">${banco.erro || ''}</span>`;
+        const contagensHtml = Object.keys(contagens).map(k =>
+            `<div class="flex justify-between"><span class="text-faiston-muted">${k}</span><span class="font-semibold">${contagens[k] === null ? '—' : contagens[k]}</span></div>`
+        ).join('');
+
+        const logsHtml = (d.logs_recentes && d.logs_recentes.length)
+            ? d.logs_recentes.slice().reverse().join('\n')
+            : 'Sem entradas de erro registradas.';
+
+        el.innerHTML = `
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                <div class="bg-white border border-faiston-border rounded-xl p-4">
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Versão em produção</p>
+                    <div class="text-sm space-y-1">
+                        <div class="flex justify-between"><span class="text-faiston-muted">Ambiente</span><span class="font-semibold">${d.versao.ambiente}</span></div>
+                        <div class="flex justify-between"><span class="text-faiston-muted">Branch</span><span class="font-semibold">${d.versao.branch}</span></div>
+                        <div class="flex justify-between"><span class="text-faiston-muted">Commit</span><span class="font-mono font-semibold">${d.versao.commit}</span></div>
+                        ${d.versao.mensagem_commit ? `<div class="text-faiston-muted text-xs mt-1.5">${d.versao.mensagem_commit}</div>` : ''}
+                    </div>
+                </div>
+                <div class="bg-white border border-faiston-border rounded-xl p-4">
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Banco de dados</p>
+                    <p class="text-sm mb-2">${bancoStatusHtml}</p>
+                    <div class="text-sm space-y-1">${contagensHtml}</div>
+                </div>
+            </div>
+            <div class="bg-white border border-faiston-border rounded-xl p-4 mb-4">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Usuários e perfis</p>
+                <div class="mb-3">${chipsPerfil}</div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead><tr class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-faiston-border">
+                            <th class="py-1.5 pr-3">Nome</th><th class="py-1.5 pr-3">Perfil</th><th class="py-1.5 pr-3">Time</th><th class="py-1.5">Status</th>
+                        </tr></thead>
+                        <tbody>${linhasUsuarios}</tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="bg-white border border-faiston-border rounded-xl p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Logs de erro recentes (mais novo primeiro)</p>
+                    <button onclick="devCarregarDiagnostico()" class="text-xs font-semibold text-faiston-cyan hover:underline">Atualizar</button>
+                </div>
+                <pre class="text-xs bg-faiston-dark text-slate-200 rounded-lg p-3 overflow-auto max-h-96 whitespace-pre-wrap">${logsHtml.replace(/</g,'&lt;')}</pre>
+            </div>
+        `;
+    } catch (e) {
+        el.innerHTML = `<p class="text-sm text-faiston-pink">Erro ao carregar diagnóstico: ${e.message}</p>`;
     }
 }
 

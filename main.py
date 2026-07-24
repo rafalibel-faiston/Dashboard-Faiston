@@ -139,7 +139,12 @@ def get_session(token: str, page: str = ""):
         conn.commit(); cur.close(); conn.close()
         if not row:
             return None
-        return {"id": row[0], "nome": row[1], "perfil": row[2], "time": row[3], "page": row[4] or ""}
+        # Perfil 'dev' tem acesso equivalente a admin em todo o sistema (todas as
+        # checagens de permissão existentes usam sess["perfil"]) -- "perfil_real"
+        # preserva o valor de fato gravado no banco, só pra exibição/auditoria.
+        perfil_real = row[2]
+        perfil = "admin" if perfil_real == "dev" else perfil_real
+        return {"id": row[0], "nome": row[1], "perfil": perfil, "perfil_real": perfil_real, "time": row[3], "page": row[4] or ""}
     except Exception as e:
         print(f"Erro get_session: {e}")
         return None
@@ -592,7 +597,7 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
     if not destinatario:
         return False
     try:
-        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário", "diretor": "Diretor"}
+        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário", "diretor": "Diretor", "dev": "Dev"}
         # Botões em tabela (renderizam bem no Outlook/Gmail). bgcolor garante cor sólida onde gradiente não funciona.
         btn = f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px">
           <tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">
@@ -1257,7 +1262,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
-    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "n2"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "n2", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
@@ -1288,7 +1293,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
         row = cur2.fetchone(); cur2.close(); conn2.close()
         if not row or row[0] != sess.get("time", "Projetos"):
             raise HTTPException(status_code=403, detail="Acesso negado — usuário não pertence ao seu time")
-        if row[1] in ("admin", "gestor"):
+        if row[1] in ("admin", "gestor", "dev"):
             raise HTTPException(status_code=403, detail="Não é possível editar admins ou gestores")
         if u.perfil not in ("funcionario", "demo"):
             raise HTTPException(status_code=403, detail="Gestores só podem definir perfil funcionário/demo")
@@ -1337,7 +1342,7 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
         cur2 = conn2.cursor()
         cur2.execute("SELECT COALESCE(time,'Projetos'), perfil FROM usuarios WHERE id=%s AND usuario != 'admin'", (uid,))
         row = cur2.fetchone(); cur2.close(); conn2.close()
-        if not row or row[0] != sess.get("time", "Projetos") or row[1] in ("admin", "gestor"):
+        if not row or row[0] != sess.get("time", "Projetos") or row[1] in ("admin", "gestor", "dev"):
             raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -1820,6 +1825,60 @@ def usuarios_online(faiston_token: str = Cookie(None)):
         return online
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/admin/diagnostico")
+def diagnostico_tecnico(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+
+    versao = {
+        "commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")[:7] or "desconhecido",
+        "commit_completo": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "desconhecido"),
+        "branch": os.environ.get("RAILWAY_GIT_BRANCH", "desconhecido"),
+        "ambiente": os.environ.get("RAILWAY_ENVIRONMENT_NAME", "local"),
+        "mensagem_commit": os.environ.get("RAILWAY_GIT_COMMIT_MESSAGE", "")[:200],
+    }
+
+    banco = {"ok": False}
+    conn = get_db()
+    if conn:
+        try:
+            t0 = datetime.now()
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            contagens = {}
+            for nome_tabela, sql in [
+                ("usuarios", "SELECT COUNT(*) FROM usuarios WHERE ativo=TRUE"),
+                ("status_atividades", "SELECT COUNT(*) FROM status_atividades"),
+                ("tarefas", "SELECT COUNT(*) FROM tarefas"),
+                ("sessoes_ativas", "SELECT COUNT(*) FROM sessoes WHERE expira_em > NOW()"),
+            ]:
+                try:
+                    cur.execute(sql)
+                    contagens[nome_tabela] = cur.fetchone()[0]
+                except Exception:
+                    contagens[nome_tabela] = None
+            cur.close(); conn.close()
+            banco = {
+                "ok": True,
+                "latencia_ms": round((datetime.now() - t0).total_seconds() * 1000, 1),
+                "contagens": contagens,
+            }
+        except Exception as e:
+            banco = {"ok": False, "erro": str(e)}
+    else:
+        banco = {"ok": False, "erro": "Não foi possível conectar ao banco"}
+
+    logs_recentes = []
+    try:
+        log_path = Path("errors.log")
+        if log_path.exists():
+            linhas = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            logs_recentes = linhas[-200:]
+    except Exception as e:
+        logs_recentes = [f"Erro ao ler errors.log: {e}"]
+
+    return {"versao": versao, "banco": banco, "logs_recentes": logs_recentes}
 
 @app.get("/api/admin/atividades")
 def atividades_recentes(faiston_token: str = Cookie(None)):
