@@ -4789,6 +4789,14 @@ function devkRenderBoard() {
             const tagsHtml = (t.tags || []).map(tg => `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${devkEscapeHtml(tg)}</span>`).join(' ');
             const checklistBadge = t.checklist_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-check-square"></i>${t.checklist_concluidos}/${t.checklist_total}</span>` : '';
             const comentBadge = t.comentarios_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-chat-circle"></i>${t.comentarios_total}</span>` : '';
+            const acoesRapidas = t.status === 'done' ? '' : t.status === 'doing' ? `
+                <div class="flex gap-1.5 mt-2">
+                    <button onclick="devkAcaoRapida(event, ${t.id}, 'todo', true)" class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"><i class="ph ph-pause"></i>Pausar</button>
+                    <button onclick="devkAcaoRapida(event, ${t.id}, 'done', false)" class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"><i class="ph ph-check-circle"></i>Finalizar</button>
+                </div>` : `
+                <div class="mt-2">
+                    <button onclick="devkAcaoRapida(event, ${t.id}, 'doing', false)" class="w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-faiston-purple text-white hover:opacity-90 transition-opacity"><i class="ph ph-play"></i>Iniciar</button>
+                </div>`;
             return `
             <div class="dev-card bg-white border ${atrasada ? 'atrasada' : (pausada ? 'border-amber-300' : 'border-faiston-border')} rounded-xl p-3" draggable="true" data-id="${t.id}" onclick="devkAbrirModal(${t.id})">
                 <div class="flex items-center gap-1.5 mb-1.5">
@@ -4803,6 +4811,7 @@ function devkRenderBoard() {
                     <div class="flex items-center gap-2">${checklistBadge}${comentBadge}</div>
                     ${t.atribuido_a_nome ? `<div class="w-6 h-6 rounded-full grad-bg flex items-center justify-center text-white text-[10px] font-bold" title="${devkEscapeHtml(t.atribuido_a_nome)}">${devkIniciais(t.atribuido_a_nome)}</div>` : ''}
                 </div>
+                ${acoesRapidas}
             </div>`;
         }).join('');
     });
@@ -4913,6 +4922,20 @@ async function devkAndamentoAcao(novoStatus, pausado) {
 function devkIniciarTarefa() { devkAndamentoAcao('doing', false); }
 function devkPausarTarefa() { devkAndamentoAcao('todo', true); }
 function devkFinalizarTarefa() { devkAndamentoAcao('done', false); }
+
+// Mesmas 3 ações, só que direto no card do quadro -- sem abrir o modal.
+async function devkAcaoRapida(event, id, novoStatus, pausado) {
+    event.stopPropagation();
+    const tarefa = devkTarefas.find(t => t.id === id);
+    if (!tarefa) return;
+    const body = {
+        titulo: tarefa.titulo, descricao: tarefa.descricao, status: novoStatus,
+        prioridade: tarefa.prioridade, prazo: tarefa.prazo, tags: tarefa.tags || [],
+        link: tarefa.link || '', atribuido_a: tarefa.atribuido_a || null, pausado,
+    };
+    await fetch(`/api/dev-tarefas/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await devkCarregarTarefas();
+}
 
 async function devkDeletarTarefaModal() {
     if (!devkModalTarefaId || !confirm('Excluir esta tarefa?')) return;
