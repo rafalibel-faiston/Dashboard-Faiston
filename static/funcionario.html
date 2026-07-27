@@ -1596,8 +1596,17 @@ async function enviarComentario() {
     if (res.ok) { input.value=''; await carregarComentarios(); }
 }
 
+<<<<<<< HEAD
 document.getElementById('modal-comentarios').addEventListener('click',e=>{ if(e.target===document.getElementById('modal-comentarios')) fecharComentarios(); });
 document.getElementById('modal').addEventListener('click',e=>{ if(e.target===document.getElementById('modal')) closeModal(); });
+=======
+let modalMousedownTarget = null;
+document.getElementById('modal').addEventListener('mousedown', e => { modalMousedownTarget = e.target; });
+document.getElementById('modal').addEventListener('click', e => {
+    const modal = document.getElementById('modal');
+    if (e.target === modal && modalMousedownTarget === modal) closeModal();
+});
+>>>>>>> d4aafd6 (fix: corrige fechamento indevido do modal ao selecionar texto arrastando)
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') { closeModal(); fecharComentarios(); } });
 
 // ── AGENDA (Outlook style) ────────────────────────────────────────────
