@@ -2149,6 +2149,28 @@
                 <button onclick="adminSetTab('pesos')" id="tab-pesos" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
             <i class="ph ph-scales mr-1.5"></i>Pesos das Atividades
         </button>
+        <button onclick="adminSetTab('bloqueios')" id="tab-bloqueios" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+            <i class="ph ph-calendar-x mr-1.5"></i>Bloqueios de Agenda
+        </button>
+    </div>
+    <!-- PAINEL BLOQUEIOS DE AGENDA -->
+    <div id="painel-bloqueios-admin" class="hidden">
+        <div class="mb-5">
+            <h2 class="text-lg font-bold text-faiston-dark">Bloqueios de Agenda</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Férias, afastamento médico ou recorrência semanal -- bloqueia de verdade a criação/edição de atividade, escala ou tarefa naquela data/horário.</p>
+        </div>
+        <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-faiston-border bg-slate-50">
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nome</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Perfil</th>
+                        <th class="px-5 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-bloqueios-admin"></tbody>
+            </table>
+        </div>
     </div>
         <!-- PAINEL PESOS DAS ATIVIDADES -->
     <div id="painel-pesos" class="hidden">
@@ -3342,6 +3364,7 @@ async function init() {
     else if (go === 'financeiro') setModule('financeiro');
     else if (go === 'forecast')   setModule('gestao', 'forecast');
     else if (go === 'areaDev')    setModule('areaDev');
+    else if (go === 'admin')      setModule('admin');
 }
 
 async function enviarRelatorio() {
@@ -7218,7 +7241,8 @@ function adminSetTab(tab) {
     document.getElementById('painel-tarefas').classList.toggle('hidden', tab !== 'tarefas');
     document.getElementById('painel-online').classList.toggle('hidden', tab !== 'online');
     document.getElementById('painel-pesos').classList.toggle('hidden', tab !== 'pesos');
-    ['usuarios','tarefas','online','pesos'].forEach(t => {
+    document.getElementById('painel-bloqueios-admin').classList.toggle('hidden', tab !== 'bloqueios');
+    ['usuarios','tarefas','online','pesos','bloqueios'].forEach(t => {
         document.getElementById('tab-' + t).className = tab === t
             ? 'tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all'
             : 'bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all';
@@ -7226,6 +7250,33 @@ function adminSetTab(tab) {
     if (tab === 'tarefas') adminCarregarTarefas();
     if (tab === 'online') adminCarregarAtividade();
     if (tab === 'pesos') adminCarregarPesos();
+    if (tab === 'bloqueios') adminRenderBloqueios(adminUsuariosCache);
+}
+
+// Reaproveita o mesmo modal/endpoints já usados em Minha Equipe
+// (eqAbrirModalBloqueios, /api/usuarios/{id}/bloqueios) -- so' repete a
+// tabela aqui porque Admin ve TODOS os usuarios, nao so' o time do gestor.
+function adminRenderBloqueios(usuarios) {
+    const tb = document.getElementById('tabela-bloqueios-admin');
+    if (!usuarios.length) {
+        tb.innerHTML = '<tr><td colspan="3" class="text-center py-12 text-slate-400 text-sm">Nenhum usuário cadastrado</td></tr>';
+        return;
+    }
+    tb.innerHTML = usuarios.map(u => {
+        const pc = perfilConfig[u.perfil] || perfilConfig.funcionario;
+        return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold">${u.nome.charAt(0)}</div>
+                    <span class="font-medium text-faiston-dark">${u.nome}</span>
+                </div>
+            </td>
+            <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
+            <td class="px-5 py-3 text-right">
+                <button onclick="eqAbrirModalBloqueios(${u.id}, '${u.nome.replace(/'/g, "\\'")}')" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors">Gerenciar bloqueios</button>
+            </td>
+        </tr>`;
+    }).join('');
 }
 
 // Selo de acesso: mostra quando o usuário acessou pela última vez, ou
@@ -8869,7 +8920,8 @@ async function pn2CarregarEquipe() {
 }
 
 // Criação de N2 foi consolidada na tela Admin (Novo Usuário, perfil N2) --
-// ver #u-perfil em admin.html. Aqui fica só o resumo de leitura acima.
+// ver #u-perfil neste mesmo arquivo (módulo mod-admin). Aqui fica só o
+// resumo de leitura acima.
 
 // ══════════════════════════════════════════════════════════════════
 // GERADOR DE ESCALA DO DIA

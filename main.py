@@ -2839,7 +2839,7 @@ def funcionario(): return FileResponse("static/funcionario.html")
 def n2_page(): return FileResponse("static/n2.html")
 
 @app.get("/admin")
-def admin_page(): return FileResponse("static/admin.html")
+def admin_page(): return RedirectResponse("/dashboard?go=admin")
 
 @app.get("/devteam")
 def devteam_page(): return RedirectResponse("/dashboard?go=areaDev")
