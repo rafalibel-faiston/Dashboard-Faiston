@@ -67,6 +67,18 @@
         <button onclick="setTab('bloqueios')" id="tab-bloqueios" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
             <i class="ph ph-calendar-x mr-1.5"></i>Bloqueios de Agenda
         </button>
+                <button onclick="setTab('pesos')" id="tab-pesos" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+            <i class="ph ph-scales mr-1.5"></i>Pesos das Atividades
+        </button>
+    </div>
+
+        <!-- PAINEL PESOS DAS ATIVIDADES -->
+    <div id="painel-pesos" class="hidden">
+        <div class="mb-5">
+            <h2 class="text-lg font-bold text-faiston-dark">Pesos das Atividades</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Régua de complexidade da medição de performance. Escala 1 (rotina rápida) a 4 (complexa). Alterar aqui vale para as próximas tarefas -- o histórico mantém o peso da época.</p>
+        </div>
+        <div id="lista-pesos" class="space-y-6"></div>
     </div>
 
     <!-- PAINEL BLOQUEIOS DE AGENDA -->
@@ -486,7 +498,8 @@ function setTab(tab) {
     document.getElementById('painel-tarefas').classList.toggle('hidden', tab !== 'tarefas');
     document.getElementById('painel-online').classList.toggle('hidden', tab !== 'online');
     document.getElementById('painel-bloqueios').classList.toggle('hidden', tab !== 'bloqueios');
-    ['usuarios','tarefas','online','bloqueios'].forEach(t => {
+    document.getElementById('painel-pesos').classList.toggle('hidden', tab !== 'pesos');
+    ['usuarios','tarefas','online','bloqueios','pesos'].forEach(t => {
         document.getElementById('tab-' + t).className = tab === t
             ? 'tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all'
             : 'bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all';
@@ -494,6 +507,105 @@ function setTab(tab) {
     if (tab === 'tarefas') carregarTarefas();
     if (tab === 'online') carregarAtividade();
     if (tab === 'bloqueios') carregarTabelaBloqueios();
+        if (tab === 'pesos') carregarPesos();
+}
+
+async function carregarPesos() {
+    const res = await fetch('/api/tipos-atividade');
+    if (!res.ok) return;
+    const tipos = await res.json();
+    const grupos = {};
+    tipos.forEach(t => {
+        const k = t.area + ' · ' + t.frente;
+        (grupos[k] = grupos[k] || {frente_id: t.frente_id, itens: []}).itens.push(t);
+    });
+    document.getElementById('lista-pesos').innerHTML = Object.entries(grupos).map(([nome, g]) => `
+        <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="px-4 py-3 border-b border-faiston-border bg-slate-50 flex items-center justify-between">
+                <span class="font-semibold text-sm text-faiston-dark">${nome}</span>
+                <span class="text-xs text-faiston-muted">${g.itens.length} atividades</span>
+            </div>
+            <table class="w-full text-sm">
+                <thead class="text-xs text-faiston-muted">
+                    <tr>
+                        <th class="text-left px-4 py-2">Atividade</th>
+                        <th class="text-left px-4 py-2">Descrição</th>
+                        <th class="text-center px-4 py-2 w-24">Peso</th>
+                        <th class="w-12"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${g.itens.map(t => `
+                        <tr class="border-t border-faiston-border">
+                            <td class="px-4 py-2 font-medium">${t.nome}</td>
+                            <td class="px-4 py-2 text-faiston-muted text-xs">${t.descricao || '--'}</td>
+                            <td class="px-4 py-2 text-center">
+                                <select onchange="salvarPeso(${t.id}, this.value, this)" class="border border-faiston-border rounded-lg px-2 py-1 text-sm">
+                                    ${[1,2,3,4].map(p => `<option value="${p}" ${p === t.peso ? 'selected' : ''}>${p}</option>`).join('')}
+                                </select>
+                            </td>
+                            <td class="px-2 py-2 text-center">
+                                <button onclick="desativarTipo(${t.id}, '${t.nome.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-rose-500" title="Desativar">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </td>
+                        </tr>`).join('')}
+                    <tr class="border-t border-faiston-border bg-slate-50/50">
+                        <td class="px-4 py-2"><input id="novo-nome-${g.frente_id}" placeholder="Nova atividade..." class="w-full border border-faiston-border rounded-lg px-2 py-1 text-sm"></td>
+                        <td class="px-4 py-2"><input id="novo-desc-${g.frente_id}" placeholder="Descrição (opcional)" class="w-full border border-faiston-border rounded-lg px-2 py-1 text-sm"></td>
+                        <td class="px-4 py-2 text-center">
+                            <select id="novo-peso-${g.frente_id}" class="border border-faiston-border rounded-lg px-2 py-1 text-sm">
+                                ${[1,2,3,4].map(p => `<option value="${p}" ${p === 2 ? 'selected' : ''}>${p}</option>`).join('')}
+                            </select>
+                        </td>
+                        <td class="px-2 py-2 text-center">
+                            <button onclick="criarTipo(${g.frente_id})" class="text-emerald-600 hover:text-emerald-700" title="Adicionar">
+                                <i class="ph ph-plus-circle text-lg"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>`).join('');
+}
+
+async function salvarPeso(id, peso, el) {
+    const res = await fetch('/api/tipos-atividade/' + id + '/peso', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({peso: parseInt(peso)})
+    });
+    if (!res.ok) { alert('Erro ao salvar o peso'); carregarPesos(); return; }
+    el.classList.add('border-emerald-400');
+    setTimeout(() => el.classList.remove('border-emerald-400'), 1200);
+}
+
+async function criarTipo(frenteId) {
+    const nome = document.getElementById('novo-nome-' + frenteId).value.trim();
+    if (!nome) { alert('Informe o nome da atividade'); return; }
+    const res = await fetch('/api/tipos-atividade', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            frente_id: frenteId,
+            nome: nome,
+            peso: parseInt(document.getElementById('novo-peso-' + frenteId).value),
+            descricao: document.getElementById('novo-desc-' + frenteId).value.trim()
+        })
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || 'Erro ao criar atividade');
+        return;
+    }
+    carregarPesos();
+}
+
+async function desativarTipo(id, nome) {
+    if (!confirm('Desativar "' + nome + '"?\n\nEla deixa de aparecer na abertura de tarefas, mas o histórico já registrado é preservado.')) return;
+    const res = await fetch('/api/tipos-atividade/' + id, {method: 'DELETE'});
+    if (!res.ok) { alert('Erro ao desativar'); return; }
+    carregarPesos();
 }
 
 function carregarTabelaBloqueios() {
