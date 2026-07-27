@@ -507,6 +507,9 @@ def setup_banco():
         cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS prazo DATE")
         cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}'")
         cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS link TEXT NOT NULL DEFAULT ''")
+        # Pausar volta a tarefa pra 'todo' (A Fazer), mas com destaque visual de que
+        # já foi iniciada -- diferencia de uma tarefa que nunca foi começada.
+        cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS pausado BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS dev_tarefa_comentarios (
                 id SERIAL PRIMARY KEY,
@@ -643,6 +646,7 @@ class DevTarefaModel(BaseModel):
     tags: List[str] = []
     link: str = ""
     atribuido_a: Optional[int] = None
+    pausado: bool = False
 
 class DevComentarioModel(BaseModel):
     texto: str
@@ -6282,7 +6286,8 @@ def dev_listar_tarefas(faiston_token: str = Cookie(None)):
                    t.criado_em, t.atualizado_em,
                    (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id),
                    (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id AND c.concluido),
-                   (SELECT COUNT(*) FROM dev_tarefa_comentarios cm WHERE cm.tarefa_id = t.id)
+                   (SELECT COUNT(*) FROM dev_tarefa_comentarios cm WHERE cm.tarefa_id = t.id),
+                   t.pausado
             FROM dev_tarefas t
             LEFT JOIN usuarios cp ON cp.id = t.criado_por
             LEFT JOIN usuarios at ON at.id = t.atribuido_a
@@ -6296,6 +6301,7 @@ def dev_listar_tarefas(faiston_token: str = Cookie(None)):
             "criado_em": r[13].strftime("%d/%m/%Y %H:%M") if r[13] else "",
             "atualizado_em": r[14].strftime("%d/%m/%Y %H:%M") if r[14] else "",
             "checklist_total": r[15], "checklist_concluidos": r[16], "comentarios_total": r[17],
+            "pausado": r[18],
         } for r in cur.fetchall()]
         cur.close(); conn.close()
         return out
@@ -6317,9 +6323,9 @@ def dev_criar_tarefa(t: DevTarefaModel, faiston_token: str = Cookie(None)):
         cur.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM dev_tarefas WHERE status = %s", (status,))
         ordem = cur.fetchone()[0]
         cur.execute("""
-            INSERT INTO dev_tarefas (titulo, descricao, status, ordem, prioridade, prazo, tags, link, criado_por, atribuido_a)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a))
+            INSERT INTO dev_tarefas (titulo, descricao, status, ordem, prioridade, prazo, tags, link, criado_por, atribuido_a, pausado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a, t.pausado))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -6346,13 +6352,13 @@ def dev_atualizar_tarefa(tid: int, t: DevTarefaModel, faiston_token: str = Cooki
             ordem = cur.fetchone()[0]
             cur.execute("""
                 UPDATE dev_tarefas SET titulo=%s, descricao=%s, status=%s, ordem=%s, prioridade=%s,
-                       prazo=%s, tags=%s, link=%s, atribuido_a=%s, atualizado_em=NOW() WHERE id=%s
-            """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, t.atribuido_a, tid))
+                       prazo=%s, tags=%s, link=%s, atribuido_a=%s, pausado=%s, atualizado_em=NOW() WHERE id=%s
+            """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, tid))
         else:
             cur.execute("""
                 UPDATE dev_tarefas SET titulo=%s, descricao=%s, prioridade=%s, prazo=%s, tags=%s,
-                       link=%s, atribuido_a=%s, atualizado_em=NOW() WHERE id=%s
-            """, (t.titulo.strip(), t.descricao, prioridade, prazo, tags, t.link, t.atribuido_a, tid))
+                       link=%s, atribuido_a=%s, pausado=%s, atualizado_em=NOW() WHERE id=%s
+            """, (t.titulo.strip(), t.descricao, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, tid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except HTTPException: raise

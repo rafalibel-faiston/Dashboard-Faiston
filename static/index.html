@@ -2537,6 +2537,22 @@
                 </div>
             </div>
 
+            <!-- ANDAMENTO: iniciar / pausar / finalizar -->
+            <div id="dev-andamento-wrap" class="hidden border-t border-faiston-border pt-4">
+                <label class="text-xs font-semibold text-slate-500 mb-2 block">Andamento</label>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="devkIniciarTarefa()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-faiston-purple text-white hover:opacity-90 transition-opacity">
+                        <i class="ph ph-play"></i> Iniciar
+                    </button>
+                    <button onclick="devkPausarTarefa()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors">
+                        <i class="ph ph-pause"></i> Pausar
+                    </button>
+                    <button onclick="devkFinalizarTarefa()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">
+                        <i class="ph ph-check-circle"></i> Finalizar
+                    </button>
+                </div>
+            </div>
+
             <!-- CHECKLIST -->
             <div id="dev-checklist-wrap" class="hidden border-t border-faiston-border pt-4">
                 <label class="text-xs font-semibold text-slate-500 mb-2 block">Checklist</label>
@@ -4768,14 +4784,16 @@ function devkRenderBoard() {
         el.innerHTML = doStatus.map(t => {
             const prio = DEVK_PRIO_CFG[t.prioridade] || DEVK_PRIO_CFG.media;
             const atrasada = !!(t.prazo && t.prazo < hoje && t.status !== 'done');
+            const pausada = !!(t.status === 'todo' && t.pausado);
             const prazoLabel = t.prazo ? t.prazo.split('-').reverse().join('/') : '';
             const tagsHtml = (t.tags || []).map(tg => `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${devkEscapeHtml(tg)}</span>`).join(' ');
             const checklistBadge = t.checklist_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-check-square"></i>${t.checklist_concluidos}/${t.checklist_total}</span>` : '';
             const comentBadge = t.comentarios_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-chat-circle"></i>${t.comentarios_total}</span>` : '';
             return `
-            <div class="dev-card bg-white border ${atrasada ? 'atrasada' : 'border-faiston-border'} rounded-xl p-3" draggable="true" data-id="${t.id}" onclick="devkAbrirModal(${t.id})">
+            <div class="dev-card bg-white border ${atrasada ? 'atrasada' : (pausada ? 'border-amber-300' : 'border-faiston-border')} rounded-xl p-3" draggable="true" data-id="${t.id}" onclick="devkAbrirModal(${t.id})">
                 <div class="flex items-center gap-1.5 mb-1.5">
                     <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${prio.cls}">${prio.label}</span>
+                    ${pausada ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-0.5"><i class="ph ph-pause"></i>Pausado</span>` : ''}
                     ${prazoLabel ? `<span class="text-[10px] ${atrasada ? 'text-faiston-pink font-semibold' : 'text-slate-400'}">${atrasada ? '⚠ ' : ''}${prazoLabel}</span>` : ''}
                 </div>
                 <p class="text-sm font-semibold text-faiston-dark leading-snug mb-1.5">${devkEscapeHtml(t.titulo)}</p>
@@ -4836,6 +4854,7 @@ async function devkAbrirModal(id) {
     document.getElementById('dev-m-link').value = tarefa ? (tarefa.link || '') : '';
     document.getElementById('dev-m-atribuido').value = tarefa && tarefa.atribuido_a ? tarefa.atribuido_a : '';
     document.getElementById('dev-btn-deletar-tarefa').classList.toggle('hidden', !tarefa);
+    document.getElementById('dev-andamento-wrap').classList.toggle('hidden', !tarefa);
     document.getElementById('dev-checklist-wrap').classList.toggle('hidden', !tarefa);
     document.getElementById('dev-comentarios-wrap').classList.toggle('hidden', !tarefa);
     document.getElementById('dev-modal-tarefa').classList.remove('hidden');
@@ -4850,19 +4869,29 @@ function devkFecharModal() {
     devkModalTarefaId = null;
 }
 
-async function devkSalvarTarefaModal() {
-    const titulo = document.getElementById('dev-m-titulo').value.trim();
-    if (!titulo) { document.getElementById('dev-m-titulo').focus(); return; }
-    const body = {
-        titulo,
+function devkCamposModal(statusOverride, pausadoOverride) {
+    const tarefaAtual = devkModalTarefaId ? devkTarefas.find(t => t.id === devkModalTarefaId) : null;
+    const status = statusOverride !== undefined ? statusOverride : document.getElementById('dev-m-status').value;
+    // O destaque "Pausado" só faz sentido pra quem está em 'A Fazer' -- muda de status
+    // manualmente (sem passar pelos botões de Andamento) reseta o destaque.
+    const pausadoAtual = tarefaAtual ? !!tarefaAtual.pausado : false;
+    const pausado = pausadoOverride !== undefined ? pausadoOverride : (status === 'todo' ? pausadoAtual : false);
+    return {
+        titulo: document.getElementById('dev-m-titulo').value.trim(),
         descricao: document.getElementById('dev-m-descricao').value,
-        status: document.getElementById('dev-m-status').value,
+        status,
         prioridade: document.getElementById('dev-m-prioridade').value,
         prazo: document.getElementById('dev-m-prazo').value || null,
         tags: document.getElementById('dev-m-tags').value.split(',').map(s => s.trim()).filter(Boolean),
         link: document.getElementById('dev-m-link').value.trim(),
         atribuido_a: document.getElementById('dev-m-atribuido').value ? parseInt(document.getElementById('dev-m-atribuido').value) : null,
+        pausado,
     };
+}
+
+async function devkSalvarTarefaModal() {
+    const body = devkCamposModal();
+    if (!body.titulo) { document.getElementById('dev-m-titulo').focus(); return; }
     if (devkModalTarefaId) {
         await fetch(`/api/dev-tarefas/${devkModalTarefaId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     } else {
@@ -4871,6 +4900,19 @@ async function devkSalvarTarefaModal() {
     devkFecharModal();
     await devkCarregarTarefas();
 }
+
+// ── Andamento: iniciar / pausar / finalizar ──
+async function devkAndamentoAcao(novoStatus, pausado) {
+    if (!devkModalTarefaId) return;
+    const body = devkCamposModal(novoStatus, pausado);
+    if (!body.titulo) { document.getElementById('dev-m-titulo').focus(); return; }
+    await fetch(`/api/dev-tarefas/${devkModalTarefaId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    devkFecharModal();
+    await devkCarregarTarefas();
+}
+function devkIniciarTarefa() { devkAndamentoAcao('doing', false); }
+function devkPausarTarefa() { devkAndamentoAcao('todo', true); }
+function devkFinalizarTarefa() { devkAndamentoAcao('done', false); }
 
 async function devkDeletarTarefaModal() {
     if (!devkModalTarefaId || !confirm('Excluir esta tarefa?')) return;
