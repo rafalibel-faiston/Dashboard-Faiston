@@ -2114,7 +2114,7 @@ def limpar_todas_tarefas(faiston_token: str = Cookie(None)):
 
 # --- MÉTRICAS DASHBOARD ---
 @app.get("/api/metricas")
-def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", projeto: str = "", time: str = "", faiston_token: str = Cookie(None)):
+def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", projeto: str = "", time: str = "", frente: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -2147,11 +2147,17 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         if projeto:
             conditions.append("p.nome = %s")
             params.append(projeto)
+        # Frente (Analista/Backoffice) dentro do time -- N2 não usa a tabela
+        # tarefas (tem tela própria, Painel N2), então não faz sentido como
+        # opção aqui; ver "cargo" em usuarios.
+        if frente in ("analista", "backoffice"):
+            conditions.append("u.cargo = %s")
+            params.append(frente)
         filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         params = tuple(params)
 
-        # JOINs necessários — time filter sempre precisa do JOIN com usuarios
-        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if (funcionario or not is_admin or time) else ""
+        # JOINs necessários — time/frente filter sempre precisa do JOIN com usuarios
+        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if (funcionario or not is_admin or time or frente) else ""
         join_p = "LEFT JOIN projetos p ON t.projeto_id = p.id" if projeto else ""
         # Helpers para adicionar condição de status sem quebrar o filtro existente
         def fwhere(extra): return f"{filtro} AND {extra}" if filtro else f"WHERE {extra}"

@@ -233,6 +233,12 @@
             <select id="filtro-funcionario" onchange="carregarDados(clienteAtivo)" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple" title="Filtrar por funcionário">
                 <option value="">Todos os funcionários</option>
             </select>
+            <!-- Filtro frente (Analista / Backoffice -- N2 tem visão própria no Painel N2) -->
+            <select id="filtro-frente" onchange="carregarDados(clienteAtivo)" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple" title="Filtrar por frente">
+                <option value="">Todas as frentes</option>
+                <option value="analista">Analista</option>
+                <option value="backoffice">Backoffice</option>
+            </select>
             <!-- Novo Ticket -->
             <div class="relative flex items-center">
                 <button onclick="analisarIA()" id="btn-ia" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-purple text-faiston-purple hover:bg-faiston-purple/10 transition-all" title="Analisar com IA">
@@ -2145,9 +2151,17 @@
     <div id="painel-usuarios">
         <div class="flex items-center justify-between mb-5">
             <h2 class="text-lg font-bold text-faiston-dark">Gerenciar Usuários</h2>
-            <button onclick="adminOpenModalUser()" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
-                <i class="ph ph-plus-circle"></i> Novo Usuário
-            </button>
+            <div class="flex items-center gap-2">
+                <select id="admin-filtro-frente" onchange="adminFiltrarUsuariosFrente()" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple" title="Filtrar por frente">
+                    <option value="">Todas as frentes</option>
+                    <option value="n2">N2</option>
+                    <option value="analista">Analista</option>
+                    <option value="backoffice">Backoffice</option>
+                </select>
+                <button onclick="adminOpenModalUser()" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+                    <i class="ph ph-plus-circle"></i> Novo Usuário
+                </button>
+            </div>
         </div>
         <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
             <table class="w-full text-sm">
@@ -2878,13 +2892,14 @@ function eqMudarView(view) {
     if (view === 'bloqueios') eqCarregarTabelaBloqueios();
 }
 
-function eqCarregarTabelaBloqueios() {
+function eqCarregarTabelaBloqueios(lista) {
+    lista = lista || eqUsuarios;
     const tb = document.getElementById('equipe-tabela-bloqueios');
-    if (!eqUsuarios.length) {
-        tb.innerHTML = '<tr><td colspan="3" class="text-center py-12 text-slate-400 text-sm">Carregando...</td></tr>';
+    if (!lista.length) {
+        tb.innerHTML = '<tr><td colspan="3" class="text-center py-12 text-slate-400 text-sm">Nenhum membro na equipe</td></tr>';
         return;
     }
-    tb.innerHTML = eqUsuarios.map(u => {
+    tb.innerHTML = lista.map(u => {
         const pc = eqPerfilCfg[u.perfil] || eqPerfilCfg.funcionario;
         return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
             <td class="px-5 py-3">
@@ -2911,12 +2926,29 @@ async function eqCarregarUsuarios() {
     const r = await fetch('/api/usuarios');
     if (!r.ok) return;
     eqUsuarios = await r.json();
+    document.getElementById('eq-filtro-frente').value = '';
+    eqRenderTabelaMembros(eqUsuarios);
+}
+
+// Frente: N2 é perfil próprio; Analista/Backoffice são cargo (só dentro de
+// perfil funcionario) -- filtra tanto a aba Membros quanto Bloqueios de Agenda.
+function eqFiltrarFrente() {
+    const frente = document.getElementById('eq-filtro-frente').value;
+    let lista = eqUsuarios;
+    if (frente === 'n2') lista = lista.filter(u => u.perfil === 'n2');
+    else if (frente === 'analista') lista = lista.filter(u => u.cargo === 'analista');
+    else if (frente === 'backoffice') lista = lista.filter(u => u.cargo === 'backoffice');
+    eqRenderTabelaMembros(lista);
+    eqCarregarTabelaBloqueios(lista);
+}
+
+function eqRenderTabelaMembros(lista) {
     const tb = document.getElementById('equipe-tabela');
-    if (!eqUsuarios.length) {
+    if (!lista.length) {
         tb.innerHTML = `<tr><td colspan="5" class="text-center py-12 text-slate-400 text-sm">Nenhum membro na equipe</td></tr>`;
         return;
     }
-    tb.innerHTML = eqUsuarios.map(u => {
+    tb.innerHTML = lista.map(u => {
         const pc = eqPerfilCfg[u.perfil] || eqPerfilCfg.funcionario;
         const canEdit = u.perfil !== 'admin' && u.perfil !== 'gestor';
         return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
@@ -3824,10 +3856,12 @@ async function carregarDados(cliente) {
         const di = document.getElementById('data-inicio')?.value || '';
         const df = document.getElementById('data-fim')?.value || '';
         const func = document.getElementById('filtro-funcionario')?.value || '';
+        const frente = document.getElementById('filtro-frente')?.value || '';
         let url = '/api/metricas?';
         const params = [];
         if (cliente) params.push('cliente=' + encodeURIComponent(cliente));
         if (func) params.push('funcionario=' + encodeURIComponent(func));
+        if (frente) params.push('frente=' + encodeURIComponent(frente));
         if (di) params.push('data_inicio=' + di);
         if (df) params.push('data_fim=' + df);
         if (projetoFiltro) params.push('projeto=' + encodeURIComponent(projetoFiltro));
@@ -7056,12 +7090,30 @@ async function adminCarregarUsuarios() {
     const res = await fetch('/api/usuarios');
     const usuarios = await res.json();
     adminUsuariosCache = usuarios;
-    const tb = document.getElementById('tabela-usuarios');
     const sel = document.getElementById('filtro-func');
     sel.innerHTML = '<option value="">Todos os funcionários</option>';
+    usuarios.filter(u => u.perfil === 'funcionario').forEach(u => {
+        sel.innerHTML += `<option value="${u.nome}">${u.nome}</option>`;
+    });
+    adminRenderTabelaUsuarios(usuarios);
+}
+
+// Frente: N2 é perfil próprio; Analista/Backoffice são cargo (só dentro de
+// perfil funcionario) -- ver decisão de manter os dois modelos como já são,
+// só separando na hora de filtrar/relatar.
+function adminFiltrarUsuariosFrente() {
+    const frente = document.getElementById('admin-filtro-frente').value;
+    let lista = adminUsuariosCache;
+    if (frente === 'n2') lista = lista.filter(u => u.perfil === 'n2');
+    else if (frente === 'analista') lista = lista.filter(u => u.cargo === 'analista');
+    else if (frente === 'backoffice') lista = lista.filter(u => u.cargo === 'backoffice');
+    adminRenderTabelaUsuarios(lista);
+}
+
+function adminRenderTabelaUsuarios(usuarios) {
+    const tb = document.getElementById('tabela-usuarios');
     tb.innerHTML = usuarios.map(u => {
         const pc = perfilConfig[u.perfil] || perfilConfig.funcionario;
-        if (u.perfil === 'funcionario') sel.innerHTML += `<option value="${u.nome}">${u.nome}</option>`;
         return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
             <td class="px-5 py-3">
                 <div class="flex items-center gap-2.5">
@@ -8925,9 +8977,17 @@ async function pn2SalvarDistribuicao() {
                 </button>
             </div>
         </div>
-        <div class="flex gap-2 px-6 pt-4 flex-shrink-0">
-            <button onclick="eqMudarView('membros')" id="eq-view-tab-membros" class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Membros</button>
-            <button onclick="eqMudarView('bloqueios')" id="eq-view-tab-bloqueios" class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Bloqueios de Agenda</button>
+        <div class="flex items-center justify-between gap-2 px-6 pt-4 flex-shrink-0">
+            <div class="flex gap-2">
+                <button onclick="eqMudarView('membros')" id="eq-view-tab-membros" class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Membros</button>
+                <button onclick="eqMudarView('bloqueios')" id="eq-view-tab-bloqueios" class="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">Bloqueios de Agenda</button>
+            </div>
+            <select id="eq-filtro-frente" onchange="eqFiltrarFrente()" class="text-xs border border-faiston-border rounded-lg px-2.5 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple" title="Filtrar por frente">
+                <option value="">Todas as frentes</option>
+                <option value="n2">N2</option>
+                <option value="analista">Analista</option>
+                <option value="backoffice">Backoffice</option>
+            </select>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar">
             <div id="eq-view-membros">
