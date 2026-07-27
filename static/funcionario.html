@@ -489,7 +489,19 @@
     </div>
 
 </main>
-
+<!-- MODAL TABELA DE PESOS (consulta) -->
+<div id="modal-pesos" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[60] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col border border-faiston-border">
+        <div class="px-5 py-3 border-b border-faiston-border flex items-center justify-between">
+            <div>
+                <span class="font-bold text-faiston-dark text-sm">Tabela de Pesos</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">1 = rotina rápida · 4 = complexa</p>
+            </div>
+            <button onclick="fecharTabelaPesos()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="conteudo-tabela-pesos" class="overflow-y-auto p-4 space-y-4 text-sm"></div>
+    </div>
+</div>
 <!-- MODAL NOVA/EDITAR TAREFA -->
 <div id="modal" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden slide-up border border-faiston-border">
@@ -526,6 +538,22 @@
                     class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                 <datalist id="lista-demandas"></datalist>
                 <p class="text-[10px] text-faiston-faint mt-1">Não cria cliente nem projeto — só agrupa as tarefas no quadro.</p>
+            </div>
+                        <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block flex items-center justify-between">
+                    <span>Tipo de Atividade <span class="text-faiston-pink">*</span></span>
+                    <button type="button" onclick="abrirTabelaPesos()" class="normal-case tracking-normal text-[10px] font-semibold text-faiston-purple hover:underline">ver tabela de pesos</button>
+                </label>
+                <select id="input-tipo-atividade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="">Selecione...</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Natureza <span class="text-faiston-pink">*</span></label>
+                <select id="input-natureza" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="programada">Programada</option>
+                    <option value="urgente">Urgente / última hora</option>
+                </select>
             </div>
             <div>
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
@@ -564,7 +592,7 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
-                        <i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Prazo (até quando)
+                        <i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Previsão de conclusão <span class="text-faiston-pink">*</span>
                     </label>
                     <div class="flex gap-2">
                         <input type="date" id="input-prazo"
@@ -1316,6 +1344,10 @@ function editTask(taskId) {
     }
     selecionarProjeto(task.projeto_id || '');
     document.getElementById('input-prioridade').value = task.prioridade;
+    carregarTiposAtividade().then(() => {
+    document.getElementById('input-tipo-atividade').value = task.tipo_atividade_id || '';
+    });
+    document.getElementById('input-natureza').value = task.natureza || 'programada';
     document.getElementById('input-status').value = task.status;
     // Mostra o tempo total, incluindo a sessão em andamento, para que o usuário edite o valor correto
     const totalSecs = task._running && timerStart
@@ -1329,7 +1361,51 @@ function editTask(taskId) {
     document.getElementById('modal').classList.remove('hidden');
 }
 
+// --- TIPO DE ATIVIDADE / TABELA DE PESOS ---
+let _tiposAtividade = [];
+
+async function carregarTiposAtividade() {
+    if (_tiposAtividade.length) return;
+    const res = await fetch('/api/tipos-atividade');
+    if (!res.ok) return;
+    _tiposAtividade = await res.json();
+    const sel = document.getElementById('input-tipo-atividade');
+    const porFrente = {};
+    _tiposAtividade.forEach(t => (porFrente[t.frente] = porFrente[t.frente] || []).push(t));
+    sel.innerHTML = '<option value="">Selecione...</option>' +
+        Object.entries(porFrente).map(([frente, itens]) =>
+            `<optgroup label="${frente}">` +
+            itens.map(t => `<option value="${t.id}">${t.nome} (peso ${t.peso})</option>`).join('') +
+            `</optgroup>`
+        ).join('');
+}
+
+function abrirTabelaPesos() {
+    const porFrente = {};
+    _tiposAtividade.forEach(t => (porFrente[t.frente] = porFrente[t.frente] || []).push(t));
+    document.getElementById('conteudo-tabela-pesos').innerHTML = Object.entries(porFrente).map(([frente, itens]) => `
+        <div>
+            <div class="font-semibold text-faiston-dark mb-2">${frente}</div>
+            <table class="w-full">
+                <tbody>
+                    ${itens.map(t => `
+                        <tr class="border-t border-faiston-border">
+                            <td class="py-2 pr-3 font-medium align-top w-1/3">${t.nome}</td>
+                            <td class="py-2 pr-3 text-faiston-muted text-xs align-top">${t.descricao || '--'}</td>
+                            <td class="py-2 text-center w-12"><span class="inline-flex w-6 h-6 rounded-md bg-faiston-purple/10 text-faiston-purple font-bold text-xs items-center justify-center">${t.peso}</span></td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`).join('');
+    document.getElementById('modal-pesos').classList.remove('hidden');
+}
+
+function fecharTabelaPesos() { document.getElementById('modal-pesos').classList.add('hidden'); }
+
 function openModal() {
+    carregarTiposAtividade();
+    document.getElementById('input-tipo-atividade').value = '';
+    document.getElementById('input-natureza').value = 'programada';
     document.getElementById('modal-title').textContent = 'Nova Tarefa';
     document.getElementById('edit-id').value = '';
     document.getElementById('input-descricao').value = '';
@@ -1426,6 +1502,9 @@ async function saveTask() {
     const _proj = (_todosProjetos || []).find(p => p.id == projeto_id);
     const projeto_nome = _proj ? _proj.nome : '';
     if (!descricao) { alert('Preencha a descrição da tarefa.'); return; }
+    const tipoAtividadeId = parseInt(document.getElementById('input-tipo-atividade').value) || null;
+    if (!tipoAtividadeId) { alert('Selecione o tipo de atividade.'); return; }
+    if (!document.getElementById('input-prazo').value) { alert('Informe a previsão de conclusão.'); return; }
     const horas    = parseInt(document.getElementById('input-horas').value) || 0;
     const minutos  = parseInt(document.getElementById('input-minutos').value) || 0;
     const segundos = (horas*3600)+(minutos*60);
@@ -1438,6 +1517,8 @@ async function saveTask() {
         data_prazo: document.getElementById('input-prazo').value || null,
         hora_prazo: document.getElementById('input-hora-prazo').value || null,
         data_agendamento: document.getElementById('input-agendamento').value || null,
+        tipo_atividade_id: tipoAtividadeId,
+        natureza: document.getElementById('input-natureza').value,
         colaboradores: _colabSelecionados.slice()
     };
 
