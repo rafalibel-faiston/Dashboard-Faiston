@@ -6247,7 +6247,12 @@ def _is_dev(sess):
     return bool(sess) and sess.get("perfil_real") == "dev"
 
 def _dev_prazo_ou_none(prazo):
-    return prazo if prazo else None
+    if not prazo: return None
+    try:
+        date.fromisoformat(prazo)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Prazo inválido — use o formato AAAA-MM-DD")
+    return prazo
 
 @app.get("/api/dev-tarefas/usuarios")
 def dev_listar_usuarios(faiston_token: str = Cookie(None)):
@@ -6304,6 +6309,7 @@ def dev_criar_tarefa(t: DevTarefaModel, faiston_token: str = Cookie(None)):
     status = t.status if t.status in DEV_STATUS_VALIDOS else "todo"
     prioridade = t.prioridade if t.prioridade in DEV_PRIORIDADE_VALIDAS else "media"
     tags = [tg.strip() for tg in t.tags if tg.strip()]
+    prazo = _dev_prazo_ou_none(t.prazo)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -6313,7 +6319,7 @@ def dev_criar_tarefa(t: DevTarefaModel, faiston_token: str = Cookie(None)):
         cur.execute("""
             INSERT INTO dev_tarefas (titulo, descricao, status, ordem, prioridade, prazo, tags, link, criado_por, atribuido_a)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, _dev_prazo_ou_none(t.prazo), tags, t.link, sess["id"], t.atribuido_a))
+        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
