@@ -486,6 +486,23 @@ def setup_banco():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_funcionario_bloqueios_usuario ON funcionario_bloqueios(usuario_id)")
+
+        # ── Equipe Dev: kanban interno de tarefas do app, restrito a quem
+        # tem perfil 'dev' (só os desenvolvedores do sistema, não admins comuns).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dev_tarefas (
+                id SERIAL PRIMARY KEY,
+                titulo VARCHAR(200) NOT NULL,
+                descricao TEXT DEFAULT '',
+                status VARCHAR(20) NOT NULL DEFAULT 'todo',
+                ordem INTEGER NOT NULL DEFAULT 0,
+                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                atribuido_a INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_tarefas_status ON dev_tarefas(status)")
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -590,6 +607,12 @@ class ComentarioProjeto(BaseModel):
 
 class MeuProjetoStatus(BaseModel):
     status_gestao: str = ""
+
+class DevTarefaModel(BaseModel):
+    titulo: str
+    descricao: str = ""
+    status: str = "todo"
+    atribuido_a: Optional[int] = None
 
 # --- EMAIL ---
 def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bool:
@@ -2549,6 +2572,9 @@ def n2_page(): return FileResponse("static/n2.html")
 
 @app.get("/admin")
 def admin_page(): return FileResponse("static/admin.html")
+
+@app.get("/devteam")
+def devteam_page(): return FileResponse("static/devteam.html")
 
 app.mount("/css", StaticFiles(directory="static/css"), name="css")
 app.mount("/js", StaticFiles(directory="static/js"), name="js")
@@ -6174,4 +6200,115 @@ def painel_n2_resumo(faiston_token: str = Cookie(None)):
             out.append(item)
         cur.close(); conn.close()
         return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- EQUIPE DEV (kanban interno, restrito a perfil 'dev') ---
+DEV_STATUS_VALIDOS = ("todo", "doing", "done")
+
+def _is_dev(sess):
+    return bool(sess) and sess.get("perfil_real") == "dev"
+
+@app.get("/api/dev-tarefas/usuarios")
+def dev_listar_usuarios(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM usuarios WHERE perfil='dev' AND ativo=TRUE ORDER BY nome")
+        out = [{"id": r[0], "nome": r[1]} for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/dev-tarefas")
+def dev_listar_tarefas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT t.id, t.titulo, t.descricao, t.status, t.ordem,
+                   t.criado_por, cp.nome, t.atribuido_a, at.nome,
+                   t.criado_em, t.atualizado_em
+            FROM dev_tarefas t
+            LEFT JOIN usuarios cp ON cp.id = t.criado_por
+            LEFT JOIN usuarios at ON at.id = t.atribuido_a
+            ORDER BY t.status, t.ordem, t.criado_em
+        """)
+        out = [{
+            "id": r[0], "titulo": r[1], "descricao": r[2], "status": r[3], "ordem": r[4],
+            "criado_por": r[5], "criado_por_nome": r[6],
+            "atribuido_a": r[7], "atribuido_a_nome": r[8],
+            "criado_em": r[9].strftime("%d/%m/%Y %H:%M") if r[9] else "",
+            "atualizado_em": r[10].strftime("%d/%m/%Y %H:%M") if r[10] else "",
+        } for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/dev-tarefas")
+def dev_criar_tarefa(t: DevTarefaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not t.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
+    status = t.status if t.status in DEV_STATUS_VALIDOS else "todo"
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM dev_tarefas WHERE status = %s", (status,))
+        ordem = cur.fetchone()[0]
+        cur.execute("""
+            INSERT INTO dev_tarefas (titulo, descricao, status, ordem, criado_por, atribuido_a)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+        """, (t.titulo.strip(), t.descricao, status, ordem, sess["id"], t.atribuido_a))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/dev-tarefas/{tid}")
+def dev_atualizar_tarefa(tid: int, t: DevTarefaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not t.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
+    status = t.status if t.status in DEV_STATUS_VALIDOS else "todo"
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT status FROM dev_tarefas WHERE id = %s", (tid,))
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+        if row[0] != status:
+            cur.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM dev_tarefas WHERE status = %s", (status,))
+            ordem = cur.fetchone()[0]
+            cur.execute("""
+                UPDATE dev_tarefas SET titulo=%s, descricao=%s, status=%s, ordem=%s,
+                       atribuido_a=%s, atualizado_em=NOW() WHERE id=%s
+            """, (t.titulo.strip(), t.descricao, status, ordem, t.atribuido_a, tid))
+        else:
+            cur.execute("""
+                UPDATE dev_tarefas SET titulo=%s, descricao=%s, atribuido_a=%s, atualizado_em=NOW() WHERE id=%s
+            """, (t.titulo.strip(), t.descricao, t.atribuido_a, tid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/dev-tarefas/{tid}")
+def dev_deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM dev_tarefas WHERE id = %s", (tid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
