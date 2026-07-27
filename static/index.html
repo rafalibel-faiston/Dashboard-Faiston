@@ -4361,11 +4361,13 @@ async function criarTicket() {
     }
 }
 
+let docMousedownTarget = null;
+document.addEventListener('mousedown', e => { docMousedownTarget = e.target; });
 document.addEventListener('click', e => {
     const mt = document.getElementById('modal-ticket');
-    if (mt && !mt.classList.contains('hidden') && e.target === mt) fecharModalTicket();
+    if (mt && !mt.classList.contains('hidden') && e.target === mt && docMousedownTarget === mt) fecharModalTicket();
     const mia = document.getElementById('modal-ia');
-    if (mia && !mia.classList.contains('hidden') && e.target === mia) fecharModalIA();
+    if (mia && !mia.classList.contains('hidden') && e.target === mia && docMousedownTarget === mia) fecharModalIA();
 });
 
 // ── KANBAN GESTOR ─────────────────────────────────────────────────────
