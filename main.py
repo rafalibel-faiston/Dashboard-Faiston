@@ -1931,6 +1931,10 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
         # 2A: campo ainda opcional. Quando vier preenchido, o peso da régua é
         # copiado pra tarefa. A obrigatoriedade entra no 2B, junto com o campo
         # no modal -- senão o frontend antigo pararia de criar tarefa.
+        if not t.tipo_atividade_id:
+            raise HTTPException(status_code=400, detail="Informe o tipo de atividade")
+        if not t.data_prazo:
+            raise HTTPException(status_code=400, detail="Informe a previsão de conclusão")
         peso = None
         if t.tipo_atividade_id:
             cur.execute("SELECT peso FROM tipos_atividade WHERE id=%s AND ativo=TRUE", (t.tipo_atividade_id,))
