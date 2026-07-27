@@ -149,6 +149,51 @@ def get_session(token: str, page: str = ""):
         print(f"Erro get_session: {e}")
         return None
 
+# Régua inicial de complexidade (planilha "Performance projetos — Peso das
+# atividades"). Serve só como carga inicial: o INSERT usa ON CONFLICT DO
+# NOTHING, então peso ajustado na tela de admin não é sobrescrito quando o
+# app reinicia.
+SEED_PESOS = {
+    ("Projetos", "Backoffice"): [
+        ("Faturamento", 4, "Faturamento do projeto"),
+        ("Dailys / gestão de agenda com o cliente", 4, "Rotina estratégica (ex.: McDonald's)"),
+        ("Atualização de inventário", 4, "Ex.: inventários da NTT ou validação de equipamentos do McDonald's"),
+        ("Criação de cronograma", 4, "Cronograma de atividades dos projetos"),
+        ("Validação de pagamento de parceiro", 3, "Conferência e validação financeira do parceiro"),
+        ("Atualização de controles / cronograma", 3, "Manutenção dos controles do projeto"),
+        ("Caderno de serviço", 3, "Elaboração e atualização do caderno de serviço"),
+        ("Atualização de dashboard do cliente", 3, "Ex.: dashboard do McDonald's, NTT etc."),
+        ("Acompanhamento / tracking", 2, "Criação de grupos e monitoramento do andamento da atividade"),
+        ("Interação básica com o cliente", 2, "Posicionamento e alinhamentos simples"),
+        ("Relatório simples", 2, "Consolidação de informação do projeto"),
+        ("Validação de seguro", 2, "Verificação de cobertura/seguro"),
+        ("Solicitação de equipamentos", 2, "Pedido e controle de equipamentos"),
+        ("Acionamento", 1, "Abertura/acionamento simples de chamado"),
+        ("Interação em e-mails", 1, "Trocas de e-mail de rotina"),
+    ],
+    ("Projetos", "N2"): [
+        ("Atendimento em campo", 4, "Execução técnica presencial no site"),
+        ("Suporte remoto complexo", 4, "Suporte a ativos de rede e servidores"),
+        ("Reorganização de rack", 4, "Organização física de rack"),
+        ("Configuração/staging de equipamentos", 3, "Staging, atualização de IOS"),
+        ("Criação de relatórios e manuais", 2, "Documentação de apoio N1/N2"),
+        ("Suporte remoto simples", 1, "Acompanhamento remoto e coleta de evidências"),
+        ("Gestão de incidentes / planilhas", 1, "Registro e controle de incidentes"),
+    ],
+}
+
+def _seed_catalogo_pesos(cur):
+    for (area, frente), tipos in SEED_PESOS.items():
+        cur.execute("INSERT INTO frentes (area, nome) VALUES (%s,%s) ON CONFLICT (area, nome) DO NOTHING", (area, frente))
+        cur.execute("SELECT id FROM frentes WHERE area=%s AND nome=%s", (area, frente))
+        fid = cur.fetchone()[0]
+        for nome, peso, desc in tipos:
+            cur.execute(
+                "INSERT INTO tipos_atividade (frente_id, nome, peso, descricao) VALUES (%s,%s,%s,%s) "
+                "ON CONFLICT (frente_id, nome) DO NOTHING",
+                (fid, nome, peso, desc)
+            )
+
 def setup_banco():
     conn = get_db()
     if not conn: return
@@ -532,6 +577,35 @@ def setup_banco():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_checklist_tarefa ON dev_tarefa_checklist(tarefa_id)")
+                # --- CATÁLOGO DE COMPLEXIDADE ---
+        # Peso de esforço por tipo de atividade, por frente (N2, Backoffice...)
+        # dentro da área (Projetos, Logística, Rede Credenciada). Cadastro em
+        # vez de planilha: o gestor ajusta a régua pela tela de admin.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS frentes (
+                id SERIAL PRIMARY KEY,
+                area VARCHAR(50) NOT NULL DEFAULT 'Projetos',
+                nome VARCHAR(50) NOT NULL,
+                ativo BOOLEAN NOT NULL DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                UNIQUE (area, nome)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tipos_atividade (
+                id SERIAL PRIMARY KEY,
+                frente_id INTEGER NOT NULL REFERENCES frentes(id) ON DELETE CASCADE,
+                nome VARCHAR(120) NOT NULL,
+                peso SMALLINT NOT NULL CHECK (peso BETWEEN 1 AND 4),
+                descricao TEXT NOT NULL DEFAULT '',
+                ativo BOOLEAN NOT NULL DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                UNIQUE (frente_id, nome)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tipos_ativ_frente ON tipos_atividade(frente_id)")
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS frente_id INTEGER REFERENCES frentes(id)")
+        _seed_catalogo_pesos(cur)
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -1485,6 +1559,111 @@ def deletar_bloqueio(bid: int, faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("DELETE FROM funcionario_bloqueios WHERE id=%s", (bid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- CATÁLOGO DE PESOS ---
+class NovoTipoAtividade(BaseModel):
+    frente_id: int
+    nome: str
+    peso: int
+    descricao: str = ""
+
+class PesoUpdate(BaseModel):
+    peso: int
+
+@app.get("/api/frentes")
+def listar_frentes(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, area, nome FROM frentes WHERE ativo=TRUE ORDER BY area, nome")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "area": r[1], "nome": r[2]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/tipos-atividade")
+def listar_tipos_atividade(area: str = "", frente_id: Optional[int] = None,
+                           faiston_token: str = Cookie(None)):
+    """Leitura liberada pra qualquer usuário logado: todo mundo precisa
+    consultar a tabela de pesos na hora de abrir a tarefa."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cond, params = ["f.ativo = TRUE", "t.ativo = TRUE"], []
+        if area:
+            cond.append("f.area = %s"); params.append(area)
+        if frente_id:
+            cond.append("t.frente_id = %s"); params.append(frente_id)
+        cur.execute(f"""
+            SELECT t.id, t.frente_id, f.area, f.nome, t.nome, t.peso, t.descricao
+            FROM tipos_atividade t JOIN frentes f ON t.frente_id = f.id
+            WHERE {' AND '.join(cond)}
+            ORDER BY f.area, f.nome, t.peso DESC, t.nome
+        """, tuple(params))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "frente_id": r[1], "area": r[2], "frente": r[3],
+                 "nome": r[4], "peso": r[5], "descricao": r[6]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/tipos-atividade/{tid}/peso")
+def atualizar_peso_atividade(tid: int, p: PesoUpdate, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
+    if not 1 <= p.peso <= 4: raise HTTPException(status_code=400, detail="Peso deve ser de 1 a 4")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE tipos_atividade SET peso=%s WHERE id=%s", (p.peso, tid))
+        if cur.rowcount == 0: raise HTTPException(status_code=404, detail="Tipo de atividade não encontrado")
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tipos-atividade")
+def criar_tipo_atividade(t: NovoTipoAtividade, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
+    if not t.nome.strip(): raise HTTPException(status_code=400, detail="Informe o nome da atividade")
+    if not 1 <= t.peso <= 4: raise HTTPException(status_code=400, detail="Peso deve ser de 1 a 4")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO tipos_atividade (frente_id, nome, peso, descricao) VALUES (%s,%s,%s,%s) "
+            "ON CONFLICT (frente_id, nome) DO NOTHING RETURNING id",
+            (t.frente_id, t.nome.strip(), t.peso, t.descricao)
+        )
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=400, detail="Já existe uma atividade com esse nome nessa frente")
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": row[0]}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/tipos-atividade/{tid}")
+def desativar_tipo_atividade(tid: int, faiston_token: str = Cookie(None)):
+    """Desativa em vez de apagar -- tarefas antigas continuam apontando pro
+    tipo, então DELETE de verdade quebraria o histórico."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE tipos_atividade SET ativo=FALSE WHERE id=%s", (tid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
