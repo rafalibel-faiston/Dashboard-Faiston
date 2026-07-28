@@ -1508,6 +1508,16 @@ async function saveTask() {
     const horas    = parseInt(document.getElementById('input-horas').value) || 0;
     const minutos  = parseInt(document.getElementById('input-minutos').value) || 0;
     const segundos = (horas*3600)+(minutos*60);
+    // Mesma regra do concluirTarefa(): concluir atrasado exige motivo.
+    let justificativa = '';
+    if (document.getElementById('input-status').value === 'concluido' && document.getElementById('input-prazo').value) {
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        const prazo = new Date(document.getElementById('input-prazo').value + 'T00:00:00');
+        if (hoje > prazo) {
+            justificativa = (prompt('Esta tarefa está sendo concluída FORA do prazo previsto.\n\nInforme o motivo do atraso:') || '').trim();
+            if (!justificativa) return;
+        }
+    }
     const editId   = document.getElementById('edit-id').value;
     const body = {
         descricao, cliente, projeto_id,
@@ -1519,6 +1529,7 @@ async function saveTask() {
         data_agendamento: document.getElementById('input-agendamento').value || null,
         tipo_atividade_id: tipoAtividadeId,
         natureza: document.getElementById('input-natureza').value,
+        justificativa_atraso: justificativa,
         colaboradores: _colabSelecionados.slice()
     };
 
@@ -1532,7 +1543,12 @@ async function saveTask() {
             // body.segundos reflete o valor que o usuário viu; mas se o timer acumulou mais
             // tempo enquanto o modal estava aberto, preservamos o maior valor.
             body.segundos = Math.min(Math.max(body.segundos, task.segundos), MAX_SEGUNDOS);
-            await fetch(`/api/tarefas/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const res = await fetch(`/api/tarefas/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            if (!res.ok) {
+                const json = await res.json().catch(() => ({}));
+                alert(json.detail || 'Erro ao salvar a tarefa');
+                return;
+            }
             Object.assign(task, body, { projeto_nome });
             if (!task._running && body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(parseInt(editId)); return; }
         }
