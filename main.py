@@ -2412,10 +2412,12 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         if projeto:
             conditions.append("p.nome = %s")
             params.append(projeto)
-        # Frente (Analista/Backoffice) dentro do time -- N2 não usa a tabela
-        # tarefas (tem tela própria, Painel N2), então não faz sentido como
-        # opção aqui; ver "cargo" em usuarios.
-        if frente in ("analista", "backoffice"):
+        # Frente (Analista/Backoffice/N2) dentro do time -- N2 migrou de
+        # perfil próprio para cargo dentro de funcionario (2026-07-28) e
+        # já entra em "tarefas" via N2-A (visita de campo finalizada gera
+        # tarefa automática), então filtrar por cargo='n2' aqui funciona
+        # igual às outras frentes.
+        if frente in ("analista", "backoffice", "n2"):
             conditions.append("u.cargo = %s")
             params.append(frente)
         filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""

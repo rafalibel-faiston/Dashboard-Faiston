@@ -234,11 +234,12 @@
             <select id="filtro-funcionario" onchange="carregarDados(clienteAtivo)" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple" title="Filtrar por funcionário">
                 <option value="">Todos os funcionários</option>
             </select>
-            <!-- Filtro frente (Analista / Backoffice -- N2 tem visão própria no Painel N2) -->
+            <!-- Filtro frente (Analista / Backoffice / N2 -- cargo dentro de funcionario) -->
             <select id="filtro-frente" onchange="carregarDados(clienteAtivo)" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple" title="Filtrar por frente">
                 <option value="">Todas as frentes</option>
                 <option value="analista">Analista</option>
                 <option value="backoffice">Backoffice</option>
+                <option value="n2">N2</option>
             </select>
             <!-- Novo Ticket -->
             <div class="relative flex items-center">
@@ -2978,7 +2979,7 @@ const eqPerfilCfg = {
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
     demo:        { label: 'Demo',        cls: 'bg-amber-50 text-amber-600 border-amber-200' },
 };
-const EQ_CARGO_LABEL = { analista: 'Analista', backoffice: 'Backoffice' };
+const EQ_CARGO_LABEL = { analista: 'Analista', backoffice: 'Backoffice', n2: 'N2' };
 let eqUsuarios = [], eqModalId = null;
 
 async function abrirEquipeGestor() {
@@ -4250,7 +4251,9 @@ const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:
 const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
 // Peso 1→4 é escala ORDENADA, não categórica: rampa de uma cor só, clara→escura.
 // Validada (lightness monotônica, ΔL >= 0.06, contraste no claro e no escuro).
-const PESO_CORES = { 1: '#A78BFA', 2: '#8B5CF6', 3: '#6D28D9', 4: '#4C1D95' };
+// 2026-07-28: peso 3/4 escurecidos (violet-800/950) pra mais contraste entre
+// as faixas -- peso 1/2 ficaram como estavam.
+const PESO_CORES = { 1: '#A78BFA', 2: '#8B5CF6', 3: '#5B21B6', 4: '#2E1065' };
 let _hpfPeriodo = { data_inicio: '', data_fim: '' };
 
 async function _abrirDrillDown(titulo, params) {
