@@ -4001,6 +4001,13 @@ function esfVista(v) {
 function renderEsforco() {
     if (!_esfData) return;
     const cfg = ESF_VISTAS[_esfVistaAtual];
+    // Tema é lido aqui de novo: axisC/valC/grid/tt são locais da função que
+    // desenha os outros gráficos, e esta roda por fora (troca de visão).
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tt = dark ? ttDark : ttLight;
+    const grid = dark ? gridDark : gridLight;
+    const axisC = dark ? '#6A718A' : '#94A3B8';
+    const valC = dark ? '#F1F2F8' : '#0B0D1F';
     const porFunc = _esfVistaAtual.startsWith('func');
     const ehEsforco = _esfVistaAtual.endsWith('esforco');
 
