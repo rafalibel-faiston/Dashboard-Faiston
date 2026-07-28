@@ -302,7 +302,7 @@
     </div>
 
     <!-- KPIs -->
-    <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         <!-- Clientes -->
         <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(6,215,230,0.12)] transition-all duration-300 group">
             <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r grad-bg-cool"></div>
@@ -359,6 +359,34 @@
                 <p class="text-3xl font-black text-faiston-dark"><span id="kpi-media">—</span><span class="text-sm font-medium text-faiston-faint"> h/func</span></p>
             </div>
         </div>
+        <!-- Aderência a Prazo -->
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(6,215,230,0.12)] transition-all duration-300 group">
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r grad-bg-cool"></div>
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center text-faiston-cyan transition-all">
+                        <i class="ph ph-calendar-check text-xl"></i>
+                    </div>
+                    <span class="text-[10px] font-bold text-faiston-cyan bg-faiston-cyan/10 px-2 py-1 rounded-full border border-faiston-cyan/30" id="kpi-prazo-badge">—</span>
+                </div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Aderência a Prazo</p>
+                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-prazo">—</span><span class="text-sm font-medium text-faiston-faint">%</span></p>
+            </div>
+        </div>
+        <!-- Não Programado -->
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(184,38,201,0.12)] transition-all duration-300 group">
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r grad-bg-cool"></div>
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-pink/10 flex items-center justify-center text-faiston-pink transition-all">
+                        <i class="ph ph-lightning text-xl"></i>
+                    </div>
+                    <span class="text-[10px] font-bold text-faiston-pink bg-faiston-pink/10 px-2 py-1 rounded-full border border-faiston-pink/30" id="kpi-urgente-badge">—</span>
+                </div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Não Programado</p>
+                <p class="text-3xl font-black text-faiston-dark"><span id="kpi-urgente">—</span><span class="text-sm font-medium text-faiston-faint">%</span></p>
+            </div>
+        </div>
     </div>
 
     <!-- VIEW TOGGLE -->
@@ -385,11 +413,20 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <!-- Esforço por Cliente: visão geral primeiro (2026-07-28) -->
         <div class="chart-card bg-white border border-faiston-border lg:col-span-2 rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
-            <div class="mb-3">
-                <h3 class="text-sm font-bold text-faiston-dark">Esforço por Cliente</h3>
-                <p class="text-[11px] text-slate-400 mt-0.5">Total de horas apontadas por cliente -- clique numa barra pra ver o peso de cada tarefa</p>
+            <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
+                <div>
+                    <h3 class="text-sm font-bold text-faiston-dark" id="esf-titulo">Esforço por Cliente</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5" id="esf-sub">Pontos entregues (peso × tarefas), empilhados por faixa de peso — clique numa barra pra ver as tarefas</p>
+                </div>
+                <div class="flex items-center gap-1 p-1 rounded-xl" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+                    <button onclick="esfVista('cliente-esforco')" id="esf-tab-cliente-esforco" class="esf-tab text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors">Cliente · Esforço</button>
+                    <button onclick="esfVista('cliente-horas')" id="esf-tab-cliente-horas" class="esf-tab text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors">Cliente · Horas</button>
+                    <button onclick="esfVista('func-esforco')" id="esf-tab-func-esforco" class="esf-tab text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors">Funcionário · Esforço</button>
+                    <button onclick="esfVista('func-horas')" id="esf-tab-func-horas" class="esf-tab text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors">Funcionário · Horas</button>
+                </div>
             </div>
-            <div id="chart-barras" class="flex-1" style="min-height:240px;"></div>
+            <div class="flex gap-3 text-[10px] mb-1 flex-wrap" id="esf-legenda"></div>
+            <div id="chart-barras" class="flex-1" style="min-height:260px;"></div>
         </div>
         <!-- Status da Fila -->
         <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
@@ -413,10 +450,10 @@
                     <p class="text-[11px] text-slate-400 mt-0.5" id="grid-horas-peso-legenda">Selecione um funcionário no filtro do topo pra ver o detalhe por peso</p>
                 </div>
                 <div id="grid-horas-peso-cores" class="hidden flex gap-2 text-[10px] flex-wrap">
-                    <span class="flex items-center gap-1 font-semibold" style="color:#06D7E6"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#06D7E6"></span>Peso 1</span>
-                    <span class="flex items-center gap-1 font-semibold" style="color:#5B2EE0"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#5B2EE0"></span>Peso 2</span>
-                    <span class="flex items-center gap-1 font-semibold" style="color:#B826C9"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#B826C9"></span>Peso 3</span>
-                    <span class="flex items-center gap-1 font-semibold" style="color:#EC4899"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#EC4899"></span>Peso 4</span>
+                    <span class="flex items-center gap-1 font-semibold" style="color:#A78BFA"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#A78BFA"></span>Peso 1</span>
+                    <span class="flex items-center gap-1 font-semibold" style="color:#8B5CF6"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#8B5CF6"></span>Peso 2</span>
+                    <span class="flex items-center gap-1 font-semibold" style="color:#6D28D9"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#6D28D9"></span>Peso 3</span>
+                    <span class="flex items-center gap-1 font-semibold" style="color:#4C1D95"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#4C1D95"></span>Peso 4</span>
                 </div>
             </div>
             <div id="grid-horas-peso" class="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto custom-scrollbar" style="max-height:320px;"></div>
@@ -3916,7 +3953,7 @@ async function carregarDados(cliente) {
         const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
-        renderKPIs(data.kpis);
+        renderKPIs(data.kpis, data.prazo);
         renderCharts(data);
         renderTabela(data.recentes);
         popularSidebarFuncionarios(data.horas_por_func || []);
@@ -3924,7 +3961,7 @@ async function carregarDados(cliente) {
     } catch(e) { console.error(e); }
 }
 
-function renderKPIs(kpis) {
+function renderKPIs(kpis, prazo) {
     document.getElementById('kpi-clientes').textContent = kpis.clientes_ativos;
     document.getElementById('kpi-clientes-badge').textContent = `${kpis.funcionarios_ativos} func.`;
     document.getElementById('kpi-tickets').textContent = kpis.tickets_abertos;
@@ -3935,6 +3972,94 @@ function renderKPIs(kpis) {
     document.getElementById('kpi-horas').textContent = `${hh}h ${String(mm).padStart(2,'0')}m`;
     document.getElementById('kpi-horas-unit').textContent = '';
     document.getElementById('kpi-media').textContent = kpis.media_horas_func;
+    const pz = prazo || {};
+    document.getElementById('kpi-prazo').textContent = pz.aderencia == null ? '—' : pz.aderencia;
+    document.getElementById('kpi-prazo-badge').textContent =
+        pz.aderencia == null ? 'sem base' : `${pz.dentro} de ${pz.dentro + pz.fora}`;
+    document.getElementById('kpi-urgente').textContent = pz.pct_nao_programado ?? '—';
+    document.getElementById('kpi-urgente-badge').textContent = `${pz.urgentes || 0} urgentes`;
+}
+
+// ── ESFORÇO / HORAS: 4 visões num card só ──────────────────────────
+// Barras empilhadas por faixa de peso + linha de referência com a média.
+// Barra e linha ficam na MESMA unidade (um eixo só) -- horas e pontos são
+// escalas diferentes e num eixo duplo inventariam uma correlação falsa.
+let _esfData = null, _esfVistaAtual = 'cliente-esforco';
+
+const ESF_VISTAS = {
+    'cliente-esforco': { titulo: 'Esforço por Cliente',      unidade: 'pts', sub: 'Pontos entregues (peso × tarefas), empilhados por faixa de peso — clique numa barra pra ver as tarefas' },
+    'cliente-horas':   { titulo: 'Horas por Cliente',        unidade: 'h',   sub: 'Horas apontadas, empilhadas por faixa de peso — clique numa barra pra ver as tarefas' },
+    'func-esforco':    { titulo: 'Esforço por Funcionário',  unidade: 'pts', sub: 'Pontos entregues (peso × tarefas) por pessoa — clique numa barra pra ver as tarefas' },
+    'func-horas':      { titulo: 'Horas por Funcionário',    unidade: 'h',   sub: 'Horas apontadas por pessoa — clique numa barra pra ver as tarefas' },
+};
+
+function esfVista(v) {
+    _esfVistaAtual = v;
+    renderEsforco();
+}
+
+function renderEsforco() {
+    if (!_esfData) return;
+    const cfg = ESF_VISTAS[_esfVistaAtual];
+    const porFunc = _esfVistaAtual.startsWith('func');
+    const ehEsforco = _esfVistaAtual.endsWith('esforco');
+
+    Object.keys(ESF_VISTAS).forEach(k => {
+        const b = document.getElementById('esf-tab-' + k);
+        if (b) b.className = 'esf-tab text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors ' +
+            (k === _esfVistaAtual ? 'btn-grad text-white' : 'text-slate-500 hover:bg-white/60');
+    });
+    document.getElementById('esf-titulo').textContent = cfg.titulo;
+    document.getElementById('esf-sub').textContent = cfg.sub;
+    document.getElementById('esf-legenda').innerHTML = [1,2,3,4].map(p =>
+        `<span class="flex items-center gap-1 font-semibold text-slate-500"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:${PESO_CORES[p]}"></span>Peso ${p}</span>`
+    ).join('') + `<span class="flex items-center gap-1 font-semibold text-slate-400"><span class="w-3 h-0.5 inline-block" style="background:#94A3B8"></span>Média</span>`;
+
+    const base = porFunc
+        ? (_esfData.horas_por_func || []).map(f => ({ rotulo: f.nome, id: f.id, por_peso: f.por_peso || [] }))
+        : (_esfData.horas_por_cliente || []).map(c => ({ rotulo: c.cliente, id: null, por_peso: c.por_peso || [] }));
+
+    const linhas = base.map(l => {
+        const v = { 1: 0, 2: 0, 3: 0, 4: 0 };
+        (l.por_peso || []).forEach(p => {
+            const peso = p.peso || 0;
+            if (peso < 1 || peso > 4) return;
+            v[peso] += ehEsforco ? peso * (p.tarefas || 0) : (p.horas || 0);
+        });
+        [1,2,3,4].forEach(p => v[p] = parseFloat(v[p].toFixed(1)));
+        return { ...l, v, total: v[1] + v[2] + v[3] + v[4] };
+    }).filter(l => l.total > 0).sort((a, b) => b.total - a.total).slice(0, 12);
+
+    const media = linhas.length
+        ? parseFloat((linhas.reduce((s, l) => s + l.total, 0) / linhas.length).toFixed(1)) : 0;
+
+    destroyChart('barras');
+    charts['barras'] = new ApexCharts(document.querySelector("#chart-barras"), {
+        series: [1,2,3,4].map(p => ({ name: 'Peso ' + p, data: linhas.map(l => l.v[p]) })),
+        chart: { ...chartDefaults, type: 'bar', height: 260, stacked: true,
+            events: { dataPointSelection: (e, ctx, config) => {
+                const item = linhas[config.dataPointIndex];
+                if (!item) return;
+                if (porFunc) _abrirDrillDown(item.rotulo, new URLSearchParams({ usuario_id: item.id }));
+                else abrirDrillDownCliente(item.rotulo);
+            }}
+        },
+        plotOptions: { bar: { borderRadius: 4, borderRadiusApplication: 'end', columnWidth: '52%' } },
+        colors: [PESO_CORES[1], PESO_CORES[2], PESO_CORES[3], PESO_CORES[4]],
+        stroke: { width: 2, colors: ['transparent'] },
+        dataLabels: { enabled: false },
+        legend: { show: false },
+        xaxis: { categories: linhas.map(l => l.rotulo),
+            labels: { style: { fontSize: '10px', colors: axisC }, trim: true, hideOverlappingLabels: false, rotate: -35 } },
+        yaxis: { labels: { style: { colors: axisC }, formatter: v => Math.round(v) + cfg.unidade } },
+        annotations: { yaxis: media > 0 ? [{ y: media, strokeDashArray: 0, borderColor: '#94A3B8', borderWidth: 2,
+            label: { text: `média ${media}${cfg.unidade}`, position: 'right', offsetX: -4,
+                style: { fontSize: '10px', fontFamily: 'Inter, sans-serif', color: valC, background: 'transparent' } } }] : [] },
+        grid: { ...grid, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } } },
+        tooltip: { ...tt, shared: true, intersect: false,
+            y: { formatter: v => v + ' ' + cfg.unidade } }
+    });
+    charts['barras'].render();
 }
 
 function destroyChart(id) {
@@ -3946,7 +4071,9 @@ const gridDark = { borderColor:'rgba(255,255,255,0.08)', strokeDashArray:4, padd
 const gridLight = { borderColor:'#F1F5F9', strokeDashArray:4, padding:{left:8,right:8} };
 const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
 const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
-const PESO_CORES = { 1: '#06D7E6', 2: '#5B2EE0', 3: '#B826C9', 4: '#EC4899' };
+// Peso 1→4 é escala ORDENADA, não categórica: rampa de uma cor só, clara→escura.
+// Validada (lightness monotônica, ΔL >= 0.06, contraste no claro e no escuro).
+const PESO_CORES = { 1: '#A78BFA', 2: '#8B5CF6', 3: '#6D28D9', 4: '#4C1D95' };
 let _hpfPeriodo = { data_inicio: '', data_fim: '' };
 
 async function _abrirDrillDown(titulo, params) {
@@ -4122,7 +4249,8 @@ function renderCharts(data) {
         grid: { ...grid, padding: { right: 28, left: 8 }, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
         tooltip: { ...tt, y: { formatter: val => val + ' horas' } }
     });
-    charts['barras'].render();
+    _esfData = data;
+    renderEsforco();
 
     // 4. Funil
     destroyChart('funil');

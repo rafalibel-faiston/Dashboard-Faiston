@@ -2586,6 +2586,23 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         taxa_conclusao = [{"cliente": r[0], "total": r[1], "concluidas": r[2],
             "taxa": round(r[2]/r[1]*100) if r[1] > 0 else 0} for r in taxa_rows]
 
+        # Etapa 4 da medição: aderência a prazo e natureza da demanda.
+        # 'sem_prazo' (tarefa anterior à etapa 2) fica fora do denominador --
+        # senão a aderência despenca por falta de dado, não por atraso.
+        cur.execute(f"SELECT COALESCE(t.prazo_status,''), COUNT(*) FROM tarefas t {joins} {w_concluido} GROUP BY t.prazo_status", params)
+        pz = {r[0]: r[1] for r in cur.fetchall()}
+        pz_dentro, pz_fora = pz.get('dentro', 0), pz.get('fora', 0)
+        pz_base = pz_dentro + pz_fora
+        cur.execute(f"SELECT COALESCE(NULLIF(t.natureza,''),'programada'), COUNT(*) FROM tarefas t {joins} {filtro} GROUP BY 1", params)
+        nat = {r[0]: r[1] for r in cur.fetchall()}
+        nat_urgente, nat_total = nat.get('urgente', 0), sum(nat.values())
+        prazo = {
+            "dentro": pz_dentro, "fora": pz_fora, "sem_prazo": pz.get('sem_prazo', 0),
+            "aderencia": round(pz_dentro / pz_base * 100) if pz_base else None,
+            "urgentes": nat_urgente, "total_natureza": nat_total,
+            "pct_nao_programado": round(nat_urgente / nat_total * 100) if nat_total else 0,
+        }
+
         cur.close(); conn.close()
         return {
             "kpis": {
@@ -2605,7 +2622,8 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             "funil": funil,
             "recentes": recentes,
             "horas_por_func": horas_por_func,
-            "taxa_conclusao": taxa_conclusao
+            "taxa_conclusao": taxa_conclusao,
+            "prazo": prazo
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
