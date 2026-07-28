@@ -2497,8 +2497,10 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
                      "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7]}
                     for r in cur.fetchall()]
 
-        # Horas por funcionário — respeita todos os filtros incluindo time
-        func_conds = list(conditions) + ["u.perfil = 'funcionario'"]
+        # Horas por funcionário — respeita todos os filtros incluindo time.
+        # N2 entra igual a funcionário/backoffice/analista (decisão de
+        # 2026-07-28: N2 é medido como qualquer outra frente, não à parte).
+        func_conds = list(conditions) + ["u.perfil IN ('funcionario', 'n2')"]
         if not is_admin and not any("u.time" in c for c in func_conds):
             func_conds.append("COALESCE(u.time,'Projetos') = %s")
             func_params = params + (sess.get("time", "Projetos"),)
@@ -2513,6 +2515,18 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             func_params
         )
         horas_por_func_rows = cur.fetchall()
+        # Peso: mesmo filtro de cima, quebrado por (funcionário, peso) --
+        # alimenta o gráfico de rosca (horas dentro de cada faixa de peso).
+        cur.execute(
+            f"SELECT t.usuario_id, COALESCE(t.peso, 0), COALESCE(SUM(t.segundos),0), COUNT(t.id) "
+            f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
+            f"{func_filtro} GROUP BY t.usuario_id, t.peso",
+            func_params
+        )
+        peso_por_func = {}
+        for uid, peso, seg, qtd in cur.fetchall():
+            peso_por_func.setdefault(uid, []).append(
+                {"peso": peso, "horas": round(seg/3600, 1), "tarefas": qtd})
         # Dias trabalhados = dias do período filtrado menos os dias de
         # férias/afastamento/recorrência daquele funcionário -- produtividade
         # (horas/tarefas por dia) fica mais justa, e uma obs avisa quando a
@@ -2526,7 +2540,8 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
                 dias_periodo = None
         horas_por_func = []
         for uid, nome, segundos, qtd_tarefas, area in horas_por_func_rows:
-            item = {"nome": nome, "horas": round(segundos/3600, 1), "tarefas": qtd_tarefas, "time": area}
+            item = {"id": uid, "nome": nome, "horas": round(segundos/3600, 1), "tarefas": qtd_tarefas, "time": area,
+                     "por_peso": sorted(peso_por_func.get(uid, []), key=lambda p: p["peso"])}
             if dias_periodo:
                 dias_bloq, notas = _dias_bloqueados_periodo(cur, uid, data_inicio, data_fim)
                 dias_trabalhados = max(1, dias_periodo - dias_bloq)
@@ -2569,6 +2584,42 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/tarefas-por-peso")
+def tarefas_por_peso(usuario_id: int, peso: int, data_inicio: str = "", data_fim: str = "",
+                      faiston_token: str = Cookie(None)):
+    """Drill-down do gráfico de rosca (horas por funcionário, quebrado por
+    peso): lista as tarefas daquele funcionário com aquele peso, no mesmo
+    período filtrado no Dashboard. Mesma regra de escopo do /api/metricas --
+    admin/diretor veem qualquer um, o resto só quem é do mesmo time."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        if sess["perfil"] not in ("admin", "diretor"):
+            cur.execute("SELECT COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (usuario_id,))
+            row = cur.fetchone()
+            if not row or row[0] != sess.get("time", "Projetos"):
+                raise HTTPException(status_code=403, detail="Sem acesso a esse funcionário")
+        cond = ["t.usuario_id = %s", "COALESCE(t.peso,0) = %s"]
+        qparams = [usuario_id, peso]
+        if data_inicio:
+            cond.append("t.criado_em >= %s"); qparams.append(data_inicio + " 00:00:00")
+        if data_fim:
+            cond.append("t.criado_em <= %s"); qparams.append(data_fim + " 23:59:59")
+        cur.execute(f"""
+            SELECT t.id, t.descricao, t.cliente, t.status, t.segundos, t.criado_em, COALESCE(ta.nome, '')
+            FROM tarefas t LEFT JOIN tipos_atividade ta ON ta.id = t.tipo_atividade_id
+            WHERE {' AND '.join(cond)} ORDER BY t.criado_em DESC
+        """, tuple(qparams))
+        out = [{"id": r[0], "descricao": r[1], "cliente": r[2], "status": r[3],
+                "horas": round(r[4]/3600, 1), "criado_em": str(r[5])[:16], "tipo": r[6]} for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/registrar-acao")
 def registrar_acao(acao: AcaoBackoffice, faiston_token: str = Cookie(None)):
@@ -5962,13 +6013,14 @@ def _gerar_ou_atualizar_tarefa_campo(cur, aid):
     Idempotente: se a atividade já gerou uma tarefa antes (reeditada), essa
     mesma tarefa é atualizada em vez de duplicada (status_atividades.tarefa_gerada_id)."""
     cur.execute("""
-        SELECT sa.data, sa.n2_usuario_id, sa.tarefa_gerada_id, sa.subprojeto, COALESCE(c.nome, sa.site_nome, '')
+        SELECT sa.data, sa.n2_usuario_id, sa.tarefa_gerada_id, sa.subprojeto, COALESCE(c.nome, sa.site_nome, ''),
+               GREATEST(0, COALESCE(EXTRACT(EPOCH FROM (sa.hora_termino - sa.hora_chegada)), 0))::int
         FROM status_atividades sa LEFT JOIN clientes c ON c.id = sa.cliente_id
         WHERE sa.id = %s
     """, (aid,))
     row = cur.fetchone()
     if not row: return
-    data_visita, n2_uid, tarefa_id, subprojeto, cliente_nome = row
+    data_visita, n2_uid, tarefa_id, subprojeto, cliente_nome, segundos = row
     if not n2_uid: return  # sem N2 responsável definido -- nada a gerar
     cur.execute("""
         SELECT ta.id, ta.peso FROM tipos_atividade ta JOIN frentes f ON f.id = ta.frente_id
@@ -5979,18 +6031,20 @@ def _gerar_ou_atualizar_tarefa_campo(cur, aid):
     tipo_id, peso = row_tipo
     descricao = f"Atendimento em campo — {subprojeto}" if subprojeto else "Atendimento em campo"
     prazo_status = "dentro" if (not data_visita or _hoje_sp() <= data_visita) else "fora"
+    # Horas da visita = hora_termino - hora_chegada (fica 0 se algum dos dois
+    # não foi preenchido, ex. quando o N2 pula a etapa "no local"/chegada).
     if tarefa_id:
         cur.execute("""
             UPDATE tarefas SET descricao=%s, cliente=%s, status='concluido', tipo_atividade_id=%s, peso=%s,
-                   data_prazo=%s, concluido_em=NOW(), prazo_status=%s, atualizado_em=NOW()
+                   segundos=%s, data_prazo=%s, concluido_em=NOW(), prazo_status=%s, atualizado_em=NOW()
             WHERE id=%s
-        """, (descricao, cliente_nome, tipo_id, peso, data_visita, prazo_status, tarefa_id))
+        """, (descricao, cliente_nome, tipo_id, peso, segundos, data_visita, prazo_status, tarefa_id))
     else:
         cur.execute("""
-            INSERT INTO tarefas (usuario_id, descricao, cliente, status, tipo_atividade_id, peso, natureza,
-                                  data_prazo, concluido_em, prazo_status)
-            VALUES (%s,%s,%s,'concluido',%s,%s,'programada',%s,NOW(),%s) RETURNING id
-        """, (n2_uid, descricao, cliente_nome, tipo_id, peso, data_visita, prazo_status))
+            INSERT INTO tarefas (usuario_id, descricao, cliente, status, tipo_atividade_id, peso, segundos,
+                                  natureza, data_prazo, concluido_em, prazo_status)
+            VALUES (%s,%s,%s,'concluido',%s,%s,%s,'programada',%s,NOW(),%s) RETURNING id
+        """, (n2_uid, descricao, cliente_nome, tipo_id, peso, segundos, data_visita, prazo_status))
         cur.execute("UPDATE status_atividades SET tarefa_gerada_id=%s WHERE id=%s", (cur.fetchone()[0], aid))
 
 @app.patch("/api/status-campo/{aid}/status")

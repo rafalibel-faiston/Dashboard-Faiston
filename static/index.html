@@ -385,17 +385,19 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <!-- Tarefas por Funcionário -->
         <div class="chart-card bg-white border border-faiston-border lg:col-span-2 rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
-                    <h3 class="text-sm font-bold text-faiston-dark">Tarefas por Funcionário</h3>
-                    <p class="text-[11px] text-slate-400 mt-0.5">Quantidade e horas apontadas no período</p>
+                    <h3 class="text-sm font-bold text-faiston-dark">Horas por Funcionário, por Peso</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Horas apontadas no período, divididas pelo peso (complexidade) da tarefa -- clique num peso pra ver as tarefas</p>
                 </div>
-                <div class="flex gap-3 text-[10px]">
-                    <span class="flex items-center gap-1 text-faiston-pink font-semibold"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#EC4899"></span> Tarefas</span>
-                    <span class="flex items-center gap-1 text-faiston-cyan font-semibold"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#06D7E6"></span> Horas</span>
+                <div class="flex gap-2 text-[10px] flex-wrap">
+                    <span class="flex items-center gap-1 font-semibold" style="color:#06D7E6"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#06D7E6"></span>Peso 1</span>
+                    <span class="flex items-center gap-1 font-semibold" style="color:#5B2EE0"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#5B2EE0"></span>Peso 2</span>
+                    <span class="flex items-center gap-1 font-semibold" style="color:#B826C9"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#B826C9"></span>Peso 3</span>
+                    <span class="flex items-center gap-1 font-semibold" style="color:#EC4899"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#EC4899"></span>Peso 4</span>
                 </div>
             </div>
-            <div id="chart-producao" style="min-height:260px;"></div>
+            <div id="grid-horas-peso" class="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto custom-scrollbar" style="max-height:320px;"></div>
             <div id="chart-producao-obs" class="flex flex-col gap-1 mt-2"></div>
         </div>
         <!-- Status da Fila -->
@@ -2658,6 +2660,19 @@
     </div>
 </div>
 
+<!-- MODAL DRILL-DOWN: tarefas de um funcionário num peso específico -->
+<div id="modal-peso-drilldown" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.5)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden border border-faiston-border">
+        <div class="px-6 py-4 flex items-center justify-between border-b border-faiston-border shrink-0">
+            <div>
+                <p class="text-sm font-bold text-faiston-dark" id="pd-titulo">Tarefas</p>
+                <p class="text-xs text-faiston-muted mt-0.5" id="pd-subtitulo"></p>
+            </div>
+            <button onclick="fecharDrillDownPeso()" class="text-slate-400 hover:text-faiston-dark"><i class="ph ph-x text-lg"></i></button>
+        </div>
+        <div id="pd-lista" class="p-4 overflow-y-auto custom-scrollbar flex flex-col gap-2"></div>
+    </div>
+</div>
 
 <script>
 let clienteAtivo = '';
@@ -3934,6 +3949,39 @@ const gridDark = { borderColor:'rgba(255,255,255,0.08)', strokeDashArray:4, padd
 const gridLight = { borderColor:'#F1F5F9', strokeDashArray:4, padding:{left:8,right:8} };
 const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
 const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
+const PESO_CORES = { 1: '#06D7E6', 2: '#5B2EE0', 3: '#B826C9', 4: '#EC4899' };
+let _hpfPeriodo = { data_inicio: '', data_fim: '' };
+
+async function abrirDrillDownPeso(usuarioId, nome, peso) {
+    document.getElementById('pd-titulo').textContent = `${nome} — Peso ${peso}`;
+    document.getElementById('pd-subtitulo').textContent = 'Carregando...';
+    document.getElementById('pd-lista').innerHTML = '';
+    document.getElementById('modal-peso-drilldown').classList.remove('hidden');
+    const params = new URLSearchParams({ usuario_id: usuarioId, peso });
+    if (_hpfPeriodo.data_inicio) params.set('data_inicio', _hpfPeriodo.data_inicio);
+    if (_hpfPeriodo.data_fim) params.set('data_fim', _hpfPeriodo.data_fim);
+    try {
+        const res = await fetch('/api/tarefas-por-peso?' + params.toString());
+        if (!res.ok) throw new Error();
+        const tarefas = await res.json();
+        document.getElementById('pd-subtitulo').textContent = `${tarefas.length} tarefa(s) no período`;
+        document.getElementById('pd-lista').innerHTML = tarefas.length ? tarefas.map(t => `
+            <div class="border border-faiston-border rounded-lg p-3">
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(t.tipo || t.descricao || 'Tarefa')}</p>
+                    <span class="text-xs font-semibold text-faiston-purple shrink-0">${t.horas}h</span>
+                </div>
+                <p class="text-xs text-faiston-muted mt-0.5">${escHtml(t.cliente || '')} · ${t.criado_em}</p>
+                ${t.descricao ? `<p class="text-xs text-slate-500 mt-1">${escHtml(t.descricao)}</p>` : ''}
+            </div>`).join('') : '<p class="text-sm text-faiston-muted text-center py-8">Nenhuma tarefa nesse peso no período.</p>';
+    } catch (e) {
+        document.getElementById('pd-subtitulo').textContent = 'Erro ao carregar';
+    }
+}
+
+function fecharDrillDownPeso() {
+    document.getElementById('modal-peso-drilldown').classList.add('hidden');
+}
 
 function renderCharts(data) {
     const dark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -3945,56 +3993,45 @@ function renderCharts(data) {
     const trackC = dark ? 'rgba(255,255,255,0.06)' : '#F1F5F9';
     const strokeC = dark ? '#11111E' : '#FFFFFF';
 
-    // 1. Tarefas por Funcionário
-    destroyChart('producao');
+    // 1. Horas por Funcionário, por Peso (uma rosca por pessoa; N2 entra
+    // igual a funcionário/backoffice/analista -- decisão de 2026-07-28)
+    Object.keys(charts).filter(k => k.startsWith('producao-')).forEach(k => { charts[k].destroy(); delete charts[k]; });
     const hpf = data.horas_por_func;
-    const nomes = hpf.map(f => f.nome.split(' ')[0]);
-    const horas = hpf.map(f => parseFloat((f.horas||0).toFixed(1)));
-    const contagens = hpf.map(f => f.tarefas || 0);
-    charts['producao'] = new ApexCharts(document.querySelector("#chart-producao"), {
-        series: [
-            { name: 'Tarefas', type: 'bar', data: contagens },
-            { name: 'Horas', type: 'line', data: horas }
-        ],
-        chart: { ...chartDefaults, height: 260, type: 'line', background: 'transparent',
-            events: { dataPointSelection: (e, ctx, config) => {
-                if (config.seriesIndex === 0) {
-                    const nomeCompleto = hpf[config.dataPointIndex]?.nome;
-                    if (nomeCompleto) filtrarFuncionario(nomeCompleto);
-                }
-            }}
-        },
-        colors: ['#EC4899', '#06D7E6'],
-        plotOptions: { bar: { borderRadius: 8, columnWidth: '42%' } },
-        fill: {
-            type: ['gradient', 'solid'],
-            gradient: { shade: 'light', type: 'vertical', gradientToColors: ['#5B2EE0'], opacityFrom: 1, opacityTo: 0.85, stops: [0, 100] }
-        },
-        dataLabels: { enabled: false },
-        stroke: { width: [0, 2.5], curve: 'smooth' },
-        markers: { size: [0, 5], strokeColors: strokeC, strokeWidth: 2, hover: { size: 7 } },
-        xaxis: { categories: nomes, axisBorder:{show:false}, axisTicks:{show:false},
-            labels:{style:{fontSize:'12px', colors: axisC, fontFamily:'Inter,sans-serif'}} },
-        yaxis: [
-            { min: 0, labels: { style: { colors: [axisC], fontSize: '11px', fontFamily:'Inter,sans-serif' } } },
-            { opposite: true, min: 0, labels: { style: { colors: [axisC], fontSize: '11px', fontFamily:'Inter,sans-serif' } } }
-        ],
-        legend: { show: false },
-        grid: { ...grid, padding: { left: 4, right: 4 } },
-        tooltip: {
-            ...tt, shared: true, intersect: false,
-            custom: function({ dataPointIndex }) {
-                const item = hpf[dataPointIndex] || {};
-                let html = `<div style="padding:8px 12px;font-family:Inter,sans-serif;">
-                    <div style="font-weight:700;margin-bottom:2px;">${item.nome || ''}</div>
-                    <div style="font-size:12px;">Tarefas: ${item.tarefas || 0} · Horas: ${item.horas || 0}h</div>`;
-                if (item.dias_trabalhados) html += `<div style="font-size:12px;">Dias trabalhados: ${item.dias_trabalhados} · ${item.horas_por_dia}h/dia</div>`;
-                if (item.obs) html += `<div style="font-size:11px;color:#D97706;margin-top:4px;max-width:220px;white-space:normal;">⚠️ ${item.obs}</div>`;
-                return html + '</div>';
-            }
-        }
+    _hpfPeriodo.data_inicio = document.getElementById('data-inicio')?.value || '';
+    _hpfPeriodo.data_fim = document.getElementById('data-fim')?.value || '';
+    const gridEl = document.getElementById('grid-horas-peso');
+    gridEl.innerHTML = hpf.map(f => `
+        <div class="border border-faiston-border rounded-xl p-2 flex flex-col items-center">
+            <div id="donut-func-${f.id}" style="width:100%;max-width:150px;"></div>
+            <p onclick="filtrarFuncionario('${f.nome.replace(/'/g, "\\'")}')" class="text-xs font-semibold text-faiston-dark mt-1 truncate w-full text-center cursor-pointer hover:text-faiston-purple transition-colors" title="Filtrar por ${f.nome}">${f.nome.split(' ')[0]}</p>
+        </div>`).join('');
+    hpf.forEach(f => {
+        const pesos = (f.por_peso || []).filter(p => p.horas > 0);
+        const donutEl = document.getElementById(`donut-func-${f.id}`);
+        if (!pesos.length) { donutEl.innerHTML = '<p class="text-[10px] text-slate-300 text-center py-10">Sem horas</p>'; return; }
+        const chart = new ApexCharts(donutEl, {
+            series: pesos.map(p => p.horas),
+            labels: pesos.map(p => p.peso ? `Peso ${p.peso}` : 'Sem peso'),
+            chart: { type: 'donut', height: 150, background: 'transparent', fontFamily: 'Inter, sans-serif',
+                events: { dataPointSelection: (e, ctx, config) => {
+                    abrirDrillDownPeso(f.id, f.nome, pesos[config.dataPointIndex].peso);
+                } }
+            },
+            colors: pesos.map(p => PESO_CORES[p.peso] || '#94A3B8'),
+            dataLabels: { enabled: false },
+            legend: { show: false },
+            stroke: { width: 2, colors: [strokeC] },
+            plotOptions: { pie: { donut: { size: '68%', labels: {
+                show: true,
+                total: { show: true, showAlways: true, label: 'Total', fontSize: '10px', color: dlC,
+                         formatter: () => `${f.horas}h` },
+                value: { fontSize: '13px', fontWeight: 700, color: valC, formatter: (v) => `${v}h` }
+            } } } },
+            tooltip: { ...tt, y: { formatter: (v) => `${v}h` } }
+        });
+        chart.render();
+        charts[`producao-${f.id}`] = chart;
     });
-    charts['producao'].render();
     const obsBox = document.getElementById('chart-producao-obs');
     const comObs = hpf.filter(f => f.obs);
     obsBox.innerHTML = comObs.length ? comObs.map(f =>
