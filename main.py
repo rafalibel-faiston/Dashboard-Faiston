@@ -2001,7 +2001,7 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
             prazo_ref = t.data_prazo or snap_old.get("data_prazo") or ""
             if prazo_ref:
                 prazo_d = datetime.strptime(str(prazo_ref)[:10], "%Y-%m-%d").date()
-                prazo_status = "dentro" if datetime.now().date() <= prazo_d else "fora"
+                prazo_status = "dentro" if _hoje_sp() <= prazo_d else "fora"
             else:
                 prazo_status = "sem_prazo"
             if prazo_status == "fora" and not justificativa:
