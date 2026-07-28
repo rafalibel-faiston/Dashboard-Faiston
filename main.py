@@ -619,6 +619,12 @@ def setup_banco():
         # da régua é ~2,7) e marcadas como estimadas, pra poderem ser isoladas
         # nos indicadores depois.
         cur.execute("UPDATE tarefas SET peso = 2, peso_estimado = TRUE WHERE peso IS NULL")
+        # Fechamento: quando a tarefa foi concluída de fato (atualizado_em não
+        # serve, muda a cada edição), classificação dentro/fora do prazo
+        # carimbada no momento do fechamento e justificativa do atraso.
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS prazo_status VARCHAR(10)")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS justificativa_atraso TEXT NOT NULL DEFAULT ''")
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -665,7 +671,8 @@ class TarefaModel(BaseModel):
     data_agendamento: Optional[str] = None
     hora_prazo: Optional[str] = None
     tipo_atividade_id: Optional[int] = None
-    natureza: str = "programada"
+    natureza: Optional[str] = None
+    justificativa_atraso: Optional[str] = None
     colaboradores: Optional[List[int]] = None
 
 class AtualizarSegundos(BaseModel):
@@ -1853,7 +1860,8 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
         base_sel = """SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
                              t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome,
                              t.data_prazo, t.data_agendamento, t.usuario_id, t.hora_prazo,
-                             t.tipo_atividade_id, t.peso, t.natureza
+                             t.tipo_atividade_id, t.peso, t.natureza,
+                             t.concluido_em, t.prazo_status, t.justificativa_atraso
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
         if view == "func":
@@ -1890,7 +1898,9 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
                  "data_agendamento": str(r[11]) if r[11] else None,
                  "usuario_id": r[12],
                  "hora_prazo": str(r[13])[:5] if r[13] else None,
-                 "tipo_atividade_id": r[14], "peso": r[15], "natureza": r[16],
+                "tipo_atividade_id": r[14], "peso": r[15], "natureza": r[16],
+                 "concluido_em": str(r[17]) if r[17] else None,
+                 "prazo_status": r[18], "justificativa_atraso": r[19],
                  "sou_colaborador": (r[12] != sess["id"]) and any(c["id"] == sess["id"] for c in colab_map.get(r[0], [])),
                  "colaboradores": colab_map.get(r[0], [])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1980,13 +1990,31 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
         if not row_tipo:
                 raise HTTPException(status_code=400, detail="Tipo de atividade inválido ou desativado")
         peso_upd = row_tipo[0]
-        natureza_upd = t.natureza if t.natureza in ("programada", "urgente") else "programada"
+            natureza_upd = t.natureza if t.natureza in ("programada", "urgente") else "programada"
+        # Só na transição para 'concluido' -- reeditar tarefa já concluída não
+        # recalcula, senão o histórico mudaria sozinho. Comparação por DATA:
+        # concluir no dia previsto conta como dentro do prazo.
+        concluindo = t.status == "concluido" and snap_old.get("status") != "concluido"
+        prazo_status = None
+        justificativa = (t.justificativa_atraso or "").strip()
+        if concluindo:
+            prazo_ref = t.data_prazo or snap_old.get("data_prazo") or ""
+            if prazo_ref:
+                prazo_d = datetime.strptime(str(prazo_ref)[:10], "%Y-%m-%d").date()
+                prazo_status = "dentro" if datetime.now().date() <= prazo_d else "fora"
+            else:
+                prazo_status = "sem_prazo"
+            if prazo_status == "fora" and not justificativa:
+                raise HTTPException(status_code=400, detail="Tarefa concluída fora do prazo: informe a justificativa do atraso")
         cur.execute(
-            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, hora_prazo=%s, tipo_atividade_id=COALESCE(%s, tipo_atividade_id), peso=COALESCE(%s, peso), natureza=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
+            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, hora_prazo=%s, tipo_atividade_id=COALESCE(%s, tipo_atividade_id), peso=COALESCE(%s, peso), natureza=COALESCE(%s, natureza), atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
             (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
              t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None,
              t.tipo_atividade_id or None, peso_upd, natureza_upd, tid, sess["id"])
         )
+            if concluindo and cur.rowcount:
+            cur.execute("UPDATE tarefas SET concluido_em=NOW(), prazo_status=%s, justificativa_atraso=%s WHERE id=%s",
+                        (prazo_status, justificativa, tid))
         # Registra no histórico cada campo que mudou (compara antes × depois)
         if cur.rowcount and snap_old:
             snap_new = _snapshot_tarefa(cur, tid)
