@@ -67,6 +67,7 @@
         <button onclick="mostrarAbaN2('minhas')" id="n2-tab-minhas" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Minhas atividades</button>
         <button onclick="mostrarAbaN2('geral')" id="n2-tab-geral" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Atividades em geral</button>
         <button onclick="mostrarAbaN2('print')" id="n2-tab-print" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Enviar Status Report</button>
+        <button onclick="mostrarAbaN2('extras')" id="n2-tab-extras" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Outras Atividades</button>
     </div>
 
     <div id="n2-view-lista">
@@ -121,7 +122,71 @@
             <div id="print-lista" class="flex flex-col gap-2"></div>
         </div>
     </div>
+
+    <!-- N2-B: atividades que não são visita de campo (suporte remoto, rack,
+         staging, relatórios, incidentes etc.) -- "Atendimento em campo" fica
+         de fora daqui porque já é gerado sozinho ao finalizar a visita. -->
+    <div id="n2-view-extras" class="hidden">
+        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+                <div>
+                    <span class="text-sm font-bold text-faiston-dark">Minhas atividades extras</span>
+                    <p class="text-xs text-faiston-muted mt-0.5">Suporte remoto, rack, staging, relatórios, incidentes -- tudo que não é visita de campo</p>
+                </div>
+                <button onclick="abrirModalExtra()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                    <i class="ph ph-plus text-base"></i> Nova atividade extra
+                </button>
+            </div>
+            <div id="extras-lista" class="divide-y divide-faiston-border"></div>
+        </div>
+    </div>
 </main>
+
+<!-- MODAL NOVA/EDITAR ATIVIDADE EXTRA (não é visita de campo) -->
+<div id="modal-extra" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h2 class="text-lg font-bold text-faiston-dark" id="modal-extra-titulo">Nova atividade extra</h2>
+            <button onclick="fecharModalExtra()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="me-id">
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Tipo de atividade <span class="text-faiston-pink">*</span></label>
+                <select id="me-tipo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                    <option value="">Selecione...</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Cliente <span class="text-faiston-pink">*</span></label>
+                <select id="me-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                    <option value="">Selecione...</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição</label>
+                <textarea id="me-descricao" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all resize-none" placeholder="Detalhes (opcional)"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Natureza <span class="text-faiston-pink">*</span></label>
+                    <select id="me-natureza" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                        <option value="programada">Programada</option>
+                        <option value="urgente">Urgente / última hora</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Previsão de conclusão <span class="text-faiston-pink">*</span></label>
+                    <input type="date" id="me-prazo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="fecharModalExtra()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvarAtividadeExtra()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
 
 <!-- MODAL NOVA/EDITAR ATIVIDADE -->
 <div id="modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
@@ -592,14 +657,15 @@ let n2AbaAtual = 'minhas';
 
 function mostrarAbaN2(aba) {
     n2AbaAtual = aba;
-    const tabs = { minhas: 'n2-tab-minhas', geral: 'n2-tab-geral', print: 'n2-tab-print' };
+    const tabs = { minhas: 'n2-tab-minhas', geral: 'n2-tab-geral', print: 'n2-tab-print', extras: 'n2-tab-extras' };
     Object.entries(tabs).forEach(([k, id]) => {
         const ativo = k === aba;
         document.getElementById(id).className = 'text-sm font-semibold px-4 py-2 rounded-lg transition-colors ' +
             (ativo ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
     });
-    document.getElementById('n2-view-lista').classList.toggle('hidden', aba === 'print');
+    document.getElementById('n2-view-lista').classList.toggle('hidden', aba !== 'minhas' && aba !== 'geral');
     document.getElementById('n2-view-print').classList.toggle('hidden', aba !== 'print');
+    document.getElementById('n2-view-extras').classList.toggle('hidden', aba !== 'extras');
     if (aba === 'minhas') {
         document.getElementById('n2-titulo').textContent = 'Minhas atividades';
         document.getElementById('n2-subtitulo').textContent = 'Atividades de campo onde você é o N2 responsável';
@@ -608,6 +674,10 @@ function mostrarAbaN2(aba) {
         document.getElementById('n2-titulo').textContent = 'Atividades em geral';
         document.getElementById('n2-subtitulo').textContent = 'Todas as atividades de campo, de todos os N2';
         buscar();
+    } else if (aba === 'extras') {
+        document.getElementById('n2-titulo').textContent = 'Outras Atividades';
+        document.getElementById('n2-subtitulo').textContent = 'Suporte remoto, rack, staging, relatórios, incidentes -- não é visita de campo (essa já vira tarefa sozinha)';
+        carregarExtras();
     } else {
         document.getElementById('n2-titulo').textContent = 'Enviar Status Report';
         document.getElementById('n2-subtitulo').textContent = 'Print com todas as atividades do cliente, não só as suas';
@@ -1298,6 +1368,132 @@ async function confirmarFinalizar() {
         abrirModalCarimboFinalizacao(texto);
     }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// N2-B: atividades extras (não é visita de campo) -- reaproveita
+// /api/tarefas (mesmo endpoint de funcionario.html), sem rota nova.
+// ══════════════════════════════════════════════════════════════════
+let _tiposExtras = [], _clientesExtras = [], _extraEditId = null;
+
+async function carregarTiposExtras() {
+    if (_tiposExtras.length) return;
+    const res = await fetch('/api/tipos-atividade?area=Projetos');
+    if (!res.ok) return;
+    const todos = await res.json();
+    // "Atendimento em campo" fica de fora -- já é gerado sozinho ao
+    // finalizar a visita, não é pra ser lançado manualmente aqui.
+    _tiposExtras = todos.filter(t => t.frente === 'N2' && t.nome !== 'Atendimento em campo');
+    document.getElementById('me-tipo').innerHTML = '<option value="">Selecione...</option>' +
+        _tiposExtras.map(t => `<option value="${t.id}">${esc(t.nome)} (peso ${t.peso})</option>`).join('');
+}
+
+async function carregarClientesExtras() {
+    if (_clientesExtras.length) return;
+    const res = await fetch('/api/clientes');
+    if (!res.ok) return;
+    _clientesExtras = await res.json();
+    document.getElementById('me-cliente').innerHTML = '<option value="">Selecione...</option>' +
+        _clientesExtras.map(c => `<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join('');
+}
+
+async function abrirModalExtra(tarefa) {
+    await Promise.all([carregarTiposExtras(), carregarClientesExtras()]);
+    _extraEditId = tarefa ? tarefa.id : null;
+    document.getElementById('modal-extra-titulo').textContent = tarefa ? 'Editar atividade extra' : 'Nova atividade extra';
+    document.getElementById('me-tipo').value = tarefa ? (tarefa.tipo_atividade_id || '') : '';
+    document.getElementById('me-cliente').value = tarefa ? (tarefa.cliente || '') : '';
+    document.getElementById('me-descricao').value = tarefa ? (tarefa.descricao || '') : '';
+    document.getElementById('me-natureza').value = tarefa ? (tarefa.natureza || 'programada') : 'programada';
+    document.getElementById('me-prazo').value = tarefa ? (tarefa.data_prazo || '') : '';
+    document.getElementById('modal-extra').classList.remove('hidden');
+}
+
+function fecharModalExtra() {
+    document.getElementById('modal-extra').classList.add('hidden');
+    _extraEditId = null;
+}
+
+async function salvarAtividadeExtra() {
+    const tipoId = parseInt(document.getElementById('me-tipo').value) || null;
+    const cliente = document.getElementById('me-cliente').value;
+    const prazo = document.getElementById('me-prazo').value;
+    if (!tipoId) { alert('Selecione o tipo de atividade.'); return; }
+    if (!cliente) { alert('Selecione o cliente.'); return; }
+    if (!prazo) { alert('Informe a previsão de conclusão.'); return; }
+    const body = {
+        descricao: document.getElementById('me-descricao').value.trim(),
+        cliente,
+        status: 'aberto',
+        tipo_atividade_id: tipoId,
+        natureza: document.getElementById('me-natureza').value,
+        data_prazo: prazo,
+    };
+    const url = _extraEditId ? `/api/tarefas/${_extraEditId}` : '/api/tarefas';
+    const res = await fetch(url, { method: _extraEditId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        alert(json.detail || 'Erro ao salvar a atividade');
+        return;
+    }
+    fecharModalExtra();
+    carregarExtras();
+}
+
+async function concluirAtividadeExtra(tarefa) {
+    if (!confirm('Marcar esta atividade como concluída?')) return;
+    const res = await fetch(`/api/tarefas/${tarefa.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            descricao: tarefa.descricao, cliente: tarefa.cliente, prioridade: tarefa.prioridade,
+            status: 'concluido', segundos: tarefa.segundos,
+            data_prazo: tarefa.data_prazo, data_agendamento: tarefa.data_agendamento, hora_prazo: tarefa.hora_prazo,
+            tipo_atividade_id: tarefa.tipo_atividade_id, natureza: tarefa.natureza,
+        })
+    });
+    if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        alert(json.detail || 'Erro ao concluir a atividade');
+        return;
+    }
+    carregarExtras();
+}
+
+const EXTRA_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', concluido: 'Concluído' };
+
+let _extrasCache = [];
+
+async function carregarExtras() {
+    await carregarTiposExtras();
+    const el = document.getElementById('extras-lista');
+    el.innerHTML = '<p class="text-sm text-faiston-muted p-5">Carregando...</p>';
+    const res = await fetch('/api/tarefas?view=func');
+    if (!res.ok) { el.innerHTML = '<p class="text-sm text-faiston-muted p-5">Erro ao carregar.</p>'; return; }
+    const todas = await res.json();
+    const tiposMap = {};
+    _tiposExtras.forEach(t => tiposMap[t.id] = t);
+    _extrasCache = todas.filter(t => t.tipo_atividade_id && tiposMap[t.tipo_atividade_id]);
+    if (!_extrasCache.length) {
+        el.innerHTML = '<p class="text-sm text-faiston-muted p-5">Nenhuma atividade extra registrada ainda.</p>';
+        return;
+    }
+    el.innerHTML = _extrasCache.map(t => {
+        const tipo = tiposMap[t.tipo_atividade_id];
+        const prazoLabel = t.data_prazo ? t.data_prazo.split('-').reverse().join('/') : '--';
+        return `<div class="flex items-center justify-between px-5 py-3">
+            <div class="min-w-0">
+                <p class="text-sm font-semibold text-faiston-dark truncate">${esc(tipo ? tipo.nome : '')} <span class="text-xs text-faiston-faint font-normal">(peso ${tipo ? tipo.peso : '-'})</span></p>
+                <p class="text-xs text-faiston-muted">${esc(t.cliente || '')} · previsão ${prazoLabel} · ${EXTRA_STATUS_LABEL[t.status] || t.status}</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                ${t.status !== 'concluido' ? `<button onclick="concluirAtividadeExtraPorId(${t.id})" class="text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-1.5 hover:bg-emerald-100 transition-colors">Concluir</button>` : ''}
+                ${t.status !== 'concluido' ? `<button onclick="abrirModalExtraPorId(${t.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function abrirModalExtraPorId(id) { abrirModalExtra(_extrasCache.find(t => t.id === id)); }
+function concluirAtividadeExtraPorId(id) { concluirAtividadeExtra(_extrasCache.find(t => t.id === id)); }
 
 function toggleTema() {
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';

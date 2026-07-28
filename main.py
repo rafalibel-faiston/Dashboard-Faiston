@@ -461,6 +461,11 @@ def setup_banco():
         # "Switch Catalyst 9300") -- deixa o andamento_tipo (categoria) bem
         # mais evidente quando exibido junto, em vez de só a categoria sozinha.
         cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS andamento_equipamento VARCHAR(200) DEFAULT ''")
+        # N2-A (integração com medição de peso): ao finalizar a visita, o
+        # sistema cria sozinho uma tarefa "Atendimento em campo" (peso 4).
+        # Guarda o id gerado aqui pra reeditar a mesma tarefa se a atividade
+        # for finalizada de novo (corrigir status/data), em vez de duplicar.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS tarefa_gerada_id INTEGER REFERENCES tarefas(id) ON DELETE SET NULL")
         # Equipamentos instalados/removidos ao finalizar -- lista (não mais
         # um campo único), porque uma atividade pode envolver mais de uma
         # unidade instalada e/ou removida ao mesmo tempo. Substitui as
@@ -5947,6 +5952,47 @@ def _registrar_andamento(cur, aid, localizacao, acesso, descricao, sess,
     """, (descricao.strip(), localizacao, acesso, hora_chegada or None, hora_inicio_atividade or None,
           andamento_tipo, (andamento_equipamento or "").strip(), aid))
 
+def _gerar_ou_atualizar_tarefa_campo(cur, aid):
+    """N2-A: ao finalizar uma visita de campo (qualquer status terminal --
+    concluído, parcial ou improdutiva), cria sozinho uma tarefa "Atendimento
+    em campo" (peso 4) atribuída ao N2 responsável, sem ele digitar nada.
+    Decisão de negócio (2026-07-28): visita malsucedida conta igual a uma
+    bem-sucedida -- o peso mede esforço/complexidade da atividade, não o
+    resultado. Previsão de conclusão = data agendada da própria visita.
+    Idempotente: se a atividade já gerou uma tarefa antes (reeditada), essa
+    mesma tarefa é atualizada em vez de duplicada (status_atividades.tarefa_gerada_id)."""
+    cur.execute("""
+        SELECT sa.data, sa.n2_usuario_id, sa.tarefa_gerada_id, sa.subprojeto, COALESCE(c.nome, sa.site_nome, '')
+        FROM status_atividades sa LEFT JOIN clientes c ON c.id = sa.cliente_id
+        WHERE sa.id = %s
+    """, (aid,))
+    row = cur.fetchone()
+    if not row: return
+    data_visita, n2_uid, tarefa_id, subprojeto, cliente_nome = row
+    if not n2_uid: return  # sem N2 responsável definido -- nada a gerar
+    cur.execute("""
+        SELECT ta.id, ta.peso FROM tipos_atividade ta JOIN frentes f ON f.id = ta.frente_id
+        WHERE f.area='Projetos' AND f.nome='N2' AND ta.nome='Atendimento em campo' AND ta.ativo=TRUE
+    """)
+    row_tipo = cur.fetchone()
+    if not row_tipo: return  # catálogo sem esse tipo cadastrado -- não bloqueia o fluxo de campo
+    tipo_id, peso = row_tipo
+    descricao = f"Atendimento em campo — {subprojeto}" if subprojeto else "Atendimento em campo"
+    prazo_status = "dentro" if (not data_visita or _hoje_sp() <= data_visita) else "fora"
+    if tarefa_id:
+        cur.execute("""
+            UPDATE tarefas SET descricao=%s, cliente=%s, status='concluido', tipo_atividade_id=%s, peso=%s,
+                   data_prazo=%s, concluido_em=NOW(), prazo_status=%s, atualizado_em=NOW()
+            WHERE id=%s
+        """, (descricao, cliente_nome, tipo_id, peso, data_visita, prazo_status, tarefa_id))
+    else:
+        cur.execute("""
+            INSERT INTO tarefas (usuario_id, descricao, cliente, status, tipo_atividade_id, peso, natureza,
+                                  data_prazo, concluido_em, prazo_status)
+            VALUES (%s,%s,%s,'concluido',%s,%s,'programada',%s,NOW(),%s) RETURNING id
+        """, (n2_uid, descricao, cliente_nome, tipo_id, peso, data_visita, prazo_status))
+        cur.execute("UPDATE status_atividades SET tarefa_gerada_id=%s WHERE id=%s", (cur.fetchone()[0], aid))
+
 @app.patch("/api/status-campo/{aid}/status")
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -6014,6 +6060,7 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
                 cur.executemany(
                     "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
                     itens)
+            _gerar_ou_atualizar_tarefa_campo(cur, aid)
         if body.status == "em_andamento":
             _registrar_andamento(cur, aid, body.localizacao, body.acesso, body.andamento_descricao or "", sess,
                                  body.hora_chegada, body.hora_inicio_atividade, body.andamento_tipo,
