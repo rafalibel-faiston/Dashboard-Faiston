@@ -2410,7 +2410,7 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Perfil</label>
-                    <select id="u-perfil" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
+                    <select id="u-perfil" onchange="adminAtualizarCargo()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
                         <option value="funcionario">Funcionário</option>
                         <option value="gestor">Gestor</option>
                         <option value="diretor">Diretor</option>
@@ -2419,6 +2419,14 @@
                         <option value="dev">Dev</option>
                     </select>
                 </div>
+            </div>
+            <div id="wrap-cargo-admin" class="hidden">
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cargo</label>
+                <select id="u-cargo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
+                    <option value="analista">Analista</option>
+                    <option value="backoffice">Backoffice</option>
+                    <option value="n2">N2</option>
+                </select>
             </div>
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Time</label>
@@ -2985,7 +2993,7 @@ async function eqCarregarUsuarios() {
 function eqFiltrarFrente() {
     const frente = document.getElementById('eq-filtro-frente').value;
     let lista = eqUsuarios;
-    if (frente === 'n2') lista = lista.filter(u => u.perfil === 'n2');
+    if (frente === 'n2') lista = lista.filter(u => u.cargo === 'n2');
     else if (frente === 'analista') lista = lista.filter(u => u.cargo === 'analista');
     else if (frente === 'backoffice') lista = lista.filter(u => u.cargo === 'backoffice');
     eqRenderTabelaMembros(lista);
@@ -3321,8 +3329,8 @@ async function init() {
         if (!res.ok) { window.location.href = '/'; return; }
         const me = await res.json();
         window.ME = me;
+        if (me.perfil === 'funcionario' && me.cargo === 'n2') { window.location.href = '/n2'; return; }
         if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
-        if (me.perfil === 'n2') { window.location.href = '/n2'; return; }
         document.getElementById('sidebar-nome').textContent = me.nome;
         document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'admin') {
@@ -7371,7 +7379,7 @@ async function adminCarregarUsuarios() {
 function adminFiltrarUsuariosFrente() {
     const frente = document.getElementById('admin-filtro-frente').value;
     let lista = adminUsuariosCache;
-    if (frente === 'n2') lista = lista.filter(u => u.perfil === 'n2');
+    if (frente === 'n2') lista = lista.filter(u => u.cargo === 'n2');
     else if (frente === 'analista') lista = lista.filter(u => u.cargo === 'analista');
     else if (frente === 'backoffice') lista = lista.filter(u => u.cargo === 'backoffice');
     adminRenderTabelaUsuarios(lista);
@@ -7594,6 +7602,11 @@ async function limparTodasTarefas() {
     adminCarregarTarefas();
 }
 
+function adminAtualizarCargo() {
+    const ehFuncionario = document.getElementById('u-perfil').value === 'funcionario';
+    document.getElementById('wrap-cargo-admin').classList.toggle('hidden', !ehFuncionario);
+}
+
 function adminOpenModalUser() {
     document.getElementById('modal-user-title').textContent = 'Novo Usuário';
     document.getElementById('edit-uid').value = '';
@@ -7607,6 +7620,8 @@ function adminOpenModalUser() {
     document.getElementById('wrap-ativo').classList.add('hidden');
     document.getElementById('wrap-email').classList.remove('hidden');
     document.getElementById('u-usuario').disabled = false;
+    document.getElementById('u-cargo').value = 'analista';
+    adminAtualizarCargo();
     document.getElementById('modal-user').classList.remove('hidden');
 }
 
@@ -7621,6 +7636,8 @@ function adminEditarUsuario(id) {
     document.getElementById('u-senha').value = '';
     document.getElementById('u-email').value = u.email || '';
     document.getElementById('u-perfil').value = u.perfil;
+    document.getElementById('u-cargo').value = u.cargo || 'analista';
+    adminAtualizarCargo();
     document.getElementById('u-time').value = u.time || 'Projetos';
     document.getElementById('u-ativo').checked = u.ativo;
     document.getElementById('senha-hint').textContent = '(deixe em branco para não alterar)';
@@ -7642,6 +7659,7 @@ async function adminSalvarUsuario() {
     const senha = document.getElementById('u-senha').value;
     const email = document.getElementById('u-email').value.trim();
     const perfil = document.getElementById('u-perfil').value;
+    const cargo = perfil === 'funcionario' ? document.getElementById('u-cargo').value : '';
     const ativo = document.getElementById('u-ativo').checked;
     const time = document.getElementById('u-time').value;
 
@@ -7657,13 +7675,13 @@ async function adminSalvarUsuario() {
             res = await fetch(`/api/usuarios/${uid}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nome, perfil, senha, ativo, email, time })
+                body: JSON.stringify({ nome, perfil, senha, ativo, email, time, cargo })
             });
         } else {
             res = await fetch('/api/usuarios', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ usuario, senha, nome, perfil, email, time })
+                body: JSON.stringify({ usuario, senha, nome, perfil, email, time, cargo })
             });
         }
         const data = await res.json();
@@ -9038,7 +9056,7 @@ function pn2ModalidadePorHorario(horario) {
 // (rotação simples, balanceando carga entre clientes diferentes também).
 function pn2GerarDistribuicao() {
     const msg = document.getElementById('pn2-ge-msg');
-    const n2sAtivos = pn2Usuarios.filter(u => u.perfil === 'n2');
+    const n2sAtivos = pn2Usuarios.filter(u => u.cargo === 'n2');
     if (!n2sAtivos.length) { msg.textContent = 'Nenhum N2 cadastrado ainda.'; return; }
     const blocosValidos = pn2GeBlocos.filter(b => b.cliente_id && b.quantidade > 0);
     if (!blocosValidos.length) { msg.textContent = 'Adicione pelo menos um cliente com quantidade de atividades.'; return; }
