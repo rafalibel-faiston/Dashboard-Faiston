@@ -2464,6 +2464,21 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             params
         )
         horas_por_cliente = [{"cliente": r[0], "horas": round(r[1]/3600, 1)} for r in cur.fetchall()]
+        # Peso por cliente — mesmo filtro, quebrado por (cliente, peso). Não
+        # vira gráfico à parte; alimenta o drill-down ao clicar na barra do
+        # cliente (visão geral primeiro, pedida em 2026-07-28 pra reduzir a
+        # poluição visual de uma rosca por funcionário sempre visível).
+        cur.execute(
+            f"SELECT t.cliente, COALESCE(t.peso,0), COALESCE(SUM(t.segundos),0), COUNT(t.id) "
+            f"FROM tarefas t {joins} {filtro} GROUP BY t.cliente, t.peso",
+            params
+        )
+        peso_por_cliente = {}
+        for cliente, peso, seg, qtd in cur.fetchall():
+            peso_por_cliente.setdefault(cliente, []).append(
+                {"peso": peso, "horas": round(seg/3600, 1), "tarefas": qtd})
+        for item in horas_por_cliente:
+            item["por_peso"] = sorted(peso_por_cliente.get(item["cliente"], []), key=lambda p: p["peso"])
 
         # Status da fila (para donut)
         cur.execute(f"SELECT t.status, COUNT(*) FROM tarefas t {joins} {filtro} GROUP BY t.status", params)
@@ -2586,36 +2601,54 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/tarefas-por-peso")
-def tarefas_por_peso(usuario_id: int, peso: int, data_inicio: str = "", data_fim: str = "",
-                      faiston_token: str = Cookie(None)):
-    """Drill-down do gráfico de rosca (horas por funcionário, quebrado por
-    peso): lista as tarefas daquele funcionário com aquele peso, no mesmo
-    período filtrado no Dashboard. Mesma regra de escopo do /api/metricas --
-    admin/diretor veem qualquer um, o resto só quem é do mesmo time."""
+def tarefas_por_peso(usuario_id: Optional[int] = None, peso: Optional[int] = None, cliente: str = "",
+                      data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
+    """Drill-down dos gráficos do Dashboard que envolvem peso: lista as
+    tarefas no mesmo período filtrado, escopadas por funcionário+peso (rosca
+    "Horas por Funcionário") ou só por cliente (barra "Esforço por Cliente" --
+    aí sem filtrar peso, cada tarefa mostra o próprio peso na lista, decisão
+    de 2026-07-28 de mostrar a visão geral primeiro). Mesma regra de escopo
+    do /api/metricas -- admin/diretor veem qualquer um, resto só quem é do
+    mesmo time."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not usuario_id and not cliente:
+        raise HTTPException(status_code=400, detail="Informe usuario_id ou cliente")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        if sess["perfil"] not in ("admin", "diretor"):
-            cur.execute("SELECT COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (usuario_id,))
-            row = cur.fetchone()
-            if not row or row[0] != sess.get("time", "Projetos"):
-                raise HTTPException(status_code=403, detail="Sem acesso a esse funcionário")
-        cond = ["t.usuario_id = %s", "COALESCE(t.peso,0) = %s"]
-        qparams = [usuario_id, peso]
+        cond, qparams = [], []
+        if usuario_id:
+            if sess["perfil"] not in ("admin", "diretor"):
+                cur.execute("SELECT COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (usuario_id,))
+                row = cur.fetchone()
+                if not row or row[0] != sess.get("time", "Projetos"):
+                    raise HTTPException(status_code=403, detail="Sem acesso a esse funcionário")
+            cond.append("t.usuario_id = %s"); qparams.append(usuario_id)
+            if peso is not None:
+                cond.append("COALESCE(t.peso,0) = %s"); qparams.append(peso)
+        else:
+            # Cliente sozinho, sem restrição por usuário -- mesma regra de
+            # time do /api/metricas: quem não é admin/diretor só vê tarefas
+            # de gente do próprio time.
+            cond.append("t.cliente = %s"); qparams.append(cliente)
+            if sess["perfil"] not in ("admin", "diretor"):
+                cond.append("COALESCE(u.time,'Projetos') = %s"); qparams.append(sess.get("time", "Projetos"))
         if data_inicio:
             cond.append("t.criado_em >= %s"); qparams.append(data_inicio + " 00:00:00")
         if data_fim:
             cond.append("t.criado_em <= %s"); qparams.append(data_fim + " 23:59:59")
         cur.execute(f"""
-            SELECT t.id, t.descricao, t.cliente, t.status, t.segundos, t.criado_em, COALESCE(ta.nome, '')
-            FROM tarefas t LEFT JOIN tipos_atividade ta ON ta.id = t.tipo_atividade_id
+            SELECT t.id, t.descricao, t.cliente, t.status, t.segundos, t.criado_em, COALESCE(ta.nome, ''),
+                   COALESCE(t.peso, 0), u.nome
+            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+            LEFT JOIN tipos_atividade ta ON ta.id = t.tipo_atividade_id
             WHERE {' AND '.join(cond)} ORDER BY t.criado_em DESC
         """, tuple(qparams))
         out = [{"id": r[0], "descricao": r[1], "cliente": r[2], "status": r[3],
-                "horas": round(r[4]/3600, 1), "criado_em": str(r[5])[:16], "tipo": r[6]} for r in cur.fetchall()]
+                "horas": round(r[4]/3600, 1), "criado_em": str(r[5])[:16], "tipo": r[6],
+                "peso": r[7], "funcionario": r[8]} for r in cur.fetchall()]
         cur.close(); conn.close()
         return out
     except HTTPException: raise
