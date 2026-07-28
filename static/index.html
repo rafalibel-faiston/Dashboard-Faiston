@@ -440,24 +440,22 @@
 
     <!-- GRÁFICOS ROW 2 -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        <!-- Horas por Funcionário, por Peso: secundário, só com um funcionário
-             filtrado (filtro-funcionario no topo) -- decisão de 2026-07-28
-             pra não poluir a tela com uma rosca por pessoa sempre visível. -->
+        <!-- Aderência a Prazo por Funcionário: o KPI do topo dá o número
+             global; aqui mostra de quem é o atraso. Substituiu o antigo
+             "Horas por Funcionário, por Peso" -- as visões Funcionário do
+             gráfico de Esforço e o drill-down já cobrem aquilo. -->
         <div class="chart-card bg-white border border-faiston-border lg:col-span-2 rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
-            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
                 <div>
-                    <h3 class="text-sm font-bold text-faiston-dark">Horas por Funcionário, por Peso</h3>
-                    <p class="text-[11px] text-slate-400 mt-0.5" id="grid-horas-peso-legenda">Selecione um funcionário no filtro do topo pra ver o detalhe por peso</p>
+                    <h3 class="text-sm font-bold text-faiston-dark">Aderência a Prazo por Funcionário</h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Tarefas concluídas com previsão informada — clique numa barra pra ver as tarefas</p>
                 </div>
-                <div id="grid-horas-peso-cores" class="hidden flex gap-2 text-[10px] flex-wrap">
-                    <span class="flex items-center gap-1 font-semibold" style="color:#A78BFA"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#A78BFA"></span>Peso 1</span>
-                    <span class="flex items-center gap-1 font-semibold" style="color:#8B5CF6"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#8B5CF6"></span>Peso 2</span>
-                    <span class="flex items-center gap-1 font-semibold" style="color:#6D28D9"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#6D28D9"></span>Peso 3</span>
-                    <span class="flex items-center gap-1 font-semibold" style="color:#4C1D95"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:#4C1D95"></span>Peso 4</span>
+                <div class="flex gap-3 text-[10px] flex-wrap items-center">
+                    <span class="flex items-center gap-1 font-semibold text-slate-500"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#0891B2"></span>Dentro do prazo</span>
+                    <span class="flex items-center gap-1 font-semibold text-slate-500"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#D97706"></span>Fora do prazo</span>
                 </div>
             </div>
-            <div id="grid-horas-peso" class="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto custom-scrollbar" style="max-height:320px;"></div>
-            <div id="chart-producao-obs" class="flex flex-col gap-1 mt-2"></div>
+            <div id="chart-aderencia" class="flex-1" style="min-height:260px;"></div>
         </div>
         <!-- Funil -->
         <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
@@ -4069,6 +4067,59 @@ function renderEsforco() {
     charts['barras'].render();
 }
 
+// ── ADERÊNCIA A PRAZO POR FUNCIONÁRIO ──────────────────────────────
+// Dentro/fora é status (bom/ruim), não identidade -- par azul/âmbar em vez
+// de verde/vermelho, que é indistinguível na daltonia mais comum. Legenda
+// sempre visível: a cor nunca é a única pista.
+function renderAderencia(data) {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tt = dark ? ttDark : ttLight;
+    const grid = dark ? gridDark : gridLight;
+    const axisC = dark ? '#6A718A' : '#94A3B8';
+
+    const linhas = (data.horas_por_func || [])
+        .map(f => ({ nome: f.nome, id: f.id, dentro: f.prazo_dentro || 0, fora: f.prazo_fora || 0 }))
+        .filter(f => (f.dentro + f.fora) > 0)
+        .sort((a, b) => (b.dentro + b.fora) - (a.dentro + a.fora))
+        .slice(0, 10);
+
+    destroyChart('aderencia');
+    const el = document.querySelector("#chart-aderencia");
+    if (!linhas.length) {
+        el.innerHTML = '<div class="h-full flex items-center justify-center text-center text-[11px] text-slate-400 px-6">Nenhuma tarefa concluída com previsão informada no período.<br>A aderência começa a aparecer conforme as tarefas novas forem sendo fechadas.</div>';
+        return;
+    }
+    el.innerHTML = '';
+    charts['aderencia'] = new ApexCharts(el, {
+        series: [
+            { name: 'Dentro do prazo', data: linhas.map(f => f.dentro) },
+            { name: 'Fora do prazo',   data: linhas.map(f => f.fora) },
+        ],
+        chart: { ...chartDefaults, type: 'bar', height: 260, stacked: true,
+            events: { dataPointSelection: (e, ctx, config) => {
+                const item = linhas[config.dataPointIndex];
+                if (item) _abrirDrillDown(item.nome, new URLSearchParams({ usuario_id: item.id }));
+            }}
+        },
+        plotOptions: { bar: { horizontal: true, borderRadius: 4, borderRadiusApplication: 'end', barHeight: '58%' } },
+        colors: ['#0891B2', '#D97706'],
+        stroke: { width: 2, colors: ['transparent'] },
+        dataLabels: { enabled: false },
+        legend: { show: false },
+        xaxis: { categories: linhas.map(f => f.nome),
+            labels: { style: { fontSize: '10px', colors: axisC }, formatter: v => Math.round(v) } },
+        yaxis: { labels: { style: { colors: axisC, fontSize: '11px' } } },
+        grid: { ...grid, xaxis: { lines: { show: true } }, yaxis: { lines: { show: false } } },
+        tooltip: { ...tt, shared: true, intersect: false,
+            y: { formatter: (v, opt) => {
+                const i = opt.dataPointIndex;
+                const t = linhas[i].dentro + linhas[i].fora;
+                return `${v} de ${t} (${t ? Math.round(v / t * 100) : 0}%)`;
+            }} }
+    });
+    charts['aderencia'].render();
+}
+
 function destroyChart(id) {
     if (charts[id]) { charts[id].destroy(); delete charts[id]; }
 }
@@ -4136,63 +4187,12 @@ function renderCharts(data) {
     const trackC = dark ? 'rgba(255,255,255,0.06)' : '#F1F5F9';
     const strokeC = dark ? '#11111E' : '#FFFFFF';
 
-    // 1. Horas por Funcionário, por Peso (uma rosca por pessoa; N2 entra
-    // igual a funcionário/backoffice/analista -- decisão de 2026-07-28).
-    // Secundário: só renderiza com um funcionário filtrado no topo, pra não
-    // poluir a tela com uma rosca por pessoa sempre visível (Esforço por
-    // Cliente virou a visão geral/primeira, ver "3." abaixo).
-    Object.keys(charts).filter(k => k.startsWith('producao-')).forEach(k => { charts[k].destroy(); delete charts[k]; });
-    const hpf = data.horas_por_func;
+    // 1. Esforço/Horas por Cliente e Funcionário (4 visões) + Aderência a
+    // prazo por pessoa. Substituíram as roscas por peso: as visões
+    // "Funcionário" e o drill-down ao clicar na barra cobrem o mesmo dado.
     _hpfPeriodo.data_inicio = document.getElementById('data-inicio')?.value || '';
     _hpfPeriodo.data_fim = document.getElementById('data-fim')?.value || '';
-    const gridEl = document.getElementById('grid-horas-peso');
-    const funcSelecionado = document.getElementById('filtro-funcionario')?.value || '';
-    document.getElementById('grid-horas-peso-cores').classList.toggle('hidden', !funcSelecionado);
-    if (!funcSelecionado) {
-        document.getElementById('grid-horas-peso-legenda').textContent = 'Selecione um funcionário no filtro do topo pra ver o detalhe por peso';
-        gridEl.innerHTML = '';
-        document.getElementById('chart-producao-obs').innerHTML = '';
-    } else {
-        document.getElementById('grid-horas-peso-legenda').textContent = 'Horas apontadas no período, divididas pelo peso (complexidade) da tarefa -- clique num peso pra ver as tarefas';
-        gridEl.innerHTML = hpf.map(f => `
-            <div class="border border-faiston-border rounded-xl p-2 flex flex-col items-center">
-                <div id="donut-func-${f.id}" style="width:100%;max-width:150px;"></div>
-                <p class="text-xs font-semibold text-faiston-dark mt-1 truncate w-full text-center" title="${f.nome}">${f.nome.split(' ')[0]}</p>
-            </div>`).join('');
-        hpf.forEach(f => {
-            const pesos = (f.por_peso || []).filter(p => p.horas > 0);
-            const donutEl = document.getElementById(`donut-func-${f.id}`);
-            if (!donutEl) return;
-            if (!pesos.length) { donutEl.innerHTML = '<p class="text-[10px] text-slate-300 text-center py-10">Sem horas</p>'; return; }
-            const chart = new ApexCharts(donutEl, {
-                series: pesos.map(p => p.horas),
-                labels: pesos.map(p => p.peso ? `Peso ${p.peso}` : 'Sem peso'),
-                chart: { type: 'donut', height: 150, background: 'transparent', fontFamily: 'Inter, sans-serif',
-                    events: { dataPointSelection: (e, ctx, config) => {
-                        abrirDrillDownPeso(f.id, f.nome, pesos[config.dataPointIndex].peso);
-                    } }
-                },
-                colors: pesos.map(p => PESO_CORES[p.peso] || '#94A3B8'),
-                dataLabels: { enabled: false },
-                legend: { show: false },
-                stroke: { width: 2, colors: [strokeC] },
-                plotOptions: { pie: { donut: { size: '68%', labels: {
-                    show: true,
-                    total: { show: true, showAlways: true, label: 'Total', fontSize: '10px', color: dlC,
-                             formatter: () => `${f.horas}h` },
-                    value: { fontSize: '13px', fontWeight: 700, color: valC, formatter: (v) => `${v}h` }
-                } } } },
-                tooltip: { ...tt, y: { formatter: (v) => `${v}h` } }
-            });
-            chart.render();
-            charts[`producao-${f.id}`] = chart;
-        });
-        const obsBox = document.getElementById('chart-producao-obs');
-        const comObs = hpf.filter(f => f.obs);
-        obsBox.innerHTML = comObs.length ? comObs.map(f =>
-            `<div class="text-[11px] text-amber-600 flex items-start gap-1"><i class="ph ph-warning-circle mt-0.5"></i><span><strong>${f.nome.split(' ')[0]}:</strong> ${f.obs}</span></div>`
-        ).join('') : '';
-    }
+    Object.keys(charts).filter(k => k.startsWith('producao-')).forEach(k => { charts[k].destroy(); delete charts[k]; });
 
     // 2. Donut status
     destroyChart('status');

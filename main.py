@@ -2552,6 +2552,22 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         for uid, peso, seg, qtd in cur.fetchall():
             peso_por_func.setdefault(uid, []).append(
                 {"peso": peso, "horas": round(seg/3600, 1), "tarefas": qtd})
+
+        # Aderência a prazo por pessoa -- mesmo escopo/filtro da lista de
+        # funcionários. Só entra quem tem prazo_status carimbado ('sem_prazo',
+        # de tarefa anterior à etapa 2, fica fora do denominador).
+        fw_conc = f"{func_filtro} AND t.status='concluido'" if func_filtro else "WHERE t.status='concluido'"
+        cur.execute(
+            f"SELECT t.usuario_id, COALESCE(t.prazo_status,''), COUNT(*) "
+            f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
+            f"{fw_conc} GROUP BY t.usuario_id, t.prazo_status",
+            func_params
+        )
+        prazo_por_func = {}
+        for uid, pstatus, qtd in cur.fetchall():
+            d = prazo_por_func.setdefault(uid, {"dentro": 0, "fora": 0})
+            if pstatus in d:
+                d[pstatus] += qtd
         # Dias trabalhados = dias do período filtrado menos os dias de
         # férias/afastamento/recorrência daquele funcionário -- produtividade
         # (horas/tarefas por dia) fica mais justa, e uma obs avisa quando a
@@ -2565,8 +2581,10 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
                 dias_periodo = None
         horas_por_func = []
         for uid, nome, segundos, qtd_tarefas, area in horas_por_func_rows:
+            pf = prazo_por_func.get(uid, {"dentro": 0, "fora": 0})
             item = {"id": uid, "nome": nome, "horas": round(segundos/3600, 1), "tarefas": qtd_tarefas, "time": area,
-                     "por_peso": sorted(peso_por_func.get(uid, []), key=lambda p: p["peso"])}
+                     "por_peso": sorted(peso_por_func.get(uid, []), key=lambda p: p["peso"]),
+                     "prazo_dentro": pf["dentro"], "prazo_fora": pf["fora"]}
             if dias_periodo:
                 dias_bloq, notas = _dias_bloqueados_periodo(cur, uid, data_inicio, data_fim)
                 dias_trabalhados = max(1, dias_periodo - dias_bloq)
