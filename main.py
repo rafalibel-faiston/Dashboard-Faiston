@@ -2604,6 +2604,19 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         taxa_conclusao = [{"cliente": r[0], "total": r[1], "concluidas": r[2],
             "taxa": round(r[2]/r[1]*100) if r[1] > 0 else 0} for r in taxa_rows]
 
+        # Esforço por tipo de atividade -- substitui o funil, cujas etapas eram
+        # derivadas por aritmética dos status (uma etapa podia ficar maior que a
+        # anterior, o que não existe em funil).
+        cur.execute(
+            f"SELECT COALESCE(ta.nome,'Sem tipo'), COUNT(*), COALESCE(SUM(t.segundos),0), "
+            f"COALESCE(SUM(COALESCE(t.peso,0)),0) "
+            f"FROM tarefas t {joins} LEFT JOIN tipos_atividade ta ON ta.id = t.tipo_atividade_id "
+            f"{filtro} GROUP BY 1 ORDER BY 4 DESC",
+            params
+        )
+        por_tipo = [{"tipo": r[0], "tarefas": r[1], "horas": round(r[2]/3600, 1), "pontos": r[3]}
+                    for r in cur.fetchall()]
+
         # Etapa 4 da medição: aderência a prazo e natureza da demanda.
         # 'sem_prazo' (tarefa anterior à etapa 2) fica fora do denominador --
         # senão a aderência despenca por falta de dado, não por atraso.
@@ -2638,6 +2651,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             "status_fila": status_fila,
             "volume_semana": volume_semana,
             "funil": funil,
+            "por_tipo": por_tipo,
             "recentes": recentes,
             "horas_por_func": horas_por_func,
             "taxa_conclusao": taxa_conclusao,
