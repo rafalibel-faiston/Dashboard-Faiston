@@ -156,14 +156,14 @@
 <body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
 
 <!-- HEADER -->
-<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+<header class="bg-white border-b border-faiston-border px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sticky top-0 z-20">
     <div class="flex items-center gap-3" data-embed-hide>
         <img src="/faiston-ops-mark.svg" alt="" class="w-9 h-9 rounded-[10px] shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
         <span class="font-extrabold tracking-tight text-faiston-dark text-[15px]">FAISTON <span class="grad-text">OPS</span></span>
         <span class="w-px h-4 bg-slate-200 mx-1"></span>
         <span class="text-sm text-slate-500 font-medium">Minhas Tarefas</span>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
         <!-- Timer global -->
         <div id="global-timer" class="hidden items-center gap-2 bg-white border border-faiston-purple/30 rounded-lg px-3 py-1.5 shadow-[0_0_0_4px_rgba(91,46,224,0.06)]">
             <div class="w-2 h-2 rounded-full bg-faiston-purple pulse-dot"></div>
@@ -259,7 +259,7 @@
     <div id="view-kanban-func">
 
     <!-- KPIs -->
-    <div class="grid grid-cols-4 gap-4 mb-5">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <div class="bg-white rounded-2xl p-4 border border-faiston-border flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
                 <i class="ph ph-clipboard-text text-lg text-faiston-muted"></i>
@@ -299,7 +299,7 @@
     </div>
 
     <!-- KANBAN -->
-    <div class="grid grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 
         <!-- COLUNA: ABERTO -->
         <div class="flex flex-col">
@@ -694,7 +694,7 @@
 </div>
 
 <!-- NOTAS WIDGET -->
-<div id="notas-widget" style="position:fixed;bottom:24px;right:24px;z-index:40;width:360px">
+<div id="notas-widget" style="position:fixed;bottom:16px;right:16px;left:16px;z-index:40;width:360px;max-width:calc(100vw - 32px);margin-left:auto">
     <div id="notas-collapsed" onclick="toggleNotas()"
         class="cursor-pointer flex items-center gap-3 bg-white border border-faiston-border rounded-2xl px-4 py-3 transition-all"
         style="box-shadow:0 4px 24px rgba(74,0,224,0.12)">

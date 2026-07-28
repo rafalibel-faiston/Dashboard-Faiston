@@ -1600,6 +1600,41 @@ def deletar_bloqueio(bid: int, faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/bloqueios-ativos-hoje")
+def bloqueios_ativos_hoje(faiston_token: str = Cookie(None)):
+    """Mapa usuario_id -> bloqueio ativo agora (férias/afastamento vigente ou
+    recorrência que cai no dia da semana de hoje) -- alimenta o badge nas
+    listas de Bloqueios de Agenda (Minha Equipe / Gerenciar Usuários), pra
+    o gestor ver quem está bloqueado sem precisar abrir pessoa por pessoa."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        hoje = date.today()
+        cur.execute("""
+            SELECT usuario_id, tipo, data_fim, dia_semana, hora_inicio, hora_fim, descricao
+            FROM funcionario_bloqueios
+            WHERE (tipo IN ('ferias','afastamento') AND data_inicio <= %s AND data_fim >= %s)
+               OR (tipo = 'recorrente' AND dia_semana = %s)
+        """, (hoje, hoje, hoje.weekday()))
+        out = {}
+        for uid, tipo, data_fim, dia_semana, hi, hf, descricao in cur.fetchall():
+            atual = out.get(uid)
+            if atual and atual["tipo"] in ("ferias", "afastamento"):
+                continue  # férias/afastamento tem prioridade sobre recorrência no badge
+            out[str(uid)] = {
+                "tipo": tipo,
+                "descricao": descricao or "",
+                "data_fim": data_fim.isoformat() if data_fim else None,
+                "hora_inicio": hi.strftime("%H:%M") if hi else None,
+                "hora_fim": hf.strftime("%H:%M") if hf else None,
+            }
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 # --- CATÁLOGO DE PESOS ---
 class NovoTipoAtividade(BaseModel):
     frente_id: int
@@ -5767,7 +5802,7 @@ def _pode_gerenciar_status_campo(sess, conn, aid):
     """admin/gestor/demo podem tudo; n2 só nos despachos onde é o responsável."""
     if sess["perfil"] in ("admin", "gestor", "demo"):
         return True
-    if sess["perfil"] == "n2":
+    if _eh_n2(sess):
         cur = conn.cursor()
         cur.execute("SELECT n2_usuario_id FROM status_atividades WHERE id=%s", (aid,))
         row = cur.fetchone()
@@ -6324,15 +6359,17 @@ def deletar_status_campo(aid: int, faiston_token: str = Cookie(None)):
 
 @app.get("/api/status-campo/usuarios/n2")
 def listar_usuarios_n2(faiston_token: str = Cookie(None)):
-    """Dropdown de N2 responsável -- qualquer usuário ativo (não só perfil
-    n2), já que admin/gestor às vezes também atuam como N2 em campo."""
+    """Dropdown de N2 responsável -- restrito a cargo='n2' (2026-07-28, a
+    pedido do usuário). Antes listava qualquer usuário ativo (a ideia era
+    permitir admin/gestor atuando como N2 em campo também), mas na prática
+    isso deixava a lista poluída com quem não é N2 de verdade."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, perfil FROM usuarios WHERE ativo=TRUE ORDER BY nome")
+        cur.execute("SELECT id, nome, perfil FROM usuarios WHERE ativo=TRUE AND perfil='funcionario' AND cargo='n2' ORDER BY nome")
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "nome": r[1], "perfil": r[2]} for r in rows]
@@ -6635,6 +6672,114 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
             "puladas_sem_cliente": [{"nome": k, "ocorrencias": v}
                                      for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
             "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
+        }
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao importar planilha: {str(e)}")
+
+# ── Importação da mesma planilha, agora pra Escala N2 ────────────────────
+# Reaproveita a detecção de aba/cabeçalho do import de Cronograma (mesmo
+# arquivo, colunas TECNICO/AGENDAMENTO/HORARIO) -- cada linha vira um
+# registro de escala_n2 em vez de uma atividade. Técnico é casado por nome
+# aproximado só contra usuários com cargo='n2' (não cria usuário novo).
+# Modalidade segue a mesma regra já usada na geração automática de escala:
+# fora do horário comercial (antes das 8h / a partir das 18h) = Home.
+@app.post("/api/escala-n2/importar-planilha")
+async def importar_planilha_escala_n2(file: UploadFile = File(...), faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    global _OPENPYXL_OK, openpyxl
+    if not _OPENPYXL_OK:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
+        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        content = await file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+        achado = _sc_find_sheet_and_header(wb)
+        if not achado:
+            raise HTTPException(status_code=400,
+                detail="Nenhuma aba reconhecida (esperado colunas como TECNICO, AGENDAMENTO, HORARIO etc.)")
+        sname, hi, _ = achado
+        rows = list(wb[sname].iter_rows(values_only=True))
+        headers = rows[hi]
+        col = {}
+        for idx, h in enumerate(headers):
+            key = _SC_IMPORT_HEADERS.get(_sc_norm_header(h))
+            if key and key not in col: col[key] = idx
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM usuarios WHERE perfil='funcionario' AND cargo='n2' AND ativo=TRUE")
+        n2_norm = [(_sc_norm_nome(nome), uid) for uid, nome in cur.fetchall()]
+
+        def buscar_n2(tecnico_raw):
+            nn = _sc_norm_nome(tecnico_raw)
+            if not nn: return None
+            for norm_nome, uid in n2_norm:
+                if norm_nome and (nn == norm_nome or nn in norm_nome or norm_nome in nn):
+                    return uid
+            return None
+
+        def get(r, field):
+            idx = col.get(field)
+            v = r[idx] if idx is not None and idx < len(r) else None
+            return v
+
+        hoje = date.today()
+        importadas = 0
+        puladas_data_passada = 0
+        puladas_sem_data = 0
+        puladas_sem_tecnico = {}
+        puladas_duplicada = 0
+        puladas_erro = 0
+        for r in rows[hi + 1:]:
+            tecnico_raw = str(get(r, 'tecnico') or '').strip()
+            if not tecnico_raw:
+                continue
+            data_raw = get(r, 'data')
+            if isinstance(data_raw, datetime): data_val = data_raw.date()
+            elif isinstance(data_raw, date): data_val = data_raw
+            else: data_val = None
+            if not data_val:
+                puladas_sem_data += 1
+                continue
+            if data_val < hoje:
+                puladas_data_passada += 1
+                continue
+            uid = buscar_n2(tecnico_raw)
+            if not uid:
+                puladas_sem_tecnico[tecnico_raw] = puladas_sem_tecnico.get(tecnico_raw, 0) + 1
+                continue
+            horario_raw = get(r, 'horario_agendado')
+            horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
+            hora_num = int(horario_val[:2]) if horario_val else None
+            modalidade = 'home' if (hora_num is not None and (hora_num < 8 or hora_num >= 18)) else 'presencial'
+            atribuicao = str(get(r, 'cliente') or get(r, 'projeto') or '').strip()[:200]
+            cur.execute("SAVEPOINT linha_escala_import")
+            try:
+                cur.execute("SELECT 1 FROM escala_n2 WHERE data=%s AND n2_usuario_id=%s", (data_val.isoformat(), uid))
+                if cur.fetchone():
+                    cur.execute("RELEASE SAVEPOINT linha_escala_import")
+                    puladas_duplicada += 1
+                    continue
+                cur.execute("""
+                    INSERT INTO escala_n2 (data, n2_usuario_id, horario_entrada, modalidade, atribuicao)
+                    VALUES (%s,%s,%s,%s,%s)
+                """, (data_val.isoformat(), uid, horario_val, modalidade, atribuicao))
+                cur.execute("RELEASE SAVEPOINT linha_escala_import")
+                importadas += 1
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT linha_escala_import")
+                puladas_erro += 1
+        conn.commit(); cur.close(); conn.close()
+        return {
+            "sucesso": True, "importadas": importadas, "aba_usada": sname,
+            "puladas_erro": puladas_erro, "puladas_duplicada": puladas_duplicada,
+            "puladas_data_passada": puladas_data_passada, "puladas_sem_data": puladas_sem_data,
+            "puladas_sem_tecnico": [{"nome": k, "ocorrencias": v}
+                                     for k, v in sorted(puladas_sem_tecnico.items(), key=lambda x: -x[1])],
         }
     except HTTPException: raise
     except Exception as e:

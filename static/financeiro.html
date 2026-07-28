@@ -71,14 +71,27 @@
         .fade-in { animation: fadeIn 250ms ease both; }
     </style>
 </head>
-<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden">
+<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden pt-14 lg:pt-0">
+
+<!-- Barra mobile: hamburguer + logo, só abaixo do breakpoint lg (sidebar vira off-canvas) -->
+<div class="lg:hidden fixed top-0 inset-x-0 z-30 h-14 bg-white border-b border-faiston-border flex items-center gap-3 px-4">
+    <button onclick="toggleSidebarMobile()" id="btn-sidebar-toggle" class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-100 -ml-1" aria-label="Abrir menu">
+        <i class="ph ph-list text-xl text-faiston-dark"></i>
+    </button>
+    <img src="/faiston-ops-mark.svg" alt="" class="w-7 h-7 rounded-[8px]">
+    <h1 class="text-sm font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
+</div>
+<div id="sidebar-overlay" onclick="toggleSidebarMobile(false)" class="hidden lg:hidden fixed inset-0 bg-black/40 z-30"></div>
 
 <!-- SIDEBAR -->
-<aside class="w-52 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar flex-shrink-0">
+<aside id="app-sidebar" class="w-52 bg-white border-r border-faiston-border flex flex-col justify-between z-40 custom-shadow overflow-y-auto custom-scrollbar fixed inset-y-0 left-0 -translate-x-full transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-auto lg:flex-shrink-0">
     <div>
         <div class="flex items-center gap-2.5 p-5 border-b border-faiston-border mb-4">
             <img src="/faiston-ops-mark.svg" alt="" class="w-8 h-8 rounded-[10px] glow-soft">
-            <h1 class="text-[14px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
+            <h1 class="text-[14px] font-extrabold tracking-tight text-faiston-dark flex-1">FAISTON <span class="grad-text">OPS</span></h1>
+            <button onclick="toggleSidebarMobile(false)" class="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100" aria-label="Fechar menu">
+                <i class="ph ph-x text-faiston-muted"></i>
+            </button>
         </div>
         <div class="px-3">
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
@@ -188,7 +201,7 @@
             <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full text-white flex-shrink-0" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">Beta</span>
         </div>
         <!-- KPIs -->
-        <div class="grid grid-cols-4 gap-4 mb-6" id="kpis">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="kpis">
             <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
                 <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Projetos Ativos</p>
                 <p class="text-3xl font-black text-faiston-dark" id="kpi-projetos">—</p>
@@ -531,6 +544,17 @@
 </div>
 
 <script>
+function toggleSidebarMobile(forcarAberto) {
+    const aside = document.getElementById('app-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const abrir = typeof forcarAberto === 'boolean' ? forcarAberto : aside.classList.contains('-translate-x-full');
+    aside.classList.toggle('-translate-x-full', !abrir);
+    overlay.classList.toggle('hidden', !abrir);
+}
+document.getElementById('app-sidebar').addEventListener('click', (e) => {
+    if (e.target.closest('a') && window.innerWidth < 1024) toggleSidebarMobile(false);
+});
+
 let projetosAberto = true;
 function toggleProjetos() {
     projetosAberto = !projetosAberto;

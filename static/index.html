@@ -51,14 +51,28 @@
         .dev-card.atrasada { border-color: #EC4899 !important; }
     </style>
 </head>
-<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden selection:bg-faiston-cyan selection:text-faiston-dark">
+<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden selection:bg-faiston-cyan selection:text-faiston-dark pt-14 lg:pt-0">
+
+<!-- Barra mobile: hamburguer + logo, só abaixo do breakpoint lg (sidebar vira off-canvas) -->
+<div class="lg:hidden fixed top-0 inset-x-0 z-30 h-14 bg-white border-b border-faiston-border flex items-center gap-3 px-4">
+    <button onclick="toggleSidebarMobile()" id="btn-sidebar-toggle" class="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-100 -ml-1" aria-label="Abrir menu">
+        <i class="ph ph-list text-xl text-faiston-dark"></i>
+    </button>
+    <img src="/faiston-ops-mark.svg" alt="" class="w-7 h-7 rounded-[8px]">
+    <h1 class="text-sm font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
+</div>
+<!-- Overlay atrás do sidebar aberto no mobile -->
+<div id="sidebar-overlay" onclick="toggleSidebarMobile(false)" class="hidden lg:hidden fixed inset-0 bg-black/40 z-30"></div>
 
 <!-- SIDEBAR -->
-<aside class="w-64 bg-white border-r border-faiston-border flex flex-col justify-between z-10 custom-shadow overflow-y-auto custom-scrollbar">
+<aside id="app-sidebar" class="w-64 bg-white border-r border-faiston-border flex flex-col justify-between z-40 custom-shadow overflow-y-auto custom-scrollbar fixed inset-y-0 left-0 -translate-x-full transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-auto">
     <div>
         <div class="flex items-center gap-2.5 p-6 border-b border-faiston-border mb-4">
             <img src="/faiston-ops-mark.svg" alt="" class="w-9 h-9 rounded-[10px] glow-soft">
-            <h1 class="text-[15px] font-extrabold tracking-tight text-faiston-dark">FAISTON <span class="grad-text">OPS</span></h1>
+            <h1 class="text-[15px] font-extrabold tracking-tight text-faiston-dark flex-1">FAISTON <span class="grad-text">OPS</span></h1>
+            <button onclick="toggleSidebarMobile(false)" class="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100" aria-label="Fechar menu">
+                <i class="ph ph-x text-faiston-muted"></i>
+            </button>
         </div>
         <div class="px-4">
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
@@ -208,7 +222,7 @@
             <button id="demo-btn-funcionario" onclick="demoSwitchView('funcionario')" class="px-4 py-1.5 rounded-lg text-sm font-bold border-2 border-faiston-purple text-faiston-purple bg-white transition-all">Funcionário</button>
         </div>
     </div>
-    <header class="flex justify-between items-start mb-8">
+    <header class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-8">
         <div>
             <div class="flex items-center gap-2 mb-1">
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-[0.08em] text-faiston-purple" style="background:rgba(91,46,224,0.08);border:1px solid rgba(91,46,224,0.15)">● Operação Ativa</span>
@@ -217,18 +231,18 @@
             <h2 class="text-2xl font-bold text-faiston-dark tracking-tight" id="header-titulo">Visão Geral</h2>
             <p class="text-xs text-faiston-muted mt-0.5" id="header-date"></p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2 lg:gap-3">
             <!-- Filtro de período -->
             <div class="flex items-center gap-2 bg-white border border-faiston-border rounded-lg px-3 py-1.5">
                 <i class="ph ph-calendar text-slate-400 text-sm"></i>
-                <input type="date" id="data-inicio" onchange="carregarDados(clienteAtivo)" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer">
+                <input type="date" id="data-inicio" onchange="carregarDados(clienteAtivo)" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer w-[38vw] sm:w-auto">
                 <span class="text-slate-300 text-xs">→</span>
-                <input type="date" id="data-fim" onchange="carregarDados(clienteAtivo)" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer">
+                <input type="date" id="data-fim" onchange="carregarDados(clienteAtivo)" class="text-xs text-slate-600 outline-none bg-transparent cursor-pointer w-[38vw] sm:w-auto">
             </div>
             <!-- Busca -->
-            <div class="relative">
+            <div class="relative w-full sm:w-auto">
                 <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-faiston-faint text-sm"></i>
-                <input type="text" id="busca-tarefa" placeholder="Buscar tarefa, cliente, pessoa..." onkeyup="filtrarTabela()" class="pl-9 pr-4 py-2 rounded-lg border border-faiston-border focus:outline-none focus:border-faiston-purple text-xs w-56 transition-all bg-white">
+                <input type="text" id="busca-tarefa" placeholder="Buscar tarefa, cliente, pessoa..." onkeyup="filtrarTabela()" class="pl-9 pr-4 py-2 rounded-lg border border-faiston-border focus:outline-none focus:border-faiston-purple text-xs w-full sm:w-56 transition-all bg-white">
             </div>
             <!-- Filtro funcionário -->
             <select id="filtro-funcionario" onchange="carregarDados(clienteAtivo)" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:border-faiston-purple" title="Filtrar por funcionário">
@@ -560,7 +574,7 @@
                 </button>
             </div>
         </div>
-        <div class="grid grid-cols-3 gap-5">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
 
             <!-- ABERTO -->
             <div class="flex flex-col">
@@ -1218,7 +1232,7 @@
                 <textarea id="fc-f-obs" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple"></textarea>
             </div>
             <!-- Preview calculado -->
-            <div class="grid grid-cols-3 gap-3 rounded-xl bg-slate-50 p-3 border border-faiston-border">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl bg-slate-50 p-3 border border-faiston-border">
                 <div><p class="text-[10px] text-slate-400 uppercase tracking-wide">Impostos</p><p class="text-sm font-bold text-faiston-dark" id="fc-prev-imp">R$ 0,00</p></div>
                 <div><p class="text-[10px] text-slate-400 uppercase tracking-wide">Net Revenue</p><p class="text-sm font-bold text-faiston-purple" id="fc-prev-net">R$ 0,00</p></div>
                 <div><p class="text-[10px] text-slate-400 uppercase tracking-wide">Margem (DM)</p><p class="text-sm font-bold" id="fc-prev-dm">R$ 0,00</p></div>
@@ -1492,7 +1506,7 @@
             <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full text-white flex-shrink-0" style="background:linear-gradient(135deg,#5B2EE0,#B826C9)">Beta</span>
         </div>
         <!-- KPIs globais -->
-        <div class="grid grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-card">
                 <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Clientes c/ Projetos</p>
                 <p class="text-3xl font-black text-faiston-dark" id="kpi-clientes">—</p>
@@ -1585,7 +1599,7 @@
     </div>
 
     <!-- RESUMO -->
-    <div class="grid grid-cols-3 gap-4 mb-5">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
         <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
             <div class="w-9 h-9 rounded-lg bg-faiston-purple/10 flex items-center justify-center text-faiston-purple"><i class="ph ph-list-bullets text-lg"></i></div>
             <div>
@@ -1779,6 +1793,20 @@
         <input type="file" id="sc-importar-arquivo" accept=".xlsx" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2.5 mb-3">
         <button onclick="scConfirmarImportar()" id="sc-importar-btn" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Importar</button>
         <div id="sc-importar-resultado" class="mt-4"></div>
+    </div>
+</div>
+
+<!-- MODAL: importar planilha pra Escala N2 (mesmo arquivo do Cronograma, vira registro de escala em vez de atividade) -->
+<div id="modal-pn2-importar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-1">
+            <h2 class="text-lg font-bold text-faiston-dark">Importar planilha pra Escala</h2>
+            <button onclick="pn2FecharModalImportarEscala()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <p class="text-xs text-faiston-muted mb-4">Mesma planilha do Cronograma — cada linha vira um registro de escala (Técnico → N2, Data, Horário → modalidade Home/Presencial automática fora do horário comercial). Técnico é casado por nome só contra usuários com cargo N2; sem correspondência, fica de fora. <strong>Datas já passadas são ignoradas.</strong></p>
+        <input type="file" id="pn2-importar-arquivo" accept=".xlsx" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2.5 mb-3">
+        <button onclick="pn2ConfirmarImportarEscala()" id="pn2-importar-btn" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Importar</button>
+        <div id="pn2-importar-resultado" class="mt-4"></div>
     </div>
 </div>
 
@@ -2085,6 +2113,9 @@
                 <input type="date" id="pn2-escala-data" onchange="pn2CarregarEscala()" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-faiston-cyan">
             </div>
             <div class="flex items-center gap-2">
+                <button onclick="pn2AbrirModalImportarEscala()" class="flex items-center gap-2 border border-faiston-purple/30 bg-faiston-purple/5 text-faiston-purple px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-faiston-purple/10 transition-colors">
+                    <i class="ph ph-file-arrow-up text-sm"></i> Importar planilha
+                </button>
                 <button onclick="pn2AbrirModalGerarEscala()" class="flex items-center gap-2 border border-faiston-purple/30 bg-faiston-purple/5 text-faiston-purple px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-faiston-purple/10 transition-colors">
                     <i class="ph ph-magic-wand text-sm"></i> Gerar escala do dia
                 </button>
@@ -2218,6 +2249,7 @@
             <p class="text-xs text-faiston-muted mt-0.5">Férias, afastamento médico ou recorrência semanal -- bloqueia de verdade a criação/edição de atividade, escala ou tarefa naquela data/horário.</p>
         </div>
         <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-faiston-border bg-slate-50">
@@ -2228,6 +2260,7 @@
                 </thead>
                 <tbody id="tabela-bloqueios-admin"></tbody>
             </table>
+            </div>
         </div>
     </div>
         <!-- PAINEL PESOS DAS ATIVIDADES -->
@@ -2255,6 +2288,7 @@
             </div>
         </div>
         <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-faiston-border bg-slate-50">
@@ -2269,6 +2303,7 @@
                 </thead>
                 <tbody id="tabela-usuarios"></tbody>
             </table>
+            </div>
         </div>
     </div>
 
@@ -2323,6 +2358,7 @@
             </div>
         </div>
         <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-faiston-border bg-slate-50">
@@ -2336,6 +2372,7 @@
                 </thead>
                 <tbody id="tabela-tarefas"></tbody>
             </table>
+            </div>
         </div>
     </div>
 
@@ -2387,10 +2424,10 @@
         </div>
 
         <!-- KPIs -->
-        <div id="kpis-uso" class="grid grid-cols-4 gap-4 mb-5"></div>
+        <div id="kpis-uso" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5"></div>
 
         <!-- Linha 1: Tarefas por usuário + Atividade 7 dias -->
-        <div class="grid grid-cols-2 gap-5 mb-5">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
             <div class="bg-white rounded-xl border border-faiston-border p-5">
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Tarefas por Funcionário</p>
                 <div style="position:relative;height:240px"><canvas id="chart-tarefas-usuario"></canvas></div>
@@ -2402,7 +2439,7 @@
         </div>
 
         <!-- Linha 2: Horas por usuário + Tipos de ação -->
-        <div class="grid grid-cols-2 gap-5 mb-5">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
             <div class="bg-white rounded-xl border border-faiston-border p-5">
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Horas Trabalhadas por Funcionário</p>
                 <div style="position:relative;height:240px"><canvas id="chart-horas"></canvas></div>
@@ -2417,7 +2454,7 @@
         </div>
 
         <!-- Linha 3: Notas + Carimbos -->
-        <div class="grid grid-cols-2 gap-5 mb-5">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
             <div class="bg-white rounded-xl border border-faiston-border p-5">
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Notas Criadas por Usuário</p>
                 <div style="position:relative;height:200px"><canvas id="chart-notas"></canvas></div>
@@ -2751,6 +2788,19 @@ const gkClientColors = {}, gkFuncColors = {};
 let gkCI = 0, gkFI = 0;
 const cor_cyan='#06D7E6', cor_purple='#5B2EE0', cor_magenta='#EC4899', cor_dark='#0B0D1F';
 
+// Sidebar off-canvas no mobile (abaixo do breakpoint lg) -- desktop nunca
+// chama isso, a sidebar fica sempre estática lá (ver classes lg: no <aside>).
+function toggleSidebarMobile(forcarAberto) {
+    const aside = document.getElementById('app-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const abrir = typeof forcarAberto === 'boolean' ? forcarAberto : aside.classList.contains('-translate-x-full');
+    aside.classList.toggle('-translate-x-full', !abrir);
+    overlay.classList.toggle('hidden', !abrir);
+}
+document.getElementById('app-sidebar').addEventListener('click', (e) => {
+    if (e.target.closest('a') && window.innerWidth < 1024) toggleSidebarMobile(false);
+});
+
 let projetosAberto = true;
 let backofficeAberto = true;
 let n2Aberto = true;
@@ -3001,7 +3051,7 @@ function eqMudarView(view) {
         (view === 'membros' ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
     document.getElementById('eq-view-tab-bloqueios').className = 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ' +
         (view === 'bloqueios' ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
-    if (view === 'bloqueios') eqCarregarTabelaBloqueios();
+    if (view === 'bloqueios') carregarBloqueiosAtivosHoje().then(() => eqCarregarTabelaBloqueios());
 }
 
 function eqCarregarTabelaBloqueios(lista) {
@@ -3011,6 +3061,7 @@ function eqCarregarTabelaBloqueios(lista) {
         tb.innerHTML = '<tr><td colspan="3" class="text-center py-12 text-slate-400 text-sm">Nenhum membro na equipe</td></tr>';
         return;
     }
+    const bloqueios = _bloqueiosAtivosHojeCache || {};
     tb.innerHTML = lista.map(u => {
         const pc = eqPerfilCfg[u.perfil] || eqPerfilCfg.funcionario;
         return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
@@ -3018,6 +3069,7 @@ function eqCarregarTabelaBloqueios(lista) {
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold">${u.nome.charAt(0)}</div>
                     <span class="font-medium text-faiston-dark">${u.nome}</span>
+                    ${bloqueioBadgeHtml(bloqueios[u.id])}
                 </div>
             </td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
@@ -3095,6 +3147,29 @@ let eqBloqUsuarioId = null;
 const EQ_BLOQ_DIA_LABEL = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 const EQ_BLOQ_TIPO_LABEL = { ferias: 'Férias', afastamento: 'Afastamento médico', recorrente: 'Recorrência semanal' };
 
+// Badge "Bloqueado até DD/MM" nas listas de Bloqueios de Agenda (Minha
+// Equipe e Gerenciar Usuários) -- pra o gestor ver quem está bloqueado
+// agora sem precisar abrir pessoa por pessoa. Cache simples de sessão:
+// recarrega a cada troca pra view de bloqueios, não fica obsoleto na aba.
+let _bloqueiosAtivosHojeCache = null;
+async function carregarBloqueiosAtivosHoje() {
+    try {
+        const r = await fetch('/api/bloqueios-ativos-hoje');
+        _bloqueiosAtivosHojeCache = r.ok ? await r.json() : {};
+    } catch (e) { _bloqueiosAtivosHojeCache = {}; }
+    return _bloqueiosAtivosHojeCache;
+}
+
+function bloqueioBadgeHtml(info) {
+    if (!info) return '';
+    const texto = info.tipo === 'recorrente'
+        ? 'Bloqueado hoje' + (info.hora_inicio ? ` (${info.hora_inicio}–${info.hora_fim})` : '')
+        : 'Bloqueado' + (info.data_fim ? ` até ${eqFmtDataBR(info.data_fim)}` : '');
+    const titulo = (info.descricao || texto).replace(/"/g, '&quot;');
+    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-600 border-amber-200 inline-flex items-center gap-1 ml-2" title="${titulo}">
+        <i class="ph ph-lock-simple"></i> ${texto}</span>`;
+}
+
 function eqFmtDataBR(iso) {
     if (!iso) return '';
     const [y, m, d] = iso.split('-');
@@ -3126,6 +3201,12 @@ async function eqAbrirModalBloqueios(uid, nome) {
 function eqFecharModalBloqueios() {
     document.getElementById('modal-eq-bloqueios').classList.add('hidden');
     eqBloqUsuarioId = null;
+    // Badges de "bloqueado hoje" podem ter mudado com o que foi feito no
+    // modal -- recarrega e re-renderiza a tabela que estiver visível.
+    carregarBloqueiosAtivosHoje().then(() => {
+        if (document.getElementById('equipe-tabela-bloqueios')) eqCarregarTabelaBloqueios();
+        if (document.getElementById('tabela-bloqueios-admin')) adminRenderBloqueios(adminUsuariosCache);
+    });
 }
 
 async function eqCarregarBloqueios() {
@@ -7529,7 +7610,7 @@ function adminSetTab(tab) {
     if (tab === 'tarefas') adminCarregarTarefas();
     if (tab === 'online') adminCarregarAtividade();
     if (tab === 'pesos') adminCarregarPesos();
-    if (tab === 'bloqueios') adminRenderBloqueios(adminUsuariosCache);
+    if (tab === 'bloqueios') carregarBloqueiosAtivosHoje().then(() => adminRenderBloqueios(adminUsuariosCache));
 }
 
 // Reaproveita o mesmo modal/endpoints já usados em Minha Equipe
@@ -7541,6 +7622,7 @@ function adminRenderBloqueios(usuarios) {
         tb.innerHTML = '<tr><td colspan="3" class="text-center py-12 text-slate-400 text-sm">Nenhum usuário cadastrado</td></tr>';
         return;
     }
+    const bloqueios = _bloqueiosAtivosHojeCache || {};
     tb.innerHTML = usuarios.map(u => {
         const pc = perfilConfig[u.perfil] || perfilConfig.funcionario;
         return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
@@ -7548,6 +7630,7 @@ function adminRenderBloqueios(usuarios) {
                 <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold">${u.nome.charAt(0)}</div>
                     <span class="font-medium text-faiston-dark">${u.nome}</span>
+                    ${bloqueioBadgeHtml(bloqueios[u.id])}
                 </div>
             </td>
             <td class="px-5 py-3"><span class="text-xs font-semibold px-2 py-1 rounded-md border ${pc.cls}">${pc.label}</span></td>
@@ -8821,6 +8904,58 @@ async function scConfirmarImportar() {
     }
 }
 
+function pn2AbrirModalImportarEscala() {
+    document.getElementById('pn2-importar-arquivo').value = '';
+    document.getElementById('pn2-importar-resultado').innerHTML = '';
+    document.getElementById('modal-pn2-importar').classList.remove('hidden');
+}
+function pn2FecharModalImportarEscala() {
+    document.getElementById('modal-pn2-importar').classList.add('hidden');
+}
+async function pn2ConfirmarImportarEscala() {
+    const input = document.getElementById('pn2-importar-arquivo');
+    const resultado = document.getElementById('pn2-importar-resultado');
+    if (!input.files.length) { resultado.innerHTML = '<p class="text-xs text-red-500">Selecione um arquivo .xlsx primeiro.</p>'; return; }
+    const btn = document.getElementById('pn2-importar-btn');
+    btn.disabled = true; btn.textContent = 'Importando...';
+    resultado.innerHTML = '';
+    try {
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+        const res = await fetch('/api/escala-n2/importar-planilha', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) {
+            resultado.innerHTML = `<p class="text-xs text-red-500">${scEsc(data.detail || 'Erro ao importar.')}</p>`;
+            return;
+        }
+        const semTecnico = data.puladas_sem_tecnico || [];
+        resultado.innerHTML = `
+            <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 font-semibold mb-2">
+                ${data.importadas} registro(s) de escala importado(s) da aba "${scEsc(data.aba_usada)}"
+            </div>
+            ${data.puladas_data_passada ? `<div class="text-xs text-slate-500 mb-1">${data.puladas_data_passada} linha(s) puladas — data já passada.</div>` : ''}
+            ${data.puladas_sem_data ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_data} linha(s) puladas — sem data válida.</div>` : ''}
+            ${data.puladas_duplicada ? `<div class="text-xs text-slate-500 mb-1">${data.puladas_duplicada} linha(s) puladas — já existia escala pra essa pessoa nessa data.</div>` : ''}
+            ${data.puladas_erro ? `<div class="text-xs text-red-500 mb-1">${data.puladas_erro} linha(s) puladas — erro ao gravar.</div>` : ''}
+            ${semTecnico.length ? `
+                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-3 mb-1.5">Sem N2 correspondente (${semTecnico.length})</div>
+                <div class="border border-faiston-border rounded-lg overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">
+                    ${semTecnico.map(s => `<div class="flex items-center justify-between px-3 py-1.5 border-b border-faiston-border last:border-0 text-xs">
+                        <span class="text-slate-600">${scEsc(s.nome)}</span>
+                        <span class="text-slate-400">${s.ocorrencias}×</span>
+                    </div>`).join('')}
+                </div>
+                <p class="text-[11px] text-faiston-faint mt-1.5">Confirme que essa pessoa está cadastrada com cargo N2 e o nome bate, e importe de novo.</p>
+            ` : ''}
+        `;
+        await pn2CarregarEscala();
+    } catch (e) {
+        resultado.innerHTML = '<p class="text-xs text-red-500">Erro de rede ao importar.</p>';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Importar';
+    }
+}
+
 let scNvInstaladoItems = [];
 let scNvRemovidoItems = [];
 
@@ -9521,7 +9656,7 @@ async function pn2SalvarDistribuicao() {
             </select>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar">
-            <div id="eq-view-membros">
+            <div id="eq-view-membros" class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="sticky top-0 bg-white">
                         <tr class="border-b border-faiston-border bg-slate-50">
@@ -9535,7 +9670,7 @@ async function pn2SalvarDistribuicao() {
                     <tbody id="equipe-tabela"></tbody>
                 </table>
             </div>
-            <div id="eq-view-bloqueios" class="hidden">
+            <div id="eq-view-bloqueios" class="hidden overflow-x-auto">
                 <p class="text-xs text-faiston-muted px-5 pt-3 pb-1">Férias, afastamento médico ou recorrência semanal -- bloqueia de verdade a criação/edição de atividade, escala ou tarefa naquela data/horário.</p>
                 <table class="w-full text-sm">
                     <thead class="sticky top-0 bg-white">
