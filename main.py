@@ -1989,7 +1989,7 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
             row_tipo = cur.fetchone()
             if not row_tipo:
                 raise HTTPException(status_code=400, detail="Tipo de atividade inválido ou desativado")
-        peso_upd = row_tipo[0]
+            peso_upd = row_tipo[0]
         natureza_upd = t.natureza if t.natureza in ("programada", "urgente") else None
         # Só na transição para 'concluido' -- reeditar tarefa já concluída não
         # recalcula, senão o histórico mudaria sozinho. Comparação por DATA:
