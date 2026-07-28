@@ -1550,6 +1550,19 @@ async function concluirTarefa(taskId) {
     if (activeTaskId===taskId) await stopTimer(taskId,true);
     const task = tasks.find(t=>t.id===taskId);
     if (!task) return;
+    // Fora do prazo exige justificativa antes de concluir (o backend também
+    // valida -- isto aqui é só pra não deixar o usuário levar erro na cara).
+    let justificativa = '';
+    if (task.data_prazo) {
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        const prazo = new Date(String(task.data_prazo).slice(0,10) + 'T00:00:00');
+        if (hoje > prazo) {
+            justificativa = (prompt('Esta tarefa está sendo concluída FORA do prazo previsto (' +
+                String(task.data_prazo).slice(0,10).split('-').reverse().join('/') +
+                ').\n\nInforme o motivo do atraso:') || '').trim();
+            if (!justificativa) return;
+        }
+    }
     const statusAnterior = task.status;
     task.status = 'concluido'; task._running = false;
     renderTasks(); updateSummary();
@@ -1557,7 +1570,8 @@ async function concluirTarefa(taskId) {
         const res = await fetch(`/api/tarefas/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',
                 segundos:Math.min(task.segundos, MAX_SEGUNDOS),
-                data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
+                data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null,
+                justificativa_atraso:justificativa})});
         if (!res.ok) {
             const json = await res.json().catch(() => ({}));
             const errId = json.error_id ? ` [ID: ${json.error_id}]` : '';
