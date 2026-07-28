@@ -629,7 +629,8 @@ async function init() {
         const res = await fetch('/api/me');
         if (!res.ok) { window.location.href = '/'; return; }
         const me = await res.json();
-        if (me.perfil !== 'n2' && me.perfil !== 'admin') { window.location.href = '/dashboard'; return; }
+        const ehN2 = me.perfil === 'funcionario' && me.cargo === 'n2';
+        if (!ehN2 && me.perfil !== 'admin') { window.location.href = '/dashboard'; return; }
         meId = me.id;
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-av').textContent = me.nome.charAt(0).toUpperCase();

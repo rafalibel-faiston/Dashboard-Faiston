@@ -127,13 +127,13 @@ def get_session(token: str, page: str = ""):
             cur.execute("""
                 UPDATE sessoes SET last_seen = NOW(), pagina = %s
                 WHERE token = %s AND expira_em > NOW()
-                RETURNING usuario_id, nome, perfil, time_usuario, pagina
+                RETURNING usuario_id, nome, perfil, time_usuario, pagina, cargo
             """, (page, token))
         else:
             cur.execute("""
                 UPDATE sessoes SET last_seen = NOW()
                 WHERE token = %s AND expira_em > NOW()
-                RETURNING usuario_id, nome, perfil, time_usuario, pagina
+                RETURNING usuario_id, nome, perfil, time_usuario, pagina, cargo
             """, (token,))
         row = cur.fetchone()
         conn.commit(); cur.close(); conn.close()
@@ -144,7 +144,7 @@ def get_session(token: str, page: str = ""):
         # preserva o valor de fato gravado no banco, só pra exibição/auditoria.
         perfil_real = row[2]
         perfil = "admin" if perfil_real == "dev" else perfil_real
-        return {"id": row[0], "nome": row[1], "perfil": perfil, "perfil_real": perfil_real, "time": row[3], "page": row[4] or ""}
+        return {"id": row[0], "nome": row[1], "perfil": perfil, "perfil_real": perfil_real, "time": row[3], "page": row[4] or "", "cargo": row[5] or ""}
     except Exception as e:
         print(f"Erro get_session: {e}")
         return None
@@ -302,6 +302,7 @@ def setup_banco():
                 expira_em TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
             )
         """)
+        cur.execute("ALTER TABLE sessoes ADD COLUMN IF NOT EXISTS cargo VARCHAR(20) DEFAULT ''")
         # ── Clientes e Projetos (criados aqui para gestão funcionar sem acessar financeiro) ──
         cur.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
@@ -611,6 +612,10 @@ def setup_banco():
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_tipos_ativ_frente ON tipos_atividade(frente_id)")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS frente_id INTEGER REFERENCES frentes(id)")
+        # Migração 2026-07-28: N2 deixa de ser perfil próprio e vira cargo
+        # dentro de perfil='funcionario' (mesmo nível de Analista/Backoffice).
+        # Idempotente -- não repete em usuário já migrado.
+        cur.execute("UPDATE usuarios SET perfil='funcionario', cargo='n2' WHERE perfil='n2'")
         _seed_catalogo_pesos(cur)
                 # Medição de performance: tipo de atividade escolhido na abertura e
         # peso carimbado na própria tarefa -- não resolvido por JOIN, pra que
@@ -644,7 +649,12 @@ class LoginRequest(BaseModel):
 
 TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada']
 
-CARGO_VALIDOS = ('analista', 'backoffice')
+CARGO_VALIDOS = ('analista', 'backoffice', 'n2')
+
+def _eh_n2(sess: dict) -> bool:
+    """N2 deixou de ser perfil próprio e virou cargo dentro de
+    perfil='funcionario' (migração 2026-07-28)."""
+    return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "n2"
 
 class NovoUsuario(BaseModel):
     usuario: str
@@ -1334,20 +1344,20 @@ def login(req: LoginRequest, response: Response):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos') FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
+        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos'), COALESCE(cargo,'') FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
                     (req.usuario, hash_senha(req.senha)))
         row = cur.fetchone()
         if not row: raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
         token = secrets.token_hex(32)
         cur.execute("""
-            INSERT INTO sessoes (token, usuario_id, nome, perfil, time_usuario, pagina, expira_em)
-            VALUES (%s, %s, %s, %s, %s, 'dashboard', NOW() + INTERVAL '24 hours')
-        """, (token, row[0], row[1], row[2], row[4]))
+            INSERT INTO sessoes (token, usuario_id, nome, perfil, time_usuario, pagina, cargo, expira_em)
+            VALUES (%s, %s, %s, %s, %s, 'dashboard', %s, NOW() + INTERVAL '24 hours')
+        """, (token, row[0], row[1], row[2], row[4], row[5]))
         # Registra o último acesso (data/hora do login bem-sucedido)
         cur.execute("UPDATE usuarios SET ultimo_acesso = NOW() WHERE id = %s", (row[0],))
         conn.commit(); cur.close(); conn.close()
         response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
-        return {"sucesso": True, "perfil": row[2], "nome": row[1], "primeiro_acesso": bool(row[3])}
+        return {"sucesso": True, "perfil": row[2], "cargo": row[5], "nome": row[1], "primeiro_acesso": bool(row[3])}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -1427,7 +1437,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
-    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "n2", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
@@ -2515,7 +2525,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         # Horas por funcionário — respeita todos os filtros incluindo time.
         # N2 entra igual a funcionário/backoffice/analista (decisão de
         # 2026-07-28: N2 é medido como qualquer outra frente, não à parte).
-        func_conds = list(conditions) + ["u.perfil IN ('funcionario', 'n2')"]
+        func_conds = list(conditions) + ["u.perfil = 'funcionario'"]
         if not is_admin and not any("u.time" in c for c in func_conds):
             func_conds.append("COALESCE(u.time,'Projetos') = %s")
             func_params = params + (sess.get("time", "Projetos"),)
@@ -5871,7 +5881,7 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
 @app.post("/api/status-campo")
 def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -5881,7 +5891,7 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
         status = "agendado"
         # N2 só cria despacho atribuído a si mesmo -- ignora qualquer
         # n2_usuario_id que venha no corpo da requisição.
-        n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
+        n2_uid = sess["id"] if _eh_n2(sess) else a.n2_usuario_id
         n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
         bloqueio = _bloqueio_ativo(cur, n2_uid, a.data, a.horario_agendado)
         if bloqueio:
@@ -5933,7 +5943,7 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
 @app.put("/api/status-campo/{aid}")
 def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -5941,7 +5951,7 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
             raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
         cur = conn.cursor()
         status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
-        n2_uid = sess["id"] if sess["perfil"] == "n2" else a.n2_usuario_id
+        n2_uid = sess["id"] if _eh_n2(sess) else a.n2_usuario_id
         n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
         bloqueio = _bloqueio_ativo(cur, n2_uid, a.data, a.horario_agendado)
         if bloqueio:
@@ -6083,7 +6093,7 @@ def _gerar_ou_atualizar_tarefa_campo(cur, aid):
 @app.patch("/api/status-campo/{aid}/status")
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
     # "em_andamento" exige localização (primeiro passo do fluxo escalonado do
     # N2: deslocamento/no local -> chegada+acesso -> início+tipo); os status
@@ -6172,7 +6182,7 @@ def adicionar_andamento(aid: int, body: AndamentoUpdateModel, faiston_token: str
     muda o status da atividade. Equipamento é obrigatório junto do tipo,
     pra deixar bem evidente o que está sendo instalado/trocado/removido."""
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     if body.andamento_tipo not in ANDAMENTO_TIPO_VALIDOS:
         raise HTTPException(status_code=400, detail="Selecione o que está sendo feito")
     if not body.andamento_equipamento.strip():
@@ -6202,7 +6212,7 @@ def atualizar_situacao(aid: int, body: SituacaoUpdateModel, faiston_token: str =
     sendo feito). Não gera entrada na linha do tempo de andamento, só
     atualiza o snapshot -- ver "Situação atual" no front-end."""
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     if body.localizacao not in LOCALIZACAO_VALIDOS:
         raise HTTPException(status_code=400, detail="Selecione a localização")
     acesso = body.acesso if body.acesso in ACESSO_VALIDOS else None
@@ -6247,7 +6257,7 @@ def listar_andamentos(aid: int, faiston_token: str = Cookie(None)):
 @app.delete("/api/status-campo/{aid}")
 def deletar_status_campo(aid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor", "n2"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -6590,7 +6600,7 @@ def painel_n2_resumo(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, ativo FROM usuarios WHERE perfil='n2' ORDER BY ativo DESC, nome")
+        cur.execute("SELECT id, nome, ativo FROM usuarios WHERE perfil='funcionario' AND cargo='n2' ORDER BY ativo DESC, nome")
         n2s = cur.fetchall()
         out = []
         for uid, nome, ativo in n2s:
