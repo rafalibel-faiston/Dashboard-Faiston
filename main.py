@@ -1987,10 +1987,10 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
         if t.tipo_atividade_id:
             cur.execute("SELECT peso FROM tipos_atividade WHERE id=%s AND ativo=TRUE", (t.tipo_atividade_id,))
             row_tipo = cur.fetchone()
-        if not row_tipo:
+            if not row_tipo:
                 raise HTTPException(status_code=400, detail="Tipo de atividade inválido ou desativado")
         peso_upd = row_tipo[0]
-            natureza_upd = t.natureza if t.natureza in ("programada", "urgente") else "programada"
+        natureza_upd = t.natureza if t.natureza in ("programada", "urgente") else None
         # Só na transição para 'concluido' -- reeditar tarefa já concluída não
         # recalcula, senão o histórico mudaria sozinho. Comparação por DATA:
         # concluir no dia previsto conta como dentro do prazo.
@@ -2005,14 +2005,14 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
             else:
                 prazo_status = "sem_prazo"
             if prazo_status == "fora" and not justificativa:
-                raise HTTPException(status_code=400, detail="Tarefa concluída fora do prazo: informe a justificativa do atraso")
+                    raise HTTPException(status_code=400, detail="Tarefa concluída fora do prazo: informe a justificativa do atraso")
         cur.execute(
             "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, hora_prazo=%s, tipo_atividade_id=COALESCE(%s, tipo_atividade_id), peso=COALESCE(%s, peso), natureza=COALESCE(%s, natureza), atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
             (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
              t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None,
              t.tipo_atividade_id or None, peso_upd, natureza_upd, tid, sess["id"])
         )
-            if concluindo and cur.rowcount:
+        if concluindo and cur.rowcount:
             cur.execute("UPDATE tarefas SET concluido_em=NOW(), prazo_status=%s, justificativa_atraso=%s WHERE id=%s",
                         (prazo_status, justificativa, tid))
         # Registra no histórico cada campo que mudou (compara antes × depois)
