@@ -2038,6 +2038,7 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
                 sess["id"], destinatario_id=hid)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.patch("/api/tarefas/{tid}/segundos")
