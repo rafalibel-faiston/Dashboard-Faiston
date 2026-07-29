@@ -49,6 +49,24 @@
         .dev-card.dragging { opacity: .4; }
         .dev-col-drop.drag-over { background: #F0F4FF; border-color: #5B2EE0; }
         .dev-card.atrasada { border-color: #EC4899 !important; }
+
+        /* ── Passada visual (2026-07-28): tipografia de destaque + cards vivos ── */
+        /* Space Grotesk já era importado mas nunca usado -- aplicado nos títulos
+           de maior hierarquia pra criar ritmo contra o corpo em Inter. */
+        #header-titulo, .chart-card h3 {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            letter-spacing: -0.01em;
+        }
+        /* Chart cards eram estáticos (só as KPIs tinham hover) -- agora toda a
+           grade de gráficos respira igual, mesmo shadow-hover do design system. */
+        .chart-card { transition: box-shadow .25s ease, transform .25s ease; }
+        .chart-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+        [data-theme="dark"] .chart-card:hover { box-shadow: 0 24px 48px -16px rgba(0,0,0,0.55) !important; }
+        /* Textura sutilíssima de fundo -- mesmo toque já usado na ferramenta
+           irmã (Cisco GUI), aqui bem mais discreto por causa da densidade de
+           dado da tela. Some atrás dos cards brancos, só aparece nas frestas. */
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
     </style>
 </head>
 <body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden selection:bg-faiston-cyan selection:text-faiston-dark pt-14 lg:pt-0">
