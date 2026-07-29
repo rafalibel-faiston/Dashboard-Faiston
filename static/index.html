@@ -4306,8 +4306,12 @@ function renderRitmo(data) {
         grid: { ...grid, xaxis: { lines: { show: false } } },
         tooltip: { ...tt, shared: true, intersect: false,
             y: { formatter: (v, opt) => {
+                // v é o índice normalizado à média (100 = na média) que
+                // desenha a barra/linha -- mostrar ele cru no tooltip
+                // ("306", "109"...) não tem contexto e confunde. Só o
+                // número real (horas/tarefas) importa aqui.
                 const f = linhas[opt.dataPointIndex];
-                return opt.seriesIndex === 0 ? `${v} (${f.horas}h)` : `${v} (${f.tarefas} tarefas)`;
+                return opt.seriesIndex === 0 ? `${f.horas}h` : `${f.tarefas} tarefa(s)`;
             }} }
     });
     charts['ritmo'].render();
