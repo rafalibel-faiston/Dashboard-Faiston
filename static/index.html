@@ -2574,6 +2574,7 @@
 
     <div class="flex items-center gap-1 mb-6 border-b border-faiston-border" id="dev-tabs">
         <button onclick="devSetTab('planejamento')" id="dev-tab-btn-planejamento" class="dev-tab-btn hidden px-4 py-2 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-faiston-purple transition-colors">Planejamento</button>
+        <button onclick="devSetTab('diario')" id="dev-tab-btn-diario" class="dev-tab-btn hidden px-4 py-2 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-faiston-purple transition-colors">Diário</button>
         <button onclick="devSetTab('diagnostico')" id="dev-tab-btn-diagnostico" class="dev-tab-btn px-4 py-2 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-faiston-purple transition-colors">Diagnóstico</button>
     </div>
 
@@ -2631,6 +2632,21 @@
     </div>
 
     <!-- ABA DIAGNÓSTICO (existente) -->
+    <!-- ABA DIÁRIO: registro cronológico do que foi mudado, pra quem não -->
+    <!-- estava na sessão entender sem repetir trabalho -->
+    <div id="dev-diario" class="hidden">
+        <div class="bg-white rounded-2xl border border-faiston-border p-4 mb-5" style="box-shadow:0 2px 12px rgba(91,46,224,0.06)">
+            <input type="text" id="dev-diario-titulo" placeholder="O que mudou? (ex: Corrigido bug X no filtro Y)"
+                class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm font-semibold focus:outline-none focus:border-faiston-purple transition-all mb-2">
+            <textarea id="dev-diario-descricao" rows="2" placeholder="Detalhe rápido (opcional) -- o essencial pra outra pessoa entender sem reler o código"
+                class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple transition-all resize-none mb-2"></textarea>
+            <button onclick="devDiarioCriar()" class="flex items-center gap-2 bg-faiston-purple text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
+                <i class="ph ph-plus"></i> Registrar
+            </button>
+        </div>
+        <div id="dev-diario-lista" class="flex flex-col gap-3"></div>
+    </div>
+
     <div id="dev-diagnostico">
         <div id="dev-conteudo"></div>
     </div>
@@ -5217,14 +5233,16 @@ let _devPlanCarregado = false;
 function devAreaInit() {
     const isDev = window.ME && window.ME.perfil_real === 'dev';
     document.getElementById('dev-tab-btn-planejamento').classList.toggle('hidden', !isDev);
+    document.getElementById('dev-tab-btn-diario').classList.toggle('hidden', !isDev);
     document.getElementById('dev-btn-nova-tarefa').classList.toggle('hidden', !isDev);
     devSetTab(isDev ? 'planejamento' : 'diagnostico');
 }
 
 function devSetTab(tab) {
     const isDev = window.ME && window.ME.perfil_real === 'dev';
-    if (tab === 'planejamento' && !isDev) tab = 'diagnostico';
+    if ((tab === 'planejamento' || tab === 'diario') && !isDev) tab = 'diagnostico';
     document.getElementById('dev-planejamento').classList.toggle('hidden', tab !== 'planejamento');
+    document.getElementById('dev-diario').classList.toggle('hidden', tab !== 'diario');
     document.getElementById('dev-diagnostico').classList.toggle('hidden', tab !== 'diagnostico');
     document.querySelectorAll('.dev-tab-btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById('dev-tab-btn-' + tab);
@@ -5236,9 +5254,64 @@ function devSetTab(tab) {
             devkCarregarUsuarios();
         }
         devkCarregarTarefas();
+    } else if (tab === 'diario') {
+        devDiarioCarregar();
     } else if (tab === 'diagnostico') {
         devCarregarDiagnostico();
     }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ÁREA DE DEV: Diário (registro cronológico simples, só perfil 'dev')
+// ══════════════════════════════════════════════════════════════════
+async function devDiarioCarregar() {
+    const lista = document.getElementById('dev-diario-lista');
+    lista.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Carregando...</p>';
+    try {
+        const res = await fetch('/api/dev-diario');
+        if (!res.ok) throw new Error();
+        devDiarioRender(await res.json());
+    } catch (e) {
+        lista.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar o diário.</p>';
+    }
+}
+
+function devDiarioRender(itens) {
+    const lista = document.getElementById('dev-diario-lista');
+    if (!itens.length) {
+        lista.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Nada registrado ainda -- o primeiro registro começa aqui.</p>';
+        return;
+    }
+    lista.innerHTML = itens.map(d => `
+        <div class="bg-white rounded-2xl border border-faiston-border p-4">
+            <div class="flex items-start justify-between gap-3">
+                <p class="text-sm font-bold text-faiston-dark">${escHtml(d.titulo)}</p>
+                <button onclick="devDiarioExcluir(${d.id})" class="text-slate-300 hover:text-faiston-pink flex-shrink-0" title="Excluir"><i class="ph ph-trash text-sm"></i></button>
+            </div>
+            <p class="text-[11px] text-faiston-faint mt-0.5">${escHtml(d.autor_nome)} · ${d.criado_em}</p>
+            ${d.descricao ? `<p class="text-xs text-slate-500 mt-2 whitespace-pre-line">${escHtml(d.descricao)}</p>` : ''}
+        </div>
+    `).join('');
+}
+
+async function devDiarioCriar() {
+    const tituloEl = document.getElementById('dev-diario-titulo');
+    const descEl = document.getElementById('dev-diario-descricao');
+    const titulo = tituloEl.value.trim();
+    if (!titulo) { tituloEl.focus(); return; }
+    const res = await fetch('/api/dev-diario', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo, descricao: descEl.value.trim() })
+    });
+    if (!res.ok) { alert('Erro ao registrar.'); return; }
+    tituloEl.value = ''; descEl.value = '';
+    devDiarioCarregar();
+}
+
+async function devDiarioExcluir(id) {
+    if (!confirm('Excluir este registro do diário?')) return;
+    await fetch(`/api/dev-diario/${id}`, { method: 'DELETE' });
+    devDiarioCarregar();
 }
 
 // ══════════════════════════════════════════════════════════════════

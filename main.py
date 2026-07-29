@@ -584,6 +584,21 @@ def setup_banco():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_checklist_tarefa ON dev_tarefa_checklist(tarefa_id)")
+        # Diário da equipe dev: registro cronológico simples do que foi
+        # mudado no sistema, pra quem não estava na sessão entender o que
+        # já foi feito sem precisar reconstruir pelo git log ou perguntar.
+        # De propósito sem status/tags/prioridade -- só título, descrição,
+        # autor e data, o mínimo pra não repetir trabalho.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dev_diario (
+                id SERIAL PRIMARY KEY,
+                titulo VARCHAR(200) NOT NULL,
+                descricao TEXT DEFAULT '',
+                autor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                autor_nome VARCHAR(100) NOT NULL,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
                 # --- CATÁLOGO DE COMPLEXIDADE ---
         # Peso de esforço por tipo de atividade, por frente (N2, Backoffice...)
         # dentro da área (Projetos, Logística, Rede Credenciada). Cadastro em
@@ -3772,6 +3787,11 @@ def deletar_carimbo(cid: int, faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 # --- CLIENTES ---
+# 2026-07-28: removida uma migração "migrar clientes das tarefas" que
+# rodava aqui a cada listagem (não uma vez só) -- recriava silenciosamente
+# um cliente em texto livre de tarefas.cliente toda vez que alguém abria a
+# tela, mesmo depois de apagado (foi assim que "Arcos" duplicado voltou
+# depois de já ter sido limpo).
 @app.get("/api/clientes")
 def listar_clientes(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -3791,13 +3811,6 @@ def listar_clientes(faiston_token: str = Cookie(None)):
             )
         """)
         cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
-        # Migrar clientes existentes das tarefas
-        cur.execute("""
-            INSERT INTO clientes (nome)
-            SELECT DISTINCT cliente FROM tarefas
-            WHERE cliente IS NOT NULL AND cliente != ''
-            ON CONFLICT (nome) DO NOTHING
-        """)
         conn.commit()
         if sess["perfil"] == "admin":
             cur.execute("SELECT id, nome, contato, email, ativo, criado_em, COALESCE(time,'Projetos') FROM clientes WHERE ativo=TRUE ORDER BY nome")
@@ -7091,6 +7104,62 @@ def dev_deletar_item_checklist(iid: int, faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("DELETE FROM dev_tarefa_checklist WHERE id = %s", (iid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- DIÁRIO DA EQUIPE DEV (registro do que foi mudado, pra não repetir trabalho) ---
+class DevDiarioModel(BaseModel):
+    titulo: str
+    descricao: str = ""
+
+@app.get("/api/dev-diario")
+def dev_listar_diario(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, titulo, descricao, autor_id, autor_nome, criado_em
+            FROM dev_diario ORDER BY criado_em DESC
+        """)
+        out = [{
+            "id": r[0], "titulo": r[1], "descricao": r[2], "autor_id": r[3], "autor_nome": r[4],
+            "criado_em": r[5].strftime("%d/%m/%Y %H:%M") if r[5] else "",
+        } for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/dev-diario")
+def dev_criar_diario(d: DevDiarioModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not d.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO dev_diario (titulo, descricao, autor_id, autor_nome)
+            VALUES (%s,%s,%s,%s) RETURNING id
+        """, (d.titulo.strip(), d.descricao.strip(), sess["id"], sess["nome"]))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/dev-diario/{did}")
+def dev_deletar_diario(did: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM dev_diario WHERE id = %s", (did,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
