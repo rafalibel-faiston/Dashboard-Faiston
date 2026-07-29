@@ -5982,6 +5982,7 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
             ORDER BY a.data DESC, a.horario_agendado ASC NULLS LAST
             LIMIT 300
         """, params)
+        rows = cur.fetchall()
         ids = [r[0] for r in rows]
         materiais_por_id = {}
         if ids:
