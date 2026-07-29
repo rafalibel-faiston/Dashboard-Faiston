@@ -8487,6 +8487,30 @@ function scGerarCarimboFinalizacao(row, extras) {
     ];
     return linhas.filter(l => l !== null).join('\n');
 }
+// Ver o carimbo de uma atividade já finalizada (Kanban/Histórico) --
+// o carimbo não fica salvo em lugar nenhum, é regenerado a partir dos
+// dados já persistidos (equipamentos/materiais/contato/horários), com o
+// mesmo formato exibido logo após confirmar a finalização.
+async function scAbrirCarimboDeAtividade(id) {
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (!res.ok) { alert('Atividade não encontrada.'); return; }
+        const full = await res.json();
+        const particularidades = full.particularidades || [];
+        const instalado = particularidades.includes('equipamento_instalado');
+        const removido = particularidades.includes('equipamento_removido');
+        const instaladoItens = (full.equipamentos || []).filter(e => e.tipo === 'instalado');
+        const removidoItens = (full.equipamentos || []).filter(e => e.tipo === 'removido');
+        const removidoPosse = particularidades.includes('equipamento_em_posse_do_cliente') ? 'cliente' : 'tecnico';
+        const texto = scGerarCarimboFinalizacao(full, {
+            status: full.status, instalado, removido, instaladoItens, removidoItens, removidoPosse,
+            horaSaida: full.hora_termino || 'N/A',
+            contatoNome: full.contato_local_nome, contatoMatricula: full.contato_local_matricula,
+            observacoes: full.observacoes, materialUtilizado: full.material_utilizado, materiais: full.materiais,
+        });
+        scAbrirModalCarimboFinalizacao(texto);
+    } catch (e) { alert('Erro ao carregar carimbo da atividade.'); }
+}
 function scAbrirModalCarimboFinalizacao(texto) {
     document.getElementById('sc-fz-carimbo-texto').value = texto;
     document.getElementById('sc-fz-carimbo-msg').textContent = '';
@@ -8770,20 +8794,25 @@ function scRenderTabelaAtividades(rows) {
         }
         if (scGruposColapsados.has(dataAtual)) return;
         const acoes = (podeEditar ? `
-            <button onclick="scAbrirModalEditar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Editar"><i class="ph ph-pencil-simple text-slate-400 text-sm"></i></button>
-            <button onclick="scAbrirModalDuplicar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Duplicar"><i class="ph ph-copy text-slate-400 text-sm"></i></button>
-            <button onclick="scExcluir(${r.id})" class="w-7 h-7 rounded-md hover:bg-red-50 inline-flex items-center justify-center" title="Excluir"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+            <button onclick="event.stopPropagation(); scAbrirModalEditar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Editar"><i class="ph ph-pencil-simple text-slate-400 text-sm"></i></button>
+            <button onclick="event.stopPropagation(); scAbrirModalDuplicar(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Duplicar"><i class="ph ph-copy text-slate-400 text-sm"></i></button>
+            <button onclick="event.stopPropagation(); scExcluir(${r.id})" class="w-7 h-7 rounded-md hover:bg-red-50 inline-flex items-center justify-center" title="Excluir"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
         ` : '') + `
-            <button onclick="scAbrirModalAndamentoHistorico(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Ver andamento"><i class="ph ph-clock-counter-clockwise text-slate-400 text-sm"></i></button>
+            <button onclick="event.stopPropagation(); scAbrirModalAndamentoHistorico(${r.id})" class="w-7 h-7 rounded-md hover:bg-slate-100 inline-flex items-center justify-center" title="Ver andamento"><i class="ph ph-clock-counter-clockwise text-slate-400 text-sm"></i></button>
         `;
-        linhas.push(`<tr class="border-b border-faiston-border last:border-0 hover:bg-slate-50/60">
+        // Atividade finalizada (concluído/parcial/improdutiva) abre o carimbo
+        // de encerramento ao clicar na linha -- pedido do usuário, mesmo
+        // padrão aplicado no card do Kanban (ver scKanbanCardHtml).
+        const finalizada = SC_STATUS_TERMINAIS.includes(r.status);
+        const rowClick = finalizada ? ` cursor-pointer" onclick="scAbrirCarimboDeAtividade(${r.id})` : '"';
+        linhas.push(`<tr class="border-b border-faiston-border last:border-0 hover:bg-slate-50/60${rowClick}>
             <td class="px-5 py-3 text-sm font-medium text-faiston-dark">${scEsc(r.cliente_nome || '—')}</td>
             <td class="px-5 py-3 text-sm text-slate-600">${scEsc(r.site_sigla || r.site_nome || '—')}</td>
             <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.subprojeto || '—')}</td>
             <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.cidade || '—')}${r.uf ? '/' + scEsc(r.uf) : ''}</td>
             <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.tecnico || '—')}${r.hora_inicio_atividade ? `<div class="text-fuchsia-700 font-semibold mt-0.5">Início ${scEsc(r.hora_inicio_atividade)}</div>` : ''}</td>
             <td class="px-5 py-3 text-xs text-slate-500">${scEsc(r.n2_responsavel || '—')}</td>
-            <td class="px-5 py-3">${scStatusCell(r, podeEditar)}</td>
+            <td class="px-5 py-3" onclick="event.stopPropagation()">${scStatusCell(r, podeEditar)}</td>
             <td class="px-5 py-3 text-right whitespace-nowrap">${acoes}</td>
         </tr>`);
     });
@@ -8836,7 +8865,10 @@ function scRenderKanban(visiveis, totalGeral) {
 }
 
 function scKanbanCardHtml(r, podeEditar) {
-    const onclick = podeEditar ? `scAbrirModalEditar(${r.id})` : `scAbrirModalAndamentoHistorico(${r.id})`;
+    // Atividade finalizada (concluído/parcial/improdutiva) abre o carimbo de
+    // encerramento ao clicar no card, em vez do editor -- pedido do usuário.
+    const onclick = SC_STATUS_TERMINAIS.includes(r.status) ? `scAbrirCarimboDeAtividade(${r.id})`
+        : (podeEditar ? `scAbrirModalEditar(${r.id})` : `scAbrirModalAndamentoHistorico(${r.id})`);
     return `<div class="sc-card bg-white border border-faiston-border rounded-xl p-3" draggable="${podeEditar}" data-id="${r.id}" onclick="${onclick}">
         <div class="flex items-center justify-between gap-2 mb-1">
             <span class="text-xs font-bold text-faiston-purple truncate">${scEsc(r.cliente_nome || '—')}</span>
