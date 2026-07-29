@@ -6,3 +6,4 @@ pydantic==2.7.1
 openpyxl==3.1.2
 apscheduler==3.10.4
 requests==2.32.3
+bcrypt==4.1.3
