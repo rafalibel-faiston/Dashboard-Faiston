@@ -8922,8 +8922,8 @@ function scReportCardAtividade(a, clienteNome) {
                 ${a.cidade ? `<span>${scEsc(a.cidade)}${a.uf ? '/' + scEsc(a.uf) : ''}</span>` : ''}
             </div>
             ${chips.length ? `<div class="flex gap-1.5 flex-wrap mt-2">${chips.join('')}</div>` : ''}
-            ${scBannerAndamentoTipo(a)}
-            ${a.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-2"><i class="ph ph-info"></i> ${scEsc(a.andamento_descricao)}</div>` : ''}
+            ${a.status === 'em_andamento' ? scBannerAndamentoTipo(a) : ''}
+            ${a.status === 'em_andamento' && a.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-2"><i class="ph ph-info"></i> ${scEsc(a.andamento_descricao)}</div>` : ''}
             ${a.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${scEsc(a.observacoes)}</div>` : ''}
         </div>`;
 }
