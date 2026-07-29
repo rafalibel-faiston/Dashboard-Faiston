@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date, timedelta, datetime
 from calendar import monthrange
-import os, hashlib, secrets, csv, io, logging, traceback, uuid
+import os, hashlib, secrets, csv, io, logging, traceback, uuid, bcrypt
 import contextvars
 from dotenv import load_dotenv
 from pathlib import Path
@@ -112,7 +112,25 @@ def get_db():
         return None
 
 def hash_senha(senha):
+    """bcrypt com salt próprio por senha. SHA-256 puro (o esquema anterior)
+    não tem salt nem custo, o que torna quebra por rainbow table trivial se
+    o banco vazar."""
+    return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
+
+def _hash_legado(senha):
+    """Esquema antigo. Mantido só para validar quem ainda não fez login
+    desde a migração -- a senha é reescrita em bcrypt no primeiro acesso."""
     return hashlib.sha256(senha.encode()).hexdigest()
+
+def senha_confere(senha, hash_armazenado):
+    if not hash_armazenado:
+        return False
+    if hash_armazenado.startswith("$2"):
+        try:
+            return bcrypt.checkpw(senha.encode(), hash_armazenado.encode())
+        except Exception:
+            return False
+    return _hash_legado(senha) == hash_armazenado
 
 def get_session(token: str, page: str = ""):
     if not token:
@@ -216,6 +234,9 @@ def setup_banco():
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT ''")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo VARCHAR(20) DEFAULT ''")
+        # bcrypt gera 60 caracteres; a coluna nasceu VARCHAR(64) e fica sem
+        # folga. Ampliar é seguro (não trunca nada já gravado).
+        cur.execute("ALTER TABLE usuarios ALTER COLUMN senha_hash TYPE VARCHAR(255)")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tarefas (
                 id SERIAL PRIMARY KEY,
@@ -1412,13 +1433,17 @@ def login(req: LoginRequest, response: Response, request: Request):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos'), COALESCE(cargo,'') FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
-                    (req.usuario, hash_senha(req.senha)))
+        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos'), COALESCE(cargo,''), senha_hash FROM usuarios WHERE usuario=%s AND ativo=TRUE",
+                    (req.usuario,))
         row = cur.fetchone()
-        if not row:
+        if not row or not senha_confere(req.senha, row[6]):
             cur.close(); conn.close()
             _login_registrar_falha(chaves)
             raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
+        # Migração transparente: quem ainda estava no hash antigo tem a senha
+        # reescrita em bcrypt neste login, sem precisar trocar de senha.
+        if not row[6].startswith("$2"):
+            cur.execute("UPDATE usuarios SET senha_hash=%s WHERE id=%s", (hash_senha(req.senha), row[0]))
         token = secrets.token_hex(32)
         cur.execute("""
             INSERT INTO sessoes (token, usuario_id, nome, perfil, time_usuario, pagina, cargo, expira_em)
