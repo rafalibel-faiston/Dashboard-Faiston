@@ -44,10 +44,11 @@
         .btn-grad:hover { opacity: 0.9; }
         /* ── Área de Dev: kanban de planejamento ── */
         .dev-tab-btn.active { color: #5B2EE0 !important; border-color: #5B2EE0 !important; }
-        .dev-card { transition: box-shadow .15s, transform .15s; cursor: grab; }
-        .dev-card:hover { box-shadow: 0 4px 16px rgba(91,46,224,.12); transform: translateY(-1px); }
-        .dev-card.dragging { opacity: .4; }
-        .dev-col-drop.drag-over { background: #F0F4FF; border-color: #5B2EE0; }
+        .dev-card, .sc-card { transition: box-shadow .15s, transform .15s; cursor: grab; }
+        .dev-card:hover, .sc-card:hover { box-shadow: 0 4px 16px rgba(91,46,224,.12); transform: translateY(-1px); }
+        .dev-card.dragging, .sc-card.dragging { opacity: .4; }
+        .sc-card[draggable="false"] { cursor: default; }
+        .dev-col-drop.drag-over, .sc-col-drop.drag-over { background: #F0F4FF; border-color: #5B2EE0; }
         .dev-card.atrasada { border-color: #EC4899 !important; }
 
         /* ── Passada visual (2026-07-28): tipografia de destaque + cards vivos ── */
@@ -1768,7 +1769,12 @@
                 <i class="ph ph-broom text-sm"></i> <span id="sc-btn-limpar-cronograma-label">Limpar cronograma</span>
             </button>
         </div>
-        <div class="overflow-x-auto custom-scrollbar">
+        <!-- Kanban: visão padrão do Cronograma (arraste o card pra mudar o status) -->
+        <div id="sc-kanban-wrap" class="p-5">
+            <div id="sc-kanban" class="flex items-stretch gap-3 overflow-x-auto custom-scrollbar pb-2"></div>
+        </div>
+        <!-- Tabela: usada só no modo Histórico (agrupada por data) -->
+        <div id="sc-tabela-wrap" class="hidden overflow-x-auto custom-scrollbar">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-faiston-border bg-slate-50">
@@ -8543,6 +8549,12 @@ function scMudarModoAtividades(modo) {
         (modo === 'cronograma' ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
     document.getElementById('sc-modo-historico').className = 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ' +
         (modo === 'historico' ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
+    // Cronograma virou Kanban (2026-07-28, a pedido do usuário); Histórico
+    // continua tabela agrupada por data -- são visões conceitualmente
+    // diferentes (trabalho ativo vs. registro histórico), não faz sentido
+    // arrastar card num histórico que não deveria mudar mais.
+    document.getElementById('sc-kanban-wrap').classList.toggle('hidden', modo !== 'cronograma');
+    document.getElementById('sc-tabela-wrap').classList.toggle('hidden', modo === 'cronograma');
     scAtualizarBotaoLimparCronograma();
     scBuscar();
 }
@@ -8606,17 +8618,21 @@ async function scBuscar() {
 const SC_STATUS_FINALIZADOS = ['concluido', 'cancelado'];
 
 function scRenderTabelaAtividades(rows) {
-    const tbody = document.getElementById('sc-tabela-body');
     document.getElementById('sc-count-label').textContent = `${rows.length} atividade(s)`;
-    if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</td></tr>';
-        return;
-    }
     // "Limpar cronograma": tira quem já foi finalizado da visão de trabalho
     // (só no Cronograma -- no Histórico o ponto é justamente ver essas).
     const visiveis = (scModoAtividades === 'cronograma' && scOcultarFinalizadasCronograma)
         ? rows.filter(r => !SC_STATUS_FINALIZADOS.includes(r.status))
         : rows;
+    if (scModoAtividades === 'cronograma') {
+        scRenderKanban(visiveis, rows.length);
+        return;
+    }
+    const tbody = document.getElementById('sc-tabela-body');
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</td></tr>';
+        return;
+    }
     if (!visiveis.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade pendente -- tudo finalizado. Clique em "Mostrar concluídas/canceladas" pra ver.</td></tr>';
         return;
@@ -8667,6 +8683,94 @@ function scRenderTabelaAtividades(rows) {
         </tr>`);
     });
     tbody.innerHTML = linhas.join('');
+}
+
+// ── KANBAN do Cronograma (2026-07-28) ──────────────────────────────
+// Arrastar um card entre colunas chama scMudarStatus(), a mesma função
+// já usada pelo <select> de status da tabela -- ela decide sozinha se
+// precisa abrir um modal (Em andamento pede localização/acesso;
+// Concluído/Parcial/Improdutiva pedem dados de finalização) ou só
+// aplicar a mudança direto (Agendado, Cancelado). Mesmo padrão visual
+// de drag-and-drop já usado no Kanban da Área de Dev (.dev-card/.dev-col-drop).
+const SC_KANBAN_COLUNAS = [
+    { status: 'agendado', label: 'Agendado', dot: 'bg-amber-400' },
+    { status: 'em_andamento', label: 'Em andamento', dot: 'bg-faiston-cyan' },
+    { status: 'parcial', label: 'Parcial', dot: 'bg-amber-400' },
+    { status: 'concluido', label: 'Concluído', dot: 'bg-emerald-400' },
+    { status: 'improdutiva_cliente', label: 'Improdutiva — Cliente', dot: 'bg-faiston-pink' },
+    { status: 'improdutiva_faiston', label: 'Improdutiva — Faiston', dot: 'bg-faiston-magenta' },
+    { status: 'cancelado', label: 'Cancelado', dot: 'bg-slate-400' },
+];
+let scKanbanDragId = null;
+
+function scRenderKanban(visiveis, totalGeral) {
+    const board = document.getElementById('sc-kanban');
+    if (!totalGeral) {
+        board.innerHTML = '<div class="w-full text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</div>';
+        return;
+    }
+    if (!visiveis.length) {
+        board.innerHTML = '<div class="w-full text-center py-12 text-slate-300 text-sm">Nenhuma atividade pendente -- tudo finalizado. Clique em "Mostrar concluídas/canceladas" pra ver.</div>';
+        return;
+    }
+    const podeEditar = scPodeEditar();
+    board.innerHTML = SC_KANBAN_COLUNAS.map(col => {
+        const itens = visiveis.filter(r => r.status === col.status);
+        return `<div class="flex-shrink-0 w-72 flex flex-col">
+            <div class="flex items-center gap-2 mb-2 px-1">
+                <span class="w-2 h-2 rounded-full ${col.dot} flex-shrink-0"></span>
+                <span class="text-xs font-bold text-faiston-dark truncate">${col.label}</span>
+                <span class="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full ml-auto flex-shrink-0">${itens.length}</span>
+            </div>
+            <div class="sc-col-drop flex flex-col gap-2 bg-slate-50/60 rounded-2xl border-2 border-dashed border-faiston-border p-2 min-h-[140px] flex-1" data-status="${col.status}">
+                ${itens.map(r => scKanbanCardHtml(r, podeEditar)).join('') || '<p class="text-center text-[11px] text-slate-300 py-8">Vazio</p>'}
+            </div>
+        </div>`;
+    }).join('');
+    scConfigurarDragKanban();
+}
+
+function scKanbanCardHtml(r, podeEditar) {
+    const onclick = podeEditar ? `scAbrirModalEditar(${r.id})` : `scAbrirModalAndamentoHistorico(${r.id})`;
+    return `<div class="sc-card bg-white border border-faiston-border rounded-xl p-3" draggable="${podeEditar}" data-id="${r.id}" onclick="${onclick}">
+        <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="text-xs font-bold text-faiston-purple truncate">${scEsc(r.cliente_nome || '—')}</span>
+            <span class="text-[10px] text-faiston-faint whitespace-nowrap flex-shrink-0">${scEsc(fmtDate(r.data))}</span>
+        </div>
+        <p class="text-sm font-semibold text-faiston-dark truncate">${scEsc(r.site_sigla || r.site_nome || '—')}</p>
+        ${r.subprojeto ? `<p class="text-[11px] text-slate-500 truncate">${scEsc(r.subprojeto)}</p>` : ''}
+        <div class="flex flex-col gap-0.5 mt-1.5 text-[11px] text-faiston-muted">
+            ${r.tecnico ? `<span class="truncate"><i class="ph ph-hard-hat"></i> ${scEsc(r.tecnico)}</span>` : ''}
+            ${r.n2_responsavel ? `<span class="truncate"><i class="ph ph-headset"></i> ${scEsc(r.n2_responsavel)}</span>` : ''}
+        </div>
+    </div>`;
+}
+
+function scConfigurarDragKanban() {
+    document.querySelectorAll('#sc-kanban .sc-card').forEach(card => {
+        if (card.getAttribute('draggable') !== 'true') return;
+        card.addEventListener('dragstart', (e) => {
+            scKanbanDragId = parseInt(card.dataset.id);
+            card.classList.add('dragging');
+            e.stopPropagation();
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    });
+    document.querySelectorAll('#sc-kanban .sc-col-drop').forEach(zona => {
+        zona.addEventListener('dragover', (e) => { e.preventDefault(); zona.classList.add('drag-over'); });
+        zona.addEventListener('dragleave', () => zona.classList.remove('drag-over'));
+        zona.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zona.classList.remove('drag-over');
+            if (scKanbanDragId == null) return;
+            const id = scKanbanDragId;
+            const novoStatus = zona.dataset.status;
+            scKanbanDragId = null;
+            const row = scUltimaLista.find(r => r.id === id);
+            if (!row || row.status === novoStatus) return;
+            scMudarStatus(id, novoStatus);
+        });
+    });
 }
 
 const SC_LOCALIZACAO_LABEL = { deslocamento: 'Em deslocamento', no_local: 'No local' };
