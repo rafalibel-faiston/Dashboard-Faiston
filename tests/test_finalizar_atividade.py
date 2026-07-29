@@ -75,33 +75,96 @@ class TestFinalizarExigeConfirmacao:
         try:
             resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
                 "status": "concluido", "hora_termino": "17:45", "material_utilizado": False,
-                "material_detalhe": "não deveria salvar isso", "material_quantidade": 9, "material_valor": 50.0,
+                "materiais": [{"descricao": "não deveria salvar isso", "quantidade": 9, "valor": 50.0}],
             })
             assert resp.status_code == 200, resp.text
             item = admin_client.get(f"/api/status-campo/{aid}").json()
             assert item["status"] == "concluido"
             assert item["hora_termino"] == "17:45"
             assert item["material_utilizado"] is False
-            assert item["material_detalhe"] == ""
-            assert item["material_quantidade"] is None
-            assert item["material_valor"] is None
+            assert item["materiais"] == []
         finally:
             admin_client.delete(f"/api/status-campo/{aid}")
 
-    def test_finaliza_com_material_salva_detalhe_quantidade_e_valor(self, admin_client, cliente_teste):
+    def test_finaliza_com_material_salva_lista_de_materiais(self, admin_client, cliente_teste):
         aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
         try:
             resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
                 "status": "parcial", "hora_termino": "18:00", "material_utilizado": True,
-                "material_detalhe": "Patch cord 3m", "material_quantidade": 2, "material_valor": 40.0,
+                "materiais": [{"descricao": "Patch cord", "quantidade": 2, "unidade": "unidade", "valor": 40.0}],
             })
             assert resp.status_code == 200, resp.text
             item = admin_client.get(f"/api/status-campo/{aid}").json()
             assert item["status"] == "parcial"
             assert item["material_utilizado"] is True
-            assert item["material_detalhe"] == "Patch cord 3m"
-            assert item["material_quantidade"] == 2
-            assert item["material_valor"] == 40.0
+            assert len(item["materiais"]) == 1
+            assert item["materiais"][0]["descricao"] == "Patch cord"
+            assert item["materiais"][0]["quantidade"] == 2
+            assert item["materiais"][0]["unidade"] == "unidade"
+            assert item["materiais"][0]["valor"] == 40.0
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_finaliza_com_varios_materiais_e_unidade_de_medida(self, admin_client, cliente_teste):
+        # Ponto de feedback: quantidade nem sempre é contagem de item --
+        # ex. "28" com unidade "metro" pra cabo de rede -- e uma visita pode
+        # usar mais de um material ao mesmo tempo.
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "concluido", "hora_termino": "18:00", "material_utilizado": True,
+                "materiais": [
+                    {"descricao": "Cabo de rede cat6", "quantidade": 28, "unidade": "metro", "valor": 84.0},
+                    {"descricao": "Conector RJ45", "quantidade": 4, "unidade": "unidade", "valor": 8.0},
+                ],
+            })
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert len(item["materiais"]) == 2
+            cabo = next(m for m in item["materiais"] if m["descricao"] == "Cabo de rede cat6")
+            assert cabo["quantidade"] == 28
+            assert cabo["unidade"] == "metro"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_unidade_invalida_vira_unidade_padrao(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "concluido", "hora_termino": "18:00", "material_utilizado": True,
+                "materiais": [{"descricao": "Algo", "unidade": "valor-invalido"}],
+            })
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["materiais"][0]["unidade"] == "unidade"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_material_utilizado_sem_nenhum_item_retorna_400(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "concluido", "hora_termino": "18:00", "material_utilizado": True,
+            })
+            assert resp.status_code == 400
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_reenviar_finalizacao_substitui_lista_de_materiais(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "parcial", "hora_termino": "17:00", "material_utilizado": True,
+                "materiais": [{"descricao": "Item antigo", "quantidade": 1}],
+            })
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "concluido", "hora_termino": "18:00", "material_utilizado": True,
+                "materiais": [{"descricao": "Item novo", "quantidade": 3}],
+            })
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert len(item["materiais"]) == 1
+            assert item["materiais"][0]["descricao"] == "Item novo"
         finally:
             admin_client.delete(f"/api/status-campo/{aid}")
 

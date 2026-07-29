@@ -2016,17 +2016,8 @@
                 </div>
             </div>
             <div id="sc-fz-material-campos" class="hidden flex-col gap-2">
-                <textarea id="sc-fz-material-detalhe" rows="2" placeholder="Qual material foi utilizado..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Quantidade</label>
-                        <input type="number" min="0" id="sc-fz-material-qtd" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Valor (R$)</label>
-                        <input type="number" min="0" step="0.01" id="sc-fz-material-valor" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
-                    </div>
-                </div>
+                <div id="sc-fz-material-lista" class="flex flex-col gap-2"></div>
+                <button type="button" onclick="scFzAdicionarMaterial()" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar material</button>
             </div>
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Equipamento</label>
@@ -8330,8 +8321,43 @@ function scToggleFinalizarMaterial() {
     const campos = document.getElementById('sc-fz-material-campos');
     campos.classList.toggle('hidden', !usado);
     campos.classList.toggle('flex', usado);
+    if (usado && !scFzMaterialItems.length) scFzAdicionarMaterial();
 }
 let scAtividadeAlvoRow = null;
+
+const SC_MATERIAL_UNIDADE_LABEL = { unidade: 'Unidade', metro: 'Metro', caixa: 'Caixa', rolo: 'Rolo', par: 'Par', pacote: 'Pacote', kit: 'Kit' };
+let scFzMaterialItems = [];
+function scFzRenderMateriais() {
+    const container = document.getElementById('sc-fz-material-lista');
+    const opts = Object.entries(SC_MATERIAL_UNIDADE_LABEL).map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+    container.innerHTML = scFzMaterialItems.length ? scFzMaterialItems.map((m, i) => `
+        <div class="flex gap-2 items-center flex-wrap border border-faiston-border rounded-lg p-2">
+            <input type="text" value="${scEsc(m.descricao)}" placeholder="Material (ex.: Cabo de rede cat6)" oninput="scFzAtualizarMaterial(${i}, 'descricao', this.value)" class="flex-1 min-w-[140px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="number" min="0" step="0.01" value="${m.quantidade ?? ''}" placeholder="Qtd." oninput="scFzAtualizarMaterial(${i}, 'quantidade', this.value)" class="w-20 border border-faiston-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <select onchange="scFzAtualizarMaterial(${i}, 'unidade', this.value)" class="w-28 border border-faiston-border rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>
+            <input type="number" min="0" step="0.01" value="${m.valor ?? ''}" placeholder="Valor R$" oninput="scFzAtualizarMaterial(${i}, 'valor', this.value)" class="w-24 border border-faiston-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <button type="button" onclick="scFzRemoverMaterial(${i})" class="w-9 h-9 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+        </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum material adicionado.</p>';
+    scFzMaterialItems.forEach((m, i) => {
+        const sel = container.children[i] && container.children[i].querySelector('select');
+        if (sel) sel.value = m.unidade || 'unidade';
+    });
+}
+function scFzAdicionarMaterial() {
+    scFzMaterialItems.push({ descricao: '', quantidade: null, unidade: 'unidade', valor: null });
+    scFzRenderMateriais();
+}
+function scFzRemoverMaterial(i) {
+    scFzMaterialItems.splice(i, 1);
+    scFzRenderMateriais();
+}
+function scFzAtualizarMaterial(i, campo, valor) {
+    if (campo === 'quantidade' || campo === 'valor') {
+        scFzMaterialItems[i][campo] = valor === '' ? null : parseFloat(valor);
+    } else {
+        scFzMaterialItems[i][campo] = valor;
+    }
+}
 
 let scFzInstaladoItems = [];
 let scFzRemovidoItems = [];
@@ -8380,9 +8406,8 @@ async function scAbrirModalFinalizar(id, novoStatus, row) {
     const materialSim = !!(row && row.material_utilizado);
     document.getElementById('sc-fz-material-sim').checked = materialSim;
     document.getElementById('sc-fz-material-nao').checked = !materialSim;
-    document.getElementById('sc-fz-material-detalhe').value = (row && row.material_detalhe) || '';
-    document.getElementById('sc-fz-material-qtd').value = (row && row.material_quantidade) ?? '';
-    document.getElementById('sc-fz-material-valor').value = (row && row.material_valor) ?? '';
+    scFzMaterialItems = (row && row.materiais || []).map(m => ({ ...m }));
+    scFzRenderMateriais();
     scToggleFinalizarMaterial();
     const particularidades = (row && row.particularidades) || [];
     document.getElementById('sc-fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
@@ -8427,6 +8452,14 @@ function scFzLinhasItens(itens) {
     if (!itens.length) return ['N/A'];
     return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'}`);
 }
+function scFzLinhasMateriais(itens) {
+    if (!itens.length) return ['N/A'];
+    return itens.map(m => {
+        const qtd = m.quantidade != null ? `${m.quantidade} ${SC_MATERIAL_UNIDADE_LABEL[m.unidade] || m.unidade || ''}`.trim() : '';
+        const valor = m.valor != null ? ` · R$ ${Number(m.valor).toFixed(2)}` : '';
+        return `${m.descricao}${qtd ? ` (${qtd})` : ''}${valor}`;
+    });
+}
 function scGerarCarimboFinalizacao(row, extras) {
     const site = row.site_sigla || row.site_nome || '';
     const cabecalho = [row.ticket, site, row.cidade, row.subprojeto]
@@ -8449,7 +8482,8 @@ function scGerarCarimboFinalizacao(row, extras) {
         `MATRICULA: ${extras.contatoMatricula || 'N/A'}`,
         '',
         `OBSERVAÇÃO: ${extras.observacoes || 'N/A'}`,
-        `Material utilizado: ${extras.materialUtilizado ? (extras.materialDetalhe || 'N/A') : 'N/A'}`,
+        extras.materialUtilizado && extras.materiais && extras.materiais.length ? 'Material utilizado:' : 'Material utilizado: N/A',
+        ...(extras.materialUtilizado ? scFzLinhasMateriais(extras.materiais || []).map(l => `  ${l}`) : []),
     ];
     return linhas.filter(l => l !== null).join('\n');
 }
@@ -8483,6 +8517,8 @@ async function scConfirmarFinalizar() {
     const removidoPosse = document.getElementById('sc-fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
     const instaladoItens = instalado ? scFzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
     const removidoItens = removido ? scFzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
+    const materiaisItens = materialSim ? scFzMaterialItems.filter(m => m.descricao.trim()) : [];
+    if (materialSim && !materiaisItens.length) { alert('Informe ao menos um material utilizado.'); return; }
     const id = scStatusAlvoId;
     const status = scStatusAlvoNovo;
     const row = scAtividadeAlvoRow;
@@ -8490,11 +8526,7 @@ async function scConfirmarFinalizar() {
         status,
         hora_termino: saida,
         material_utilizado: materialSim,
-        material_detalhe: materialSim ? document.getElementById('sc-fz-material-detalhe').value.trim() : '',
-        material_quantidade: materialSim && document.getElementById('sc-fz-material-qtd').value
-            ? parseInt(document.getElementById('sc-fz-material-qtd').value, 10) : null,
-        material_valor: materialSim && document.getElementById('sc-fz-material-valor').value
-            ? parseFloat(document.getElementById('sc-fz-material-valor').value) : null,
+        materiais: materiaisItens,
         equipamento_status: equipamentoStatus,
         equipamentos_instalados: instaladoItens,
         equipamentos_removidos: removidoItens,
@@ -8516,7 +8548,7 @@ async function scConfirmarFinalizar() {
             contatoMatricula: body.contato_local_matricula,
             observacoes: body.observacoes,
             materialUtilizado: materialSim,
-            materialDetalhe: body.material_detalhe,
+            materiais: materiaisItens,
         });
         scAbrirModalCarimboFinalizacao(texto);
     }
@@ -8536,7 +8568,7 @@ async function scAbrirModalAndamentoHistorico(id) {
         }
         const localLabel = { deslocamento: 'Em deslocamento', no_local: 'No local' };
         const acessoLabel = { com_acesso: 'Com acesso', verificando_acesso: 'Verificando acesso', sem_acesso: 'Sem acesso' };
-        const tipoLabel = { instalando: 'Instalando', trocando: 'Trocando', removendo: 'Removendo' };
+        const tipoLabel = { instalando: 'Instalando', trocando: 'Trocando', removendo: 'Removendo', validando: 'Validando' };
         box.innerHTML = hist.map(h => `
             <div class="border-l-2 border-faiston-purple/30 pl-3 py-1">
                 <div class="flex items-center gap-2 flex-wrap text-[11px] text-faiston-faint">
@@ -8849,7 +8881,7 @@ function scConfigurarDragKanban() {
 const SC_LOCALIZACAO_LABEL = { deslocamento: 'Em deslocamento', no_local: 'No local' };
 const SC_ACESSO_LABEL = { com_acesso: 'Com acesso', verificando_acesso: 'Verificando acesso', sem_acesso: 'Sem acesso' };
 
-const SC_ANDAMENTO_TIPO_LABEL = { instalando: 'Instalando', trocando: 'Trocando', removendo: 'Removendo' };
+const SC_ANDAMENTO_TIPO_LABEL = { instalando: 'Instalando', trocando: 'Trocando', removendo: 'Removendo', validando: 'Validando' };
 function scBannerAndamentoTipo(a) {
     if (!a.andamento_tipo) return '';
     const label = SC_ANDAMENTO_TIPO_LABEL[a.andamento_tipo] || a.andamento_tipo;
@@ -8867,8 +8899,11 @@ function scReportCardAtividade(a, clienteNome) {
     if (a.acesso) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-faiston-purple/10 text-faiston-purple">${SC_ACESSO_LABEL[a.acesso] || a.acesso}</span>`);
     if (a.ticket) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Ticket ${scEsc(a.ticket)}</span>`);
     if (a.material_utilizado) {
-        const valor = a.material_valor != null ? ` · R$ ${Number(a.material_valor).toFixed(2)}` : '';
-        chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Material${a.material_quantidade != null ? ' x' + a.material_quantidade : ''}${valor}</span>`);
+        const materiais = a.materiais || [];
+        const totalValor = materiais.reduce((s, m) => s + (m.valor || 0), 0);
+        const valor = totalValor > 0 ? ` · R$ ${totalValor.toFixed(2)}` : '';
+        const label = materiais.length > 1 ? `Material (${materiais.length} itens)` : (materiais[0] ? materiais[0].descricao : 'Material');
+        chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600" title="${scEsc(materiais.map(m => m.descricao).join(', '))}">${scEsc(label)}${valor}</span>`);
     }
     (a.particularidades || []).forEach(p => {
         const label = { reversa: 'Reversa', equipamento_em_posse_do_cliente: 'Equip. c/ cliente', equipamento_removido: 'Equip. removido' }[p] || p;

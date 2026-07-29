@@ -519,6 +519,35 @@ def setup_banco():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_equip_ativ ON status_atividade_equipamentos(atividade_id)")
+        # Materiais utilizados ao finalizar -- lista (não mais um campo
+        # único), porque uma visita pode usar mais de um material (ex.:
+        # cabo de rede + conectores). quantidade é NUMERIC (não INTEGER)
+        # porque nem todo material se conta em unidades -- ex. "28" com
+        # unidade "metro" pra cabo de rede. Substitui material_detalhe/
+        # material_quantidade/material_valor em status_atividades (mantidas
+        # na tabela, não usadas mais, pra não exigir DROP COLUMN destrutivo).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS status_atividade_materiais (
+                id SERIAL PRIMARY KEY,
+                atividade_id INTEGER NOT NULL REFERENCES status_atividades(id) ON DELETE CASCADE,
+                descricao TEXT NOT NULL DEFAULT '',
+                quantidade NUMERIC(10,2),
+                unidade VARCHAR(20) DEFAULT 'unidade',
+                valor NUMERIC(10,2),
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_status_material_ativ ON status_atividade_materiais(atividade_id)")
+        # Backfill único: atividades já finalizadas antes desta migração que
+        # tinham material_detalhe preenchido (campo único antigo) ganham uma
+        # linha equivalente na tabela nova, pra não sumir do histórico/report.
+        cur.execute("""
+            INSERT INTO status_atividade_materiais (atividade_id, descricao, quantidade, unidade, valor)
+            SELECT a.id, a.material_detalhe, a.material_quantidade, 'unidade', a.material_valor
+            FROM status_atividades a
+            WHERE a.material_utilizado = TRUE AND COALESCE(a.material_detalhe, '') != ''
+              AND NOT EXISTS (SELECT 1 FROM status_atividade_materiais m WHERE m.atividade_id = a.id)
+        """)
         # Histórico de atualizações de andamento (item: N2 pode registrar
         # quantas atualizações quiser durante a atividade -- ex. fixação no
         # rack, configuração, validação -- em vez de um campo único que só
@@ -5818,7 +5847,8 @@ STATUS_CAMPO_TERMINAIS = ('concluido', 'parcial', 'improdutiva_cliente', 'improd
 PARTICULARIDADES_VALIDAS = ('reversa', 'equipamento_em_posse_do_cliente', 'equipamento_removido', 'equipamento_instalado')
 LOCALIZACAO_VALIDOS = ('deslocamento', 'no_local')
 ACESSO_VALIDOS = ('com_acesso', 'verificando_acesso', 'sem_acesso')
-ANDAMENTO_TIPO_VALIDOS = ('instalando', 'trocando', 'removendo')
+ANDAMENTO_TIPO_VALIDOS = ('instalando', 'trocando', 'removendo', 'validando')
+MATERIAL_UNIDADE_VALIDOS = ('unidade', 'metro', 'caixa', 'rolo', 'par', 'pacote', 'kit')
 
 # Lista única de colunas usada tanto em listar_status_campo quanto em
 # obter_status_campo, pra não desalinhar SELECT/cols de novo (já causou
@@ -5847,6 +5877,12 @@ STATUS_CAMPO_COLS = ["id", "cliente_id", "cliente_nome", "data", "horario_agenda
 class EquipamentoItem(BaseModel):
     partnumber: str = ""
     serial: str = ""
+
+class MaterialItem(BaseModel):
+    descricao: str = ""
+    quantidade: Optional[float] = None
+    unidade: str = "unidade"
+    valor: Optional[float] = None
 
 class StatusAtividadeModel(BaseModel):
     cliente_id: int
@@ -5946,7 +5982,17 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
             ORDER BY a.data DESC, a.horario_agendado ASC NULLS LAST
             LIMIT 300
         """, params)
-        rows = cur.fetchall()
+        ids = [r[0] for r in rows]
+        materiais_por_id = {}
+        if ids:
+            cur.execute("""
+                SELECT atividade_id, descricao, quantidade, unidade, valor
+                FROM status_atividade_materiais WHERE atividade_id = ANY(%s) ORDER BY id
+            """, (ids,))
+            for m in cur.fetchall():
+                materiais_por_id.setdefault(m[0], []).append({
+                    "descricao": m[1], "quantidade": float(m[2]) if m[2] is not None else None,
+                    "unidade": m[3], "valor": float(m[4]) if m[4] is not None else None})
         cur.close(); conn.close()
         out = []
         for r in rows:
@@ -5957,6 +6003,7 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
             for k in ("criado_em", "atualizado_em"):
                 item[k] = str(item[k])[:16] if item[k] else None
             item["particularidades"] = item["particularidades"] or []
+            item["materiais"] = materiais_por_id.get(item["id"], [])
             out.append(item)
         return out
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -5983,6 +6030,17 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
             ORDER BY c.nome NULLS LAST, a.horario_agendado ASC NULLS LAST
         """, (data,))
         rows = cur.fetchall()
+        ids = [r[0] for r in rows]
+        materiais_por_id = {}
+        if ids:
+            cur.execute("""
+                SELECT atividade_id, descricao, quantidade, unidade, valor
+                FROM status_atividade_materiais WHERE atividade_id = ANY(%s) ORDER BY id
+            """, (ids,))
+            for m in cur.fetchall():
+                materiais_por_id.setdefault(m[0], []).append({
+                    "descricao": m[1], "quantidade": float(m[2]) if m[2] is not None else None,
+                    "unidade": m[3], "valor": float(m[4]) if m[4] is not None else None})
         cur.close(); conn.close()
         contagem = {}
         por_cliente = {}
@@ -5999,8 +6057,7 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
                 "status": status, "observacoes": obs, "horario_agendado": str(horario)[:5] if horario else None,
                 "cidade": cidade, "uf": uf, "n2_responsavel": n2,
                 "particularidades": particularidades or [], "material_utilizado": material_utilizado,
-                "material_detalhe": material_detalhe, "material_quantidade": material_quantidade,
-                "material_valor": float(material_valor) if material_valor is not None else None,
+                "materiais": materiais_por_id.get(aid, []),
                 "ticket": ticket, "andamento_descricao": andamento_descricao,
                 "localizacao": localizacao, "acesso": acesso, "subprojeto": subprojeto,
                 "equipamento_removido_detalhe": equip_removido_detalhe,
@@ -6056,6 +6113,9 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
         item["particularidades"] = item["particularidades"] or []
         cur.execute("SELECT tipo, partnumber, serial FROM status_atividade_equipamentos WHERE atividade_id=%s ORDER BY id", (aid,))
         item["equipamentos"] = [{"tipo": e[0], "partnumber": e[1], "serial": e[2]} for e in cur.fetchall()]
+        cur.execute("SELECT descricao, quantidade, unidade, valor FROM status_atividade_materiais WHERE atividade_id=%s ORDER BY id", (aid,))
+        item["materiais"] = [{"descricao": m[0], "quantidade": float(m[1]) if m[1] is not None else None,
+                               "unidade": m[2], "valor": float(m[3]) if m[3] is not None else None} for m in cur.fetchall()]
         cur.close(); conn.close()
         return item
     except HTTPException: raise
@@ -6178,9 +6238,10 @@ class StatusCampoStatusModel(BaseModel):
     andamento_equipamento: Optional[str] = None
     hora_termino: Optional[str] = None
     material_utilizado: Optional[bool] = None
-    material_detalhe: Optional[str] = None
-    material_quantidade: Optional[int] = None
-    material_valor: Optional[float] = None
+    # Lista (não mais um campo único) -- uma visita pode usar mais de um
+    # material, e a quantidade nem sempre é contagem de item (ex.: "28"
+    # com unidade "metro" pra cabo de rede). Ver MaterialItem/MATERIAL_UNIDADE_VALIDOS.
+    materiais: List[MaterialItem] = []
     # Coletados na finalização (tela "Finalizar atividade"), pra montar o
     # carimbo de encerramento -- ver POST/README do carimbo no front-end.
     # Instalado/removido não são mais mutuamente exclusivos (uma atividade
@@ -6197,26 +6258,30 @@ class StatusCampoStatusModel(BaseModel):
 def _registrar_andamento(cur, aid, localizacao, acesso, descricao, sess,
                           hora_chegada=None, hora_inicio_atividade=None, andamento_tipo=None,
                           andamento_equipamento=None):
-    """Grava uma entrada no histórico de andamento (tipo do trabalho +
-    equipamento + descrição) e atualiza o snapshot em status_atividades.
-    Usado tanto na transição pra "em_andamento" (que também define
-    localização/acesso pela primeira vez) quanto no botão "Atualizar
-    andamento" (só tipo+equipamento+descrição, sem mexer em localização/
-    acesso -- ver /situacao pra isso). Todos os campos de horário/
-    localização são COALESCE no update do snapshot: só sobrescrevem quando
-    vêm preenchidos, pra uma chamada parcial não apagar o que já estava
-    registrado."""
+    """Atualiza o snapshot de situação/andamento em status_atividades e, só
+    quando há conteúdo real de andamento (tipo e/ou equipamento e/ou
+    descrição preenchidos), grava também uma entrada no histórico. Um só
+    botão/modal ("Atualizar", ver n2.html) cobre tanto situação (localização/
+    acesso/chegada) quanto andamento (tipo/equipamento) -- uma chamada que só
+    atualiza situação não passou a poluir a linha do tempo com entradas
+    vazias; uma chamada que também descreve o que está sendo feito, sim.
+    Todos os campos de horário/localização são COALESCE no update do
+    snapshot: só sobrescrevem quando vêm preenchidos, pra uma chamada
+    parcial não apagar o que já estava registrado."""
     localizacao = localizacao if localizacao in LOCALIZACAO_VALIDOS else None
     acesso = acesso if acesso in ACESSO_VALIDOS else None
     andamento_tipo = andamento_tipo if andamento_tipo in ANDAMENTO_TIPO_VALIDOS else None
-    cur.execute("""
-        INSERT INTO status_atividade_andamentos
-            (atividade_id, localizacao, acesso, descricao, criado_por, criado_por_nome,
-             hora_chegada, hora_inicio_atividade, andamento_tipo, andamento_equipamento)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-    """, (aid, localizacao, acesso, descricao.strip(), sess["id"], sess["nome"],
-          hora_chegada or None, hora_inicio_atividade or None, andamento_tipo,
-          (andamento_equipamento or "").strip()))
+    andamento_equipamento = (andamento_equipamento or "").strip()
+    descricao = descricao.strip()
+    if andamento_tipo or andamento_equipamento or descricao:
+        cur.execute("""
+            INSERT INTO status_atividade_andamentos
+                (atividade_id, localizacao, acesso, descricao, criado_por, criado_por_nome,
+                 hora_chegada, hora_inicio_atividade, andamento_tipo, andamento_equipamento)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (aid, localizacao, acesso, descricao, sess["id"], sess["nome"],
+              hora_chegada or None, hora_inicio_atividade or None, andamento_tipo,
+              andamento_equipamento))
     cur.execute("""
         UPDATE status_atividades SET andamento_descricao=%s,
             localizacao=COALESCE(%s, localizacao), acesso=COALESCE(%s, acesso),
@@ -6226,8 +6291,8 @@ def _registrar_andamento(cur, aid, localizacao, acesso, descricao, sess,
             andamento_equipamento=COALESCE(NULLIF(%s, ''), andamento_equipamento),
             atualizado_em=NOW()
         WHERE id=%s
-    """, (descricao.strip(), localizacao, acesso, hora_chegada or None, hora_inicio_atividade or None,
-          andamento_tipo, (andamento_equipamento or "").strip(), aid))
+    """, (descricao, localizacao, acesso, hora_chegada or None, hora_inicio_atividade or None,
+          andamento_tipo, andamento_equipamento, aid))
 
 def _gerar_ou_atualizar_tarefa_campo(cur, aid):
     """N2-A: ao finalizar uma visita de campo (qualquer status terminal --
@@ -6284,11 +6349,22 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
     # critério do N2, mas o campo precisa vir preenchido explicitamente).
     if body.status == "em_andamento" and body.localizacao not in LOCALIZACAO_VALIDOS:
         raise HTTPException(status_code=400, detail="Selecione a localização")
+    # Progressão: só faz sentido dizer o que está sendo instalado/trocado/
+    # removido depois que o acesso ao local foi confirmado (o próprio modal
+    # só libera esses campos nesse ponto) -- e tipo sem dizer o quê é
+    # inexistente na prática, então equipamento é obrigatório junto do tipo.
+    if body.status == "em_andamento" and body.andamento_tipo in ANDAMENTO_TIPO_VALIDOS:
+        if body.acesso != "com_acesso":
+            raise HTTPException(status_code=400, detail="Confirme o acesso ao local antes de iniciar a atividade")
+        if not (body.andamento_equipamento or "").strip():
+            raise HTTPException(status_code=400, detail="Diga o que está sendo instalado/trocado/removido")
     if body.status in STATUS_CAMPO_TERMINAIS:
         if not body.hora_termino:
             raise HTTPException(status_code=400, detail="Informe a hora de saída para finalizar a atividade")
         if body.material_utilizado is None:
             raise HTTPException(status_code=400, detail="Informe se houve utilização de material")
+        if body.material_utilizado and not any(m.descricao.strip() for m in body.materiais):
+            raise HTTPException(status_code=400, detail="Informe ao menos um material utilizado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -6299,12 +6375,8 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
         params = [body.status]
         if body.status in STATUS_CAMPO_TERMINAIS:
             material_ok = bool(body.material_utilizado)
-            sets += ["hora_termino=%s", "material_utilizado=%s", "material_detalhe=%s",
-                     "material_quantidade=%s", "material_valor=%s"]
-            params += [body.hora_termino, material_ok,
-                       (body.material_detalhe or "") if material_ok else "",
-                       body.material_quantidade if material_ok else None,
-                       body.material_valor if material_ok else None]
+            sets += ["hora_termino=%s", "material_utilizado=%s"]
+            params += [body.hora_termino, material_ok]
             # Merge das particularidades ligadas ao equipamento (instalado/
             # removido/posse) -- preserva 'reversa' e qualquer outra tag que
             # não seja dessas 3, só substitui o que veio do modal de finalizar.
@@ -6340,76 +6412,25 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
                 cur.executemany(
                     "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
                     itens)
+            # Lista de materiais também é sempre substituída por completo,
+            # mesmo padrão dos equipamentos acima -- reflete exatamente o
+            # que veio do modal de finalizar nesta confirmação.
+            cur.execute("DELETE FROM status_atividade_materiais WHERE atividade_id=%s", (aid,))
+            if material_ok:
+                materiais_itens = [
+                    (aid, m.descricao.strip(), m.quantidade,
+                     m.unidade if m.unidade in MATERIAL_UNIDADE_VALIDOS else 'unidade', m.valor)
+                    for m in body.materiais if m.descricao.strip()
+                ]
+                if materiais_itens:
+                    cur.executemany(
+                        "INSERT INTO status_atividade_materiais (atividade_id, descricao, quantidade, unidade, valor) VALUES (%s,%s,%s,%s,%s)",
+                        materiais_itens)
             _gerar_ou_atualizar_tarefa_campo(cur, aid)
         if body.status == "em_andamento":
             _registrar_andamento(cur, aid, body.localizacao, body.acesso, body.andamento_descricao or "", sess,
                                  body.hora_chegada, body.hora_inicio_atividade, body.andamento_tipo,
                                  body.andamento_equipamento)
-        conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True}
-    except HTTPException: raise
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
-
-class AndamentoUpdateModel(BaseModel):
-    descricao: str = ""
-    hora_inicio_atividade: Optional[str] = None
-    andamento_tipo: Optional[str] = None
-    andamento_equipamento: str = ""
-
-@app.post("/api/status-campo/{aid}/andamento")
-def adicionar_andamento(aid: int, body: AndamentoUpdateModel, faiston_token: str = Cookie(None)):
-    """Botão "Atualizar andamento": o que está sendo feito tecnicamente
-    (instalando/trocando/removendo) + o que especificamente (equipamento) +
-    descrição opcional, sem localização/acesso -- isso é situação do
-    técnico, atualizado à parte via PATCH .../situacao (ver abaixo). Não
-    muda o status da atividade. Equipamento é obrigatório junto do tipo,
-    pra deixar bem evidente o que está sendo instalado/trocado/removido."""
-    sess = get_session(faiston_token)
-    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
-    if body.andamento_tipo not in ANDAMENTO_TIPO_VALIDOS:
-        raise HTTPException(status_code=400, detail="Selecione o que está sendo feito")
-    if not body.andamento_equipamento.strip():
-        raise HTTPException(status_code=400, detail="Diga o que está sendo instalado/trocado/removido")
-    conn = get_db()
-    if not conn: raise HTTPException(status_code=500)
-    try:
-        if not _pode_gerenciar_status_campo(sess, conn, aid):
-            raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
-        cur = conn.cursor()
-        _registrar_andamento(cur, aid, None, None, body.descricao, sess,
-                             None, body.hora_inicio_atividade, body.andamento_tipo, body.andamento_equipamento)
-        conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True}
-    except HTTPException: raise
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
-
-class SituacaoUpdateModel(BaseModel):
-    localizacao: str
-    acesso: Optional[str] = None
-    hora_chegada: Optional[str] = None
-
-@app.patch("/api/status-campo/{aid}/situacao")
-def atualizar_situacao(aid: int, body: SituacaoUpdateModel, faiston_token: str = Cookie(None)):
-    """Botão "Atualizar situação": localização/acesso/hora de chegada do
-    técnico -- estado atual, separado do "Atualizar andamento" (o que está
-    sendo feito). Não gera entrada na linha do tempo de andamento, só
-    atualiza o snapshot -- ver "Situação atual" no front-end."""
-    sess = get_session(faiston_token)
-    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
-    if body.localizacao not in LOCALIZACAO_VALIDOS:
-        raise HTTPException(status_code=400, detail="Selecione a localização")
-    acesso = body.acesso if body.acesso in ACESSO_VALIDOS else None
-    conn = get_db()
-    if not conn: raise HTTPException(status_code=500)
-    try:
-        if not _pode_gerenciar_status_campo(sess, conn, aid):
-            raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE status_atividades SET localizacao=%s, acesso=%s,
-                hora_chegada=COALESCE(%s, hora_chegada), atualizado_em=NOW()
-            WHERE id=%s
-        """, (body.localizacao, acesso, body.hora_chegada or None, aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except HTTPException: raise
