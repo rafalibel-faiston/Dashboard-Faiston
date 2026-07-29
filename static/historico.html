@@ -26,6 +26,10 @@
     <style>
         .custom-scrollbar::-webkit-scrollbar{width:5px;height:5px}
         .custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
+        /* ── Passada visual (2026-07-28), replicada do Dashboard ── */
+        #page-titulo { font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
         .filter-chip { transition: all 0.15s; }
         .filter-chip.active { background: #5B2EE0; color: white; border-color: #5B2EE0; }
         tr.selected { background: #F0F4FF !important; }
@@ -41,7 +45,7 @@
         </a>
         <span class="w-px h-4 bg-slate-200"></span>
         <i class="ph ph-clock-clockwise text-faiston-purple"></i>
-        <span class="text-sm font-bold text-faiston-dark">Histórico de Tarefas</span>
+        <span id="page-titulo" class="text-sm font-bold text-faiston-dark">Histórico de Tarefas</span>
     </div>
     <div class="flex items-center gap-3">
         <button onclick="exportarCSV()" class="flex items-center gap-2 bg-faiston-cyan/10 border border-faiston-cyan/30 text-faiston-cyan px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-faiston-cyan/20 transition-colors">

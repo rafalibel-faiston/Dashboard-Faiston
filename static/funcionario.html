@@ -6,7 +6,7 @@
     <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
     <title>Painel do Funcionário</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -27,6 +27,13 @@
             --grad: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
             --glow: 0 12px 32px -8px rgba(184,38,201,0.45), 0 4px 12px -4px rgba(91,46,224,0.35);
         }
+        /* ── Passada visual (2026-07-28), replicada do Dashboard ── */
+        #page-titulo, h2.text-base.font-bold.text-faiston-dark {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            letter-spacing: -0.01em;
+        }
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
         .grad-bg  { background: var(--grad); }
         .grad-text{ background: var(--grad); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; }
         .btn-grad { background: var(--grad); box-shadow: var(--glow); transition: transform .12s ease, box-shadow .2s ease; }
@@ -161,7 +168,7 @@
         <img src="/faiston-ops-mark.svg" alt="" class="w-9 h-9 rounded-[10px] shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
         <span class="font-extrabold tracking-tight text-faiston-dark text-[15px]">FAISTON <span class="grad-text">OPS</span></span>
         <span class="w-px h-4 bg-slate-200 mx-1"></span>
-        <span class="text-sm text-slate-500 font-medium">Minhas Tarefas</span>
+        <span id="page-titulo" class="text-sm text-slate-500 font-medium">Minhas Tarefas</span>
     </div>
     <div class="flex flex-wrap items-center gap-2 sm:gap-3">
         <!-- Timer global -->

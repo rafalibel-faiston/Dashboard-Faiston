@@ -24,6 +24,13 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
     <style>
+        /* ── Passada visual (2026-07-28), replicada do Dashboard ── */
+        h1.text-lg.font-extrabold.text-faiston-dark {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            letter-spacing: -0.01em;
+        }
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
         /* Dark mode overrides */
         [data-theme="dark"] body { background-color: #07070F !important; color: #F1F2F8 !important; }
         [data-theme="dark"] .bg-white { background-color: #11111E !important; }
