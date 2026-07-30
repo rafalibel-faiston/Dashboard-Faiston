@@ -45,6 +45,9 @@
         <button onclick="toggleTema()" id="btn-tema-h" class="btn-theme" title="Alternar tema">
             <i class="ph ph-moon" id="icon-tema-h"></i>
         </button>
+        <button onclick="n2TourIniciar()" title="Rever o tutorial" class="text-faiston-faint hover:text-faiston-purple transition-colors">
+            <i class="ph ph-graduation-cap text-lg"></i>
+        </button>
         <button onclick="suporteAbrirModal()" title="Falar com o suporte" class="text-faiston-faint hover:text-faiston-purple transition-colors">
             <i class="ph ph-lifebuoy text-lg"></i>
         </button>
@@ -65,7 +68,7 @@
             <h2 class="text-xl font-bold text-faiston-dark" id="n2-titulo">Minhas atividades</h2>
             <p class="text-xs text-faiston-muted mt-0.5" id="n2-subtitulo">Atividades de campo onde você é o N2 responsável</p>
         </div>
-        <button onclick="abrirModalNovo()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+        <button onclick="abrirModalNovo()" id="btn-nova-atividade" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
             <i class="ph ph-plus text-base"></i> Nova atividade
         </button>
     </div>
@@ -140,7 +143,7 @@
                     <span class="text-sm font-bold text-faiston-dark">Minhas atividades extras</span>
                     <p class="text-xs text-faiston-muted mt-0.5">Suporte remoto, rack, staging, relatórios, incidentes -- tudo que não é visita de campo</p>
                 </div>
-                <button onclick="abrirModalExtra()" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                <button onclick="abrirModalExtra()" id="btn-nova-atividade-extra" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
                     <i class="ph ph-plus text-base"></i> Nova atividade extra
                 </button>
             </div>
@@ -584,6 +587,14 @@ async function init() {
     // cliente sem nada pra imprimir naquela data.
 
     mostrarAbaN2('minhas');
+
+    try {
+        const resTut = await fetch('/api/tutorial-n2/status');
+        if (resTut.ok) {
+            const { visto } = await resTut.json();
+            if (!visto) setTimeout(() => n2TourIniciar(true), 500);
+        }
+    } catch (e) {}
 }
 
 async function logout() {
@@ -1544,6 +1555,119 @@ async function suporteEnviar() {
     } finally {
         btn.disabled = false; btn.textContent = 'Enviar solicitação';
     }
+}
+</script>
+
+<!-- TOUR GUIADO: tutorial do N2 (2026-07-30) -- destaca elementos reais da
+     tela em vez de telas fake; aparece sozinho no primeiro login (flag
+     usuarios.tutorial_n2_visto) e pode ser revisto pelo ícone de capelo. -->
+<style>
+    #n2-tour-overlay{ position:fixed; inset:0; z-index:90; }
+    #n2-tour-catch{ position:fixed; inset:0; }
+    #n2-tour-spot{ position:fixed; border-radius:14px; box-shadow:0 0 0 4px rgba(91,46,224,.6), 0 0 0 9999px rgba(11,13,31,.62); transition:all .32s cubic-bezier(.4,0,.2,1); pointer-events:none; }
+    #n2-tour-card{ position:fixed; z-index:92; width:320px; background:#fff; border-radius:18px; padding:20px 22px; box-shadow:0 24px 60px rgba(11,13,31,.3); transition:left .32s ease, top .32s ease; }
+    [data-theme="dark"] #n2-tour-card{ background:#161726; }
+    #n2-tour-card .eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--faiston-purple,#5B2EE0); margin-bottom:6px; }
+    #n2-tour-card h3{ font-size:15px; font-weight:800; margin:0 0 8px; color:#0B0D1F; }
+    [data-theme="dark"] #n2-tour-card h3{ color:#F1F2F8; }
+    #n2-tour-card p{ font-size:13px; line-height:1.55; color:#5E647A; margin:0 0 16px; }
+    [data-theme="dark"] #n2-tour-card p{ color:#9CA2BC; }
+    #n2-tour-foot{ display:flex; align-items:center; justify-content:space-between; }
+    #n2-tour-foot button{ all:unset; cursor:pointer; font-size:12.5px; font-weight:700; }
+    #n2-tour-pular{ color:#9097AC; }
+    #n2-tour-voltar{ color:#5E647A; margin-right:12px; }
+    #n2-tour-prox{ background:linear-gradient(135deg,#5B2EE0,#EC4899); color:#fff; padding:7px 16px; border-radius:9px; }
+</style>
+<div id="n2-tour-overlay" class="hidden">
+    <div id="n2-tour-catch"></div>
+    <div id="n2-tour-spot"></div>
+    <div id="n2-tour-card">
+        <p class="eyebrow" id="n2-tour-contador">1 / 8</p>
+        <h3 id="n2-tour-titulo"></h3>
+        <p id="n2-tour-desc"></p>
+        <div id="n2-tour-foot">
+            <button id="n2-tour-pular" onclick="n2TourFinalizar()">Pular tutorial</button>
+            <div>
+                <button id="n2-tour-voltar" onclick="n2TourVoltar()">Voltar</button>
+                <button id="n2-tour-prox" onclick="n2TourProximo()">Próximo</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+const N2_TOUR_STEPS = [
+    { title: 'Bem-vindo ao Painel do N2',
+      desc: 'Um tour rápido pelo essencial: registrar uma visita de campo, atualizar o andamento, finalizar e lançar outras atividades. Você pode rever isso a qualquer momento pelo ícone de capelo no topo.' },
+    { sel: '#n2-tab-minhas', tab: 'minhas', title: 'Minhas atividades',
+      desc: 'Aqui ficam as visitas de campo onde você é o responsável — agendadas, em andamento e já finalizadas.' },
+    { sel: '#btn-nova-atividade', tab: 'minhas', title: 'Cadastrar uma visita',
+      desc: 'Clique aqui pra registrar uma nova visita: cliente, subprojeto, data e horário.' },
+    { sel: '#lista', tab: 'minhas', title: 'Situação e andamento',
+      desc: 'Clique numa atividade em andamento pra atualizar: primeiro se está se deslocando ou já chegou no local, depois se o acesso foi liberado, e então o que está fazendo (instalando, trocando, removendo, validando).' },
+    { title: 'Finalizando a atividade',
+      desc: 'Ao mudar o status pra Concluído, Parcial ou Improdutiva, a tela pede os equipamentos instalados/removidos e os materiais usados. Ao confirmar, é gerado um carimbo de encerramento pronto pra copiar e enviar.' },
+    { sel: '#n2-tab-extras', title: 'Outras Atividades',
+      desc: 'Nem tudo é visita de campo — suporte remoto, rack, staging, relatórios e incidentes entram aqui.' },
+    { sel: '#btn-nova-atividade-extra', tab: 'extras', title: 'Registrar uma atividade extra',
+      desc: 'Escolha o tipo, o cliente (se houver) e a previsão de conclusão. A visita de campo não entra aqui — ela já vira atividade sozinha quando você finaliza.' },
+    { title: 'Pronto!',
+      desc: 'Isso cobre o essencial. Pode rever esse tour quando quiser, é só clicar no ícone de capelo no topo da tela.' },
+];
+let n2TourIdx = 0;
+
+function n2TourIniciar() {
+    n2TourIdx = 0;
+    document.getElementById('n2-tour-overlay').classList.remove('hidden');
+    n2TourRenderPasso();
+}
+
+function n2TourRenderPasso() {
+    const passo = N2_TOUR_STEPS[n2TourIdx];
+    if (passo.tab) mostrarAbaN2(passo.tab);
+    const spot = document.getElementById('n2-tour-spot');
+    const card = document.getElementById('n2-tour-card');
+    const el = passo.sel ? document.querySelector(passo.sel) : null;
+    if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        setTimeout(() => n2TourPosicionar(el, spot, card), 180);
+    } else {
+        spot.style.display = 'none';
+        card.style.left = '50%'; card.style.top = '50%'; card.style.transform = 'translate(-50%,-50%)';
+    }
+    document.getElementById('n2-tour-titulo').textContent = passo.title;
+    document.getElementById('n2-tour-desc').textContent = passo.desc;
+    document.getElementById('n2-tour-contador').textContent = (n2TourIdx + 1) + ' / ' + N2_TOUR_STEPS.length;
+    document.getElementById('n2-tour-voltar').style.visibility = n2TourIdx === 0 ? 'hidden' : 'visible';
+    document.getElementById('n2-tour-prox').textContent = n2TourIdx === N2_TOUR_STEPS.length - 1 ? 'Concluir' : 'Próximo';
+}
+
+function n2TourPosicionar(el, spot, card) {
+    const r = el.getBoundingClientRect();
+    spot.style.display = 'block';
+    spot.style.left = (r.left - 8) + 'px';
+    spot.style.top = (r.top - 8) + 'px';
+    spot.style.width = (r.width + 16) + 'px';
+    spot.style.height = (r.height + 16) + 'px';
+    card.style.transform = 'none';
+    const cardW = 320;
+    let left = r.left + r.width / 2 - cardW / 2;
+    left = Math.max(16, Math.min(window.innerWidth - cardW - 16, left));
+    let top = r.bottom + 16;
+    if (top + 180 > window.innerHeight) top = Math.max(16, r.top - 190);
+    card.style.left = left + 'px';
+    card.style.top = top + 'px';
+}
+
+function n2TourProximo() {
+    if (n2TourIdx < N2_TOUR_STEPS.length - 1) { n2TourIdx++; n2TourRenderPasso(); }
+    else n2TourFinalizar();
+}
+function n2TourVoltar() {
+    if (n2TourIdx > 0) { n2TourIdx--; n2TourRenderPasso(); }
+}
+async function n2TourFinalizar() {
+    document.getElementById('n2-tour-overlay').classList.add('hidden');
+    try { await fetch('/api/tutorial-n2/visto', { method: 'POST' }); } catch (e) {}
 }
 </script>
 </body>
