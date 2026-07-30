@@ -1809,14 +1809,14 @@
     </div>
 </div>
 
-<!-- MODAL: importar planilha pra Escala N2 (mesmo arquivo do Cronograma, vira registro de escala em vez de atividade) -->
+<!-- MODAL: importar planilha pra Escala N2 (mesmo arquivo do Cronograma: cria as atividades E já distribui N2 por rodízio) -->
 <div id="modal-pn2-importar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-1">
             <h2 class="text-lg font-bold text-faiston-dark">Importar planilha pra Escala</h2>
             <button onclick="pn2FecharModalImportarEscala()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
-        <p class="text-xs text-faiston-muted mb-4">Mesma planilha do Cronograma — cada linha vira um registro de escala (Técnico → N2, Data, Horário → modalidade Home/Presencial automática fora do horário comercial). Técnico é casado por nome só contra usuários com cargo N2; sem correspondência, fica de fora. <strong>Datas já passadas são ignoradas.</strong></p>
+        <p class="text-xs text-faiston-muted mb-4">Mesma planilha do Cronograma — cria as atividades (cliente, subprojeto, técnico de campo, data/horário, status) e, além disso, já distribui os N2 ativos por rodízio entre elas (até 3 atividades do mesmo cliente/data por N2), gerando o plantão automaticamente. Técnico (quem atua em campo) não tem relação com N2 (suporte remoto) — não precisa e não tenta bater o nome dos dois.</p>
         <input type="file" id="pn2-importar-arquivo" accept=".xlsx" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2.5 mb-3">
         <button onclick="pn2ConfirmarImportarEscala()" id="pn2-importar-btn" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Importar</button>
         <div id="pn2-importar-resultado" class="mt-4"></div>
@@ -9210,24 +9210,24 @@ async function pn2ConfirmarImportarEscala() {
             resultado.innerHTML = `<p class="text-xs text-red-500">${scEsc(data.detail || 'Erro ao importar.')}</p>`;
             return;
         }
-        const semTecnico = data.puladas_sem_tecnico || [];
+        const semCliente = data.puladas_sem_cliente || [];
         resultado.innerHTML = `
             <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 font-semibold mb-2">
-                ${data.importadas} registro(s) de escala importado(s) da aba "${scEsc(data.aba_usada)}"
+                ${data.importadas} atividade(s) importada(s) da aba "${scEsc(data.aba_usada)}" — ${data.escalas_criadas} plantão/plantões de N2 gerado(s) por rodízio
             </div>
-            ${data.puladas_data_passada ? `<div class="text-xs text-slate-500 mb-1">${data.puladas_data_passada} linha(s) puladas — data já passada.</div>` : ''}
+            ${data.puladas_sem_status ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_status} linha(s) puladas — status não reconhecido.</div>` : ''}
             ${data.puladas_sem_data ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_data} linha(s) puladas — sem data válida.</div>` : ''}
-            ${data.puladas_duplicada ? `<div class="text-xs text-slate-500 mb-1">${data.puladas_duplicada} linha(s) puladas — já existia escala pra essa pessoa nessa data.</div>` : ''}
             ${data.puladas_erro ? `<div class="text-xs text-red-500 mb-1">${data.puladas_erro} linha(s) puladas — erro ao gravar.</div>` : ''}
-            ${semTecnico.length ? `
-                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-3 mb-1.5">Sem N2 correspondente (${semTecnico.length})</div>
+            ${data.blocos_sem_n2_disponivel ? `<div class="text-xs text-amber-600 mb-1">${data.blocos_sem_n2_disponivel} grupo(s) de atividade ficaram sem N2 (todos bloqueados nessa data).</div>` : ''}
+            ${semCliente.length ? `
+                <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-3 mb-1.5">Sem cliente correspondente (${semCliente.length})</div>
                 <div class="border border-faiston-border rounded-lg overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">
-                    ${semTecnico.map(s => `<div class="flex items-center justify-between px-3 py-1.5 border-b border-faiston-border last:border-0 text-xs">
+                    ${semCliente.map(s => `<div class="flex items-center justify-between px-3 py-1.5 border-b border-faiston-border last:border-0 text-xs">
                         <span class="text-slate-600">${scEsc(s.nome)}</span>
                         <span class="text-slate-400">${s.ocorrencias}×</span>
                     </div>`).join('')}
                 </div>
-                <p class="text-[11px] text-faiston-faint mt-1.5">Confirme que essa pessoa está cadastrada com cargo N2 e o nome bate, e importe de novo.</p>
+                <p class="text-[11px] text-faiston-faint mt-1.5">Cadastre o cliente com esse nome (ou ajuste o nome existente) e importe de novo.</p>
             ` : ''}
         `;
         await pn2CarregarEscala();

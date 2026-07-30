@@ -6796,12 +6796,15 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
         raise HTTPException(status_code=400, detail=f"Erro ao importar planilha: {str(e)}")
 
 # ── Importação da mesma planilha, agora pra Escala N2 ────────────────────
-# Reaproveita a detecção de aba/cabeçalho do import de Cronograma (mesmo
-# arquivo, colunas TECNICO/AGENDAMENTO/HORARIO) -- cada linha vira um
-# registro de escala_n2 em vez de uma atividade. Técnico é casado por nome
-# aproximado só contra usuários com cargo='n2' (não cria usuário novo).
-# Modalidade segue a mesma regra já usada na geração automática de escala:
-# fora do horário comercial (antes das 8h / a partir das 18h) = Home.
+# TECNICO (instalador de campo) e N2 (suporte remoto) são papéis sem
+# relação nenhuma entre si (esclarecido pelo usuário, 2026-07-30) -- casar
+# por nome nunca fazia sentido pra esse tipo de planilha (a versão antiga
+# deste endpoint fazia isso). Passa a fazer as duas coisas de uma vez: (1)
+# cria as atividades no Cronograma exatamente como o import de lá (mesmo
+# casamento de cliente por nome), e (2) distribui os N2 ativos por
+# rodízio entre as atividades recém-criadas sem N2 -- até 3 do mesmo
+# cliente/data por N2, mesma regra do Gerador de Escala manual (Painel
+# N2) -- gravando o vínculo em status_atividades e o plantão em escala_n2.
 @app.post("/api/escala-n2/importar-planilha")
 async def importar_planilha_escala_n2(file: UploadFile = File(...), faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -6819,7 +6822,7 @@ async def importar_planilha_escala_n2(file: UploadFile = File(...), faiston_toke
         achado = _sc_find_sheet_and_header(wb)
         if not achado:
             raise HTTPException(status_code=400,
-                detail="Nenhuma aba reconhecida (esperado colunas como TECNICO, AGENDAMENTO, HORARIO etc.)")
+                detail="Nenhuma aba reconhecida (esperado colunas como CLIENTE, STATUS ATIVIDADE, TECNICO etc.)")
         sname, hi, _ = achado
         rows = list(wb[sname].iter_rows(values_only=True))
         headers = rows[hi]
@@ -6829,75 +6832,134 @@ async def importar_planilha_escala_n2(file: UploadFile = File(...), faiston_toke
             if key and key not in col: col[key] = idx
 
         cur = conn.cursor()
-        cur.execute("SELECT id, nome FROM usuarios WHERE perfil='funcionario' AND cargo='n2' AND ativo=TRUE")
-        n2_norm = [(_sc_norm_nome(nome), uid) for uid, nome in cur.fetchall()]
+        cur.execute("SELECT id, nome FROM clientes WHERE ativo = TRUE")
+        clientes_rows = cur.fetchall()
+        clientes_norm = [(_sc_norm_nome(nome), cid) for cid, nome in clientes_rows]
+        cliente_nome_por_id = {cid: nome for cid, nome in clientes_rows}
 
-        def buscar_n2(tecnico_raw):
-            nn = _sc_norm_nome(tecnico_raw)
-            if not nn: return None
-            for norm_nome, uid in n2_norm:
-                if norm_nome and (nn == norm_nome or nn in norm_nome or norm_nome in nn):
-                    return uid
+        def buscar_cliente(cliente_raw, projeto_raw):
+            for cand in (cliente_raw, projeto_raw, f"{cliente_raw} {projeto_raw}".strip()):
+                nn = _sc_norm_nome(cand)
+                if not nn: continue
+                for norm_nome, cid in clientes_norm:
+                    if norm_nome and (nn == norm_nome or nn in norm_nome or norm_nome in nn):
+                        return cid
             return None
+
+        cur.execute("SELECT id, nome FROM usuarios WHERE ativo=TRUE AND perfil='funcionario' AND cargo='n2' ORDER BY nome")
+        n2_ativos = cur.fetchall()
+        if not n2_ativos:
+            raise HTTPException(status_code=400, detail="Nenhum N2 ativo cadastrado -- não é possível gerar escala.")
 
         def get(r, field):
             idx = col.get(field)
             v = r[idx] if idx is not None and idx < len(r) else None
             return v
 
-        hoje = date.today()
+        def corta(v, tam):
+            return str(v or '').strip()[:tam]
+
         importadas = 0
-        puladas_data_passada = 0
+        puladas_sem_cliente = {}
+        puladas_sem_status = 0
         puladas_sem_data = 0
-        puladas_sem_tecnico = {}
-        puladas_duplicada = 0
         puladas_erro = 0
+        criadas = []  # (id, data_iso, cliente_id, horario_val) -- só as escaláveis (não terminais)
         for r in rows[hi + 1:]:
-            tecnico_raw = str(get(r, 'tecnico') or '').strip()
-            if not tecnico_raw:
+            cliente_raw = str(get(r, 'cliente') or '').strip()
+            projeto_raw = str(get(r, 'projeto') or '').strip()
+            if not cliente_raw and not projeto_raw:
                 continue
             data_raw = get(r, 'data')
-            if isinstance(data_raw, datetime): data_val = data_raw.date()
-            elif isinstance(data_raw, date): data_val = data_raw
+            if isinstance(data_raw, datetime): data_val = data_raw.date().isoformat()
+            elif isinstance(data_raw, date): data_val = data_raw.isoformat()
             else: data_val = None
             if not data_val:
                 puladas_sem_data += 1
                 continue
-            if data_val < hoje:
-                puladas_data_passada += 1
+            cid = buscar_cliente(cliente_raw, projeto_raw)
+            if not cid:
+                chave = f"{cliente_raw} {projeto_raw}".strip()
+                puladas_sem_cliente[chave] = puladas_sem_cliente.get(chave, 0) + 1
                 continue
-            uid = buscar_n2(tecnico_raw)
-            if not uid:
-                puladas_sem_tecnico[tecnico_raw] = puladas_sem_tecnico.get(tecnico_raw, 0) + 1
+            status_mapeado = _sc_mapear_status(get(r, 'status_raw'))
+            if not status_mapeado:
+                puladas_sem_status += 1
                 continue
             horario_raw = get(r, 'horario_agendado')
             horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
-            hora_num = int(horario_val[:2]) if horario_val else None
-            modalidade = 'home' if (hora_num is not None and (hora_num < 8 or hora_num >= 18)) else 'presencial'
-            atribuicao = str(get(r, 'cliente') or get(r, 'projeto') or '').strip()[:200]
             cur.execute("SAVEPOINT linha_escala_import")
             try:
-                cur.execute("SELECT 1 FROM escala_n2 WHERE data=%s AND n2_usuario_id=%s", (data_val.isoformat(), uid))
-                if cur.fetchone():
-                    cur.execute("RELEASE SAVEPOINT linha_escala_import")
-                    puladas_duplicada += 1
-                    continue
                 cur.execute("""
-                    INSERT INTO escala_n2 (data, n2_usuario_id, horario_entrada, modalidade, atribuicao)
-                    VALUES (%s,%s,%s,%s,%s)
-                """, (data_val.isoformat(), uid, horario_val, modalidade, atribuicao))
+                    INSERT INTO status_atividades
+                        (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+                         site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                """, (cid, data_val, horario_val, corta(get(r, 'tecnico'), 150),
+                      None, corta(get(r, 'site'), 150),
+                      str(get(r, 'endereco') or '').strip(), corta(get(r, 'cidade'), 100),
+                      corta(get(r, 'uf'), 2), corta(get(r, 'subprojeto'), 150),
+                      corta(get(r, 'ticket'), 100), status_mapeado,
+                      str(get(r, 'observacoes') or '').strip(), sess["id"]))
+                new_id = cur.fetchone()[0]
                 cur.execute("RELEASE SAVEPOINT linha_escala_import")
                 importadas += 1
+                if status_mapeado not in STATUS_CAMPO_TERMINAIS:
+                    criadas.append((new_id, data_val, cid, horario_val))
             except Exception:
                 cur.execute("ROLLBACK TO SAVEPOINT linha_escala_import")
                 puladas_erro += 1
+
+        # Distribui N2 por rodízio entre as atividades recém-criadas ainda
+        # sem N2, agrupadas por (data, cliente) e em blocos de até 3 -- não
+        # tenta escalar o que já entrou concluído/cancelado/etc. como
+        # histórico (não faz sentido gerar plantão pro passado).
+        grupos = {}
+        for aid, data_val, cid, horario_val in criadas:
+            grupos.setdefault((data_val, cid), []).append((aid, horario_val))
+
+        cursor_n2 = 0
+        escalas_criadas = 0
+        blocos_sem_n2 = 0
+        for (data_val, cid), itens in sorted(grupos.items()):
+            itens.sort(key=lambda x: (x[1] is None, x[1] or ''))
+            for i in range(0, len(itens), 3):
+                bloco = itens[i:i + 3]
+                bloco_ids = [b[0] for b in bloco]
+                horario_bloco = bloco[0][1]
+                n2_id = n2_nome = None
+                for _ in range(len(n2_ativos)):
+                    cand_id, cand_nome = n2_ativos[cursor_n2 % len(n2_ativos)]
+                    cursor_n2 += 1
+                    if not _bloqueio_ativo(cur, cand_id, data_val, horario_bloco):
+                        n2_id, n2_nome = cand_id, cand_nome
+                        break
+                if not n2_id:
+                    blocos_sem_n2 += 1
+                    continue
+                cur.execute("""
+                    UPDATE status_atividades SET n2_usuario_id=%s, n2_responsavel=%s, atualizado_em=NOW()
+                    WHERE id = ANY(%s)
+                """, (n2_id, n2_nome, bloco_ids))
+                hora_num = int(horario_bloco[:2]) if horario_bloco else None
+                modalidade = 'home' if (hora_num is not None and (hora_num < 8 or hora_num >= 18)) else 'presencial'
+                cliente_nome = cliente_nome_por_id.get(cid, '?')
+                atribuicao = f"{cliente_nome} ({len(bloco)} atividade{'s' if len(bloco) > 1 else ''})"[:200]
+                cur.execute("""
+                    INSERT INTO escala_n2 (data, n2_usuario_id, horario_entrada, modalidade, atribuicao)
+                    VALUES (%s,%s,%s,%s,%s)
+                """, (data_val, n2_id, horario_bloco, modalidade, atribuicao))
+                escalas_criadas += 1
+
         conn.commit(); cur.close(); conn.close()
         return {
             "sucesso": True, "importadas": importadas, "aba_usada": sname,
-            "puladas_erro": puladas_erro, "puladas_duplicada": puladas_duplicada,
-            "puladas_data_passada": puladas_data_passada, "puladas_sem_data": puladas_sem_data,
-            "puladas_sem_tecnico": [{"nome": k, "ocorrencias": v}
-                                     for k, v in sorted(puladas_sem_tecnico.items(), key=lambda x: -x[1])],
+            "puladas_erro": puladas_erro,
+            "puladas_sem_cliente": [{"nome": k, "ocorrencias": v}
+                                     for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
+            "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
+            "escalas_criadas": escalas_criadas, "blocos_sem_n2_disponivel": blocos_sem_n2,
         }
     except HTTPException: raise
     except Exception as e:
