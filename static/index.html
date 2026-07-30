@@ -8873,6 +8873,7 @@ function scKanbanCardHtml(r, podeEditar) {
         <div class="flex items-center justify-between gap-2 mb-1">
             <span class="text-xs font-bold text-faiston-purple truncate">${scEsc(r.cliente_nome || '—')}</span>
             <span class="text-[10px] text-faiston-faint whitespace-nowrap flex-shrink-0">${scEsc(fmtDate(r.data))}</span>
+            ${podeEditar ? `<button onclick="event.stopPropagation(); scExcluir(${r.id})" class="w-5 h-5 rounded hover:bg-red-50 inline-flex items-center justify-center flex-shrink-0" title="Excluir"><i class="ph ph-trash text-slate-300 hover:text-red-500 text-xs"></i></button>` : ''}
         </div>
         <p class="text-sm font-semibold text-faiston-dark truncate">${scEsc(r.site_sigla || r.site_nome || '—')}</p>
         ${r.subprojeto ? `<p class="text-[11px] text-slate-500 truncate">${scEsc(r.subprojeto)}</p>` : ''}
@@ -9688,7 +9689,11 @@ function pn2ModalidadePorHorario(horario) {
 // (rotação simples, balanceando carga entre clientes diferentes também).
 function pn2GerarDistribuicao() {
     const msg = document.getElementById('pn2-ge-msg');
-    const n2sAtivos = pn2Usuarios.filter(u => u.cargo === 'n2');
+    // pn2Usuarios já vem só com cargo='n2' direto do endpoint
+    // (/api/status-campo/usuarios/n2) -- o objeto retornado nem tem campo
+    // `cargo`, então filtrar por ele aqui sempre dava lista vazia e travava
+    // a geração mesmo com N2 cadastrado (bug encontrado em 2026-07-30).
+    const n2sAtivos = pn2Usuarios;
     if (!n2sAtivos.length) { msg.textContent = 'Nenhum N2 cadastrado ainda.'; return; }
     const blocosValidos = pn2GeBlocos.filter(b => b.cliente_id && b.quantidade > 0);
     if (!blocosValidos.length) { msg.textContent = 'Adicione pelo menos um cliente com quantidade de atividades.'; return; }
