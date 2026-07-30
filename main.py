@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date, timedelta, datetime
 from calendar import monthrange
-import os, hashlib, secrets, csv, io, logging, traceback, uuid, bcrypt
+import os, hashlib, secrets, csv, io, logging, traceback, uuid, bcrypt, re
 import contextvars
 from dotenv import load_dotenv
 from pathlib import Path
@@ -131,6 +131,20 @@ def senha_confere(senha, hash_armazenado):
         except Exception:
             return False
     return _hash_legado(senha) == hash_armazenado
+
+def _senha_fraca(senha, usuario=""):
+    """Política mínima de senha forte (2026-07-30). Segue NIST SP 800-63B:
+    prioriza tamanho em vez de regra de composição arbitrária (que empurra
+    pra padrões previsíveis tipo 'Senha1!'), mas ainda barra os casos mais
+    óbvios (só número, só uma palavra, senha = usuário). Retorna a mensagem
+    de erro, ou None se a senha passa."""
+    if not senha or len(senha) < 8:
+        return "A senha deve ter pelo menos 8 caracteres."
+    if not re.search(r'[A-Za-z]', senha) or not re.search(r'[0-9]', senha):
+        return "A senha deve conter letras e números."
+    if usuario and senha.lower() == usuario.strip().lower():
+        return "A senha não pode ser igual ao nome de usuário."
+    return None
 
 def get_session(token: str, page: str = ""):
     if not token:
@@ -1528,8 +1542,8 @@ def logout(response: Response, faiston_token: str = Cookie(None)):
 def trocar_senha(body: TrocarSenhaModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    if not body.nova_senha or len(body.nova_senha) < 6:
-        raise HTTPException(status_code=400, detail="A nova senha deve ter pelo menos 6 caracteres.")
+    erro = _senha_fraca(body.nova_senha, sess.get("nome", ""))
+    if erro: raise HTTPException(status_code=400, detail=erro)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -1617,6 +1631,8 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
     if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    erro = _senha_fraca(u.senha, u.usuario)
+    if erro: raise HTTPException(status_code=400, detail=erro)
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
@@ -1651,6 +1667,9 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
             raise HTTPException(status_code=403, detail="Não é possível editar admins ou gestores")
         if u.perfil not in ("funcionario", "demo"):
             raise HTTPException(status_code=403, detail="Gestores só podem definir perfil funcionário/demo")
+    if u.senha:
+        erro = _senha_fraca(u.senha)
+        if erro: raise HTTPException(status_code=400, detail=erro)
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
@@ -3066,7 +3085,7 @@ def limpar_seed(faiston_token: str = Cookie(None)):
 def seed_dados(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin")
-    import random, hashlib
+    import random
     from datetime import datetime, timedelta
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -3094,7 +3113,7 @@ def seed_dados(faiston_token: str = Cookie(None)):
         for usuario, senha, nome, perfil in funcionarios:
             cur.execute("""INSERT INTO usuarios (usuario, senha_hash, nome, perfil, primeiro_acesso)
                 VALUES (%s,%s,%s,%s,FALSE) ON CONFLICT (usuario) DO UPDATE SET nome=%s RETURNING id""",
-                (usuario, hashlib.sha256(senha.encode()).hexdigest(), nome, perfil, nome))
+                (usuario, hash_senha(senha), nome, perfil, nome))
             ids[nome] = cur.fetchone()[0]
 
         clientes = ["NTT","Arcos Dourados","Zamp","Telcoweb","VIVO VITA"]
