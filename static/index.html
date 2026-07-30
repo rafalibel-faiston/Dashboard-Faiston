@@ -9725,14 +9725,28 @@ function pn2GerarDistribuicao() {
     if (!blocosValidos.length) { msg.textContent = 'Adicione pelo menos um cliente com quantidade de atividades.'; return; }
 
     let cursorN2 = 0;
+    // Regra de negócio: Kleber nunca atende Arcos Dourados (2026-07-30) --
+    // pula pro próximo N2 do rodízio nesse caso, sem desalinhar o cursor
+    // dos blocos seguintes (só avança até o índice de quem foi de fato usado).
+    function proximoN2(clienteNome) {
+        for (let tentativa = 0; tentativa < n2sAtivos.length; tentativa++) {
+            const idx = (cursorN2 + tentativa) % n2sAtivos.length;
+            const cand = n2sAtivos[idx];
+            if (/arcos dourados/i.test(clienteNome || '') && /^kleber$/i.test((cand.nome || '').trim())) continue;
+            cursorN2 = idx + 1;
+            return cand;
+        }
+        const fallback = n2sAtivos[cursorN2 % n2sAtivos.length];
+        cursorN2++;
+        return fallback;
+    }
     const distribuicao = [];
     blocosValidos.forEach(b => {
         const clienteNome = (scClientes.find(c => String(c.id) === String(b.cliente_id)) || {}).nome || '?';
         let restante = b.quantidade;
         while (restante > 0) {
             const qtdGrupo = Math.min(3, restante);
-            const n2 = n2sAtivos[cursorN2 % n2sAtivos.length];
-            cursorN2++;
+            const n2 = proximoN2(clienteNome);
             distribuicao.push({
                 n2_usuario_id: n2.id, n2_nome: n2.nome, cliente_id: b.cliente_id, cliente_nome: clienteNome,
                 quantidade: qtdGrupo, horario: b.horario, particularidade: b.particularidade,

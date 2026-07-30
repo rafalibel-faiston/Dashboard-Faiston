@@ -6919,24 +6919,44 @@ async def importar_planilha_escala_n2(file: UploadFile = File(...), faiston_toke
         for aid, data_val, cid, horario_val in criadas:
             grupos.setdefault((data_val, cid), []).append((aid, horario_val))
 
+        # Regra de negócio: Kleber nunca atende Arcos Dourados (instrução
+        # explícita do usuário, 2026-07-30) -- pula pro próximo N2 do
+        # rodízio quando o cliente do bloco for esse.
+        def _n2_bloqueado_pro_cliente(nome_n2, cliente_nome_norm):
+            return cliente_nome_norm == 'ARCOS DOURADOS' and _sc_norm_nome(nome_n2) == 'KLEBER'
+
         cursor_n2 = 0
+        dia_atual = None
         escalas_criadas = 0
         blocos_sem_n2 = 0
         for (data_val, cid), itens in sorted(grupos.items()):
+            # reseta o rodízio a cada dia novo -- garante que todo N2
+            # disponível receba atividade no dia, em vez de sempre
+            # concentrar nos primeiros da lista quando o dia anterior
+            # deixou o cursor no meio (achado real, 2026-07-30).
+            if data_val != dia_atual:
+                dia_atual = data_val
+                cursor_n2 = 0
             itens.sort(key=lambda x: (x[1] is None, x[1] or ''))
+            cliente_nome_norm = _sc_norm_nome(cliente_nome_por_id.get(cid, ''))
             for i in range(0, len(itens), 3):
                 bloco = itens[i:i + 3]
                 bloco_ids = [b[0] for b in bloco]
                 horario_bloco = bloco[0][1]
                 n2_id = n2_nome = None
-                for _ in range(len(n2_ativos)):
-                    cand_id, cand_nome = n2_ativos[cursor_n2 % len(n2_ativos)]
-                    cursor_n2 += 1
-                    if not _bloqueio_ativo(cur, cand_id, data_val, horario_bloco):
-                        n2_id, n2_nome = cand_id, cand_nome
-                        break
+                for offset in range(len(n2_ativos)):
+                    idx = (cursor_n2 + offset) % len(n2_ativos)
+                    cand_id, cand_nome = n2_ativos[idx]
+                    if _n2_bloqueado_pro_cliente(cand_nome, cliente_nome_norm):
+                        continue
+                    if _bloqueio_ativo(cur, cand_id, data_val, horario_bloco):
+                        continue
+                    n2_id, n2_nome = cand_id, cand_nome
+                    cursor_n2 = idx + 1  # próximo bloco continua depois deste, sem desalinhar
+                    break
                 if not n2_id:
                     blocos_sem_n2 += 1
+                    cursor_n2 += 1
                     continue
                 cur.execute("""
                     UPDATE status_atividades SET n2_usuario_id=%s, n2_responsavel=%s, atualizado_em=NOW()
