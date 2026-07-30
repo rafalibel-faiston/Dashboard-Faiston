@@ -3219,6 +3219,25 @@ def seed_dados(faiston_token: str = Cookie(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- PÁGINAS ---
+# Servir o HTML sem checar sessão aqui dependia só do JS de cada página
+# (fetch /api/me + redirect) pra afastar quem não devia ver aquela tela --
+# esconder o link não é proteção, a rota em si precisa recusar (2026-07-30,
+# a pedido do usuário). O dado sensível de verdade já vem só via /api/* (que
+# já checa sessão/perfil), mas a página em si -- estrutura, JS, lógica de
+# negócio nos comentários -- não deveria ser servida pra quem não tem sessão
+# válida, e telas de nível admin não deveriam nem carregar pra funcionário/N2.
+def _redirect_login_ou_home(sess):
+    """Sem sessão manda pro login; com sessão mas perfil sem acesso a essa
+    página manda pra home de quem já está logado, em vez de forçar relogin
+    -- mesmo mapeamento perfil/cargo → home usado no pós-login (login.html)."""
+    if not sess:
+        return RedirectResponse("/")
+    if sess["perfil"] in ("admin", "gestor", "demo", "diretor"):
+        return RedirectResponse("/dashboard")
+    if sess.get("cargo") == "n2":
+        return RedirectResponse("/n2")
+    return RedirectResponse("/funcionario")
+
 @app.get("/")
 def root(): return FileResponse("static/login.html")
 
@@ -3226,13 +3245,25 @@ def root(): return FileResponse("static/login.html")
 def faiston_ops_mark(): return FileResponse("static/faiston-ops-mark.svg", media_type="image/svg+xml")
 
 @app.get("/dashboard")
-def dashboard(): return FileResponse("static/index.html")
+def dashboard(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"):
+        return _redirect_login_ou_home(sess)
+    return FileResponse("static/index.html")
 
 @app.get("/funcionario")
-def funcionario(): return FileResponse("static/funcionario.html")
+def funcionario(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/funcionario.html")
 
 @app.get("/n2")
-def n2_page(): return FileResponse("static/n2.html")
+def n2_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    if sess["perfil"] != "admin" and sess.get("cargo") != "n2":
+        return _redirect_login_ou_home(sess)
+    return FileResponse("static/n2.html")
 
 @app.get("/admin")
 def admin_page(): return RedirectResponse("/dashboard?go=admin")
@@ -3354,10 +3385,16 @@ def get_relatorio(cliente: str, mes: str = "", faiston_token: str = Cookie(None)
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/relatorio/{cliente}")
-def relatorio_page(cliente: str): return FileResponse("static/relatorio.html")
+def relatorio_page(cliente: str, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/relatorio.html")
 
 @app.get("/apresentacao")
-def apresentacao_page(): return FileResponse("static/apresentacao.html")
+def apresentacao_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/apresentacao.html")
 
 # --- NOTIFICAÇÕES ---
 def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None, destinatario_id: int = None):
@@ -3712,7 +3749,11 @@ def get_historico(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/historico")
-def historico_page(): return FileResponse("static/historico.html")
+def historico_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"):
+        return _redirect_login_ou_home(sess)
+    return FileResponse("static/historico.html")
 
 # --- NOTAS PESSOAIS ---
 class NotaModel(BaseModel):
@@ -4066,7 +4107,11 @@ def forecast_page(): return RedirectResponse("/dashboard?go=forecast")
 
 # Detalhe financeiro por cliente — página própria (mantida)
 @app.get("/financeiro/{cid}")
-def financeiro_page(cid: int): return FileResponse("static/financeiro.html")
+def financeiro_page(cid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
+        return _redirect_login_ou_home(sess)
+    return FileResponse("static/financeiro.html")
 
 @app.get("/api/financeiro/resumo")
 def financeiro_resumo(faiston_token: str = Cookie(None)):

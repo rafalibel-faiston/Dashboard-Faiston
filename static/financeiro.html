@@ -577,14 +577,16 @@ let nomeCliente = '';
 
 async function init() {
     try {
-        const me = await fetch('/api/me').then(r => r.json());
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
         const nome = me.nome || me.usuario || 'Usuário';
         document.getElementById('sidebar-avatar').textContent = nome.charAt(0).toUpperCase();
         document.getElementById('sidebar-nome').textContent = nome;
         document.getElementById('sidebar-perfil').textContent = me.perfil;
         if (me.perfil === 'admin') document.getElementById('link-admin').classList.remove('hidden');
         updateThemeIcon();
-    } catch { window.location.href = '/login'; return; }
+    } catch { window.location.href = '/'; return; }
 
     // Pega nome do cliente
     try {
