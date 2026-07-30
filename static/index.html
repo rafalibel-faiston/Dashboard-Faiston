@@ -8744,7 +8744,7 @@ async function scBuscar() {
     }
 }
 
-const SC_STATUS_FINALIZADOS = ['concluido', 'cancelado'];
+const SC_STATUS_FINALIZADOS = [...SC_STATUS_TERMINAIS, 'cancelado'];
 
 function scRenderTabelaAtividades(rows) {
     document.getElementById('sc-count-label').textContent = `${rows.length} atividade(s)`;
