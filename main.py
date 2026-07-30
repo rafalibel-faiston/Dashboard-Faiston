@@ -663,6 +663,28 @@ def setup_banco():
                 criado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Solicitação de suporte: qualquer usuário logado pode abrir (pedido
+        # explícito adiado desde 2026-07-24, "sentiram falta de algo pra
+        # relatar pro suporte"). Só quem é dev (perfil_real='dev', ver
+        # _is_dev) vê/gerencia -- é canal de envio, sem acompanhamento de
+        # status pro usuário que abriu. Anexo em base64 direto no Postgres
+        # por simplicidade (Railway não tem disco persistente entre
+        # deploys, mesmo motivo já documentado pra foto de serial).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS suporte_solicitacoes (
+                id SERIAL PRIMARY KEY,
+                titulo VARCHAR(200) NOT NULL,
+                descricao TEXT NOT NULL,
+                categoria VARCHAR(20) NOT NULL DEFAULT 'duvida',
+                anexo_base64 TEXT,
+                anexo_nome VARCHAR(200),
+                status VARCHAR(20) NOT NULL DEFAULT 'aberto',
+                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                criado_por_nome VARCHAR(150) NOT NULL,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
                 # --- CATÁLOGO DE COMPLEXIDADE ---
         # Peso de esforço por tipo de atividade, por frente (N2, Backoffice...)
         # dentro da área (Projetos, Logística, Rede Credenciada). Cadastro em
@@ -7361,6 +7383,116 @@ def dev_deletar_diario(did: int, faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("DELETE FROM dev_diario WHERE id = %s", (did,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ══════════════════════════════════════════════════════════════════
+# SUPORTE: qualquer usuário logado abre uma solicitação (bug, dúvida,
+# pedido de melhoria); só a equipe dev vê/gerencia. Canal de envio --
+# quem abre não acompanha status depois (decidido explicitamente).
+# ══════════════════════════════════════════════════════════════════
+SUPORTE_CATEGORIA_VALIDAS = ('bug', 'duvida', 'melhoria')
+SUPORTE_STATUS_VALIDOS = ('aberto', 'em_andamento', 'resolvido')
+SUPORTE_ANEXO_MAX_CHARS = 7_000_000  # ~5MB de imagem original, já em base64 (~33% maior)
+
+class SuporteSolicitacaoModel(BaseModel):
+    titulo: str
+    descricao: str
+    categoria: str = "duvida"
+    anexo_base64: Optional[str] = None
+    anexo_nome: Optional[str] = None
+
+@app.post("/api/suporte")
+def criar_suporte(s: SuporteSolicitacaoModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not s.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
+    if not s.descricao.strip(): raise HTTPException(status_code=400, detail="Descrição obrigatória")
+    categoria = s.categoria if s.categoria in SUPORTE_CATEGORIA_VALIDAS else "duvida"
+    if s.anexo_base64 and len(s.anexo_base64) > SUPORTE_ANEXO_MAX_CHARS:
+        raise HTTPException(status_code=400, detail="Anexo muito grande (máximo ~5MB)")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO suporte_solicitacoes
+                (titulo, descricao, categoria, anexo_base64, anexo_nome, criado_por, criado_por_nome)
+            VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (s.titulo.strip()[:200], s.descricao.strip(), categoria,
+              s.anexo_base64 or None, (s.anexo_nome or '').strip()[:200] or None,
+              sess["id"], sess["nome"]))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/dev-suporte")
+def dev_listar_suporte(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, titulo, descricao, categoria, status, criado_por_nome, criado_em,
+                   (anexo_base64 IS NOT NULL) AS tem_anexo
+            FROM suporte_solicitacoes ORDER BY criado_em DESC
+        """)
+        out = [{
+            "id": r[0], "titulo": r[1], "descricao": r[2], "categoria": r[3], "status": r[4],
+            "criado_por_nome": r[5], "criado_em": r[6].strftime("%d/%m/%Y %H:%M") if r[6] else "",
+            "tem_anexo": r[7],
+        } for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/dev-suporte/{sid}/anexo")
+def dev_ver_anexo_suporte(sid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT anexo_base64, anexo_nome FROM suporte_solicitacoes WHERE id=%s", (sid,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row or not row[0]: raise HTTPException(status_code=404, detail="Sem anexo")
+        return {"anexo_base64": row[0], "anexo_nome": row[1]}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class SuporteStatusModel(BaseModel):
+    status: str
+
+@app.put("/api/dev-suporte/{sid}/status")
+def dev_atualizar_status_suporte(sid: int, s: SuporteStatusModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if s.status not in SUPORTE_STATUS_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE suporte_solicitacoes SET status=%s, atualizado_em=NOW() WHERE id=%s", (s.status, sid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/dev-suporte/{sid}")
+def dev_deletar_suporte(sid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM suporte_solicitacoes WHERE id = %s", (sid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

@@ -212,6 +212,9 @@
                 </div>
             </div>
         </div>
+        <button onclick="suporteAbrirModal()" data-embed-hide title="Falar com o suporte" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple">
+            <i class="ph ph-lifebuoy text-lg"></i>
+        </button>
         <button onclick="logout()" data-embed-hide class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
             <i class="ph ph-sign-out"></i> Sair
         </button>
@@ -2384,5 +2387,102 @@ init();
 setInterval(() => fetch('/api/admin/ping?page=funcionario', { method: 'POST' }), 60000);
 </script>
 <script src="/js/faiston-erros.js"></script>
+
+<!-- MODAL: abrir solicitação de suporte (visível pra qualquer usuário logado) -->
+<div id="modal-suporte-criar" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[70] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-faiston-border" style="max-height:92vh;overflow-y:auto">
+        <div class="px-6 py-4 border-b border-faiston-border flex items-center justify-between">
+            <div>
+                <span class="font-bold text-faiston-dark text-sm flex items-center gap-2"><i class="ph ph-lifebuoy text-faiston-purple"></i> Falar com o suporte</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">Reporte um bug, tire uma dúvida ou peça uma melhoria</p>
+            </div>
+            <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-3">
+            <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="duvida">Dúvida</option>
+                <option value="bug">Bug / algo não funciona</option>
+                <option value="melhoria">Pedido de melhoria</option>
+            </select>
+            <input type="text" id="suporte-titulo" placeholder="Título — resuma em uma frase" maxlength="200"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            <textarea id="suporte-descricao" rows="4" placeholder="Descreva o que aconteceu ou o que você precisa"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Anexar print (opcional)</label>
+                <input type="file" id="suporte-arquivo" accept="image/*" onchange="suporteSelecionarArquivo(this)"
+                    class="w-full text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white">
+                <div id="suporte-preview" class="hidden mt-2 relative inline-block">
+                    <img id="suporte-preview-img" src="" class="max-h-32 rounded-lg border border-faiston-border">
+                    <button onclick="suporteRemoverAnexo()" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-faiston-dark text-white flex items-center justify-center text-xs"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            <p id="suporte-msg" class="text-xs"></p>
+            <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
+        </div>
+    </div>
+</div>
+<script>
+let suporteAnexoBase64 = null, suporteAnexoNome = null;
+
+function suporteAbrirModal() {
+    document.getElementById('suporte-categoria').value = 'duvida';
+    document.getElementById('suporte-titulo').value = '';
+    document.getElementById('suporte-descricao').value = '';
+    document.getElementById('suporte-arquivo').value = '';
+    document.getElementById('suporte-msg').textContent = '';
+    suporteRemoverAnexo();
+    document.getElementById('modal-suporte-criar').classList.remove('hidden');
+}
+function suporteFecharModal() {
+    document.getElementById('modal-suporte-criar').classList.add('hidden');
+}
+function suporteSelecionarArquivo(input) {
+    const file = input.files[0];
+    const msg = document.getElementById('suporte-msg');
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+        msg.textContent = 'Imagem muito grande (máximo 5MB).'; msg.className = 'text-xs text-red-500';
+        input.value = ''; return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+        suporteAnexoBase64 = reader.result;
+        suporteAnexoNome = file.name;
+        document.getElementById('suporte-preview-img').src = suporteAnexoBase64;
+        document.getElementById('suporte-preview').classList.remove('hidden');
+        msg.textContent = '';
+    };
+    reader.readAsDataURL(file);
+}
+function suporteRemoverAnexo() {
+    suporteAnexoBase64 = null; suporteAnexoNome = null;
+    document.getElementById('suporte-preview').classList.add('hidden');
+    document.getElementById('suporte-preview-img').src = '';
+}
+async function suporteEnviar() {
+    const titulo = document.getElementById('suporte-titulo').value.trim();
+    const descricao = document.getElementById('suporte-descricao').value.trim();
+    const categoria = document.getElementById('suporte-categoria').value;
+    const msg = document.getElementById('suporte-msg');
+    if (!titulo) { msg.textContent = 'Preencha o título.'; msg.className = 'text-xs text-red-500'; return; }
+    if (!descricao) { msg.textContent = 'Preencha a descrição.'; msg.className = 'text-xs text-red-500'; return; }
+    const btn = document.getElementById('suporte-btn-enviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    try {
+        const res = await fetch('/api/suporte', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ titulo, descricao, categoria, anexo_base64: suporteAnexoBase64, anexo_nome: suporteAnexoNome })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = err.detail || 'Erro ao enviar.'; msg.className = 'text-xs text-red-500'; return; }
+        msg.textContent = 'Enviado! O suporte vai dar uma olhada.'; msg.className = 'text-xs text-emerald-600 font-semibold';
+        setTimeout(suporteFecharModal, 1400);
+    } catch (e) {
+        msg.textContent = 'Erro de rede ao enviar.'; msg.className = 'text-xs text-red-500';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Enviar solicitação';
+    }
+}
+</script>
 </body>
 </html>

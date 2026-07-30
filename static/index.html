@@ -212,6 +212,9 @@
                 <a href="#" id="link-area-dev" data-nav-mod="areaDev" onclick="setModule('areaDev'); return false;" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-terminal-window text-lg"></i> Área de Dev
                 </a>
+                <a href="#" onclick="suporteAbrirModal(); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-lifebuoy text-lg"></i> Suporte
+                </a>
             </nav>
         </div>
     </div>
@@ -2567,6 +2570,7 @@
         <button onclick="devSetTab('planejamento')" id="dev-tab-btn-planejamento" class="dev-tab-btn hidden px-4 py-2 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-faiston-purple transition-colors">Planejamento</button>
         <button onclick="devSetTab('diario')" id="dev-tab-btn-diario" class="dev-tab-btn hidden px-4 py-2 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-faiston-purple transition-colors">Diário</button>
         <button onclick="devSetTab('diagnostico')" id="dev-tab-btn-diagnostico" class="dev-tab-btn px-4 py-2 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-faiston-purple transition-colors">Diagnóstico</button>
+        <button onclick="devSetTab('suporte')" id="dev-tab-btn-suporte" class="dev-tab-btn hidden px-4 py-2 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-faiston-purple transition-colors">Suporte</button>
     </div>
 
     <!-- ABA PLANEJAMENTO (kanban privado da equipe dev) -->
@@ -2641,8 +2645,131 @@
     <div id="dev-diagnostico">
         <div id="dev-conteudo"></div>
     </div>
+
+    <!-- ABA SUPORTE: solicitações abertas por qualquer usuário logado -->
+    <!-- (link "Suporte" nas 3 telas), tratadas só pela equipe dev aqui -->
+    <div id="dev-suporte" class="hidden">
+        <div class="flex items-center gap-2 mb-4">
+            <select id="dev-suporte-f-status" onchange="devSuporteCarregar()" class="text-xs border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="">Todos os status</option>
+                <option value="aberto">Aberto</option>
+                <option value="em_andamento">Em andamento</option>
+                <option value="resolvido">Resolvido</option>
+            </select>
+        </div>
+        <div id="dev-suporte-lista" class="flex flex-col gap-3"></div>
+    </div>
 </div>
 </div><!-- /mod-areaDev -->
+
+<!-- MODAL: visualizar anexo de uma solicitação de suporte -->
+<div id="modal-suporte-anexo" class="hidden fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this) devSuporteFecharAnexo()">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-auto p-4">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-bold text-faiston-dark" id="suporte-anexo-nome">Anexo</span>
+            <button onclick="devSuporteFecharAnexo()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <img id="suporte-anexo-img" src="" alt="Anexo da solicitação" class="w-full h-auto rounded-lg border border-faiston-border">
+    </div>
+</div>
+
+<!-- MODAL: abrir solicitação de suporte (visível pra qualquer usuário logado) -->
+<div id="modal-suporte-criar" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[70] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-faiston-border" style="max-height:92vh;overflow-y:auto">
+        <div class="px-6 py-4 border-b border-faiston-border flex items-center justify-between">
+            <div>
+                <span class="font-bold text-faiston-dark text-sm flex items-center gap-2"><i class="ph ph-lifebuoy text-faiston-purple"></i> Falar com o suporte</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">Reporte um bug, tire uma dúvida ou peça uma melhoria</p>
+            </div>
+            <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-3">
+            <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="duvida">Dúvida</option>
+                <option value="bug">Bug / algo não funciona</option>
+                <option value="melhoria">Pedido de melhoria</option>
+            </select>
+            <input type="text" id="suporte-titulo" placeholder="Título — resuma em uma frase" maxlength="200"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            <textarea id="suporte-descricao" rows="4" placeholder="Descreva o que aconteceu ou o que você precisa"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Anexar print (opcional)</label>
+                <input type="file" id="suporte-arquivo" accept="image/*" onchange="suporteSelecionarArquivo(this)"
+                    class="w-full text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white">
+                <div id="suporte-preview" class="hidden mt-2 relative inline-block">
+                    <img id="suporte-preview-img" src="" class="max-h-32 rounded-lg border border-faiston-border">
+                    <button onclick="suporteRemoverAnexo()" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-faiston-dark text-white flex items-center justify-center text-xs"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            <p id="suporte-msg" class="text-xs"></p>
+            <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let suporteAnexoBase64 = null, suporteAnexoNome = null;
+
+function suporteAbrirModal() {
+    document.getElementById('suporte-categoria').value = 'duvida';
+    document.getElementById('suporte-titulo').value = '';
+    document.getElementById('suporte-descricao').value = '';
+    document.getElementById('suporte-arquivo').value = '';
+    document.getElementById('suporte-msg').textContent = '';
+    suporteRemoverAnexo();
+    document.getElementById('modal-suporte-criar').classList.remove('hidden');
+}
+function suporteFecharModal() {
+    document.getElementById('modal-suporte-criar').classList.add('hidden');
+}
+function suporteSelecionarArquivo(input) {
+    const file = input.files[0];
+    const msg = document.getElementById('suporte-msg');
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+        msg.textContent = 'Imagem muito grande (máximo 5MB).'; msg.className = 'text-xs text-red-500';
+        input.value = ''; return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+        suporteAnexoBase64 = reader.result;
+        suporteAnexoNome = file.name;
+        document.getElementById('suporte-preview-img').src = suporteAnexoBase64;
+        document.getElementById('suporte-preview').classList.remove('hidden');
+        msg.textContent = '';
+    };
+    reader.readAsDataURL(file);
+}
+function suporteRemoverAnexo() {
+    suporteAnexoBase64 = null; suporteAnexoNome = null;
+    document.getElementById('suporte-preview').classList.add('hidden');
+    document.getElementById('suporte-preview-img').src = '';
+}
+async function suporteEnviar() {
+    const titulo = document.getElementById('suporte-titulo').value.trim();
+    const descricao = document.getElementById('suporte-descricao').value.trim();
+    const categoria = document.getElementById('suporte-categoria').value;
+    const msg = document.getElementById('suporte-msg');
+    if (!titulo) { msg.textContent = 'Preencha o título.'; msg.className = 'text-xs text-red-500'; return; }
+    if (!descricao) { msg.textContent = 'Preencha a descrição.'; msg.className = 'text-xs text-red-500'; return; }
+    const btn = document.getElementById('suporte-btn-enviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    try {
+        const res = await fetch('/api/suporte', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ titulo, descricao, categoria, anexo_base64: suporteAnexoBase64, anexo_nome: suporteAnexoNome })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = err.detail || 'Erro ao enviar.'; msg.className = 'text-xs text-red-500'; return; }
+        msg.textContent = 'Enviado! O suporte vai dar uma olhada.'; msg.className = 'text-xs text-emerald-600 font-semibold';
+        setTimeout(suporteFecharModal, 1400);
+    } catch (e) {
+        msg.textContent = 'Erro de rede ao enviar.'; msg.className = 'text-xs text-red-500';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Enviar solicitação';
+    }
+}
+</script>
 
 </main>
 
@@ -5225,16 +5352,18 @@ function devAreaInit() {
     const isDev = window.ME && window.ME.perfil_real === 'dev';
     document.getElementById('dev-tab-btn-planejamento').classList.toggle('hidden', !isDev);
     document.getElementById('dev-tab-btn-diario').classList.toggle('hidden', !isDev);
+    document.getElementById('dev-tab-btn-suporte').classList.toggle('hidden', !isDev);
     document.getElementById('dev-btn-nova-tarefa').classList.toggle('hidden', !isDev);
     devSetTab(isDev ? 'planejamento' : 'diagnostico');
 }
 
 function devSetTab(tab) {
     const isDev = window.ME && window.ME.perfil_real === 'dev';
-    if ((tab === 'planejamento' || tab === 'diario') && !isDev) tab = 'diagnostico';
+    if ((tab === 'planejamento' || tab === 'diario' || tab === 'suporte') && !isDev) tab = 'diagnostico';
     document.getElementById('dev-planejamento').classList.toggle('hidden', tab !== 'planejamento');
     document.getElementById('dev-diario').classList.toggle('hidden', tab !== 'diario');
     document.getElementById('dev-diagnostico').classList.toggle('hidden', tab !== 'diagnostico');
+    document.getElementById('dev-suporte').classList.toggle('hidden', tab !== 'suporte');
     document.querySelectorAll('.dev-tab-btn').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById('dev-tab-btn-' + tab);
     if (btn) btn.classList.add('active');
@@ -5249,6 +5378,8 @@ function devSetTab(tab) {
         devDiarioCarregar();
     } else if (tab === 'diagnostico') {
         devCarregarDiagnostico();
+    } else if (tab === 'suporte') {
+        devSuporteCarregar();
     }
 }
 
@@ -5303,6 +5434,90 @@ async function devDiarioExcluir(id) {
     if (!confirm('Excluir este registro do diário?')) return;
     await fetch(`/api/dev-diario/${id}`, { method: 'DELETE' });
     devDiarioCarregar();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ÁREA DE DEV: Suporte (solicitações abertas por qualquer usuário,
+// tratadas só por quem é 'dev' -- canal de envio, sem status pro autor)
+// ══════════════════════════════════════════════════════════════════
+const SUPORTE_CATEGORIA_LABEL = { bug: 'Bug', duvida: 'Dúvida', melhoria: 'Melhoria' };
+const SUPORTE_CATEGORIA_COR = {
+    bug: 'bg-faiston-pink/10 text-faiston-pink',
+    duvida: 'bg-faiston-cyan/10 text-faiston-cyan',
+    melhoria: 'bg-faiston-purple/10 text-faiston-purple',
+};
+
+async function devSuporteCarregar() {
+    const lista = document.getElementById('dev-suporte-lista');
+    lista.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Carregando...</p>';
+    try {
+        const res = await fetch('/api/dev-suporte');
+        if (!res.ok) throw new Error();
+        let itens = await res.json();
+        const filtroStatus = document.getElementById('dev-suporte-f-status').value;
+        if (filtroStatus) itens = itens.filter(s => s.status === filtroStatus);
+        devSuporteRender(itens);
+    } catch (e) {
+        lista.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar as solicitações.</p>';
+    }
+}
+
+function devSuporteRender(itens) {
+    const lista = document.getElementById('dev-suporte-lista');
+    if (!itens.length) {
+        lista.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Nenhuma solicitação por aqui.</p>';
+        return;
+    }
+    lista.innerHTML = itens.map(s => `
+        <div class="bg-white rounded-2xl border border-faiston-border p-4">
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_CATEGORIA_COR[s.categoria] || ''}">${SUPORTE_CATEGORIA_LABEL[s.categoria] || s.categoria}</span>
+                    <p class="text-sm font-bold text-faiston-dark">${escHtml(s.titulo)}</p>
+                </div>
+                <button onclick="devSuporteExcluir(${s.id})" class="text-slate-300 hover:text-faiston-pink flex-shrink-0" title="Excluir"><i class="ph ph-trash text-sm"></i></button>
+            </div>
+            <p class="text-[11px] text-faiston-faint mt-0.5">${escHtml(s.criado_por_nome)} · ${s.criado_em}</p>
+            <p class="text-xs text-slate-500 mt-2 whitespace-pre-line">${escHtml(s.descricao)}</p>
+            <div class="flex items-center gap-2 mt-3 flex-wrap">
+                <select onchange="devSuporteAtualizarStatus(${s.id}, this.value)" class="text-xs border border-faiston-border rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">
+                    <option value="aberto" ${s.status === 'aberto' ? 'selected' : ''}>Aberto</option>
+                    <option value="em_andamento" ${s.status === 'em_andamento' ? 'selected' : ''}>Em andamento</option>
+                    <option value="resolvido" ${s.status === 'resolvido' ? 'selected' : ''}>Resolvido</option>
+                </select>
+                ${s.tem_anexo ? `<button onclick="devSuporteVerAnexo(${s.id})" class="text-xs font-semibold text-faiston-purple hover:underline flex items-center gap-1"><i class="ph ph-paperclip"></i> Ver anexo</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function devSuporteAtualizarStatus(id, status) {
+    await fetch(`/api/dev-suporte/${id}/status`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+    });
+}
+
+async function devSuporteExcluir(id) {
+    if (!confirm('Excluir esta solicitação?')) return;
+    await fetch(`/api/dev-suporte/${id}`, { method: 'DELETE' });
+    devSuporteCarregar();
+}
+
+async function devSuporteVerAnexo(id) {
+    try {
+        const res = await fetch(`/api/dev-suporte/${id}/anexo`);
+        if (!res.ok) throw new Error();
+        const { anexo_base64, anexo_nome } = await res.json();
+        document.getElementById('suporte-anexo-img').src = anexo_base64;
+        document.getElementById('suporte-anexo-nome').textContent = anexo_nome || 'Anexo';
+        document.getElementById('modal-suporte-anexo').classList.remove('hidden');
+    } catch (e) { alert('Erro ao carregar anexo.'); }
+}
+
+function devSuporteFecharAnexo() {
+    document.getElementById('modal-suporte-anexo').classList.add('hidden');
+    document.getElementById('suporte-anexo-img').src = '';
 }
 
 // ══════════════════════════════════════════════════════════════════
