@@ -36,6 +36,34 @@ logger = logging.getLogger("faiston")
 
 app = FastAPI(title="Faiston Ops - API", version="1.0")
 
+# ── CSRF (double-submit cookie) ───────────────────────────────────────────
+# Cookie de sessão é SameSite=Lax + HttpOnly, o que já barra cookie em POST
+# de outra origem (form) e em fetch/XHR cross-site (bloqueado também por não
+# haver CORS configurado aqui). O gap que sobra é ação de estado exposta via
+# GET (SameSite=Lax ainda manda o cookie em navegação de topo por link) --
+# corrigido à parte (seed-dados virou POST). Esse middleware é a camada
+# redundante: toda rota /api/* que muda estado exige um header X-CSRF-Token
+# batendo com o cookie csrf_token -- um site de fora não consegue ler esse
+# cookie (same-origin policy) pra montar o header certo, mesmo que de alguma
+# forma conseguisse disparar a requisição.
+from starlette.middleware.base import BaseHTTPMiddleware
+
+_CSRF_METODOS = {"POST", "PUT", "PATCH", "DELETE"}
+_CSRF_ISENTAS = {"/api/login"}  # antes do login não existe cookie de csrf ainda
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if (request.method in _CSRF_METODOS
+                and request.url.path.startswith("/api/")
+                and request.url.path not in _CSRF_ISENTAS):
+            cookie_token = request.cookies.get("csrf_token")
+            header_token = request.headers.get("x-csrf-token")
+            if not cookie_token or not header_token or cookie_token != header_token:
+                return JSONResponse({"detail": "Token CSRF ausente ou inválido"}, status_code=403)
+        return await call_next(request)
+
+app.add_middleware(CSRFMiddleware)
+
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -1519,7 +1547,13 @@ def login(req: LoginRequest, response: Response, request: Request):
         cur.execute("UPDATE usuarios SET ultimo_acesso = NOW() WHERE id = %s", (row[0],))
         conn.commit(); cur.close(); conn.close()
         _login_limpar(chaves)  # login OK zera o contador de falhas
-        response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
+        response.set_cookie("faiston_token", token, httponly=True, samesite="lax", secure=True, max_age=86400)
+        # Cookie de CSRF (double-submit) -- deliberadamente NÃO httponly, o JS
+        # do front precisa ler o valor pra ecoar no header X-CSRF-Token em toda
+        # requisição que muda estado. A proteção não depende de sigilo desse
+        # valor, depende de um site de outra origem não conseguir LER o cookie
+        # (same-origin policy) pra montar o header correspondente.
+        response.set_cookie("csrf_token", secrets.token_hex(16), httponly=False, samesite="lax", secure=True, max_age=86400)
         return {"sucesso": True, "perfil": row[2], "cargo": row[5], "nome": row[1], "primeiro_acesso": bool(row[3])}
     except HTTPException: raise
     except Exception:
@@ -1536,6 +1570,7 @@ def logout(response: Response, faiston_token: str = Cookie(None)):
                 conn.commit(); cur.close(); conn.close()
             except Exception: pass
     response.delete_cookie("faiston_token")
+    response.delete_cookie("csrf_token")
     return {"sucesso": True}
 
 @app.post("/api/trocar-senha")
@@ -3081,7 +3116,7 @@ def limpar_seed(faiston_token: str = Cookie(None)):
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/seed-dados")
+@app.post("/api/seed-dados")
 def seed_dados(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin")
