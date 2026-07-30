@@ -3063,7 +3063,9 @@ def limpar_seed(faiston_token: str = Cookie(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/seed-dados")
-def seed_dados():
+def seed_dados(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin")
     import random, hashlib
     from datetime import datetime, timedelta
     conn = get_db()
@@ -4443,6 +4445,7 @@ def projetos_by_cliente_nome(nome: str = "", faiston_token: str = Cookie(None)):
 def listar_projetos(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -4476,6 +4479,7 @@ def listar_projetos(cid: int, faiston_token: str = Cookie(None)):
 def analise_financeira(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -4568,6 +4572,7 @@ def deletar_projeto(pid: int, faiston_token: str = Cookie(None)):
 def listar_lancamentos(pid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -5611,6 +5616,7 @@ def _can_gestao(sess):
 def gestao_listar_projetos(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not _can_gestao(sess): raise HTTPException(status_code=403, detail="Sem permissão")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -5757,6 +5763,7 @@ def meus_projetos_status(pid: int, body: MeuProjetoStatus, faiston_token: str = 
 def gestao_listar_contratos(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not _can_gestao(sess): raise HTTPException(status_code=403, detail="Sem permissão")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
