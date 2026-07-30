@@ -6529,10 +6529,23 @@ def listar_escala_n2(data: str = "", faiston_token: str = Cookie(None)):
                  "horario_entrada": str(r[4])[:5] if r[4] else None, "modalidade": r[5], "atribuicao": r[6]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+def _escala_data_valida(data_str):
+    """Valida a data antes de gravar em escala_n2 -- o Postgres aceita
+    qualquer ano no tipo DATE (mesmo um com dígito a mais), mas o
+    psycopg2/Python trava ao ler de volta (datetime só vai até 9999),
+    derrubando a consulta inteira por causa de uma única linha ruim. Mesmo
+    bug já visto e corrigido em dev_tarefas.prazo (2026-07-27) -- validar
+    aqui evita repetir a história noutra tabela."""
+    try:
+        date.fromisoformat(data_str)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Data inválida — use o formato AAAA-MM-DD")
+
 @app.post("/api/escala-n2")
 def criar_escala_n2(e: EscalaN2Model, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    _escala_data_valida(e.data)
     modalidade = e.modalidade if e.modalidade in MODALIDADES_ESCALA else "presencial"
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
@@ -6555,6 +6568,7 @@ def criar_escala_n2(e: EscalaN2Model, faiston_token: str = Cookie(None)):
 def atualizar_escala_n2(eid: int, e: EscalaN2Model, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    _escala_data_valida(e.data)
     modalidade = e.modalidade if e.modalidade in MODALIDADES_ESCALA else "presencial"
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
