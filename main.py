@@ -7737,7 +7737,7 @@ class SuporteSolicitacaoModel(BaseModel):
     anexo_base64: Optional[str] = None
     anexo_nome: Optional[str] = None
 
-SUPORTE_NOTIFICAR_EMAILS = ["vinicios.dev@faiston.com", "rafael.libel@gmail.com"]
+SUPORTE_NOTIFICAR_EMAILS = ["vinicios75soares165@gmail.com", "rafael.libel@gmail.com"]
 
 def _suporte_enviar_notificacao(titulo, descricao, categoria, autor_nome, anexo_base64, anexo_nome):
     """Dispara em background (não atrasa a resposta pra quem abriu a
