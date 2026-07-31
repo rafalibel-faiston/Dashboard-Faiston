@@ -1058,9 +1058,15 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
         return False
 
 
-def _brevo_send(destinatario: str, subject: str, html: str) -> bool:
-    """Envia um e-mail HTML via API do Brevo. Reaproveitado pelo resumo diário."""
-    if not destinatario:
+def _brevo_send(destinatario, subject: str, html: str, anexos: list = None) -> bool:
+    """Envia um e-mail HTML via API do Brevo. Reaproveitado pelo resumo diário,
+    reset de senha e notificação de suporte. `destinatario` aceita uma string
+    ou uma lista de e-mails (todos no mesmo `to`, visíveis entre si -- uso
+    interno de equipe, não notificação a cliente). `anexos` é opcional:
+    lista de {"content": base64_sem_prefixo, "name": nome_arquivo}."""
+    destinatarios = [destinatario] if isinstance(destinatario, str) else list(destinatario or [])
+    destinatarios = [d for d in destinatarios if d]
+    if not destinatarios:
         return False
     import urllib.request, json as _json
     brevo_key = os.environ.get("BREVO_API_KEY", "")
@@ -1069,12 +1075,15 @@ def _brevo_send(destinatario: str, subject: str, html: str) -> bool:
         print("[email] BREVO_API_KEY/EMAIL_USER não configurados")
         return False
     try:
-        payload = _json.dumps({
+        body = {
             "sender": {"name": "Faiston OPS", "email": email_user},
-            "to": [{"email": destinatario}],
+            "to": [{"email": d} for d in destinatarios],
             "subject": subject,
             "htmlContent": html,
-        }).encode()
+        }
+        if anexos:
+            body["attachment"] = anexos
+        payload = _json.dumps(body).encode()
         req = urllib.request.Request(
             "https://api.brevo.com/v3/smtp/email",
             data=payload,
@@ -1082,10 +1091,10 @@ def _brevo_send(destinatario: str, subject: str, html: str) -> bool:
             method="POST")
         with urllib.request.urlopen(req, timeout=15) as resp:
             result = _json.loads(resp.read())
-        print(f"[email] Brevo OK — id {result.get('messageId')} → {destinatario}")
+        print(f"[email] Brevo OK — id {result.get('messageId')} → {', '.join(destinatarios)}")
         return True
     except Exception as e:
-        print(f"[email] Falha ao enviar para {destinatario}: {e}")
+        print(f"[email] Falha ao enviar para {', '.join(destinatarios)}: {e}")
         return False
 
 
@@ -7728,8 +7737,36 @@ class SuporteSolicitacaoModel(BaseModel):
     anexo_base64: Optional[str] = None
     anexo_nome: Optional[str] = None
 
+SUPORTE_NOTIFICAR_EMAILS = ["vinicios.dev@faiston.com", "rafael.libel@gmail.com"]
+
+def _suporte_enviar_notificacao(titulo, descricao, categoria, autor_nome, anexo_base64, anexo_nome):
+    """Dispara em background (não atrasa a resposta pra quem abriu a
+    solicitação). Só na branch de teste por enquanto (2026-07-30, a pedido
+    do usuário) -- destinatários fixos, não passa pela tela de admin."""
+    categoria_label = {"bug": "Bug", "duvida": "Dúvida", "melhoria": "Pedido de melhoria"}.get(categoria, categoria)
+    corpo = f"""
+        <p style="color:#3D4152;font-size:14.5px;margin:0 0 14px;line-height:1.6"><strong>{_esc_html_email(autor_nome)}</strong> abriu uma solicitação de suporte.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td style="background:#F7F7FB;border:1px solid #E5E8F0;border-radius:12px;padding:16px 18px">
+            <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#9097AC">{categoria_label}</p>
+            <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#0B0D1F">{_esc_html_email(titulo)}</p>
+            <p style="margin:0;font-size:14px;color:#3D4152;white-space:pre-line">{_esc_html_email(descricao)}</p>
+          </td></tr>
+        </table>
+        <p style="color:#8A8FA3;font-size:12.5px;margin:0;line-height:1.6">{"Print anexado a este e-mail." if anexo_base64 else "Sem anexo."} Veja e gerencie na Área de Dev &gt; Suporte.</p>
+    """
+    anexos = None
+    if anexo_base64 and "," in anexo_base64:
+        conteudo_b64 = anexo_base64.split(",", 1)[1]
+        anexos = [{"content": conteudo_b64, "name": anexo_nome or "anexo.png"}]
+    _brevo_send(SUPORTE_NOTIFICAR_EMAILS, f"🎫 Nova solicitação de suporte — {titulo}",
+                _shell_email("Nova solicitação", categoria_label, corpo), anexos=anexos)
+
+def _esc_html_email(s):
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 @app.post("/api/suporte")
-def criar_suporte(s: SuporteSolicitacaoModel, faiston_token: str = Cookie(None)):
+def criar_suporte(s: SuporteSolicitacaoModel, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     if not s.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
@@ -7750,6 +7787,8 @@ def criar_suporte(s: SuporteSolicitacaoModel, faiston_token: str = Cookie(None))
               sess["id"], sess["nome"]))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
+        bg.add_task(_suporte_enviar_notificacao, s.titulo.strip()[:200], s.descricao.strip(), categoria,
+                    sess["nome"], s.anexo_base64, s.anexo_nome)
         return {"sucesso": True, "id": new_id}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
