@@ -238,7 +238,7 @@
                 <a href="#" id="link-area-dev" data-nav-mod="areaDev" onclick="setModule('areaDev'); return false;" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-terminal-window text-lg"></i> Área de Dev
                 </a>
-                <a href="#" onclick="suporteAbrirModal(); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                <a href="#" id="link-suporte" onclick="suporteAbrirModal(); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-lifebuoy text-lg"></i> Suporte
                 </a>
             </nav>
@@ -3646,6 +3646,9 @@ async function init() {
             document.getElementById('sidebar-perfil').textContent = (me.perfil_real === 'dev') ? 'Dev' : 'Administrador';
             document.getElementById('link-admin').classList.remove('hidden');
             document.getElementById('link-area-dev').classList.remove('hidden');
+            // Quem é dev É o suporte -- não faz sentido abrir uma solicitação
+            // pra si mesmo (2026-07-30).
+            if (me.perfil_real === 'dev') document.getElementById('link-suporte').classList.add('hidden');
         } else if (me.perfil === 'demo') {
             document.getElementById('sidebar-perfil').textContent = 'Demo';
             document.getElementById('demo-toggle-bar').classList.remove('hidden');

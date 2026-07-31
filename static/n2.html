@@ -94,9 +94,14 @@
             <h2 class="text-xl font-bold text-faiston-dark" id="n2-titulo">Minhas atividades</h2>
             <p class="text-xs text-faiston-muted mt-0.5" id="n2-subtitulo">Atividades de campo onde você é o N2 responsável</p>
         </div>
-        <button onclick="abrirModalNovo()" id="btn-nova-atividade" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
-            <i class="ph ph-plus text-base"></i> Nova atividade
-        </button>
+        <div class="flex items-center gap-2">
+            <button onclick="n2ToggleOcultarFinalizadas()" id="btn-limpar-lista" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors">
+                <i class="ph ph-broom text-sm"></i> <span id="btn-limpar-lista-label">Limpar lista</span>
+            </button>
+            <button onclick="abrirModalNovo()" id="btn-nova-atividade" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                <i class="ph ph-plus text-base"></i> Nova atividade
+            </button>
+        </div>
     </div>
 
     <div class="flex gap-2 mb-5 flex-wrap">
@@ -482,6 +487,23 @@
     </div>
 </div>
 
+<!-- MODAL: passar atividade pra outro N2 (2026-07-30) -->
+<div id="modal-reatribuir" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div class="flex items-center justify-between mb-1">
+            <h3 class="text-base font-bold text-faiston-dark">Passar pra outro N2</h3>
+            <button onclick="fecharModalReatribuir()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <p class="text-xs text-faiston-muted mb-4">A situação e o histórico já registrados continuam intactos -- só o responsável muda daqui pra frente.</p>
+        <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Novo responsável</label>
+        <select id="reatribuir-n2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple mb-4">
+            <option value="">Selecione...</option>
+        </select>
+        <div id="reatribuir-msg" class="text-xs text-red-500 mb-3"></div>
+        <button onclick="confirmarReatribuir()" id="btn-confirmar-reatribuir" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+    </div>
+</div>
+
 <script src="/js/faiston-erros.js"></script>
 <script>
 const STATUS_LABEL = {
@@ -692,11 +714,46 @@ function renderCardAtividade(r) {
         <div class="flex gap-2 mt-2 flex-wrap">
             <button onclick="abrirModalEditar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Editar</button>
             ${r.status === 'em_andamento' ? `<button onclick="abrirModalAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-purple hover:underline">Atualizar</button>` : ''}
+            ${!STATUS_FINALIZADOS.includes(r.status) && r.n2_usuario_id === meId ? `<button onclick="abrirModalReatribuir(${r.id})" class="text-xs font-semibold text-faiston-cyan hover:underline">Passar pra outro N2</button>` : ''}
             <button onclick="verHistoricoAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-muted hover:underline">Ver histórico</button>
             <button onclick="excluir(${r.id})" class="text-xs font-semibold text-faiston-pink hover:underline">Excluir</button>
         </div>
     </div>`;
 }
+// "Limpar lista": esconde as atividades já finalizadas da visão de
+// trabalho do N2, sem apagar nada -- mesmo espírito do "Limpar cronograma"
+// que o admin já tinha, só que aplicado à lista do próprio N2, que também
+// enche de atividade concluída/cancelada com o tempo (2026-07-30).
+let n2OcultarFinalizadas = false;
+
+function n2ToggleOcultarFinalizadas() {
+    n2OcultarFinalizadas = !n2OcultarFinalizadas;
+    document.getElementById('btn-limpar-lista-label').textContent = n2OcultarFinalizadas ? 'Mostrar finalizadas' : 'Limpar lista';
+    document.getElementById('btn-limpar-lista').classList.toggle('text-faiston-purple', n2OcultarFinalizadas);
+    document.getElementById('btn-limpar-lista').classList.toggle('border-faiston-purple/40', n2OcultarFinalizadas);
+    renderizarLista(ultimaLista);
+}
+
+function renderizarLista(rows) {
+    const lista = document.getElementById('lista');
+    document.getElementById('count-label').textContent = `${rows.length} atividade(s)`;
+    if (!rows.length) {
+        lista.innerHTML = '<div class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade sua registrada ainda.</div>';
+        return;
+    }
+    const ativas = rows.filter(r => !STATUS_FINALIZADOS.includes(r.status));
+    const finalizadas = rows.filter(r => STATUS_FINALIZADOS.includes(r.status));
+    const secaoHtml = (titulo, itens) => itens.length ? `
+        <div class="px-5 py-2 bg-slate-50 border-b border-faiston-border text-[10px] font-bold uppercase tracking-wide text-slate-500">${titulo} (${itens.length})</div>
+        ${itens.map(renderCardAtividade).join('')}` : '';
+    if (n2OcultarFinalizadas) {
+        lista.innerHTML = ativas.length ? secaoHtml('Em andamento e agendadas', ativas)
+            : '<div class="text-center py-12 text-slate-300 text-sm">Nada pendente -- tudo finalizado. Clique em "Mostrar finalizadas" pra ver.</div>';
+    } else {
+        lista.innerHTML = secaoHtml('Em andamento e agendadas', ativas) + secaoHtml('Finalizadas', finalizadas);
+    }
+}
+
 async function buscar() {
     const params = new URLSearchParams(n2AbaAtual === 'minhas' ? { apenas_meu: 'true' } : {});
     const status = document.getElementById('f-status').value;
@@ -712,17 +769,7 @@ async function buscar() {
         if (!res.ok) throw new Error();
         const rows = await res.json();
         ultimaLista = rows;
-        document.getElementById('count-label').textContent = `${rows.length} atividade(s)`;
-        if (!rows.length) {
-            lista.innerHTML = '<div class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade sua registrada ainda.</div>';
-            return;
-        }
-        const ativas = rows.filter(r => !STATUS_FINALIZADOS.includes(r.status));
-        const finalizadas = rows.filter(r => STATUS_FINALIZADOS.includes(r.status));
-        const secaoHtml = (titulo, itens) => itens.length ? `
-            <div class="px-5 py-2 bg-slate-50 border-b border-faiston-border text-[10px] font-bold uppercase tracking-wide text-slate-500">${titulo} (${itens.length})</div>
-            ${itens.map(renderCardAtividade).join('')}` : '';
-        lista.innerHTML = secaoHtml('Em andamento e agendadas', ativas) + secaoHtml('Finalizadas', finalizadas);
+        renderizarLista(rows);
     } catch (e) {
         lista.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
     }
@@ -952,6 +999,52 @@ async function excluir(id) {
         if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao excluir: ' + (err.detail || res.status)); return; }
         await buscar();
     } catch (e) { alert('Erro de rede ao excluir.'); }
+}
+
+// Passar atividade pra outro N2 (handoff self-service, 2026-07-30) --
+// antes só admin/gestor conseguiam trocar o responsável.
+let reatribuirAtividadeId = null;
+
+async function abrirModalReatribuir(id) {
+    reatribuirAtividadeId = id;
+    document.getElementById('reatribuir-msg').textContent = '';
+    const sel = document.getElementById('reatribuir-n2');
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    document.getElementById('modal-reatribuir').classList.remove('hidden');
+    try {
+        const res = await fetch('/api/status-campo/usuarios/n2');
+        const n2s = res.ok ? await res.json() : [];
+        const outros = n2s.filter(u => u.id !== meId);
+        sel.innerHTML = '<option value="">Selecione...</option>' +
+            outros.map(u => `<option value="${u.id}">${esc(u.nome)}</option>`).join('');
+    } catch (e) {
+        sel.innerHTML = '<option value="">Erro ao carregar N2s</option>';
+    }
+}
+function fecharModalReatribuir() {
+    document.getElementById('modal-reatribuir').classList.add('hidden');
+    reatribuirAtividadeId = null;
+}
+async function confirmarReatribuir() {
+    const novoId = document.getElementById('reatribuir-n2').value;
+    const msg = document.getElementById('reatribuir-msg');
+    if (!novoId) { msg.textContent = 'Escolha um N2.'; return; }
+    const btn = document.getElementById('btn-confirmar-reatribuir');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    try {
+        const res = await fetch(`/api/status-campo/${reatribuirAtividadeId}/reatribuir`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ novo_n2_usuario_id: parseInt(novoId, 10) })
+        });
+        const data = await res.json();
+        if (!res.ok) { msg.textContent = data.detail || 'Erro ao reatribuir.'; return; }
+        fecharModalReatribuir();
+        await buscar();
+    } catch (e) {
+        msg.textContent = 'Erro de rede.';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Confirmar';
+    }
 }
 
 function mudarStatus(id, novoStatus) {

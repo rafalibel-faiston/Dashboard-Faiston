@@ -6512,6 +6512,51 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+class ReatribuirStatusCampoModel(BaseModel):
+    novo_n2_usuario_id: int
+
+@app.post("/api/status-campo/{aid}/reatribuir")
+def reatribuir_status_campo(aid: int, body: ReatribuirStatusCampoModel, faiston_token: str = Cookie(None)):
+    """Handoff self-service: o próprio N2 responsável passa a atividade pra
+    outro N2 (ex. precisa sair no meio do atendimento) -- antes só admin/
+    gestor conseguiam trocar o responsável, pela tela de edição (2026-07-30,
+    a pedido do usuário). Preserva tudo: situação/andamento atuais e o
+    histórico de quem fez o quê continuam intactos, só o dono muda daqui
+    pra frente -- ver _pode_gerenciar_status_campo/andamentos."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        if not _pode_gerenciar_status_campo(sess, conn, aid):
+            raise HTTPException(status_code=403, detail="Você só pode reatribuir atividades onde é o N2 responsável")
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM usuarios WHERE id=%s AND ativo=TRUE AND perfil='funcionario' AND cargo='n2'",
+                    (body.novo_n2_usuario_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="Usuário informado não é um N2 ativo")
+        novo_nome = row[0]
+        cur.execute("SELECT n2_responsavel, data, horario_agendado FROM status_atividades WHERE id=%s", (aid,))
+        antigo_nome, data_val, horario_val = cur.fetchone()
+        if body.novo_n2_usuario_id == sess["id"]:
+            raise HTTPException(status_code=400, detail="Escolha outro N2 -- essa atividade já é sua")
+        bloqueio = _bloqueio_ativo(cur, body.novo_n2_usuario_id, str(data_val), horario_val)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
+        cur.execute("""
+            UPDATE status_atividades SET n2_usuario_id=%s, n2_responsavel=%s, atualizado_em=NOW()
+            WHERE id=%s
+        """, (body.novo_n2_usuario_id, novo_nome, aid))
+        cur.execute("""
+            INSERT INTO status_atividade_andamentos (atividade_id, descricao, criado_por, criado_por_nome)
+            VALUES (%s, %s, %s, %s)
+        """, (aid, f"Atividade repassada de {antigo_nome or sess['nome']} para {novo_nome}", sess["id"], sess["nome"]))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "novo_responsavel": novo_nome}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 class StatusCampoStatusModel(BaseModel):
     status: str
     andamento_descricao: Optional[str] = None
@@ -6590,7 +6635,11 @@ def _gerar_ou_atualizar_tarefa_campo(cur, aid):
     mesma tarefa é atualizada em vez de duplicada (status_atividades.tarefa_gerada_id)."""
     cur.execute("""
         SELECT sa.data, sa.n2_usuario_id, sa.tarefa_gerada_id, sa.subprojeto, COALESCE(c.nome, sa.site_nome, ''),
-               GREATEST(0, COALESCE(EXTRACT(EPOCH FROM (sa.hora_termino - sa.hora_chegada)), 0))::int
+               GREATEST(0, COALESCE(EXTRACT(EPOCH FROM (
+                   CASE WHEN sa.hora_termino < sa.hora_chegada
+                        THEN (sa.hora_termino - sa.hora_chegada) + INTERVAL '24 hours'
+                        ELSE sa.hora_termino - sa.hora_chegada END
+               )), 0))::int
         FROM status_atividades sa LEFT JOIN clientes c ON c.id = sa.cliente_id
         WHERE sa.id = %s
     """, (aid,))
@@ -6609,6 +6658,10 @@ def _gerar_ou_atualizar_tarefa_campo(cur, aid):
     prazo_status = "dentro" if (not data_visita or _hoje_sp() <= data_visita) else "fora"
     # Horas da visita = hora_termino - hora_chegada (fica 0 se algum dos dois
     # não foi preenchido, ex. quando o N2 pula a etapa "no local"/chegada).
+    # Atividade que cruza a meia-noite (ex. chegada 22h, término 2h) tem
+    # hora_termino < hora_chegada -- sem o CASE acima isso dava diferença
+    # negativa e o GREATEST(0,...) zerava a duração inteira da visita
+    # (achado real, 2026-07-30: atividade noturna ficava com 0h trabalhadas).
     if tarefa_id:
         cur.execute("""
             UPDATE tarefas SET descricao=%s, cliente=%s, status='concluido', tipo_atividade_id=%s, peso=%s,
@@ -7299,17 +7352,27 @@ def painel_n2_resumo(faiston_token: str = Cookie(None)):
         n2s = cur.fetchall()
         out = []
         for uid, nome, ativo in n2s:
+            # Atividade que cruza a meia-noite (chegada 22h, término 2h) tem
+            # hora_termino < hora_chegada -- o CASE trata isso como "terminou
+            # no dia seguinte" em vez de excluir a visita da soma de horas
+            # (achado real, 2026-07-30: visita noturna sumia do total).
             cur.execute("""
                 SELECT
                     COUNT(*) FILTER (WHERE status='concluido' AND data >= date_trunc('week', CURRENT_DATE)::date),
                     COUNT(*) FILTER (WHERE status='concluido' AND data >= date_trunc('month', CURRENT_DATE)::date),
-                    COALESCE(SUM(EXTRACT(EPOCH FROM (hora_termino - hora_chegada)) / 3600.0)
+                    COALESCE(SUM(EXTRACT(EPOCH FROM (
+                        CASE WHEN hora_termino < hora_chegada
+                             THEN (hora_termino - hora_chegada) + INTERVAL '24 hours'
+                             ELSE hora_termino - hora_chegada END
+                    )) / 3600.0)
                         FILTER (WHERE status='concluido' AND hora_chegada IS NOT NULL AND hora_termino IS NOT NULL
-                                AND hora_termino >= hora_chegada
                                 AND data >= date_trunc('week', CURRENT_DATE)::date), 0),
-                    COALESCE(SUM(EXTRACT(EPOCH FROM (hora_termino - hora_chegada)) / 3600.0)
+                    COALESCE(SUM(EXTRACT(EPOCH FROM (
+                        CASE WHEN hora_termino < hora_chegada
+                             THEN (hora_termino - hora_chegada) + INTERVAL '24 hours'
+                             ELSE hora_termino - hora_chegada END
+                    )) / 3600.0)
                         FILTER (WHERE status='concluido' AND hora_chegada IS NOT NULL AND hora_termino IS NOT NULL
-                                AND hora_termino >= hora_chegada
                                 AND data >= date_trunc('month', CURRENT_DATE)::date), 0)
                 FROM status_atividades WHERE n2_usuario_id = %s
             """, (uid,))
