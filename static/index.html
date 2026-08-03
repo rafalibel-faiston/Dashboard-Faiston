@@ -5025,7 +5025,7 @@ function gkClientColor(n){ if(!gkClientColors[n]) gkClientColors[n]=GK_CLIENT_PA
 function gkFuncColor(n){   if(!gkFuncColors[n])   gkFuncColors[n]=GK_FUNC_PALETTE[gkFI++%GK_FUNC_PALETTE.length];   return gkFuncColors[n]; }
 
 function gkDiaLabel(dataISO) {
-    if (!dataISO) return 'Sem data';
+    if (!dataISO || !/^\d{4}-\d{2}-\d{2}$/.test(dataISO)) return 'Sem data';
     const [ano, mes, dia] = dataISO.split('-').map(Number);
     const d = new Date(ano, mes - 1, dia);
     const hoje = new Date(); hoje.setHours(0,0,0,0);
@@ -5193,10 +5193,14 @@ function renderKanbanGestor() {
         const porDia = {};
         filtered.forEach(t => {
             const raw = t.concluido_em || t.atualizado_em || t.criado_em;
-            const chave = raw ? raw.slice(0, 10) : 'sem-data';
+            const chave = (raw && /^\d{4}-\d{2}-\d{2}/.test(raw)) ? raw.slice(0, 10) : 'sem-data';
             (porDia[chave] = porDia[chave] || []).push(t);
         });
-        const diasOrdenados = Object.keys(porDia).sort((a, b) => b.localeCompare(a));
+        const diasOrdenados = Object.keys(porDia).sort((a, b) => {
+            if (a === 'sem-data') return 1;
+            if (b === 'sem-data') return -1;
+            return b.localeCompare(a);
+        });
 
         col.innerHTML = diasOrdenados.map(dia => {
             const tasksDoDia = porDia[dia];
