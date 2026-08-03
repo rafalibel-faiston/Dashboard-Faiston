@@ -2279,7 +2279,11 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
                              t.concluido_em, t.prazo_status, t.justificativa_atraso
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
-        if view == "func":
+        if view == "equipe" and sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice":
+            # Kanban do time em modo leitura pro cargo Backoffice (aba "Kanban da Equipe"
+            # em /funcionario) -- mesmo escopo que gestor/demo, filtrado pelo time.
+            cur.execute(base_sel + " WHERE COALESCE(u.time,'Projetos')=%s ORDER BY t.criado_em DESC", (sess.get("time","Projetos"),))
+        elif view == "func":
             # Quadro pessoal (funcionario.html / embed do gestor): qualquer perfil vê
             # apenas as próprias tarefas + aquelas em que é colaborador (ajudando).
             cur.execute(base_sel + """ WHERE t.usuario_id = %s
