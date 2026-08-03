@@ -802,6 +802,7 @@ let calMes = new Date().getMonth();
 let calAno = new Date().getFullYear();
 let agrupamentoFunc = localStorage.getItem('agrupamentoFunc') || 'cliente';
 const gruposRecolhidos = new Set();  // chaves "status::grupo" recolhidas no kanban
+const diasRecolhidosFunc = new Set();  // dias (yyyy-mm-dd) recolhidos na coluna Concluído
 
 function toggleGrupoFunc(headerEl) {
     const gkey  = headerEl.dataset.gkey;
@@ -811,6 +812,27 @@ function toggleGrupoFunc(headerEl) {
     cards.style.display = aberto ? 'none' : 'flex';
     if (chev) chev.style.transform = aberto ? 'rotate(-90deg)' : 'rotate(0deg)';
     if (aberto) gruposRecolhidos.add(gkey); else gruposRecolhidos.delete(gkey);
+}
+
+function toggleDiaFunc(headerEl) {
+    const dia   = headerEl.dataset.dia;
+    const body  = headerEl.parentElement.querySelector('.dia-cards');
+    const chev  = headerEl.querySelector('.dia-chevron');
+    const aberto = body.style.display !== 'none';
+    body.style.display = aberto ? 'none' : 'flex';
+    if (chev) chev.style.transform = aberto ? 'rotate(0deg)' : 'rotate(180deg)';
+    if (aberto) diasRecolhidosFunc.add(dia); else diasRecolhidosFunc.delete(dia);
+}
+
+function gkDiaLabel(dataISO) {
+    if (!dataISO) return 'Sem data';
+    const [ano, mes, dia] = dataISO.split('-').map(Number);
+    const d = new Date(ano, mes - 1, dia);
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const ontem = new Date(hoje); ontem.setDate(ontem.getDate() - 1);
+    if (d.getTime() === hoje.getTime()) return 'Hoje';
+    if (d.getTime() === ontem.getTime()) return 'Ontem';
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
 function setAgrupamentoFunc(modo) {
@@ -1147,6 +1169,33 @@ async function carregarTarefas() {
 }
 
 // ── KANBAN RENDER ────────────────────────────────────────────────────
+function montarGruposFunc(tasksList, status, porProjeto, diaPrefix) {
+    const grupos = {};
+    tasksList.forEach(t => {
+        const chave = porProjeto ? (t.projeto_nome || 'Sem projeto') : t.cliente;
+        if (!grupos[chave]) grupos[chave] = [];
+        grupos[chave].push(t);
+    });
+
+    return Object.entries(grupos).map(([chave, grpTasks]) => {
+        const cor = getClientColor(chave);
+        const icone = porProjeto ? '<i class="ph ph-folder-simple text-[11px]" style="color:'+cor+'"></i>' : '<div class="w-2 h-2 rounded-full flex-shrink-0" style="background:'+cor+'"></div>';
+        const cards = grpTasks.map(task => renderKanbanCard(task, status)).join('');
+        const gkey = status + '::' + (diaPrefix ? diaPrefix + '::' : '') + chave;
+        const recolhido = gruposRecolhidos.has(gkey);
+        const safeKey = gkey.replace(/"/g, '&quot;');
+        return `<div class="mb-4">
+            <div onclick="toggleGrupoFunc(this)" data-gkey="${safeKey}" class="flex items-center gap-2 mb-2 px-1 cursor-pointer select-none rounded-md hover:bg-slate-100/60 py-1 transition-colors">
+                ${icone}
+                <span class="text-[10px] font-bold uppercase tracking-wider" style="color:${cor}">${chave}</span>
+                <span class="text-[10px] text-slate-400 ml-auto">${grpTasks.length} tarefa${grpTasks.length>1?'s':''}</span>
+                <i class="ph ph-caret-down text-[11px] text-slate-400 grp-chevron" style="transition:transform .2s ease;transform:rotate(${recolhido?'-90deg':'0deg'})"></i>
+            </div>
+            <div class="grp-cards flex flex-col gap-2" style="display:${recolhido?'none':'flex'}">${cards}</div>
+        </div>`;
+    }).join('');
+}
+
 function renderTasks() {
     const fc = document.getElementById('filter-cliente').value;
     const fp = document.getElementById('filter-prioridade').value;
@@ -1174,28 +1223,34 @@ function renderTasks() {
 
         // Agrupa por cliente ou por projeto (seletor "Agrupar")
         const porProjeto = agrupamentoFunc === 'projeto';
-        const grupos = {};
-        filtered.forEach(t => {
-            const chave = porProjeto ? (t.projeto_nome || 'Sem projeto') : t.cliente;
-            if (!grupos[chave]) grupos[chave] = [];
-            grupos[chave].push(t);
-        });
 
-        col.innerHTML = Object.entries(grupos).map(([chave, grpTasks]) => {
-            const cor = getClientColor(chave);
-            const icone = porProjeto ? '<i class="ph ph-folder-simple text-[11px]" style="color:'+cor+'"></i>' : '<div class="w-2 h-2 rounded-full flex-shrink-0" style="background:'+cor+'"></div>';
-            const cards = grpTasks.map(task => renderKanbanCard(task, status)).join('');
-            const gkey = status + '::' + chave;
-            const recolhido = gruposRecolhidos.has(gkey);
-            const safeKey = gkey.replace(/"/g, '&quot;');
-            return `<div class="mb-4">
-                <div onclick="toggleGrupoFunc(this)" data-gkey="${safeKey}" class="flex items-center gap-2 mb-2 px-1 cursor-pointer select-none rounded-md hover:bg-slate-100/60 py-1 transition-colors">
-                    ${icone}
-                    <span class="text-[10px] font-bold uppercase tracking-wider" style="color:${cor}">${chave}</span>
-                    <span class="text-[10px] text-slate-400 ml-auto">${grpTasks.length} tarefa${grpTasks.length>1?'s':''}</span>
-                    <i class="ph ph-caret-down text-[11px] text-slate-400 grp-chevron" style="transition:transform .2s ease;transform:rotate(${recolhido?'-90deg':'0deg'})"></i>
+        if (status !== 'concluido') {
+            col.innerHTML = montarGruposFunc(filtered, status, porProjeto, '');
+            return;
+        }
+
+        // Concluído: agrupa por dia de conclusão antes de agrupar por cliente/projeto
+        const porDia = {};
+        filtered.forEach(t => {
+            const raw = t.concluido_em || t.atualizado_em || t.criado_em;
+            const chave = raw ? raw.slice(0, 10) : 'sem-data';
+            (porDia[chave] = porDia[chave] || []).push(t);
+        });
+        const diasOrdenados = Object.keys(porDia).sort((a, b) => b.localeCompare(a));
+
+        col.innerHTML = diasOrdenados.map(dia => {
+            const tasksDoDia = porDia[dia];
+            const label = gkDiaLabel(dia);
+            const aberto = !diasRecolhidosFunc.has(dia) && (label === 'Hoje' || label === 'Ontem');
+            const safeDia = dia.replace(/"/g, '&quot;');
+            return `<div class="mb-5">
+                <div onclick="toggleDiaFunc(this)" data-dia="${safeDia}" class="flex items-center gap-2 mb-2 px-1 py-1 cursor-pointer select-none border-b border-faiston-border">
+                    <i class="ph ph-calendar-check text-[12px] text-faiston-cyan"></i>
+                    <span class="text-[11px] font-extrabold uppercase tracking-wider text-faiston-dark">${label}</span>
+                    <span class="text-[10px] text-slate-400">${tasksDoDia.length} tarefa${tasksDoDia.length>1?'s':''}</span>
+                    <i class="ph ph-caret-down text-[11px] text-slate-400 ml-auto dia-chevron" style="transition:transform .2s ease;transform:rotate(${aberto?'180deg':'0deg'})"></i>
                 </div>
-                <div class="grp-cards flex flex-col gap-2" style="display:${recolhido?'none':'flex'}">${cards}</div>
+                <div class="dia-cards flex flex-col" style="display:${aberto?'flex':'none'}">${montarGruposFunc(tasksDoDia, status, porProjeto, dia)}</div>
             </div>`;
         }).join('');
     });
