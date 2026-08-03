@@ -817,6 +817,12 @@ def _eh_n2(sess: dict) -> bool:
     perfil='funcionario' (migração 2026-07-28)."""
     return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "n2"
 
+def _eh_backoffice(sess: dict) -> bool:
+    """Backoffice (cargo dentro de perfil='funcionario') só arrasta card pra
+    mudar status no Kanban de Cronograma reaproveitado do admin -- não cria,
+    não edita campo, não exclui (2026-08-03)."""
+    return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "backoffice"
+
 class NovoUsuario(BaseModel):
     usuario: str
     senha: str
@@ -3436,7 +3442,11 @@ def redefinir_senha_page(): return FileResponse("static/redefinir-senha.html")
 @app.get("/dashboard")
 def dashboard(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"):
+    # Backoffice (cargo dentro de funcionario) entra aqui só pra ver o Kanban
+    # de Cronograma do Status Report -- o próprio index.html restringe a
+    # visão a essa única seção pra esse cargo (ver init() em index.html).
+    eh_backoffice = sess and sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice"
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice):
         return _redirect_login_ou_home(sess)
     return FileResponse("static/index.html")
 
@@ -6137,7 +6147,7 @@ def gestao_listar_usuarios(faiston_token: str = Cookie(None)):
 STATUS_CAMPO_VALIDOS = ('agendado', 'em_andamento', 'concluido', 'parcial',
                          'improdutiva_cliente', 'improdutiva_faiston', 'cancelado')
 STATUS_CAMPO_TERMINAIS = ('concluido', 'parcial', 'improdutiva_cliente', 'improdutiva_faiston')
-PARTICULARIDADES_VALIDAS = ('reversa', 'equipamento_em_posse_do_cliente', 'equipamento_removido', 'equipamento_instalado')
+PARTICULARIDADES_VALIDAS = ('reversa', 'equipamento_em_posse_do_cliente', 'equipamento_removido', 'equipamento_instalado', 'equipamento_reconfigurado')
 LOCALIZACAO_VALIDOS = ('deslocamento', 'no_local')
 ACESSO_VALIDOS = ('com_acesso', 'verificando_acesso', 'sem_acesso')
 ANDAMENTO_TIPO_VALIDOS = ('instalando', 'trocando', 'removendo', 'validando')
@@ -6210,6 +6220,7 @@ class StatusAtividadeModel(BaseModel):
     # mesma tabela/formato usado na finalização (ver EquipamentoItem acima).
     equipamentos_instalados: List[EquipamentoItem] = []
     equipamentos_removidos: List[EquipamentoItem] = []
+    equipamentos_reconfigurados: List[EquipamentoItem] = []
 
 def _resolver_n2(cur, n2_usuario_id, n2_responsavel_texto):
     """Se veio n2_usuario_id, busca o nome pra cachear em n2_responsavel
@@ -6443,10 +6454,14 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
                       if it.partnumber.strip() or it.serial.strip()]
         removidos = [(it.partnumber.strip(), it.serial.strip()) for it in a.equipamentos_removidos
                      if it.partnumber.strip() or it.serial.strip()]
+        reconfigurados = [(it.partnumber.strip(), it.serial.strip()) for it in a.equipamentos_reconfigurados
+                           if it.partnumber.strip() or it.serial.strip()]
         if instalados and 'equipamento_instalado' not in particularidades:
             particularidades.append('equipamento_instalado')
         if removidos and 'equipamento_removido' not in particularidades:
             particularidades.append('equipamento_removido')
+        if reconfigurados and 'equipamento_reconfigurado' not in particularidades:
+            particularidades.append('equipamento_reconfigurado')
         cur.execute("""
             INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico,
                 n2_usuario_id, n2_responsavel,
@@ -6467,7 +6482,8 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
               a.equipamento_removido_detalhe if 'equipamento_removido' in particularidades else ""))
         new_id = cur.fetchone()[0]
         itens = [(new_id, 'instalado', pn, sn) for pn, sn in instalados] + \
-                [(new_id, 'removido', pn, sn) for pn, sn in removidos]
+                [(new_id, 'removido', pn, sn) for pn, sn in removidos] + \
+                [(new_id, 'reconfigurado', pn, sn) for pn, sn in reconfigurados]
         if itens:
             cur.executemany(
                 "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
@@ -6586,9 +6602,10 @@ class StatusCampoStatusModel(BaseModel):
     # Instalado/removido não são mais mutuamente exclusivos (uma atividade
     # pode envolver os dois ao mesmo tempo) e cada um vira uma lista, já
     # que pode ter mais de uma unidade instalada/removida na mesma visita.
-    equipamento_status: List[str] = []  # 'equipamento_instalado' e/ou 'equipamento_removido'
+    equipamento_status: List[str] = []  # 'equipamento_instalado' e/ou 'equipamento_removido' e/ou 'equipamento_reconfigurado'
     equipamentos_instalados: List[EquipamentoItem] = []
     equipamentos_removidos: List[EquipamentoItem] = []
+    equipamentos_reconfigurados: List[EquipamentoItem] = []
     equipamento_removido_posse: Optional[str] = None  # 'tecnico' | 'cliente'
     contato_local_nome: Optional[str] = None
     contato_local_matricula: Optional[str] = None
@@ -6688,7 +6705,7 @@ def _gerar_ou_atualizar_tarefa_campo(cur, aid):
 @app.patch("/api/status-campo/{aid}/status")
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess) and not _eh_backoffice(sess)): raise HTTPException(status_code=403)
     if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
     # "em_andamento" exige localização (primeiro passo do fluxo escalonado do
     # N2: deslocamento/no local -> chegada+acesso -> início+tipo); os status
@@ -6715,7 +6732,12 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
-        if not _pode_gerenciar_status_campo(sess, conn, aid):
+        # Backoffice não é "responsável" de nenhum despacho (não é N2) --
+        # mudar status é liberado pra qualquer atividade, igual admin/gestor,
+        # mas só aqui (não passa por _pode_gerenciar_status_campo, que também
+        # governa reatribuir/editar/excluir -- esses continuam bloqueados
+        # pelo check de perfil logo acima).
+        if not (_pode_gerenciar_status_campo(sess, conn, aid) or _eh_backoffice(sess)):
             raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
         cur = conn.cursor()
         sets = ["status=%s", "atualizado_em=NOW()"]
@@ -6725,15 +6747,18 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
             sets += ["hora_termino=%s", "material_utilizado=%s"]
             params += [body.hora_termino, material_ok]
             # Merge das particularidades ligadas ao equipamento (instalado/
-            # removido/posse) -- preserva 'reversa' e qualquer outra tag que
-            # não seja dessas 3, só substitui o que veio do modal de finalizar.
-            equip_tags = [t for t in body.equipamento_status if t in ('equipamento_instalado', 'equipamento_removido')]
+            # removido/reconfigurado/posse) -- preserva 'reversa' e qualquer
+            # outra tag que não seja dessas 4, só substitui o que veio do
+            # modal de finalizar.
+            equip_tags = [t for t in body.equipamento_status if t in
+                          ('equipamento_instalado', 'equipamento_removido', 'equipamento_reconfigurado')]
             instalado = 'equipamento_instalado' in equip_tags
             removido = 'equipamento_removido' in equip_tags
+            reconfigurado = 'equipamento_reconfigurado' in equip_tags
             cur.execute("SELECT particularidades FROM status_atividades WHERE id=%s", (aid,))
             atuais = (cur.fetchone() or [[]])[0] or []
             outras = [p for p in atuais if p not in
-                      ('equipamento_instalado', 'equipamento_removido', 'equipamento_em_posse_do_cliente')]
+                      ('equipamento_instalado', 'equipamento_removido', 'equipamento_reconfigurado', 'equipamento_em_posse_do_cliente')]
             novas_particularidades = outras + equip_tags
             if removido and body.equipamento_removido_posse == 'cliente':
                 novas_particularidades.append('equipamento_em_posse_do_cliente')
@@ -6755,6 +6780,9 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
             if removido:
                 itens += [(aid, 'removido', it.partnumber.strip(), it.serial.strip())
                           for it in body.equipamentos_removidos if it.partnumber.strip() or it.serial.strip()]
+            if reconfigurado:
+                itens += [(aid, 'reconfigurado', it.partnumber.strip(), it.serial.strip())
+                          for it in body.equipamentos_reconfigurados if it.partnumber.strip() or it.serial.strip()]
             if itens:
                 cur.executemany(
                     "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",

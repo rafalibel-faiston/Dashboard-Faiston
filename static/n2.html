@@ -423,6 +423,9 @@
                     <label class="flex items-center gap-2 text-sm text-slate-600">
                         <input type="checkbox" id="fz-equip-removido" onchange="fzToggleEquipamento()"> Removido
                     </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="fz-equip-reconfigurado" onchange="fzToggleEquipamento()"> Reconfigurado
+                    </label>
                 </div>
                 <div id="fz-instalado-campos" class="hidden mt-2 flex-col gap-2">
                     <div id="fz-instalado-lista" class="flex flex-col gap-2"></div>
@@ -439,6 +442,10 @@
                     </div>
                     <div id="fz-removido-lista" class="flex flex-col gap-2"></div>
                     <button type="button" onclick="fzAdicionarItem('removido')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento removido</button>
+                </div>
+                <div id="fz-reconfigurado-campos" class="hidden mt-2 flex-col gap-2">
+                    <div id="fz-reconfigurado-lista" class="flex flex-col gap-2"></div>
+                    <button type="button" onclick="fzAdicionarItem('reconfigurado')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento reconfigurado</button>
                 </div>
             </div>
             <div>
@@ -686,7 +693,7 @@ function mostrarAbaN2(aba) {
         document.getElementById('n2-titulo').textContent = 'Enviar Status Report';
         document.getElementById('n2-subtitulo').textContent = 'Print com todas as atividades do cliente, não só as suas';
         if (!document.getElementById('print-data').value) {
-            document.getElementById('print-data').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('print-data').value = new Date().toLocaleDateString('en-CA');
         }
         printDataMudou();
     }
@@ -910,7 +917,9 @@ function abrirModalNovo() {
         .forEach(id => document.getElementById(id).value = '');
     document.getElementById('m-status').value = 'agendado';
     document.getElementById('m-status').disabled = true;
-    document.getElementById('m-data').value = new Date().toISOString().slice(0, 10);
+    // en-CA dá YYYY-MM-DD no fuso local -- toISOString() dá UTC, que já é
+    // "amanhã" à noite no horário de Brasília e mis-datava a atividade.
+    document.getElementById('m-data').value = new Date().toLocaleDateString('en-CA');
     atualizarCamposPorCliente();
     document.getElementById('modal').classList.remove('hidden');
 }
@@ -1213,20 +1222,30 @@ function fzAtualizarMaterial(i, campo, valor) {
 // unidade instalada/removida na mesma visita.
 let fzInstaladoItems = [];
 let fzRemovidoItems = [];
+let fzReconfiguradoItems = [];
 
 function fzToggleEquipamento() {
     const instalado = document.getElementById('fz-equip-instalado').checked;
     const removido = document.getElementById('fz-equip-removido').checked;
+    const reconfigurado = document.getElementById('fz-equip-reconfigurado').checked;
     const camposInstalado = document.getElementById('fz-instalado-campos');
     const camposRemovido = document.getElementById('fz-removido-campos');
+    const camposReconfigurado = document.getElementById('fz-reconfigurado-campos');
     camposInstalado.classList.toggle('hidden', !instalado);
     camposInstalado.classList.toggle('flex', instalado);
     camposRemovido.classList.toggle('hidden', !removido);
     camposRemovido.classList.toggle('flex', removido);
+    camposReconfigurado.classList.toggle('hidden', !reconfigurado);
+    camposReconfigurado.classList.toggle('flex', reconfigurado);
     if (instalado && !fzInstaladoItems.length) fzAdicionarItem('instalado');
     if (removido && !fzRemovidoItems.length) fzAdicionarItem('removido');
+    if (reconfigurado && !fzReconfiguradoItems.length) fzAdicionarItem('reconfigurado');
 }
-function fzItens(tipo) { return tipo === 'instalado' ? fzInstaladoItems : fzRemovidoItems; }
+function fzItens(tipo) {
+    if (tipo === 'instalado') return fzInstaladoItems;
+    if (tipo === 'removido') return fzRemovidoItems;
+    return fzReconfiguradoItems;
+}
 function fzRenderLista(tipo) {
     const itens = fzItens(tipo);
     const container = document.getElementById(`fz-${tipo}-lista`);
@@ -1280,6 +1299,7 @@ async function abrirModalFinalizar(id, novoStatus, row) {
     const particularidades = (row && row.particularidades) || [];
     document.getElementById('fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
     document.getElementById('fz-equip-removido').checked = particularidades.includes('equipamento_removido');
+    document.getElementById('fz-equip-reconfigurado').checked = particularidades.includes('equipamento_reconfigurado');
     document.getElementById('fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
     document.getElementById('fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
     document.getElementById('fz-contato-nome').value = (row && row.contato_local_nome) || '';
@@ -1288,7 +1308,7 @@ async function abrirModalFinalizar(id, novoStatus, row) {
 
     // Busca a lista completa de equipamentos (não vem no cache da listagem)
     // pra prefill correto ao reabrir/editar uma atividade já finalizada antes.
-    fzInstaladoItems = []; fzRemovidoItems = [];
+    fzInstaladoItems = []; fzRemovidoItems = []; fzReconfiguradoItems = [];
     try {
         const res = await fetch(`/api/status-campo/${id}`);
         if (res.ok) {
@@ -1296,18 +1316,20 @@ async function abrirModalFinalizar(id, novoStatus, row) {
             (full.equipamentos || []).forEach(e => {
                 if (e.tipo === 'instalado') fzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
                 if (e.tipo === 'removido') fzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+                if (e.tipo === 'reconfigurado') fzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
             });
         }
     } catch (e) { /* segue com listas vazias se falhar */ }
     fzRenderLista('instalado');
     fzRenderLista('removido');
+    fzRenderLista('reconfigurado');
     fzToggleEquipamento();
     document.getElementById('modal-finalizar').classList.remove('hidden');
 }
 function fecharModalFinalizar() {
     document.getElementById('modal-finalizar').classList.add('hidden');
     statusAlvoId = null; statusAlvoNovo = null;
-    [...fzInstaladoItems, ...fzRemovidoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
+    [...fzInstaladoItems, ...fzRemovidoItems, ...fzReconfiguradoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
     buscar();
 }
 
@@ -1349,6 +1371,8 @@ function gerarCarimboFinalizacao(row, extras) {
         ...(extras.instalado ? fzLinhasItens(extras.instaladoItens).map(l => `  ${l}`) : []),
         extras.removido ? `Removido (${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}):` : 'Removido: N/A',
         ...(extras.removido ? fzLinhasItens(extras.removidoItens).map(l => `  ${l}`) : []),
+        extras.reconfigurado ? 'Reconfigurado:' : 'Reconfigurado: N/A',
+        ...(extras.reconfigurado ? fzLinhasItens(extras.reconfiguradoItens).map(l => `  ${l}`) : []),
         '',
         `HORÁRIO CHEGADA TÉCNICO: ${row.hora_chegada || 'N/A'}`,
         `HORÁRIO SAÍDA TÉCNICO: ${extras.horaSaida}`,
@@ -1386,15 +1410,18 @@ async function confirmarFinalizar() {
     const materialSim = document.getElementById('fz-material-sim').checked;
     const instalado = document.getElementById('fz-equip-instalado').checked;
     const removido = document.getElementById('fz-equip-removido').checked;
+    const reconfigurado = document.getElementById('fz-equip-reconfigurado').checked;
     const equipamentoStatus = [];
     if (instalado) equipamentoStatus.push('equipamento_instalado');
     if (removido) equipamentoStatus.push('equipamento_removido');
+    if (reconfigurado) equipamentoStatus.push('equipamento_reconfigurado');
     const removidoPosse = document.getElementById('fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
     // Foto é só apoio visual local -- nunca vai no payload pro backend.
     const semFoto = it => ({ partnumber: it.partnumber, serial: it.serial });
     const instaladoItens = instalado ? fzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
     const removidoItens = removido ? fzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
-    [...fzInstaladoItems, ...fzRemovidoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
+    const reconfiguradoItens = reconfigurado ? fzReconfiguradoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
+    [...fzInstaladoItems, ...fzRemovidoItems, ...fzReconfiguradoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
     const materiaisItens = materialSim ? fzMaterialItems.filter(m => m.descricao.trim()) : [];
     if (materialSim && !materiaisItens.length) { alert('Informe ao menos um material utilizado.'); return; }
     const id = statusAlvoId;
@@ -1408,6 +1435,7 @@ async function confirmarFinalizar() {
         equipamento_status: equipamentoStatus,
         equipamentos_instalados: instaladoItens,
         equipamentos_removidos: removidoItens,
+        equipamentos_reconfigurados: reconfiguradoItens,
         equipamento_removido_posse: removidoPosse,
         contato_local_nome: document.getElementById('fz-contato-nome').value.trim(),
         contato_local_matricula: document.getElementById('fz-contato-matricula').value.trim(),
@@ -1418,8 +1446,8 @@ async function confirmarFinalizar() {
     const ok = await aplicarMudancaStatus(id, body);
     if (ok && row) {
         const texto = gerarCarimboFinalizacao(row, {
-            status, instalado, removido,
-            instaladoItens, removidoItens,
+            status, instalado, removido, reconfigurado,
+            instaladoItens, removidoItens, reconfiguradoItens,
             removidoPosse,
             horaSaida: saida,
             contatoNome: body.contato_local_nome,
