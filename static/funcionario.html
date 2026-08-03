@@ -289,6 +289,11 @@
             style="background:transparent;color:#9097AC;box-shadow:none">
             <i class="ph ph-map-pin-line text-base"></i> Status Report
         </button>
+        <button onclick="switchTab('equipe')" id="tab-equipe"
+            class="hidden items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-users-three text-base"></i> Kanban da Equipe
+        </button>
     </div>
 
     <!-- VIEW: KANBAN -->
@@ -493,6 +498,88 @@
             <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-auto" id="fr-count-label">carregando...</span>
         </div>
         <div id="fr-lista" class="flex flex-col gap-3"></div>
+    </div>
+
+    <!-- VIEW: KANBAN DA EQUIPE (leitura, cargo Backoffice) -->
+    <div id="view-kanban-equipe-func" class="hidden">
+        <div class="mb-4">
+            <h2 class="text-base font-bold text-faiston-dark">Kanban da Equipe</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">Todas as tarefas do time — visão de leitura, sem edição.</p>
+        </div>
+        <div class="flex items-center gap-2 mb-4">
+            <span class="text-xs font-semibold text-faiston-faint">Agrupar por</span>
+            <div class="flex items-center gap-1 p-1 rounded-lg" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+                <button onclick="setEqAgrupamento('responsavel')" id="eq-agr-responsavel"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                    style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+                    <i class="ph ph-user"></i> Responsável
+                </button>
+                <button onclick="setEqAgrupamento('projeto')" id="eq-agr-projeto"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                    style="background:transparent;color:#9097AC;box-shadow:none">
+                    <i class="ph ph-folder-simple"></i> Projeto
+                </button>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
+                    <span class="text-xs font-bold text-faiston-muted uppercase tracking-wider">Aberto</span>
+                    <span class="ml-auto text-xs font-bold bg-slate-100 text-faiston-muted px-2 py-0.5 rounded-full" id="eq-badge-aberto">0</span>
+                </div>
+                <div id="eq-aberto" class="rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="background:rgba(241,245,249,0.7);max-height:calc(100vh - 340px)">
+                    <div class="text-center py-16 text-slate-300"><i class="ph ph-tray text-3xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
+                </div>
+            </div>
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-faiston-purple"></div>
+                    <span class="text-xs font-bold text-faiston-purple uppercase tracking-wider">Em Andamento</span>
+                    <span class="ml-auto text-xs font-bold bg-faiston-purple/10 text-faiston-purple px-2 py-0.5 rounded-full" id="eq-badge-em_andamento">0</span>
+                </div>
+                <div id="eq-em_andamento" class="bg-faiston-purple/5 rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="max-height:calc(100vh - 340px)">
+                    <div class="text-center py-16 text-slate-300"><i class="ph ph-tray text-3xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
+                </div>
+            </div>
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-faiston-cyan"></div>
+                    <span class="text-xs font-bold text-faiston-cyan uppercase tracking-wider">Concluído</span>
+                    <span class="ml-auto text-xs font-bold bg-faiston-cyan/10 text-faiston-cyan px-2 py-0.5 rounded-full" id="eq-badge-concluido">0</span>
+                </div>
+                <div id="eq-concluido" class="bg-faiston-cyan/5 rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="max-height:calc(100vh - 340px)">
+                    <div class="text-center py-16 text-slate-300"><i class="ph ph-tray text-3xl mb-2 block"></i><p class="text-xs">Carregando...</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: resumo completo de um grupo do Kanban da Equipe -->
+    <div id="modal-resumo-equipe" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-faiston-border" style="max-height:88vh;display:flex;flex-direction:column">
+            <div class="grad-bg px-6 py-4 flex items-center gap-3 relative overflow-hidden flex-shrink-0" style="border-radius:16px 16px 0 0">
+                <div class="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/15 pointer-events-none"></div>
+                <div style="min-width:0">
+                    <p id="eqrp-nome" class="text-white font-bold text-sm"></p>
+                    <p id="eqrp-contexto" class="text-white/80 text-xs mt-0.5"></p>
+                </div>
+                <button onclick="fecharResumoEquipe()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors flex-shrink-0">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <div class="px-6 py-3 flex items-center gap-6 border-b border-faiston-border flex-shrink-0" style="background:#FAFBFF">
+                <div>
+                    <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-wider">Total de horas</p>
+                    <p id="eqrp-total-horas" class="text-lg font-black text-faiston-dark"></p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-wider">Tarefas</p>
+                    <p id="eqrp-total-tarefas" class="text-lg font-black text-faiston-dark"></p>
+                </div>
+            </div>
+            <div id="eqrp-lista" class="p-5 overflow-y-auto custom-scrollbar" style="flex:1"></div>
+        </div>
     </div>
 
     <!-- MODAL CARIMBO (criar/editar) -->
@@ -861,6 +948,198 @@ const PRIO_CFG = {
     'Baixa': { cls:'bg-faiston-cyan/10 text-faiston-cyan border-faiston-cyan/30' },
 };
 
+// ── KANBAN DA EQUIPE (leitura, cargo Backoffice) ─────────────────────
+const EQ_FUNC_PALETTE = ['#5B2EE0','#06D7E6','#B826C9','#EC4899','#a78bfa','#34d399','#f59e0b','#3b82f6'];
+const eqFuncColors = {};
+let eqFI = 0;
+function eqFuncColor(n){ if(!eqFuncColors[n]) eqFuncColors[n]=EQ_FUNC_PALETTE[eqFI++%EQ_FUNC_PALETTE.length]; return eqFuncColors[n]; }
+
+const EQ_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', concluido: 'Concluído' };
+const EQ_PRIO_COLOR = { 'Alta':'#EC4899', 'Media':'#5B2EE0', 'Baixa':'#06D7E6' };
+
+let eqAgrupamento = localStorage.getItem('eqAgrupamento') || 'responsavel';
+let equipeTarefas = [];
+let eqGruposCache = {};
+
+async function carregarKanbanEquipe() {
+    try {
+        const res = await fetch('/api/tarefas?view=equipe');
+        if (!res.ok) return;
+        equipeTarefas = await res.json();
+        renderKanbanEquipe();
+    } catch (e) { console.error(e); }
+}
+
+function setEqAgrupamento(modo) {
+    eqAgrupamento = modo;
+    localStorage.setItem('eqAgrupamento', modo);
+    const ACTIVE = 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+    const INACTIVE = 'background:transparent;color:#9097AC;box-shadow:none';
+    document.getElementById('eq-agr-responsavel').style.cssText = modo==='responsavel'?ACTIVE:INACTIVE;
+    document.getElementById('eq-agr-projeto').style.cssText = modo==='projeto'?ACTIVE:INACTIVE;
+    renderKanbanEquipe();
+}
+
+function eqMontarGrupos(tasksList, status, porProjeto, sufixoId) {
+    const byFunc = {};
+    tasksList.forEach(t => {
+        const f = porProjeto ? (t.projeto_nome || 'Sem projeto') : (t.funcionario || 'Sem responsável');
+        if (!byFunc[f]) byFunc[f] = []; byFunc[f].push(t);
+    });
+
+    return Object.entries(byFunc).map(([func, funcTasks]) => {
+        const fColor = eqFuncColor(func);
+        const initial = func.charAt(0).toUpperCase();
+        const avatarInner = porProjeto ? '<i class="ph ph-folder-simple" style="font-size:15px"></i>' : initial;
+        const isDone = status === 'concluido';
+        const groupId = `eq-group-${status}-${sufixoId || ''}-${func.replace(/\s+/g,'_')}`;
+
+        const totalSecs = funcTasks.reduce((a,t) => a+(t.segundos||0), 0);
+        const fH = Math.floor(totalSecs/3600), fM = Math.floor((totalSecs%3600)/60);
+        const horasLabel = totalSecs > 0 ? `${fH}h${String(fM).padStart(2,'0')}m` : '0h';
+
+        eqGruposCache[groupId] = {
+            nome: func,
+            contexto: sufixoId ? gkDiaLabel(sufixoId) : EQ_STATUS_LABEL[status],
+            tasks: funcTasks,
+            totalSecs
+        };
+
+        const cards = funcTasks.map(t => {
+            const cColor = getClientColor(t.cliente);
+            const pColor = EQ_PRIO_COLOR[t.prioridade] || EQ_PRIO_COLOR['Media'];
+            const h = Math.floor(t.segundos/3600), m = Math.floor((t.segundos%3600)/60);
+            const timeLabel = t.segundos > 0 ? `${h}h${String(m).padStart(2,'0')}m` : '—';
+            const striked = isDone ? 'text-decoration:line-through;opacity:0.5' : '';
+            const projBadge = porProjeto
+                ? `<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#06D7E615;color:#0891a3">👤 ${t.funcionario || 'Sem responsável'}</span>`
+                : (t.projeto_nome ? `<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#5B2EE015;color:#5B2EE0">${t.projeto_nome}</span>` : '');
+            return `<div class="bg-white rounded-xl border border-faiston-border overflow-hidden ${isDone?'opacity-60':''}" style="border-left:3px solid ${pColor}">
+                <div style="padding:10px 12px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                        <span style="font-family:monospace;font-size:9px;font-weight:700;color:#9097AC">#${t.id}</span>
+                    </div>
+                    <p style="font-size:13px;font-weight:600;line-height:1.35;margin-bottom:6px;color:#0B0D1F;${striked};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${t.descricao}</p>
+                    ${projBadge ? `<div style="margin-bottom:8px">${projBadge}</div>` : ''}
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <div style="display:flex;align-items:center;gap:5px;min-width:0">
+                            <div style="width:7px;height:7px;border-radius:50%;background:${cColor};flex-shrink:0"></div>
+                            <span style="font-size:10px;font-weight:700;color:${cColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">${t.cliente}</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                            <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:5px;background:${pColor}18;color:${pColor}">${t.prioridade.toUpperCase()}</span>
+                            <span style="font-family:monospace;font-size:10px;font-weight:700;color:${t.segundos>0?'#5B2EE0':'#CBD5E1'}">${timeLabel}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+
+        return `<div style="margin-bottom:18px">
+            <div onclick="(function(el){const body=document.getElementById('${groupId}');const open=body.style.display!=='none';body.style.display=open?'none':'flex';el.querySelector('.eq-chevron').style.transform=open?'rotate(0deg)':'rotate(180deg)';})(this)"
+                style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:white;border-radius:12px;border:1px solid #E5E8F0;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05);cursor:pointer;user-select:none">
+                <div style="width:32px;height:32px;border-radius:${porProjeto?'10px':'50%'};background:linear-gradient(135deg,${fColor},${fColor}99);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700;flex-shrink:0">${avatarInner}</div>
+                <div style="flex:1;min-width:0">
+                    <p style="font-size:12px;font-weight:700;color:#0B0D1F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${porProjeto ? func : func.split(' ').slice(0,2).join(' ')}</p>
+                    <p style="font-size:10px;color:#9097AC;margin-top:1px">${horasLabel} &middot; ${funcTasks.length} tarefa${funcTasks.length>1?'s':''}</p>
+                </div>
+                <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${fColor}15;color:${fColor}">${funcTasks.length}</span>
+                <button onclick="event.stopPropagation();abrirResumoEquipe('${groupId}')" title="Ver resumo completo"
+                    style="width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:transparent;color:#9097AC;flex-shrink:0;border:none;cursor:pointer">
+                    <i class="ph ph-arrow-square-out" style="font-size:14px"></i>
+                </button>
+                <i class="ph ph-caret-down eq-chevron" style="font-size:14px;color:#9097AC;transition:transform .2s ease"></i>
+            </div>
+            <div id="${groupId}" style="display:none;flex-direction:column;gap:6px;padding-left:6px">${cards}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderKanbanEquipe() {
+    const porProjeto = eqAgrupamento === 'projeto';
+
+    ['aberto','em_andamento','concluido'].forEach(status => {
+        const col = document.getElementById(`eq-${status}`);
+        const badge = document.getElementById(`eq-badge-${status}`);
+        if (!col || !badge) return;
+
+        const filtered = equipeTarefas.filter(t => t.status === status);
+        badge.textContent = filtered.length;
+
+        if (!filtered.length) {
+            col.innerHTML = `<div class="text-center py-16" style="color:#CBD5E1">
+                <i class="ph ph-tray" style="font-size:2rem;display:block;margin-bottom:8px"></i>
+                <p style="font-size:11px;font-weight:500">Nenhuma tarefa</p></div>`;
+            return;
+        }
+
+        if (status !== 'concluido') {
+            col.innerHTML = eqMontarGrupos(filtered, status, porProjeto, '');
+            return;
+        }
+
+        const porDia = {};
+        filtered.forEach(t => {
+            const raw = t.concluido_em || t.atualizado_em || t.criado_em;
+            const chave = (raw && /^\d{4}-\d{2}-\d{2}/.test(raw)) ? raw.slice(0, 10) : 'sem-data';
+            (porDia[chave] = porDia[chave] || []).push(t);
+        });
+        const diasOrdenados = Object.keys(porDia).sort((a, b) => {
+            if (a === 'sem-data') return 1;
+            if (b === 'sem-data') return -1;
+            return b.localeCompare(a);
+        });
+
+        col.innerHTML = diasOrdenados.map(dia => {
+            const tasksDoDia = porDia[dia];
+            const label = gkDiaLabel(dia);
+            const aberto = (label === 'Hoje' || label === 'Ontem');
+            return `<div class="mb-5">
+                <div onclick="(function(el){const body=el.parentElement.querySelector('.dia-cards');const open=body.style.display!=='none';body.style.display=open?'none':'flex';el.querySelector('.dia-chevron').style.transform=open?'rotate(0deg)':'rotate(180deg)';})(this)"
+                    style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;user-select:none;border-bottom:1px solid #E5E8F0;margin-bottom:10px">
+                    <i class="ph ph-calendar-check" style="font-size:13px;color:#06D7E6"></i>
+                    <span style="font-size:11px;font-weight:800;color:#0B0D1F;text-transform:uppercase;letter-spacing:.03em">${label}</span>
+                    <span style="font-size:10px;color:#9097AC">${tasksDoDia.length} tarefa${tasksDoDia.length>1?'s':''}</span>
+                    <i class="ph ph-caret-down dia-chevron" style="margin-left:auto;font-size:12px;color:#9097AC;transition:transform .2s ease;transform:rotate(${aberto?'180deg':'0deg'})"></i>
+                </div>
+                <div class="dia-cards flex flex-col" style="display:${aberto?'flex':'none'}">${eqMontarGrupos(tasksDoDia, status, porProjeto, dia)}</div>
+            </div>`;
+        }).join('');
+    });
+}
+
+function abrirResumoEquipe(groupId) {
+    const dados = eqGruposCache[groupId];
+    if (!dados) return;
+    const { nome, contexto, tasks, totalSecs } = dados;
+    const h = Math.floor(totalSecs/3600), m = Math.floor((totalSecs%3600)/60);
+    document.getElementById('eqrp-nome').textContent = nome;
+    document.getElementById('eqrp-contexto').textContent = contexto;
+    document.getElementById('eqrp-total-horas').textContent = totalSecs > 0 ? `${h}h${String(m).padStart(2,'0')}m` : '0h';
+    document.getElementById('eqrp-total-tarefas').textContent = tasks.length;
+    document.getElementById('eqrp-lista').innerHTML = tasks.map(t => {
+        const pColor = EQ_PRIO_COLOR[t.prioridade] || EQ_PRIO_COLOR['Media'];
+        const th = Math.floor(t.segundos/3600), tm = Math.floor((t.segundos%3600)/60);
+        const timeLabel = t.segundos > 0 ? `${th}h${String(tm).padStart(2,'0')}m` : '—';
+        const statusLabel = EQ_STATUS_LABEL[t.status] || t.status;
+        return `<div style="padding:10px 12px;border:1px solid #E5E8F0;border-radius:10px;margin-bottom:8px;border-left:3px solid ${pColor}">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+                <span style="font-family:monospace;font-size:9px;font-weight:700;color:#9097AC">#${t.id}</span>
+                <span style="font-size:9px;font-weight:700;color:${pColor};background:${pColor}15;padding:1px 6px;border-radius:5px">${statusLabel.toUpperCase()}</span>
+            </div>
+            <p style="font-size:13px;font-weight:600;color:#0B0D1F;margin-bottom:6px;line-height:1.35">${t.descricao}</p>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                <span style="font-size:10px;color:#9097AC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.cliente || ''}${t.projeto_nome ? ' · '+t.projeto_nome : ''}</span>
+                <span style="font-family:monospace;font-size:11px;font-weight:700;color:#5B2EE0;flex-shrink:0">${timeLabel}</span>
+            </div>
+        </div>`;
+    }).join('');
+    document.getElementById('modal-resumo-equipe').classList.remove('hidden');
+}
+function fecharResumoEquipe() {
+    document.getElementById('modal-resumo-equipe').classList.add('hidden');
+}
+
 function fmt(s)  { return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
 function fmtH(s) { return `${Math.floor(s/3600)}h ${String(Math.floor((s%3600)/60)).padStart(2,'0')}m`; }
 
@@ -885,6 +1164,10 @@ async function init() {
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'demo' && !_EMBED) document.getElementById('demo-back-bar').classList.remove('hidden');
+        if (me.cargo === 'backoffice') {
+            const tabEquipe = document.getElementById('tab-equipe');
+            if (tabEquipe) { tabEquipe.classList.remove('hidden'); tabEquipe.classList.add('flex'); }
+        }
     } catch(e) { window.location.href = '/'; return; }
 
     await carregarTarefas();
@@ -1058,15 +1341,19 @@ function switchTab(tab) {
     document.getElementById('tab-carimbos').style.cssText = tab==='carimbos' ? ACTIVE : INACTIVE;
     document.getElementById('tab-projetos').style.cssText = tab==='projetos' ? ACTIVE : INACTIVE;
     document.getElementById('tab-statusreport').style.cssText = tab==='statusreport' ? ACTIVE : INACTIVE;
+    const tabEquipe = document.getElementById('tab-equipe');
+    if (tabEquipe) tabEquipe.style.cssText = tab==='equipe' ? ACTIVE : INACTIVE;
     document.getElementById('view-kanban-func').classList.toggle('hidden', tab !== 'kanban');
     document.getElementById('view-agenda-func').classList.toggle('hidden', tab !== 'agenda');
     document.getElementById('view-carimbos-func').classList.toggle('hidden', tab !== 'carimbos');
     document.getElementById('view-projetos-func').classList.toggle('hidden', tab !== 'projetos');
     document.getElementById('view-statusreport-func').classList.toggle('hidden', tab !== 'statusreport');
+    document.getElementById('view-kanban-equipe-func').classList.toggle('hidden', tab !== 'equipe');
     if (tab === 'agenda') renderAgenda();
     if (tab === 'carimbos') renderCarimbos();
     if (tab === 'projetos') renderProjetos();
     if (tab === 'statusreport') frAbrir();
+    if (tab === 'equipe') carregarKanbanEquipe();
 }
 
 // ── STATUS REPORT (leitura, todos os perfis podem ver) ──────────────
