@@ -3633,6 +3633,14 @@ async function gDeletarCarimboModal() {
     if (typeof filtrarCarimbos === 'function' && document.getElementById('mod-gestao') && !document.getElementById('mod-gestao').classList.contains('hidden')) filtrarCarimbos();
 }
 
+// Espelha _pode_ver_status_report do main.py: o Status Report é do time de
+// Projetos; admin/diretor/dev atravessam times.
+function podeVerStatusReport(me) {
+    if (!me) return false;
+    if (me.perfil === 'admin' || me.perfil === 'diretor' || me.perfil_real === 'dev') return true;
+    return (me.time || 'Projetos') === 'Projetos';
+}
+
 async function init() {
     try {
         const res = await fetch('/api/me');
@@ -3666,6 +3674,13 @@ async function init() {
         if (me.perfil === 'diretor') {
             const lf = document.getElementById('link-financeiro');
             if (lf) lf.classList.add('hidden');
+        }
+        // Status Report (atividades de campo do N2) é do time de Projetos --
+        // gestor de Logística/Rede Credenciada não vê Cronograma nem Status
+        // Report. Espelha _pode_ver_status_report do main.py, que é quem de
+        // fato bloqueia /api/status-campo.
+        if (!podeVerStatusReport(me)) {
+            document.querySelectorAll('[data-nav-mod="statuscampo"]').forEach(el => el.classList.add('hidden'));
         }
     } catch(e) { window.location.href = '/'; return; }
     await carregarDados('');
@@ -5334,6 +5349,9 @@ function atualizarNavAtiva(mod) {
 }
 
 function setModule(mod, gestaoTab) {
+    // Rotas antigas (?go=statuscampo) e links diretos não podem furar a regra
+    // de time do Status Report -- sem acesso, cai no dashboard.
+    if (mod === 'statuscampo' && window.ME && !podeVerStatusReport(window.ME)) mod = 'dashboard';
     const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo','painelN2','areaDev'];
     mods.forEach(m => {
         const el = document.getElementById('mod-' + m);

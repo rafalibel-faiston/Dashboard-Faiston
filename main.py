@@ -817,6 +817,26 @@ def _eh_n2(sess: dict) -> bool:
     perfil='funcionario' (migração 2026-07-28)."""
     return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "n2"
 
+# O Status Report (atividades de campo do N2) é operação do time de Projetos --
+# Logística e Rede Credenciada não têm o que fazer lá. admin/diretor/dev
+# atravessam times por definição (mesma regra do filtro de /api/metricas).
+TIME_STATUS_REPORT = 'Projetos'
+
+def _pode_ver_status_report(sess: dict) -> bool:
+    if not sess:
+        return False
+    if sess.get("perfil") in ("admin", "diretor") or sess.get("perfil_real") == "dev":
+        return True
+    return (sess.get("time") or TIME_STATUS_REPORT) == TIME_STATUS_REPORT
+
+def _exigir_status_report(sess: dict):
+    """401 sem sessão, 403 fora do time de Projetos. Usado nas rotas de
+    leitura do Status Report (as de escrita já dão 403 no guard de perfil)."""
+    if not sess:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    if not _pode_ver_status_report(sess):
+        raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
+
 def _perfil_guia(perfil: str, cargo: str = "", perfil_real: str = "") -> str:
     """Traduz perfil+cargo do banco na aba correspondente do guia (/ajuda).
     O guia tem aba por FUNÇÃO, não por perfil cru: N2 e backoffice vivem
@@ -3341,6 +3361,12 @@ def n2_page(faiston_token: str = Cookie(None)):
     if not sess: return RedirectResponse("/")
     if sess["perfil"] != "admin" and sess.get("cargo") != "n2":
         return _redirect_login_ou_home(sess)
+    # A tela do N2 é o Status Report inteiro -- fora do time de Projetos não há
+    # o que mostrar (ver _pode_ver_status_report). Aqui NÃO dá pra usar
+    # _redirect_login_ou_home: pra cargo='n2' a home dele é o próprio /n2 e o
+    # redirect entraria em loop; cai no board de tarefas.
+    if not _pode_ver_status_report(sess):
+        return RedirectResponse("/funcionario")
     return FileResponse("static/n2.html")
 
 @app.get("/admin")
@@ -6132,7 +6158,7 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
                          n2_usuario_id: int = 0, apenas_meu: bool = False,
                          faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    _exigir_status_report(sess)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -6196,7 +6222,7 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
 @app.get("/api/status-campo/report")
 def report_status_campo(data: str, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    _exigir_status_report(sess)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -6256,7 +6282,7 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
 def listar_subprojetos(cliente_id: int, faiston_token: str = Cookie(None)):
     """Sugestões de subprojeto já usados nesse cliente, pra autocomplete."""
     sess = get_session(faiston_token)
-    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    _exigir_status_report(sess)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -6274,7 +6300,7 @@ def listar_subprojetos(cliente_id: int, faiston_token: str = Cookie(None)):
 @app.get("/api/status-campo/{aid}")
 def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    _exigir_status_report(sess)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -6310,6 +6336,7 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
 def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -6372,6 +6399,7 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
 def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -6424,7 +6452,7 @@ def reatribuir_status_campo(aid: int, body: ReatribuirStatusCampoModel, faiston_
     histórico de quem fez o quê continuam intactos, só o dono muda daqui
     pra frente -- ver _pode_gerenciar_status_campo/andamentos."""
     sess = get_session(faiston_token)
-    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    _exigir_status_report(sess)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -6580,6 +6608,7 @@ def _gerar_ou_atualizar_tarefa_campo(cur, aid):
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
     # "em_andamento" exige localização (primeiro passo do fluxo escalonado do
     # N2: deslocamento/no local -> chegada+acesso -> início+tipo); os status
@@ -6677,7 +6706,7 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
 @app.get("/api/status-campo/{aid}/andamento")
 def listar_andamentos(aid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    _exigir_status_report(sess)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -6700,6 +6729,7 @@ def listar_andamentos(aid: int, faiston_token: str = Cookie(None)):
 def deletar_status_campo(aid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -6719,7 +6749,7 @@ def listar_usuarios_n2(faiston_token: str = Cookie(None)):
     permitir admin/gestor atuando como N2 em campo também), mas na prática
     isso deixava a lista poluída com quem não é N2 de verdade."""
     sess = get_session(faiston_token)
-    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    _exigir_status_report(sess)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -6850,6 +6880,7 @@ def atribuir_lote_status_campo(body: AtribuirLoteModel, faiston_token: str = Coo
     plantão sem vínculo real com as atividades."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     try:
         if datetime.strptime(body.data, "%Y-%m-%d").date() < date.today():
             raise HTTPException(status_code=400, detail="Não é possível gerar escala pra uma data que já passou")
@@ -6942,6 +6973,7 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
     cliente novo sozinho nem adivinha."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
         import subprocess, sys

@@ -327,3 +327,53 @@ class TestN2:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
         assert any("nome" in u and "perfil" in u for u in resp.json())
+
+
+class TestAcessoPorTime:
+    """Status Report é operação de campo do time de Projetos -- quem é de
+    Logística ou Rede Credenciada não enxerga nem escreve nada lá
+    (ver _pode_ver_status_report em main.py)."""
+
+    @pytest.fixture()
+    def _usuario_de_time(self, admin_client, app):
+        criados = []
+
+        def criar(time_nome, cargo="analista"):
+            from fastapi.testclient import TestClient
+            usuario = f"teste_time_{uuid.uuid4().hex[:8]}"
+            senha = "senhaTeste123"
+            resp = admin_client.post("/api/usuarios", json={
+                "usuario": usuario, "senha": senha, "nome": f"Usuário {time_nome}",
+                "perfil": "funcionario", "cargo": cargo, "time": time_nome,
+            })
+            assert resp.status_code == 200, resp.text
+            criados.append(resp.json()["id"])
+            client = TestClient(app)
+            login = client.post("/api/login", json={"usuario": usuario, "senha": senha})
+            assert login.status_code == 200, login.text
+            return client
+
+        yield criar
+        for uid in criados:
+            admin_client.delete(f"/api/usuarios/{uid}")
+
+    def test_fora_do_time_de_projetos_nao_lista(self, _usuario_de_time):
+        client = _usuario_de_time("Logística")
+        resp = client.get("/api/status-campo")
+        assert resp.status_code == 403
+
+    def test_fora_do_time_de_projetos_nao_cria(self, _usuario_de_time, cliente_teste):
+        client = _usuario_de_time("Logística", cargo="n2")
+        resp = client.post("/api/status-campo", json=_payload(cliente_teste))
+        assert resp.status_code == 403
+
+    def test_fora_do_time_de_projetos_nao_abre_a_tela_do_n2(self, _usuario_de_time):
+        client = _usuario_de_time("Rede Credenciada", cargo="n2")
+        resp = client.get("/n2", follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        assert resp.headers["location"] == "/funcionario"
+
+    def test_time_de_projetos_continua_vendo(self, _usuario_de_time):
+        client = _usuario_de_time("Projetos")
+        resp = client.get("/api/status-campo")
+        assert resp.status_code == 200
