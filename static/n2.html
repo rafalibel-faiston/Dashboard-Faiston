@@ -1447,7 +1447,7 @@ async function carregarTiposExtras() {
     // finalizar a visita, não é pra ser lançado manualmente aqui.
     _tiposExtras = todos.filter(t => t.frente === 'N2' && t.nome !== 'Atendimento em campo');
     document.getElementById('me-tipo').innerHTML = '<option value="">Selecione...</option>' +
-        _tiposExtras.map(t => `<option value="${t.id}">${esc(t.nome)} (peso ${t.peso})</option>`).join('');
+        _tiposExtras.map(t => `<option value="${t.id}">${esc(t.nome)}</option>`).join('');
 }
 
 async function carregarClientesExtras() {
@@ -1550,7 +1550,7 @@ async function carregarExtras() {
         const prazoLabel = t.data_prazo ? t.data_prazo.split('-').reverse().join('/') : '--';
         return `<div class="flex items-center justify-between px-5 py-3">
             <div class="min-w-0">
-                <p class="text-sm font-semibold text-faiston-dark truncate">${esc(tipo ? tipo.nome : '')} <span class="text-xs text-faiston-faint font-normal">(peso ${tipo ? tipo.peso : '-'})</span></p>
+                <p class="text-sm font-semibold text-faiston-dark truncate">${esc(tipo ? tipo.nome : '')}</p>
                 <p class="text-xs text-faiston-muted">${esc(t.cliente || '')} · previsão ${prazoLabel} · ${EXTRA_STATUS_LABEL[t.status] || t.status}</p>
             </div>
             <div class="flex items-center gap-2 shrink-0">

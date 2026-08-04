@@ -560,8 +560,8 @@
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col border border-faiston-border">
         <div class="px-5 py-3 border-b border-faiston-border flex items-center justify-between">
             <div>
-                <span class="font-bold text-faiston-dark text-sm">Tabela de Pesos</span>
-                <p class="text-[11px] text-faiston-muted mt-0.5">1 = rotina rápida · 4 = complexa</p>
+                <span class="font-bold text-faiston-dark text-sm">Tipos de Atividade</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">O que cada tipo cobre — escolha o que descreve melhor a tarefa</p>
             </div>
             <button onclick="fecharTabelaPesos()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
@@ -608,7 +608,7 @@
                         <div>
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block flex items-center justify-between">
                     <span>Tipo de Atividade <span class="text-faiston-pink">*</span></span>
-                    <button type="button" onclick="abrirTabelaPesos()" class="normal-case tracking-normal text-[10px] font-semibold text-faiston-purple hover:underline">ver tabela de pesos</button>
+                    <button type="button" onclick="abrirTabelaPesos()" class="normal-case tracking-normal text-[10px] font-semibold text-faiston-purple hover:underline">ver descrição das atividades</button>
                 </label>
                 <select id="input-tipo-atividade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                     <option value="">Selecione...</option>
@@ -1580,7 +1580,7 @@ async function carregarTiposAtividade() {
     sel.innerHTML = '<option value="">Selecione...</option>' +
         Object.entries(porFrente).map(([frente, itens]) =>
             `<optgroup label="${frente}">` +
-            itens.map(t => `<option value="${t.id}">${t.nome} (peso ${t.peso})</option>`).join('') +
+            itens.map(t => `<option value="${t.id}">${t.nome}</option>`).join('') +
             `</optgroup>`
         ).join('');
 }
@@ -1597,7 +1597,6 @@ function abrirTabelaPesos() {
                         <tr class="border-t border-faiston-border">
                             <td class="py-2 pr-3 font-medium align-top w-1/3">${t.nome}</td>
                             <td class="py-2 pr-3 text-faiston-muted text-xs align-top">${t.descricao || '--'}</td>
-                            <td class="py-2 text-center w-12"><span class="inline-flex w-6 h-6 rounded-md bg-faiston-purple/10 text-faiston-purple font-bold text-xs items-center justify-center">${t.peso}</span></td>
                         </tr>`).join('')}
                 </tbody>
             </table>
