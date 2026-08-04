@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>
+    // CSRF (double-submit cookie): intercepta fetch() global pra anexar o
+    // header X-CSRF-Token em toda chamada que muda estado, sem reescrever
+    // cada fetch() espalhado pela tela (2026-07-30). Precisa rodar antes de
+    // qualquer outro script que chame fetch(), por isso é o primeiro <script>.
+    (function() {
+        var _fetchOriginal = window.fetch;
+        function csrfCookie() {
+            var m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        window.fetch = function(input, init) {
+            init = init || {};
+            var metodo = (init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                var token = csrfCookie();
+                if (token) {
+                    var headers = new Headers(init.headers || {});
+                    headers.set('X-CSRF-Token', token);
+                    init = Object.assign({}, init, { headers: headers });
+                }
+            }
+            return _fetchOriginal(input, init);
+        };
+    })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
+    <title>Status Report — N2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } }
+            }}
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar{width:5px;height:5px}
+        .custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
+        /* ── Passada visual (2026-07-28), replicada do Dashboard ── */
+        #n2-titulo { font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
+    </style>
+</head>
+<body class="bg-faiston-bg font-sans min-h-screen">
+
+<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div class="flex items-center gap-3">
+        <i class="ph ph-map-pin-line text-faiston-purple text-lg"></i>
+        <span class="text-sm font-bold text-faiston-dark">Status Report</span>
+        <span class="text-xs text-faiston-faint">Painel N2</span>
+    </div>
+    <div class="flex items-center gap-3">
+        <button onclick="toggleTema()" id="btn-tema-h" class="btn-theme" title="Alternar tema">
+            <i class="ph ph-moon" id="icon-tema-h"></i>
+        </button>
+        <button onclick="n2TourIniciar()" title="Rever o tutorial" class="text-faiston-faint hover:text-faiston-purple transition-colors">
+            <i class="ph ph-graduation-cap text-lg"></i>
+        </button>
+        <button onclick="suporteAbrirModal()" title="Falar com o suporte" class="text-faiston-faint hover:text-faiston-purple transition-colors">
+            <i class="ph ph-lifebuoy text-lg"></i>
+        </button>
+        <button onclick="logout()" class="text-faiston-faint hover:text-faiston-pink transition-colors">
+            <i class="ph ph-sign-out text-lg"></i>
+        </button>
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+            <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-av">?</div>
+            <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-6 py-6">
+
+    <div class="flex items-center justify-between mb-5">
+        <div>
+            <h2 class="text-xl font-bold text-faiston-dark" id="n2-titulo">Minhas atividades</h2>
+            <p class="text-xs text-faiston-muted mt-0.5" id="n2-subtitulo">Atividades de campo onde você é o N2 responsável</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="n2ToggleOcultarFinalizadas()" id="btn-limpar-lista" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors">
+                <i class="ph ph-broom text-sm"></i> <span id="btn-limpar-lista-label">Limpar lista</span>
+            </button>
+            <button onclick="abrirModalNovo()" id="btn-nova-atividade" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                <i class="ph ph-plus text-base"></i> Nova atividade
+            </button>
+        </div>
+    </div>
+
+    <div class="flex gap-2 mb-5 flex-wrap">
+        <button onclick="mostrarAbaN2('minhas')" id="n2-tab-minhas" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Minhas atividades</button>
+        <button onclick="mostrarAbaN2('geral')" id="n2-tab-geral" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Atividades em geral</button>
+        <button onclick="mostrarAbaN2('print')" id="n2-tab-print" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Enviar Status Report</button>
+        <button onclick="mostrarAbaN2('extras')" id="n2-tab-extras" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Outras Atividades</button>
+    </div>
+
+    <div id="n2-view-lista">
+        <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <select id="f-status" onchange="buscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                    <option value="">Todos os status</option>
+                    <option value="agendado">Agendado</option>
+                    <option value="em_andamento">Em andamento</option>
+                    <option value="concluido">Concluído</option>
+                    <option value="parcial">Parcial</option>
+                    <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                    <option value="improdutiva_faiston">Improdutiva — Faiston</option>
+                    <option value="cancelado">Cancelado</option>
+                </select>
+                <input type="date" id="f-data-de" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
+                <input type="date" id="f-data-ate" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
+                <button onclick="limparFiltros()" class="text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1 justify-center">
+                    <i class="ph ph-x-circle"></i> Limpar
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+                <span class="text-sm font-bold text-faiston-dark">Atividades</span>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
+            </div>
+            <div id="lista"></div>
+        </div>
+    </div>
+
+    <div id="n2-view-print" class="hidden">
+        <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <p class="text-xs text-faiston-muted mb-3">Selecione o cliente pra ver e enviar o print com <strong>todas as atividades dele</strong> no dia — não só as suas.</p>
+            <div class="grid grid-cols-2 gap-3">
+                <select id="print-cliente" onchange="carregarPrintCliente()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                    <option value="">Selecionar cliente...</option>
+                </select>
+                <input type="date" id="print-data" onchange="printDataMudou()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan">
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <div class="flex items-center gap-3 mb-4 flex-wrap">
+                <span class="text-sm font-bold text-faiston-dark">Status Report do cliente</span>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="print-count-label">selecione um cliente</span>
+                <button onclick="gerarPrintLista()" class="text-xs font-semibold text-faiston-purple border border-faiston-purple/30 bg-faiston-purple/5 rounded-lg px-3 py-1.5 hover:bg-faiston-purple/10 transition-colors flex items-center gap-1.5">
+                    <i class="ph ph-camera text-sm"></i> Copiar print
+                </button>
+                <span class="text-xs text-faiston-faint" id="print-msg"></span>
+            </div>
+            <div id="print-lista" class="flex flex-col gap-2"></div>
+        </div>
+    </div>
+
+    <!-- N2-B: atividades que não são visita de campo (suporte remoto, rack,
+         staging, relatórios, incidentes etc.) -- "Atendimento em campo" fica
+         de fora daqui porque já é gerado sozinho ao finalizar a visita. -->
+    <div id="n2-view-extras" class="hidden">
+        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+                <div>
+                    <span class="text-sm font-bold text-faiston-dark">Minhas atividades extras</span>
+                    <p class="text-xs text-faiston-muted mt-0.5">Suporte remoto, rack, staging, relatórios, incidentes -- tudo que não é visita de campo</p>
+                </div>
+                <button onclick="abrirModalExtra()" id="btn-nova-atividade-extra" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                    <i class="ph ph-plus text-base"></i> Nova atividade extra
+                </button>
+            </div>
+            <div id="extras-lista" class="divide-y divide-faiston-border"></div>
+        </div>
+    </div>
+</main>
+
+<!-- MODAL NOVA/EDITAR ATIVIDADE EXTRA (não é visita de campo) -->
+<div id="modal-extra" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <h2 class="text-lg font-bold text-faiston-dark" id="modal-extra-titulo">Nova atividade extra</h2>
+            <button onclick="fecharModalExtra()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <input type="hidden" id="me-id">
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Tipo de atividade <span class="text-faiston-pink">*</span></label>
+                <select id="me-tipo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                    <option value="">Selecione...</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Cliente <span class="text-faiston-pink">*</span></label>
+                <select id="me-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                    <option value="">Selecione...</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição</label>
+                <textarea id="me-descricao" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all resize-none" placeholder="Detalhes (opcional)"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Natureza <span class="text-faiston-pink">*</span></label>
+                    <select id="me-natureza" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white transition-all">
+                        <option value="programada">Programada</option>
+                        <option value="urgente">Urgente / última hora</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Previsão de conclusão <span class="text-faiston-pink">*</span></label>
+                    <input type="date" id="me-prazo" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Tempo gasto</label>
+                <div class="flex gap-2 items-center">
+                    <input type="number" id="me-horas" min="0" placeholder="0" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+                    <span class="text-xs text-faiston-faint">h</span>
+                    <input type="number" id="me-minutos" min="0" max="59" placeholder="0" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all">
+                    <span class="text-xs text-faiston-faint">min</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="fecharModalExtra()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvarAtividadeExtra()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL NOVA/EDITAR ATIVIDADE -->
+<div id="modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-6 border-b border-faiston-border">
+            <div>
+                <h2 class="text-lg font-bold text-faiston-dark" id="modal-titulo">Nova atividade</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Você é registrado automaticamente como N2 responsável</p>
+            </div>
+            <button onclick="fecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Projeto/Cliente *</label>
+                    <select id="m-cliente" onchange="atualizarCamposPorCliente()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">Selecionar...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Data *</label>
+                    <input type="date" id="m-data" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Horário agendado</label>
+                    <input type="time" id="m-horario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico</label>
+                    <input type="text" id="m-tecnico" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="m-sigla-label">Sigla do site</label>
+                    <input type="text" id="m-sigla" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div id="m-nomesite-campo" class="hidden">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="m-nomesite-label">Nome do site</label>
+                    <input type="text" id="m-nomesite" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Subprojeto</label>
+                    <input type="text" id="m-subprojeto" list="m-subprojeto-list" placeholder="Ex.: Migração de core" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <datalist id="m-subprojeto-list"></datalist>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cidade</label>
+                    <input type="text" id="m-cidade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">UF</label>
+                    <input type="text" id="m-uf" maxlength="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                    <select id="m-status" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="agendado">Agendado</option>
+                        <option value="em_andamento">Em andamento</option>
+                        <option value="concluido">Concluído</option>
+                        <option value="parcial">Parcial</option>
+                        <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                        <option value="improdutiva_faiston">Improdutiva — Faiston</option>
+                        <option value="cancelado">Cancelado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Ticket</label>
+                    <input type="text" id="m-ticket" placeholder="Nº do ticket" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Endereço</label>
+                    <input type="text" id="m-endereco" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Detalhamento técnico</label>
+                    <textarea id="m-detalhamento" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                </div>
+                <div class="col-span-2 text-xs text-faiston-faint bg-slate-50 border border-faiston-border rounded-lg px-3 py-2.5">
+                    <i class="ph ph-info text-sm"></i> Chegada/saída, particularidades, material, observações e andamento são preenchidos nos passos seguintes (botão Atualizar, Finalizar atividade).
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3 p-6 pt-0">
+            <button onclick="fecharModal()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="salvar()" id="btn-salvar" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: descrever andamento (ao marcar "Em andamento" ou atualizar depois) -->
+<div id="modal-andamento" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-base font-bold text-faiston-dark mb-1" id="ad-titulo">O que está acontecendo?</h3>
+        <p class="text-xs text-faiston-muted mb-3">Vá preenchendo conforme a atividade avança.</p>
+        <div class="flex flex-col gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Localização *</label>
+                <select id="ad-localizacao" onchange="adAtualizarEstagios()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                    <option value="">Selecionar...</option>
+                    <option value="deslocamento">Em deslocamento</option>
+                    <option value="no_local">No local</option>
+                </select>
+            </div>
+            <div id="ad-estagio-local" class="hidden flex-col gap-3">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Hora de chegada</label>
+                        <input type="time" id="ad-hora-chegada" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Acesso</label>
+                        <select id="ad-acesso" onchange="adAtualizarEstagios()" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                            <option value="">Selecionar...</option>
+                            <option value="com_acesso">Com acesso</option>
+                            <option value="verificando_acesso">Verificando acesso</option>
+                            <option value="sem_acesso">Sem acesso</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="ad-estagio-acesso" class="hidden flex-col gap-3">
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Horário de início da atividade</label>
+                        <input type="time" id="ad-hora-inicio" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">O que está fazendo?</label>
+                        <select id="ad-tipo" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                            <option value="">Selecionar...</option>
+                            <option value="instalando">Instalando</option>
+                            <option value="trocando">Trocando</option>
+                            <option value="removendo">Removendo</option>
+                            <option value="validando">Validando</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">O que está instalando/trocando/removendo/validando?</label>
+                        <input type="text" id="ad-equipamento" placeholder="Ex.: Switch Catalyst 9300" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Detalhes (opcional)</label>
+                <textarea id="ad-descricao" rows="2" placeholder="Ex.: aguardando liberação de acesso ao rack..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalAndamento()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="confirmarAndamento()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- MODAL: finalizar atividade (obrigatório ao marcar concluido/parcial/improdutiva_*) -->
+<div id="modal-finalizar" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Finalizar atividade</h3>
+        <p class="text-xs text-faiston-muted mb-4">Confirme os dados de encerramento antes de marcar como <span id="fz-status-label" class="font-semibold"></span>.</p>
+        <div class="flex flex-col gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Hora de saída *</label>
+                <input type="time" id="fz-saida" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Utilizou material? *</label>
+                <div class="flex gap-4 pt-1">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="radio" name="fz-material-radio" id="fz-material-sim" onchange="toggleFinalizarMaterial()"> Sim
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="radio" name="fz-material-radio" id="fz-material-nao" onchange="toggleFinalizarMaterial()" checked> Não
+                    </label>
+                </div>
+            </div>
+            <div id="fz-material-campos" class="hidden flex-col gap-2">
+                <div id="fz-material-lista" class="flex flex-col gap-2"></div>
+                <button type="button" onclick="fzAdicionarMaterial()" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar material</button>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Equipamento</label>
+                <div class="flex gap-4 pt-1 flex-wrap">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="fz-equip-instalado" onchange="fzToggleEquipamento()"> Instalado
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" id="fz-equip-removido" onchange="fzToggleEquipamento()"> Removido
+                    </label>
+                </div>
+                <div id="fz-instalado-campos" class="hidden mt-2 flex-col gap-2">
+                    <div id="fz-instalado-lista" class="flex flex-col gap-2"></div>
+                    <button type="button" onclick="fzAdicionarItem('instalado')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento instalado</button>
+                </div>
+                <div id="fz-removido-campos" class="hidden mt-2 flex-col gap-2">
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="fz-removido-posse" id="fz-removido-posse-tecnico" checked> Ficou com o técnico
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-600">
+                            <input type="radio" name="fz-removido-posse" id="fz-removido-posse-cliente"> Ficou com o cliente
+                        </label>
+                    </div>
+                    <div id="fz-removido-lista" class="flex flex-col gap-2"></div>
+                    <button type="button" onclick="fzAdicionarItem('removido')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento removido</button>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do cliente no local</label>
+                <input type="text" id="fz-contato-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Matrícula</label>
+                <input type="text" id="fz-contato-matricula" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">OBS</label>
+                <textarea id="fz-obs" rows="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalFinalizar()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onclick="confirmarFinalizar()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: carimbo de encerramento (texto pronto pra copiar, gerado após finalizar) -->
+<div id="modal-carimbo-finalizacao" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <h3 class="text-base font-bold text-faiston-dark mb-1">Atividade finalizada</h3>
+        <p class="text-xs text-faiston-muted mb-3">Carimbo pronto pra copiar e enviar.</p>
+        <textarea id="fz-carimbo-texto" readonly rows="14" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-xs font-mono focus:outline-none resize-none bg-slate-50"></textarea>
+        <div class="flex gap-3 mt-4">
+            <button onclick="fecharModalCarimboFinalizacao()" class="flex-1 border border-faiston-border rounded-lg py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">Fechar</button>
+            <button onclick="copiarCarimboFinalizacao()" class="flex-1 btn-grad text-white rounded-lg py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5"><i class="ph ph-copy text-sm"></i> Copiar carimbo</button>
+        </div>
+        <span class="text-xs text-faiston-faint block mt-2" id="fz-carimbo-msg"></span>
+    </div>
+</div>
+
+<!-- MODAL: histórico de andamento (leitura) -->
+<div id="modal-historico" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-base font-bold text-faiston-dark">Histórico de andamento</h3>
+            <button onclick="fecharModalHistorico()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="hist-situacao-atual" class="mb-3"></div>
+        <div id="hist-lista" class="flex flex-col gap-3"></div>
+    </div>
+</div>
+
+<!-- MODAL: passar atividade pra outro N2 (2026-07-30) -->
+<div id="modal-reatribuir" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <div class="flex items-center justify-between mb-1">
+            <h3 class="text-base font-bold text-faiston-dark">Passar pra outro N2</h3>
+            <button onclick="fecharModalReatribuir()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <p class="text-xs text-faiston-muted mb-4">A situação e o histórico já registrados continuam intactos -- só o responsável muda daqui pra frente.</p>
+        <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Novo responsável</label>
+        <select id="reatribuir-n2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple mb-4">
+            <option value="">Selecione...</option>
+        </select>
+        <div id="reatribuir-msg" class="text-xs text-red-500 mb-3"></div>
+        <button onclick="confirmarReatribuir()" id="btn-confirmar-reatribuir" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Confirmar</button>
+    </div>
+</div>
+
+<script src="/js/faiston-erros.js"></script>
+<script>
+const STATUS_LABEL = {
+    agendado:'Agendado', em_andamento:'Em andamento', concluido:'Concluído', parcial:'Parcial',
+    improdutiva_cliente:'Improdutiva — Cliente', improdutiva_faiston:'Improdutiva — Faiston', cancelado:'Cancelado',
+};
+const STATUS_MAP = {
+    'Agendado': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Em andamento': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'Concluído': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    'Parcial': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Improdutiva — Cliente': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Improdutiva — Faiston': 'text-faiston-magenta bg-faiston-magenta/10 border-faiston-magenta/30',
+    'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
+};
+function statusLabel(status, clienteNome) {
+    if (status === 'improdutiva_cliente' && clienteNome) return `Improdutiva — ${clienteNome}`;
+    return STATUS_LABEL[status] || status;
+}
+const LOCALIZACAO_LABEL = { deslocamento: 'Em deslocamento', no_local: 'No local' };
+const ACESSO_LABEL = { com_acesso: 'Com acesso', verificando_acesso: 'Verificando acesso', sem_acesso: 'Sem acesso' };
+const ANDAMENTO_TIPO_LABEL = { instalando: 'Instalando', trocando: 'Trocando', removendo: 'Removendo', validando: 'Validando' };
+function chipsSituacao(r) {
+    // Localização/acesso = onde o técnico está e se consegue acessar o
+    // site -- estado atual do técnico, diferente do andamento (o que está
+    // sendo feito tecnicamente). Mantido separado na exibição por causa
+    // disso, mesmo vindo do mesmo modal de preenchimento.
+    const chips = [];
+    if (r.localizacao === 'deslocamento') {
+        chips.push(`<span class="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">${LOCALIZACAO_LABEL.deslocamento}</span>`);
+    } else if (r.localizacao) {
+        chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700">${LOCALIZACAO_LABEL[r.localizacao] || r.localizacao}</span>`);
+    }
+    if (r.acesso) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-faiston-purple/10 text-faiston-purple">${ACESSO_LABEL[r.acesso] || r.acesso}</span>`);
+    if (r.hora_chegada) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Chegada ${esc(r.hora_chegada)}</span>`);
+    return chips.length ? `<div class="flex gap-1.5 flex-wrap">${chips.join('')}</div>` : '';
+}
+function chipsAndamentoTipo(r) {
+    const chips = [];
+    if (r.hora_inicio_atividade) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Início ${esc(r.hora_inicio_atividade)}</span>`);
+    return chips.length ? `<div class="flex gap-1.5 flex-wrap">${chips.join('')}</div>` : '';
+}
+// Banner bem evidente do que está sendo feito -- tipo (categoria) + o
+// equipamento específico juntos, em destaque, em vez de escondidos num
+// chip pequeno igual os outros. É o que o usuário pediu pra ficar claro.
+function bannerAndamentoTipo(r) {
+    if (!r.andamento_tipo) return '';
+    const label = ANDAMENTO_TIPO_LABEL[r.andamento_tipo] || r.andamento_tipo;
+    return `<div class="mt-1.5 px-3 py-2 rounded-lg bg-fuchsia-50 border border-fuchsia-200 flex items-center gap-2 flex-wrap">
+        <i class="ph ph-wrench text-fuchsia-800 text-lg"></i>
+        <span class="text-base font-extrabold text-fuchsia-800">${esc(label)}${r.andamento_equipamento ? ':' : ''}</span>
+        ${r.andamento_equipamento ? `<span class="text-base font-extrabold text-slate-900">${esc(r.andamento_equipamento)}</span>` : ''}
+    </div>`;
+}
+function chipsAndamento(r) {
+    const s = chipsSituacao(r), a = chipsAndamentoTipo(r);
+    if (!s && !a) return '';
+    return `<div class="flex flex-col gap-1.5 mt-1.5">${s}${a}</div>`;
+}
+function labelSitePorNomeCliente(nomeCliente) {
+    const n = (nomeCliente || '').toLowerCase();
+    if (n.includes('arcos')) return 'Sigla';
+    if (n.includes('zamp')) return 'Número da loja';
+    if (n.includes('ntt')) return 'Junção';
+    return 'Sigla do site';
+}
+async function atualizarCamposPorCliente() {
+    const sel = document.getElementById('m-cliente');
+    const nomeCliente = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+    document.getElementById('m-sigla-label').textContent = labelSitePorNomeCliente(nomeCliente);
+    // "Nome do site" só faz sentido pra Arcos -- lá vira "Tipo de loja".
+    // Pros outros clientes o campo fica escondido (não é usado).
+    const ehArcos = (nomeCliente || '').toLowerCase().includes('arcos');
+    document.getElementById('m-nomesite-campo').classList.toggle('hidden', !ehArcos);
+    if (ehArcos) document.getElementById('m-nomesite-label').textContent = 'Tipo de loja';
+
+    const clienteId = sel.value;
+    const datalist = document.getElementById('m-subprojeto-list');
+    datalist.innerHTML = '';
+    if (!clienteId) return;
+    try {
+        const res = await fetch('/api/status-campo/subprojetos?cliente_id=' + clienteId);
+        if (!res.ok) return;
+        const subs = await res.json();
+        datalist.innerHTML = subs.map(s => `<option value="${esc(s)}">`).join('');
+    } catch (e) {}
+}
+const STATUS_TERMINAIS = ['concluido', 'parcial', 'improdutiva_cliente', 'improdutiva_faiston'];
+// Separação visual entre o que ainda está acontecendo/vai acontecer e o
+// que já foi finalizado -- ponto de feedback: a lista sem agrupar ficava
+// confusa misturando os dois. "cancelado" entra aqui mesmo não sendo um
+// STATUS_TERMINAIS (esse é só o conjunto que exige dados de encerramento).
+const STATUS_FINALIZADOS = [...STATUS_TERMINAIS, 'cancelado'];
+let ultimaLista = [];
+let statusAlvoId = null;
+let statusAlvoNovo = null;
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function fmtDate(d) { if (!d) return '—'; const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; }
+function statusBadge(label) {
+    const cls = STATUS_MAP[label] || 'text-slate-500 bg-slate-100 border-slate-200';
+    return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}">${label || '—'}</span>`;
+}
+
+let meId = null;
+let editandoId = null;
+
+async function init() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
+        const ehN2 = me.perfil === 'funcionario' && me.cargo === 'n2';
+        if (!ehN2 && me.perfil !== 'admin') { window.location.href = '/dashboard'; return; }
+        meId = me.id;
+        document.getElementById('user-nome').textContent = me.nome;
+        document.getElementById('user-av').textContent = me.nome.charAt(0).toUpperCase();
+    } catch(e) { window.location.href = '/'; return; }
+
+    try {
+        const res = await fetch('/api/clientes');
+        if (res.ok) {
+            const clientes = await res.json();
+            const opts = clientes.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join('');
+            document.getElementById('m-cliente').insertAdjacentHTML('beforeend', opts);
+        }
+    } catch(e) {}
+    // print-cliente é populado à parte, só com quem tem atividade no dia
+    // selecionado (ver popularPrintClientesDoDia) -- não faz sentido listar
+    // cliente sem nada pra imprimir naquela data.
+
+    mostrarAbaN2('minhas');
+
+    try {
+        const resTut = await fetch('/api/tutorial-n2/status');
+        if (resTut.ok) {
+            const { visto } = await resTut.json();
+            if (!visto) setTimeout(() => n2TourIniciar(true), 500);
+        }
+    } catch (e) {}
+}
+
+async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
+}
+
+function limparFiltros() {
+    document.getElementById('f-status').value = '';
+    document.getElementById('f-data-de').value = '';
+    document.getElementById('f-data-ate').value = '';
+    buscar();
+}
+
+let n2AbaAtual = 'minhas';
+
+function mostrarAbaN2(aba) {
+    n2AbaAtual = aba;
+    const tabs = { minhas: 'n2-tab-minhas', geral: 'n2-tab-geral', print: 'n2-tab-print', extras: 'n2-tab-extras' };
+    Object.entries(tabs).forEach(([k, id]) => {
+        const ativo = k === aba;
+        document.getElementById(id).className = 'text-sm font-semibold px-4 py-2 rounded-lg transition-colors ' +
+            (ativo ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
+    });
+    document.getElementById('n2-view-lista').classList.toggle('hidden', aba !== 'minhas' && aba !== 'geral');
+    document.getElementById('n2-view-print').classList.toggle('hidden', aba !== 'print');
+    document.getElementById('n2-view-extras').classList.toggle('hidden', aba !== 'extras');
+    if (aba === 'minhas') {
+        document.getElementById('n2-titulo').textContent = 'Minhas atividades';
+        document.getElementById('n2-subtitulo').textContent = 'Atividades de campo onde você é o N2 responsável';
+        buscar();
+    } else if (aba === 'geral') {
+        document.getElementById('n2-titulo').textContent = 'Atividades em geral';
+        document.getElementById('n2-subtitulo').textContent = 'Todas as atividades de campo, de todos os N2';
+        buscar();
+    } else if (aba === 'extras') {
+        document.getElementById('n2-titulo').textContent = 'Outras Atividades';
+        document.getElementById('n2-subtitulo').textContent = 'Suporte remoto, rack, staging, relatórios, incidentes -- não é visita de campo (essa já vira tarefa sozinha)';
+        carregarExtras();
+    } else {
+        document.getElementById('n2-titulo').textContent = 'Enviar Status Report';
+        document.getElementById('n2-subtitulo').textContent = 'Print com todas as atividades do cliente, não só as suas';
+        if (!document.getElementById('print-data').value) {
+            document.getElementById('print-data').value = new Date().toISOString().slice(0, 10);
+        }
+        printDataMudou();
+    }
+}
+
+function renderCardAtividade(r) {
+    const opts = Object.entries(STATUS_LABEL)
+        .map(([k, l]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${l}</option>`).join('');
+    return `<div class="px-5 py-3.5 border-b border-faiston-border last:border-0 hover:bg-slate-50/60">
+        <div class="flex items-center gap-3 flex-wrap">
+            <span class="text-xs font-bold text-faiston-purple">${esc(r.cliente_nome || '—')}</span>
+            <span class="text-sm font-semibold flex-1 min-w-[120px]">${esc(r.site_sigla || r.site_nome || '')}</span>
+            <select onchange="mudarStatus(${r.id}, this.value)" class="text-xs font-semibold border border-faiston-border rounded-full px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>
+        </div>
+        <div class="flex gap-4 flex-wrap text-xs text-faiston-muted mt-1.5">
+            <span>${fmtDate(r.data)}</span>
+            ${r.horario_agendado ? `<span>Agendado: ${esc(r.horario_agendado)}</span>` : ''}
+            ${r.tecnico ? `<span>Técnico: ${esc(r.tecnico)}</span>` : ''}
+            ${r.cidade ? `<span>${esc(r.cidade)}${r.uf ? '/' + esc(r.uf) : ''}</span>` : ''}
+        </div>
+        ${chipsAndamento(r)}
+        ${r.status === 'em_andamento' ? bannerAndamentoTipo(r) : ''}
+        ${r.status === 'em_andamento' && r.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-1.5"><i class="ph ph-info"></i> ${esc(r.andamento_descricao)}</div>` : ''}
+        ${r.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${esc(r.observacoes)}</div>` : ''}
+        <div class="flex gap-2 mt-2 flex-wrap">
+            <button onclick="abrirModalEditar(${r.id})" class="text-xs font-semibold text-faiston-purple hover:underline">Editar</button>
+            ${r.status === 'em_andamento' ? `<button onclick="abrirModalAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-purple hover:underline">Atualizar</button>` : ''}
+            ${!STATUS_FINALIZADOS.includes(r.status) && r.n2_usuario_id === meId ? `<button onclick="abrirModalReatribuir(${r.id})" class="text-xs font-semibold text-faiston-cyan hover:underline">Passar pra outro N2</button>` : ''}
+            <button onclick="verHistoricoAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-muted hover:underline">Ver histórico</button>
+            <button onclick="excluir(${r.id})" class="text-xs font-semibold text-faiston-pink hover:underline">Excluir</button>
+        </div>
+    </div>`;
+}
+// "Limpar lista": esconde as atividades já finalizadas da visão de
+// trabalho do N2, sem apagar nada -- mesmo espírito do "Limpar cronograma"
+// que o admin já tinha, só que aplicado à lista do próprio N2, que também
+// enche de atividade concluída/cancelada com o tempo (2026-07-30).
+let n2OcultarFinalizadas = false;
+
+function n2ToggleOcultarFinalizadas() {
+    n2OcultarFinalizadas = !n2OcultarFinalizadas;
+    document.getElementById('btn-limpar-lista-label').textContent = n2OcultarFinalizadas ? 'Mostrar finalizadas' : 'Limpar lista';
+    document.getElementById('btn-limpar-lista').classList.toggle('text-faiston-purple', n2OcultarFinalizadas);
+    document.getElementById('btn-limpar-lista').classList.toggle('border-faiston-purple/40', n2OcultarFinalizadas);
+    renderizarLista(ultimaLista);
+}
+
+function renderizarLista(rows) {
+    const lista = document.getElementById('lista');
+    document.getElementById('count-label').textContent = `${rows.length} atividade(s)`;
+    if (!rows.length) {
+        lista.innerHTML = '<div class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade sua registrada ainda.</div>';
+        return;
+    }
+    const ativas = rows.filter(r => !STATUS_FINALIZADOS.includes(r.status));
+    const finalizadas = rows.filter(r => STATUS_FINALIZADOS.includes(r.status));
+    const secaoHtml = (titulo, itens) => itens.length ? `
+        <div class="px-5 py-2 bg-slate-50 border-b border-faiston-border text-[10px] font-bold uppercase tracking-wide text-slate-500">${titulo} (${itens.length})</div>
+        ${itens.map(renderCardAtividade).join('')}` : '';
+    if (n2OcultarFinalizadas) {
+        lista.innerHTML = ativas.length ? secaoHtml('Em andamento e agendadas', ativas)
+            : '<div class="text-center py-12 text-slate-300 text-sm">Nada pendente -- tudo finalizado. Clique em "Mostrar finalizadas" pra ver.</div>';
+    } else {
+        lista.innerHTML = secaoHtml('Em andamento e agendadas', ativas) + secaoHtml('Finalizadas', finalizadas);
+    }
+}
+
+async function buscar() {
+    const params = new URLSearchParams(n2AbaAtual === 'minhas' ? { apenas_meu: 'true' } : {});
+    const status = document.getElementById('f-status').value;
+    const dataDe = document.getElementById('f-data-de').value;
+    const dataAte = document.getElementById('f-data-ate').value;
+    if (status) params.set('status', status);
+    if (dataDe) params.set('data_de', dataDe);
+    if (dataAte) params.set('data_ate', dataAte);
+
+    const lista = document.getElementById('lista');
+    try {
+        const res = await fetch('/api/status-campo?' + params.toString());
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        ultimaLista = rows;
+        renderizarLista(rows);
+    } catch (e) {
+        lista.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+    }
+}
+
+let printLista = [];
+
+async function popularPrintClientesDoDia() {
+    // Só lista cliente que realmente tem atividade na data escolhida --
+    // listar todos os clientes cadastrados aqui só gerava print vazio.
+    const data = document.getElementById('print-data').value;
+    const sel = document.getElementById('print-cliente');
+    const atual = sel.value;
+    if (!data) return;
+    try {
+        const res = await fetch('/api/status-campo?data=' + data);
+        if (!res.ok) return;
+        const rows = await res.json();
+        const vistos = new Map();
+        rows.forEach(r => { if (r.cliente_id && !vistos.has(r.cliente_id)) vistos.set(r.cliente_id, r.cliente_nome || ''); });
+        const opts = [...vistos.entries()]
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .map(([id, nome]) => `<option value="${id}">${esc(nome)}</option>`).join('');
+        sel.innerHTML = '<option value="">Selecionar cliente...</option>' + opts;
+        if (vistos.has(parseInt(atual, 10))) sel.value = atual;
+    } catch (e) {}
+}
+
+function printDataMudou() {
+    popularPrintClientesDoDia().then(carregarPrintCliente);
+}
+
+async function carregarPrintCliente() {
+    const clienteId = document.getElementById('print-cliente').value;
+    const data = document.getElementById('print-data').value;
+    const box = document.getElementById('print-lista');
+    const countLabel = document.getElementById('print-count-label');
+    if (!clienteId) {
+        printLista = [];
+        box.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm">Selecione um cliente.</div>';
+        countLabel.textContent = 'selecione um cliente';
+        return;
+    }
+    // Sem apenas_meu/n2_usuario_id de propósito -- o report precisa cobrir
+    // TODAS as atividades do cliente no dia, não só as do N2 logado.
+    const params = new URLSearchParams({ cliente_id: clienteId });
+    if (data) params.set('data', data);
+    try {
+        const res = await fetch('/api/status-campo?' + params.toString());
+        if (!res.ok) throw new Error();
+        const rows = await res.json();
+        printLista = rows;
+        countLabel.textContent = `${rows.length} atividade(s)`;
+        if (!rows.length) {
+            box.innerHTML = '<div class="text-center py-8 text-slate-300 text-sm">Nenhuma atividade deste cliente nesta data.</div>';
+            return;
+        }
+        box.innerHTML = rows.map(r => `
+            <div class="px-3 py-2 border border-faiston-border rounded-lg flex items-center gap-3 flex-wrap text-xs">
+                <span class="font-semibold text-faiston-dark flex-1 min-w-[100px]">${esc(r.site_sigla || r.site_nome || '—')}</span>
+                ${r.subprojeto ? `<span class="text-faiston-muted">${esc(r.subprojeto)}</span>` : ''}
+                <span class="text-faiston-muted">${esc(r.tecnico || '—')}</span>
+                <span class="text-faiston-muted">N2: ${esc(r.n2_responsavel || '—')}</span>
+                <span class="font-semibold text-faiston-purple">${esc(statusLabel(r.status, r.cliente_nome))}</span>
+            </div>`).join('');
+    } catch (e) {
+        printLista = [];
+        box.innerHTML = '<div class="text-center py-8 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+    }
+}
+
+async function gerarPrintLista() {
+    const msg = document.getElementById('print-msg');
+    if (typeof html2canvas === 'undefined') { msg.textContent = 'Não foi possível gerar a imagem (html2canvas não carregou).'; return; }
+    const rows = printLista || [];
+    if (!rows.length) { msg.textContent = 'Selecione um cliente com atividades primeiro.'; return; }
+    const clienteSel = document.getElementById('print-cliente');
+    const clienteNome = clienteSel.selectedOptions[0] ? clienteSel.selectedOptions[0].textContent : '';
+    const data = document.getElementById('print-data').value;
+    msg.textContent = 'Gerando imagem...';
+
+    const card = document.createElement('div');
+    card.style.cssText = 'position:fixed;left:-9999px;top:0;width:640px;background:#ffffff;padding:24px;font-family:Inter,sans-serif;';
+    const linhas = rows.map(r => `
+        <tr>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:12px;font-weight:600;color:#0B0D1F;">${esc(r.site_sigla || r.site_nome || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.subprojeto || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.tecnico || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.n2_responsavel || '—')}</td>
+            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${esc(statusLabel(r.status, r.cliente_nome))}</td>
+        </tr>`).join('');
+    card.innerHTML = `
+        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#5B2EE0;margin-bottom:2px;">Status Report</div>
+        <div style="font-size:18px;font-weight:800;color:#0B0D1F;margin-bottom:2px;">${esc(clienteNome)}</div>
+        <div style="font-size:11px;color:#9097AC;margin-bottom:12px;">${esc(fmtDate(data))} · ${rows.length} atividade(s)</div>
+        <table style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Site</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Subprojeto</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Técnico</th>
+                    <th style="text-align:left;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">N2</th>
+                    <th style="text-align:right;padding:6px;font-size:9px;font-weight:700;text-transform:uppercase;color:#9097AC;border-bottom:2px solid #E5E8F0;">Status</th>
+                </tr>
+            </thead>
+            <tbody>${linhas}</tbody>
+        </table>
+    `;
+    document.body.appendChild(card);
+    try {
+        const canvas = await html2canvas(card, { backgroundColor: '#ffffff', scale: 2 });
+        document.body.removeChild(card);
+        canvas.toBlob(async (blob) => {
+            try {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                msg.textContent = 'Imagem copiada — já pode colar!';
+            } catch (e) {
+                msg.textContent = 'Não foi possível copiar a imagem (navegador sem suporte). Clique com o botão direito e salve manualmente.';
+            }
+        }, 'image/png');
+    } catch (e) {
+        document.body.removeChild(card);
+        msg.textContent = 'Erro ao gerar a imagem.';
+    }
+}
+
+// Campos que só existem no fluxo de situação/andamento/finalização, não
+// neste modal de criar/editar -- preservados como vieram ao editar, igual
+// o mesmo padrão já usado no Painel (ver scCamposN2Preservados).
+let camposN2Preservados = {};
+
+function abrirModalNovo() {
+    editandoId = null;
+    camposN2Preservados = {};
+    document.getElementById('modal-titulo').textContent = 'Nova atividade';
+    ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf',
+     'm-endereco','m-detalhamento','m-ticket','m-subprojeto']
+        .forEach(id => document.getElementById(id).value = '');
+    document.getElementById('m-status').value = 'agendado';
+    document.getElementById('m-status').disabled = true;
+    document.getElementById('m-data').value = new Date().toISOString().slice(0, 10);
+    atualizarCamposPorCliente();
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+async function abrirModalEditar(id) {
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (!res.ok) { alert('Atividade não encontrada.'); return; }
+        const r = await res.json();
+        editandoId = id;
+        camposN2Preservados = {
+            hora_chegada: r.hora_chegada || null, hora_termino: r.hora_termino || null,
+            observacoes: r.observacoes || '', particularidades: r.particularidades || [],
+            material_utilizado: !!r.material_utilizado, material_detalhe: r.material_detalhe || '',
+            material_quantidade: r.material_quantidade ?? null, material_valor: r.material_valor ?? null,
+            andamento_descricao: r.andamento_descricao || '', localizacao: r.localizacao || null,
+            acesso: r.acesso || null, equipamento_removido_detalhe: r.equipamento_removido_detalhe || '',
+        };
+        document.getElementById('m-status').disabled = false;
+        document.getElementById('modal-titulo').textContent = 'Editar atividade';
+        document.getElementById('m-cliente').value = r.cliente_id || '';
+        document.getElementById('m-data').value = r.data || '';
+        document.getElementById('m-horario').value = r.horario_agendado || '';
+        document.getElementById('m-tecnico').value = r.tecnico || '';
+        document.getElementById('m-sigla').value = r.site_sigla || '';
+        document.getElementById('m-nomesite').value = r.site_nome || '';
+        document.getElementById('m-cidade').value = r.cidade || '';
+        document.getElementById('m-uf').value = r.uf || '';
+        document.getElementById('m-status').value = r.status || 'agendado';
+        document.getElementById('m-endereco').value = r.endereco || '';
+        document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
+        document.getElementById('m-ticket').value = r.ticket || '';
+        document.getElementById('m-subprojeto').value = r.subprojeto || '';
+        atualizarCamposPorCliente();
+        document.getElementById('modal').classList.remove('hidden');
+    } catch (e) { alert('Erro ao carregar atividade.'); }
+}
+
+function fecharModal() {
+    document.getElementById('modal').classList.add('hidden');
+    editandoId = null;
+}
+
+async function salvar() {
+    const cliente_id = document.getElementById('m-cliente').value;
+    const data = document.getElementById('m-data').value;
+    if (!cliente_id || !data) { alert('Selecione o projeto/cliente e a data.'); return; }
+    const payload = {
+        cliente_id: parseInt(cliente_id, 10),
+        data,
+        horario_agendado: document.getElementById('m-horario').value || null,
+        tecnico: document.getElementById('m-tecnico').value.trim(),
+        site_sigla: document.getElementById('m-sigla').value.trim(),
+        site_nome: document.getElementById('m-nomesite').value.trim(),
+        endereco: document.getElementById('m-endereco').value.trim(),
+        cidade: document.getElementById('m-cidade').value.trim(),
+        uf: document.getElementById('m-uf').value.trim(),
+        detalhamento_tecnico: document.getElementById('m-detalhamento').value.trim(),
+        status: document.getElementById('m-status').value,
+        ticket: document.getElementById('m-ticket').value.trim(),
+        subprojeto: document.getElementById('m-subprojeto').value.trim(),
+        // Preserva o que já foi preenchido via situação/andamento/finalização
+        // -- este formulário não tem controles pra esses campos.
+        ...camposN2Preservados,
+    };
+    const btn = document.getElementById('btn-salvar');
+    btn.disabled = true;
+    try {
+        const url = editandoId ? `/api/status-campo/${editandoId}` : '/api/status-campo';
+        const method = editandoId ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao salvar: ' + (err.detail || res.status)); return; }
+        fecharModal();
+        await buscar();
+    } catch (e) {
+        alert('Erro de rede ao salvar.');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function excluir(id) {
+    if (!confirm('Excluir esta atividade?')) return;
+    try {
+        const res = await fetch(`/api/status-campo/${id}`, { method: 'DELETE' });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao excluir: ' + (err.detail || res.status)); return; }
+        await buscar();
+    } catch (e) { alert('Erro de rede ao excluir.'); }
+}
+
+// Passar atividade pra outro N2 (handoff self-service, 2026-07-30) --
+// antes só admin/gestor conseguiam trocar o responsável.
+let reatribuirAtividadeId = null;
+
+async function abrirModalReatribuir(id) {
+    reatribuirAtividadeId = id;
+    document.getElementById('reatribuir-msg').textContent = '';
+    const sel = document.getElementById('reatribuir-n2');
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    document.getElementById('modal-reatribuir').classList.remove('hidden');
+    try {
+        const res = await fetch('/api/status-campo/usuarios/n2');
+        const n2s = res.ok ? await res.json() : [];
+        const outros = n2s.filter(u => u.id !== meId);
+        sel.innerHTML = '<option value="">Selecione...</option>' +
+            outros.map(u => `<option value="${u.id}">${esc(u.nome)}</option>`).join('');
+    } catch (e) {
+        sel.innerHTML = '<option value="">Erro ao carregar N2s</option>';
+    }
+}
+function fecharModalReatribuir() {
+    document.getElementById('modal-reatribuir').classList.add('hidden');
+    reatribuirAtividadeId = null;
+}
+async function confirmarReatribuir() {
+    const novoId = document.getElementById('reatribuir-n2').value;
+    const msg = document.getElementById('reatribuir-msg');
+    if (!novoId) { msg.textContent = 'Escolha um N2.'; return; }
+    const btn = document.getElementById('btn-confirmar-reatribuir');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    try {
+        const res = await fetch(`/api/status-campo/${reatribuirAtividadeId}/reatribuir`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ novo_n2_usuario_id: parseInt(novoId, 10) })
+        });
+        const data = await res.json();
+        if (!res.ok) { msg.textContent = data.detail || 'Erro ao reatribuir.'; return; }
+        fecharModalReatribuir();
+        await buscar();
+    } catch (e) {
+        msg.textContent = 'Erro de rede.';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Confirmar';
+    }
+}
+
+function mudarStatus(id, novoStatus) {
+    const row = ultimaLista.find(r => r.id === id);
+    if (novoStatus === 'em_andamento') { abrirModalAndamento(id, row); return; }
+    if (STATUS_TERMINAIS.includes(novoStatus)) { abrirModalFinalizar(id, novoStatus, row); return; }
+    aplicarMudancaStatus(id, { status: novoStatus });
+}
+
+async function aplicarMudancaStatus(id, body) {
+    let ok = false;
+    try {
+        const res = await fetch(`/api/status-campo/${id}/status`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        ok = res.ok;
+        if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Erro ao mudar status: ' + (err.detail || res.status)); }
+    } catch (e) { alert('Erro de rede ao mudar status.'); }
+    await buscar();
+    return ok;
+}
+
+function adAtualizarEstagios() {
+    const local = document.getElementById('ad-localizacao').value === 'no_local';
+    const comAcesso = document.getElementById('ad-acesso').value === 'com_acesso';
+    const estagioLocal = document.getElementById('ad-estagio-local');
+    const estagioAcesso = document.getElementById('ad-estagio-acesso');
+    estagioLocal.classList.toggle('hidden', !local);
+    estagioLocal.classList.toggle('flex', local);
+    estagioAcesso.classList.toggle('hidden', !comAcesso);
+    estagioAcesso.classList.toggle('flex', comAcesso);
+}
+
+// Um só botão/modal ("Atualizar") cobre tanto a transição inicial pra
+// "em_andamento" quanto as atualizações seguintes -- situação (onde o
+// técnico está) e andamento (o que ele está fazendo) eram dois botões
+// separados e confusos antes; progressão: início/tipo só aparecem depois
+// que o acesso é confirmado (ver adAtualizarEstagios).
+function abrirModalAndamento(id, row) {
+    statusAlvoId = id;
+    const jaIniciada = row && row.status === 'em_andamento';
+    document.getElementById('ad-titulo').textContent = jaIniciada ? 'Atualizar' : 'O que está acontecendo?';
+    document.getElementById('ad-descricao').value = '';
+    document.getElementById('ad-localizacao').value = (row && row.localizacao) || '';
+    document.getElementById('ad-acesso').value = (row && row.acesso) || '';
+    document.getElementById('ad-hora-chegada').value = (row && row.hora_chegada) || '';
+    document.getElementById('ad-hora-inicio').value = (row && row.hora_inicio_atividade) || '';
+    document.getElementById('ad-tipo').value = (row && row.andamento_tipo) || '';
+    document.getElementById('ad-equipamento').value = (row && row.andamento_equipamento) || '';
+    adAtualizarEstagios();
+    document.getElementById('modal-andamento').classList.remove('hidden');
+}
+function fecharModalAndamento() {
+    document.getElementById('modal-andamento').classList.add('hidden');
+    statusAlvoId = null;
+    buscar(); // reseta o select da linha pro status real (o onchange já tinha mudado o valor exibido)
+}
+async function confirmarAndamento() {
+    const localizacao = document.getElementById('ad-localizacao').value || null;
+    if (!localizacao) { alert('Selecione a localização.'); return; }
+    const descricao = document.getElementById('ad-descricao').value.trim();
+    const acesso = document.getElementById('ad-acesso').value || null;
+    const horaChegada = document.getElementById('ad-hora-chegada').value || null;
+    const horaInicio = document.getElementById('ad-hora-inicio').value || null;
+    const tipo = document.getElementById('ad-tipo').value || null;
+    const equipamento = document.getElementById('ad-equipamento').value.trim();
+    if (tipo && !equipamento) { alert('Diga o que está sendo instalado/trocado/removido/validando.'); return; }
+    const id = statusAlvoId;
+    document.getElementById('modal-andamento').classList.add('hidden');
+    statusAlvoId = null;
+    await aplicarMudancaStatus(id, {
+        status: 'em_andamento', andamento_descricao: descricao, localizacao, acesso,
+        hora_chegada: horaChegada, hora_inicio_atividade: horaInicio, andamento_tipo: tipo,
+        andamento_equipamento: equipamento,
+    });
+}
+
+async function verHistoricoAndamento(id, row) {
+    const box = document.getElementById('hist-lista');
+    box.innerHTML = '<div class="text-center py-6 text-slate-300 text-sm">Carregando...</div>';
+    document.getElementById('modal-historico').classList.remove('hidden');
+    // Situação atual (localização/acesso/chegada) é estado, não histórico de
+    // andamento -- mostrada uma vez, fixa, à parte da lista de atualizações
+    // abaixo (que é sobre o que foi feito: tipo + descrição).
+    const situacao = document.getElementById('hist-situacao-atual');
+    const situacaoChips = chipsSituacao(row || {});
+    situacao.innerHTML = situacaoChips
+        ? `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Situação atual</div>${situacaoChips}`
+        : '';
+    try {
+        const res = await fetch(`/api/status-campo/${id}/andamento`);
+        if (!res.ok) throw new Error();
+        const hist = await res.json();
+        if (!hist.length) {
+            box.innerHTML = '<div class="text-center py-6 text-slate-300 text-sm">Nenhuma atualização registrada ainda.</div>';
+            return;
+        }
+        box.innerHTML = hist.map(h => `
+            <div class="border-l-2 border-faiston-purple/30 pl-3 py-1">
+                <div class="flex items-center gap-2 flex-wrap text-[11px] text-faiston-faint">
+                    <span>${esc(h.criado_em)}</span>
+                    ${h.hora_inicio_atividade ? `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold">Início ${esc(h.hora_inicio_atividade)}</span>` : ''}
+                </div>
+                ${h.andamento_tipo ? `<div class="text-sm font-bold text-fuchsia-700 mt-0.5">${esc(ANDAMENTO_TIPO_LABEL[h.andamento_tipo] || h.andamento_tipo)}${h.andamento_equipamento ? ': ' + esc(h.andamento_equipamento) : ''}</div>` : ''}
+                ${h.descricao ? `<div class="text-sm text-slate-700 mt-0.5">${esc(h.descricao)}</div>` : ''}
+            </div>`).join('');
+    } catch (e) {
+        box.innerHTML = '<div class="text-center py-6 text-red-400 text-sm">Erro ao carregar o histórico.</div>';
+    }
+}
+function fecharModalHistorico() {
+    document.getElementById('modal-historico').classList.add('hidden');
+}
+
+function toggleFinalizarMaterial() {
+    const usado = document.getElementById('fz-material-sim').checked;
+    const campos = document.getElementById('fz-material-campos');
+    campos.classList.toggle('hidden', !usado);
+    campos.classList.toggle('flex', usado);
+    if (usado && !fzMaterialItems.length) fzAdicionarMaterial();
+}
+let atividadeAlvoRow = null;
+
+// Material vira uma lista (não mais um campo único) -- uma visita pode usar
+// mais de um material ao mesmo tempo (ex.: cabo de rede + conectores), e
+// quantidade nem sempre é contagem de item -- daí a unidade (ex.: "28" com
+// unidade "metro" pra cabo de rede).
+const MATERIAL_UNIDADE_LABEL = { unidade: 'Unidade', metro: 'Metro', caixa: 'Caixa', rolo: 'Rolo', par: 'Par', pacote: 'Pacote', kit: 'Kit' };
+let fzMaterialItems = [];
+function fzRenderMateriais() {
+    const container = document.getElementById('fz-material-lista');
+    const opts = Object.entries(MATERIAL_UNIDADE_LABEL).map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+    container.innerHTML = fzMaterialItems.length ? fzMaterialItems.map((m, i) => `
+        <div class="flex gap-2 items-center flex-wrap border border-faiston-border rounded-lg p-2">
+            <input type="text" value="${esc(m.descricao)}" placeholder="Material (ex.: Cabo de rede cat6)" oninput="fzAtualizarMaterial(${i}, 'descricao', this.value)" class="flex-1 min-w-[140px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="number" min="0" step="0.01" value="${m.quantidade ?? ''}" placeholder="Qtd." oninput="fzAtualizarMaterial(${i}, 'quantidade', this.value)" class="w-20 border border-faiston-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <select onchange="fzAtualizarMaterial(${i}, 'unidade', this.value)" class="w-28 border border-faiston-border rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>
+            <input type="number" min="0" step="0.01" value="${m.valor ?? ''}" placeholder="Valor R$" oninput="fzAtualizarMaterial(${i}, 'valor', this.value)" class="w-24 border border-faiston-border rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <button type="button" onclick="fzRemoverMaterial(${i})" class="w-9 h-9 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+        </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum material adicionado.</p>';
+    // reseleciona a unidade de cada item (innerHTML não preserva select value)
+    fzMaterialItems.forEach((m, i) => {
+        const sel = container.children[i] && container.children[i].querySelector('select');
+        if (sel) sel.value = m.unidade || 'unidade';
+    });
+}
+function fzAdicionarMaterial() {
+    fzMaterialItems.push({ descricao: '', quantidade: null, unidade: 'unidade', valor: null });
+    fzRenderMateriais();
+}
+function fzRemoverMaterial(i) {
+    fzMaterialItems.splice(i, 1);
+    fzRenderMateriais();
+}
+function fzAtualizarMaterial(i, campo, valor) {
+    if (campo === 'quantidade' || campo === 'valor') {
+        fzMaterialItems[i][campo] = valor === '' ? null : parseFloat(valor);
+    } else {
+        fzMaterialItems[i][campo] = valor;
+    }
+}
+
+// Instalado e Removido não são mais mutuamente exclusivos -- uma atividade
+// pode envolver os dois ao mesmo tempo (troca de equipamento, por exemplo).
+// Cada um vira uma lista de partnumber+serial, já que pode ter mais de uma
+// unidade instalada/removida na mesma visita.
+let fzInstaladoItems = [];
+let fzRemovidoItems = [];
+
+function fzToggleEquipamento() {
+    const instalado = document.getElementById('fz-equip-instalado').checked;
+    const removido = document.getElementById('fz-equip-removido').checked;
+    const camposInstalado = document.getElementById('fz-instalado-campos');
+    const camposRemovido = document.getElementById('fz-removido-campos');
+    camposInstalado.classList.toggle('hidden', !instalado);
+    camposInstalado.classList.toggle('flex', instalado);
+    camposRemovido.classList.toggle('hidden', !removido);
+    camposRemovido.classList.toggle('flex', removido);
+    if (instalado && !fzInstaladoItems.length) fzAdicionarItem('instalado');
+    if (removido && !fzRemovidoItems.length) fzAdicionarItem('removido');
+}
+function fzItens(tipo) { return tipo === 'instalado' ? fzInstaladoItems : fzRemovidoItems; }
+function fzRenderLista(tipo) {
+    const itens = fzItens(tipo);
+    const container = document.getElementById(`fz-${tipo}-lista`);
+    container.innerHTML = itens.length ? itens.map((it, i) => `
+        <div class="flex gap-2 items-center flex-wrap">
+            <input type="text" value="${esc(it.partnumber)}" placeholder="Partnumber" oninput="fzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="text" value="${esc(it.serial)}" placeholder="Serial" oninput="fzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            ${it.fotoUrl ? `<img src="${it.fotoUrl}" class="w-9 h-9 rounded-md object-cover border border-faiston-border flex-shrink-0">` : ''}
+            <label class="w-9 h-9 rounded-md hover:bg-slate-100 flex items-center justify-center flex-shrink-0 cursor-pointer" title="Foto de referência (fica só nesta tela, não é enviada nem salva)">
+                <input type="file" accept="image/*" capture="environment" class="hidden" onchange="fzAnexarFoto('${tipo}', ${i}, this.files[0])">
+                <i class="ph ph-camera text-slate-400 text-sm"></i>
+            </label>
+            <button type="button" onclick="fzRemoverItem('${tipo}', ${i})" class="w-9 h-9 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
+        </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
+}
+function fzAdicionarItem(tipo) {
+    fzItens(tipo).push({ partnumber: '', serial: '', fotoUrl: null });
+    fzRenderLista(tipo);
+}
+function fzRemoverItem(tipo, i) {
+    const itens = fzItens(tipo);
+    if (itens[i] && itens[i].fotoUrl) URL.revokeObjectURL(itens[i].fotoUrl);
+    itens.splice(i, 1);
+    fzRenderLista(tipo);
+}
+function fzAtualizarItem(tipo, i, campo, valor) {
+    fzItens(tipo)[i][campo] = valor;
+}
+function fzAnexarFoto(tipo, i, file) {
+    // Foto é só apoio visual pra digitar o serial/partnumber -- nunca sai
+    // do navegador (não é enviada nem salva), por isso um object URL local.
+    if (!file) return;
+    const itens = fzItens(tipo);
+    if (itens[i].fotoUrl) URL.revokeObjectURL(itens[i].fotoUrl);
+    itens[i].fotoUrl = URL.createObjectURL(file);
+    fzRenderLista(tipo);
+}
+
+async function abrirModalFinalizar(id, novoStatus, row) {
+    statusAlvoId = id;
+    statusAlvoNovo = novoStatus;
+    atividadeAlvoRow = row || null;
+    document.getElementById('fz-status-label').textContent = statusLabel(novoStatus, row && row.cliente_nome);
+    document.getElementById('fz-saida').value = (row && row.hora_termino) || '';
+    const materialSim = !!(row && row.material_utilizado);
+    document.getElementById('fz-material-sim').checked = materialSim;
+    document.getElementById('fz-material-nao').checked = !materialSim;
+    fzMaterialItems = (row && row.materiais || []).map(m => ({ ...m }));
+    fzRenderMateriais();
+    toggleFinalizarMaterial();
+    const particularidades = (row && row.particularidades) || [];
+    document.getElementById('fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
+    document.getElementById('fz-equip-removido').checked = particularidades.includes('equipamento_removido');
+    document.getElementById('fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
+    document.getElementById('fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
+    document.getElementById('fz-contato-nome').value = (row && row.contato_local_nome) || '';
+    document.getElementById('fz-contato-matricula').value = (row && row.contato_local_matricula) || '';
+    document.getElementById('fz-obs').value = (row && row.observacoes) || '';
+
+    // Busca a lista completa de equipamentos (não vem no cache da listagem)
+    // pra prefill correto ao reabrir/editar uma atividade já finalizada antes.
+    fzInstaladoItems = []; fzRemovidoItems = [];
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (res.ok) {
+            const full = await res.json();
+            (full.equipamentos || []).forEach(e => {
+                if (e.tipo === 'instalado') fzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+                if (e.tipo === 'removido') fzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+            });
+        }
+    } catch (e) { /* segue com listas vazias se falhar */ }
+    fzRenderLista('instalado');
+    fzRenderLista('removido');
+    fzToggleEquipamento();
+    document.getElementById('modal-finalizar').classList.remove('hidden');
+}
+function fecharModalFinalizar() {
+    document.getElementById('modal-finalizar').classList.add('hidden');
+    statusAlvoId = null; statusAlvoNovo = null;
+    [...fzInstaladoItems, ...fzRemovidoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
+    buscar();
+}
+
+function fmtDataCurta(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}`;
+}
+function labelStatusCurto(status) {
+    return (STATUS_LABEL[status] || status).split(' — ')[0];
+}
+function fzLinhasItens(itens) {
+    // Uma atividade pode ter mais de uma unidade instalada/removida --
+    // lista cada uma numa linha própria em vez de um único PN/Serial.
+    if (!itens.length) return ['N/A'];
+    return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'}`);
+}
+function fzLinhasMateriais(itens) {
+    // Idem -- uma visita pode usar mais de um material (ex.: cabo de rede
+    // + conectores), cada um com sua própria quantidade/unidade/valor.
+    if (!itens.length) return ['N/A'];
+    return itens.map(m => {
+        const qtd = m.quantidade != null ? `${m.quantidade} ${MATERIAL_UNIDADE_LABEL[m.unidade] || m.unidade || ''}`.trim() : '';
+        const valor = m.valor != null ? ` · R$ ${Number(m.valor).toFixed(2)}` : '';
+        return `${m.descricao}${qtd ? ` (${qtd})` : ''}${valor}`;
+    });
+}
+function gerarCarimboFinalizacao(row, extras) {
+    const site = row.site_sigla || row.site_nome || '';
+    const cabecalho = [row.ticket, site, row.cidade, row.subprojeto]
+        .filter(v => v && String(v).trim())
+        .join(' - ') + (row.data ? ` ${fmtDataCurta(row.data)}` : '') + (row.horario_agendado ? ` às ${row.horario_agendado}` : '');
+    const linhas = [
+        cabecalho,
+        '',
+        `STATUS: ${labelStatusCurto(extras.status)}`,
+        '',
+        extras.instalado ? 'Instalado:' : 'Instalado: N/A',
+        ...(extras.instalado ? fzLinhasItens(extras.instaladoItens).map(l => `  ${l}`) : []),
+        extras.removido ? `Removido (${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}):` : 'Removido: N/A',
+        ...(extras.removido ? fzLinhasItens(extras.removidoItens).map(l => `  ${l}`) : []),
+        '',
+        `HORÁRIO CHEGADA TÉCNICO: ${row.hora_chegada || 'N/A'}`,
+        `HORÁRIO SAÍDA TÉCNICO: ${extras.horaSaida}`,
+        '',
+        `CONTATO LOCAL: ${extras.contatoNome || 'N/A'}`,
+        `MATRICULA: ${extras.contatoMatricula || 'N/A'}`,
+        '',
+        `OBSERVAÇÃO: ${extras.observacoes || 'N/A'}`,
+        extras.materialUtilizado && extras.materiais && extras.materiais.length ? 'Material utilizado:' : 'Material utilizado: N/A',
+        ...(extras.materialUtilizado ? fzLinhasMateriais(extras.materiais || []).map(l => `  ${l}`) : []),
+    ];
+    return linhas.filter(l => l !== null).join('\n');
+}
+function abrirModalCarimboFinalizacao(texto) {
+    document.getElementById('fz-carimbo-texto').value = texto;
+    document.getElementById('fz-carimbo-msg').textContent = '';
+    document.getElementById('modal-carimbo-finalizacao').classList.remove('hidden');
+}
+function fecharModalCarimboFinalizacao() {
+    document.getElementById('modal-carimbo-finalizacao').classList.add('hidden');
+}
+async function copiarCarimboFinalizacao() {
+    const msg = document.getElementById('fz-carimbo-msg');
+    try {
+        await navigator.clipboard.writeText(document.getElementById('fz-carimbo-texto').value);
+        msg.textContent = 'Copiado!';
+    } catch (e) {
+        msg.textContent = 'Não foi possível copiar — selecione o texto manualmente.';
+    }
+}
+
+async function confirmarFinalizar() {
+    const saida = document.getElementById('fz-saida').value;
+    if (!saida) { alert('Informe a hora de saída.'); return; }
+    const materialSim = document.getElementById('fz-material-sim').checked;
+    const instalado = document.getElementById('fz-equip-instalado').checked;
+    const removido = document.getElementById('fz-equip-removido').checked;
+    const equipamentoStatus = [];
+    if (instalado) equipamentoStatus.push('equipamento_instalado');
+    if (removido) equipamentoStatus.push('equipamento_removido');
+    const removidoPosse = document.getElementById('fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
+    // Foto é só apoio visual local -- nunca vai no payload pro backend.
+    const semFoto = it => ({ partnumber: it.partnumber, serial: it.serial });
+    const instaladoItens = instalado ? fzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
+    const removidoItens = removido ? fzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
+    [...fzInstaladoItems, ...fzRemovidoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
+    const materiaisItens = materialSim ? fzMaterialItems.filter(m => m.descricao.trim()) : [];
+    if (materialSim && !materiaisItens.length) { alert('Informe ao menos um material utilizado.'); return; }
+    const id = statusAlvoId;
+    const status = statusAlvoNovo;
+    const row = atividadeAlvoRow;
+    const body = {
+        status,
+        hora_termino: saida,
+        material_utilizado: materialSim,
+        materiais: materiaisItens,
+        equipamento_status: equipamentoStatus,
+        equipamentos_instalados: instaladoItens,
+        equipamentos_removidos: removidoItens,
+        equipamento_removido_posse: removidoPosse,
+        contato_local_nome: document.getElementById('fz-contato-nome').value.trim(),
+        contato_local_matricula: document.getElementById('fz-contato-matricula').value.trim(),
+        observacoes: document.getElementById('fz-obs').value.trim(),
+    };
+    document.getElementById('modal-finalizar').classList.add('hidden');
+    statusAlvoId = null; statusAlvoNovo = null;
+    const ok = await aplicarMudancaStatus(id, body);
+    if (ok && row) {
+        const texto = gerarCarimboFinalizacao(row, {
+            status, instalado, removido,
+            instaladoItens, removidoItens,
+            removidoPosse,
+            horaSaida: saida,
+            contatoNome: body.contato_local_nome,
+            contatoMatricula: body.contato_local_matricula,
+            observacoes: body.observacoes,
+            materialUtilizado: materialSim,
+            materiais: materiaisItens,
+        });
+        abrirModalCarimboFinalizacao(texto);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// N2-B: atividades extras (não é visita de campo) -- reaproveita
+// /api/tarefas (mesmo endpoint de funcionario.html), sem rota nova.
+// ══════════════════════════════════════════════════════════════════
+let _tiposExtras = [], _clientesExtras = [], _extraEditId = null;
+
+async function carregarTiposExtras() {
+    if (_tiposExtras.length) return;
+    const res = await fetch('/api/tipos-atividade?area=Projetos');
+    if (!res.ok) return;
+    const todos = await res.json();
+    // "Atendimento em campo" fica de fora -- já é gerado sozinho ao
+    // finalizar a visita, não é pra ser lançado manualmente aqui.
+    _tiposExtras = todos.filter(t => t.frente === 'N2' && t.nome !== 'Atendimento em campo');
+    document.getElementById('me-tipo').innerHTML = '<option value="">Selecione...</option>' +
+        _tiposExtras.map(t => `<option value="${t.id}">${esc(t.nome)} (peso ${t.peso})</option>`).join('');
+}
+
+async function carregarClientesExtras() {
+    if (_clientesExtras.length) return;
+    const res = await fetch('/api/clientes');
+    if (!res.ok) return;
+    _clientesExtras = await res.json();
+    document.getElementById('me-cliente').innerHTML = '<option value="">Selecione...</option>' +
+        _clientesExtras.map(c => `<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join('');
+}
+
+async function abrirModalExtra(tarefa) {
+    await Promise.all([carregarTiposExtras(), carregarClientesExtras()]);
+    _extraEditId = tarefa ? tarefa.id : null;
+    document.getElementById('modal-extra-titulo').textContent = tarefa ? 'Editar atividade extra' : 'Nova atividade extra';
+    document.getElementById('me-tipo').value = tarefa ? (tarefa.tipo_atividade_id || '') : '';
+    document.getElementById('me-cliente').value = tarefa ? (tarefa.cliente || '') : '';
+    document.getElementById('me-descricao').value = tarefa ? (tarefa.descricao || '') : '';
+    document.getElementById('me-natureza').value = tarefa ? (tarefa.natureza || 'programada') : 'programada';
+    document.getElementById('me-prazo').value = tarefa ? (tarefa.data_prazo || '') : '';
+    const segTotais = tarefa ? (tarefa.segundos || 0) : 0;
+    document.getElementById('me-horas').value = Math.floor(segTotais / 3600) || '';
+    document.getElementById('me-minutos').value = Math.floor((segTotais % 3600) / 60) || '';
+    document.getElementById('modal-extra').classList.remove('hidden');
+}
+
+function fecharModalExtra() {
+    document.getElementById('modal-extra').classList.add('hidden');
+    _extraEditId = null;
+}
+
+async function salvarAtividadeExtra() {
+    const tipoId = parseInt(document.getElementById('me-tipo').value) || null;
+    const cliente = document.getElementById('me-cliente').value;
+    const prazo = document.getElementById('me-prazo').value;
+    if (!tipoId) { alert('Selecione o tipo de atividade.'); return; }
+    if (!cliente) { alert('Selecione o cliente.'); return; }
+    if (!prazo) { alert('Informe a previsão de conclusão.'); return; }
+    const horas = parseInt(document.getElementById('me-horas').value) || 0;
+    const minutos = parseInt(document.getElementById('me-minutos').value) || 0;
+    const body = {
+        descricao: document.getElementById('me-descricao').value.trim(),
+        cliente,
+        status: 'aberto',
+        tipo_atividade_id: tipoId,
+        natureza: document.getElementById('me-natureza').value,
+        data_prazo: prazo,
+        segundos: (horas * 3600) + (minutos * 60),
+    };
+    const url = _extraEditId ? `/api/tarefas/${_extraEditId}` : '/api/tarefas';
+    const res = await fetch(url, { method: _extraEditId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        alert(json.detail || 'Erro ao salvar a atividade');
+        return;
+    }
+    fecharModalExtra();
+    carregarExtras();
+}
+
+async function concluirAtividadeExtra(tarefa) {
+    if (!confirm('Marcar esta atividade como concluída?')) return;
+    const res = await fetch(`/api/tarefas/${tarefa.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            descricao: tarefa.descricao, cliente: tarefa.cliente, prioridade: tarefa.prioridade,
+            status: 'concluido', segundos: tarefa.segundos,
+            data_prazo: tarefa.data_prazo, data_agendamento: tarefa.data_agendamento, hora_prazo: tarefa.hora_prazo,
+            tipo_atividade_id: tarefa.tipo_atividade_id, natureza: tarefa.natureza,
+        })
+    });
+    if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        alert(json.detail || 'Erro ao concluir a atividade');
+        return;
+    }
+    carregarExtras();
+}
+
+const EXTRA_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', concluido: 'Concluído' };
+
+let _extrasCache = [];
+
+async function carregarExtras() {
+    await carregarTiposExtras();
+    const el = document.getElementById('extras-lista');
+    el.innerHTML = '<p class="text-sm text-faiston-muted p-5">Carregando...</p>';
+    const res = await fetch('/api/tarefas?view=func');
+    if (!res.ok) { el.innerHTML = '<p class="text-sm text-faiston-muted p-5">Erro ao carregar.</p>'; return; }
+    const todas = await res.json();
+    const tiposMap = {};
+    _tiposExtras.forEach(t => tiposMap[t.id] = t);
+    _extrasCache = todas.filter(t => t.tipo_atividade_id && tiposMap[t.tipo_atividade_id]);
+    if (!_extrasCache.length) {
+        el.innerHTML = '<p class="text-sm text-faiston-muted p-5">Nenhuma atividade extra registrada ainda.</p>';
+        return;
+    }
+    el.innerHTML = _extrasCache.map(t => {
+        const tipo = tiposMap[t.tipo_atividade_id];
+        const prazoLabel = t.data_prazo ? t.data_prazo.split('-').reverse().join('/') : '--';
+        return `<div class="flex items-center justify-between px-5 py-3">
+            <div class="min-w-0">
+                <p class="text-sm font-semibold text-faiston-dark truncate">${esc(tipo ? tipo.nome : '')} <span class="text-xs text-faiston-faint font-normal">(peso ${tipo ? tipo.peso : '-'})</span></p>
+                <p class="text-xs text-faiston-muted">${esc(t.cliente || '')} · previsão ${prazoLabel} · ${EXTRA_STATUS_LABEL[t.status] || t.status}</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                ${t.status !== 'concluido' ? `<button onclick="concluirAtividadeExtraPorId(${t.id})" class="text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-3 py-1.5 hover:bg-emerald-100 transition-colors">Concluir</button>` : ''}
+                ${t.status !== 'concluido' ? `<button onclick="abrirModalExtraPorId(${t.id})" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"><i class="ph ph-pencil-simple"></i></button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function abrirModalExtraPorId(id) { abrirModalExtra(_extrasCache.find(t => t.id === id)); }
+function concluirAtividadeExtraPorId(id) { concluirAtividadeExtra(_extrasCache.find(t => t.id === id)); }
+
+function toggleTema() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const novo = !isDark;
+    localStorage.setItem('faiston_tema', novo ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', novo ? 'dark' : 'light');
+    const icon = document.getElementById('icon-tema-h');
+    if (icon) icon.className = novo ? 'ph ph-sun text-faiston-cyan' : 'ph ph-moon';
+}
+(function() {
+    const icon = document.getElementById('icon-tema-h');
+    if (icon && localStorage.getItem('faiston_tema') === 'dark') icon.className = 'ph ph-sun text-faiston-cyan';
+})();
+
+init();
+</script>
+
+<!-- MODAL: abrir solicitação de suporte (visível pra qualquer usuário logado) -->
+<div id="modal-suporte-criar" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[70] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-faiston-border" style="max-height:92vh;overflow-y:auto">
+        <div class="px-6 py-4 border-b border-faiston-border flex items-center justify-between">
+            <div>
+                <span class="font-bold text-faiston-dark text-sm flex items-center gap-2"><i class="ph ph-lifebuoy text-faiston-purple"></i> Falar com o suporte</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">Reporte um bug, tire uma dúvida ou peça uma melhoria</p>
+            </div>
+            <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-3">
+            <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="duvida">Dúvida</option>
+                <option value="bug">Bug / algo não funciona</option>
+                <option value="melhoria">Pedido de melhoria</option>
+            </select>
+            <input type="text" id="suporte-titulo" placeholder="Título — resuma em uma frase" maxlength="200"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            <textarea id="suporte-descricao" rows="4" placeholder="Descreva o que aconteceu ou o que você precisa"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Anexar print (opcional)</label>
+                <input type="file" id="suporte-arquivo" accept="image/*" onchange="suporteSelecionarArquivo(this)"
+                    class="w-full text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white">
+                <div id="suporte-preview" class="hidden mt-2 relative inline-block">
+                    <img id="suporte-preview-img" src="" class="max-h-32 rounded-lg border border-faiston-border">
+                    <button onclick="suporteRemoverAnexo()" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-faiston-dark text-white flex items-center justify-center text-xs"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            <p id="suporte-msg" class="text-xs"></p>
+            <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
+        </div>
+    </div>
+</div>
+<script>
+let suporteAnexoBase64 = null, suporteAnexoNome = null;
+
+function suporteAbrirModal() {
+    document.getElementById('suporte-categoria').value = 'duvida';
+    document.getElementById('suporte-titulo').value = '';
+    document.getElementById('suporte-descricao').value = '';
+    document.getElementById('suporte-arquivo').value = '';
+    document.getElementById('suporte-msg').textContent = '';
+    suporteRemoverAnexo();
+    document.getElementById('modal-suporte-criar').classList.remove('hidden');
+}
+function suporteFecharModal() {
+    document.getElementById('modal-suporte-criar').classList.add('hidden');
+}
+function suporteSelecionarArquivo(input) {
+    const file = input.files[0];
+    const msg = document.getElementById('suporte-msg');
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+        msg.textContent = 'Imagem muito grande (máximo 5MB).'; msg.className = 'text-xs text-red-500';
+        input.value = ''; return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+        suporteAnexoBase64 = reader.result;
+        suporteAnexoNome = file.name;
+        document.getElementById('suporte-preview-img').src = suporteAnexoBase64;
+        document.getElementById('suporte-preview').classList.remove('hidden');
+        msg.textContent = '';
+    };
+    reader.readAsDataURL(file);
+}
+function suporteRemoverAnexo() {
+    suporteAnexoBase64 = null; suporteAnexoNome = null;
+    document.getElementById('suporte-preview').classList.add('hidden');
+    document.getElementById('suporte-preview-img').src = '';
+}
+async function suporteEnviar() {
+    const titulo = document.getElementById('suporte-titulo').value.trim();
+    const descricao = document.getElementById('suporte-descricao').value.trim();
+    const categoria = document.getElementById('suporte-categoria').value;
+    const msg = document.getElementById('suporte-msg');
+    if (!titulo) { msg.textContent = 'Preencha o título.'; msg.className = 'text-xs text-red-500'; return; }
+    if (!descricao) { msg.textContent = 'Preencha a descrição.'; msg.className = 'text-xs text-red-500'; return; }
+    const btn = document.getElementById('suporte-btn-enviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    try {
+        const res = await fetch('/api/suporte', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ titulo, descricao, categoria, anexo_base64: suporteAnexoBase64, anexo_nome: suporteAnexoNome })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = err.detail || 'Erro ao enviar.'; msg.className = 'text-xs text-red-500'; return; }
+        msg.textContent = 'Enviado! O suporte vai dar uma olhada.'; msg.className = 'text-xs text-emerald-600 font-semibold';
+        setTimeout(suporteFecharModal, 1400);
+    } catch (e) {
+        msg.textContent = 'Erro de rede ao enviar.'; msg.className = 'text-xs text-red-500';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Enviar solicitação';
+    }
+}
+</script>
+
+<!-- TOUR GUIADO: tutorial do N2 (2026-07-30) -- destaca elementos reais da
+     tela em vez de telas fake; aparece sozinho no primeiro login (flag
+     usuarios.tutorial_n2_visto) e pode ser revisto pelo ícone de capelo. -->
+<style>
+    #n2-tour-overlay{ position:fixed; inset:0; z-index:90; }
+    #n2-tour-catch{ position:fixed; inset:0; }
+    #n2-tour-spot{ position:fixed; border-radius:14px; box-shadow:0 0 0 4px rgba(91,46,224,.6), 0 0 0 9999px rgba(11,13,31,.62); transition:all .32s cubic-bezier(.4,0,.2,1); pointer-events:none; }
+    #n2-tour-card{ position:fixed; z-index:92; width:320px; background:#fff; border-radius:18px; padding:20px 22px; box-shadow:0 24px 60px rgba(11,13,31,.3); transition:left .32s ease, top .32s ease; }
+    [data-theme="dark"] #n2-tour-card{ background:#161726; }
+    #n2-tour-card .eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--faiston-purple,#5B2EE0); margin-bottom:6px; }
+    #n2-tour-card h3{ font-size:15px; font-weight:800; margin:0 0 8px; color:#0B0D1F; }
+    [data-theme="dark"] #n2-tour-card h3{ color:#F1F2F8; }
+    #n2-tour-card p{ font-size:13px; line-height:1.55; color:#5E647A; margin:0 0 16px; }
+    [data-theme="dark"] #n2-tour-card p{ color:#9CA2BC; }
+    #n2-tour-foot{ display:flex; align-items:center; justify-content:space-between; }
+    #n2-tour-foot button{ all:unset; cursor:pointer; font-size:12.5px; font-weight:700; }
+    #n2-tour-pular{ color:#9097AC; }
+    #n2-tour-voltar{ color:#5E647A; margin-right:12px; }
+    #n2-tour-prox{ background:linear-gradient(135deg,#5B2EE0,#EC4899); color:#fff; padding:7px 16px; border-radius:9px; }
+</style>
+<div id="n2-tour-overlay" class="hidden">
+    <div id="n2-tour-catch"></div>
+    <div id="n2-tour-spot"></div>
+    <div id="n2-tour-card">
+        <p class="eyebrow" id="n2-tour-contador">1 / 8</p>
+        <h3 id="n2-tour-titulo"></h3>
+        <p id="n2-tour-desc"></p>
+        <div id="n2-tour-foot">
+            <button id="n2-tour-pular" onclick="n2TourFinalizar()">Pular tutorial</button>
+            <div>
+                <button id="n2-tour-voltar" onclick="n2TourVoltar()">Voltar</button>
+                <button id="n2-tour-prox" onclick="n2TourProximo()">Próximo</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+const N2_TOUR_STEPS = [
+    { title: 'Bem-vindo ao Painel do N2',
+      desc: 'Um tour rápido pelo essencial: registrar uma visita de campo, atualizar o andamento, finalizar e lançar outras atividades. Você pode rever isso a qualquer momento pelo ícone de capelo no topo.' },
+    { sel: '#n2-tab-minhas', tab: 'minhas', title: 'Minhas atividades',
+      desc: 'Aqui ficam as visitas de campo onde você é o responsável — agendadas, em andamento e já finalizadas.' },
+    { sel: '#btn-nova-atividade', tab: 'minhas', title: 'Cadastrar uma visita',
+      desc: 'Clique aqui pra registrar uma nova visita: cliente, subprojeto, data e horário.' },
+    { sel: '#lista', tab: 'minhas', title: 'Situação e andamento',
+      desc: 'Clique numa atividade em andamento pra atualizar: primeiro se está se deslocando ou já chegou no local, depois se o acesso foi liberado, e então o que está fazendo (instalando, trocando, removendo, validando).' },
+    { title: 'Finalizando a atividade',
+      desc: 'Ao mudar o status pra Concluído, Parcial ou Improdutiva, a tela pede os equipamentos instalados/removidos e os materiais usados. Ao confirmar, é gerado um carimbo de encerramento pronto pra copiar e enviar.' },
+    { sel: '#n2-tab-extras', title: 'Outras Atividades',
+      desc: 'Nem tudo é visita de campo — suporte remoto, rack, staging, relatórios e incidentes entram aqui.' },
+    { sel: '#btn-nova-atividade-extra', tab: 'extras', title: 'Registrar uma atividade extra',
+      desc: 'Escolha o tipo, o cliente (se houver) e a previsão de conclusão. A visita de campo não entra aqui — ela já vira atividade sozinha quando você finaliza.' },
+    { title: 'Pronto!',
+      desc: 'Isso cobre o essencial. Pode rever esse tour quando quiser, é só clicar no ícone de capelo no topo da tela.' },
+];
+let n2TourIdx = 0;
+
+function n2TourIniciar() {
+    n2TourIdx = 0;
+    document.getElementById('n2-tour-overlay').classList.remove('hidden');
+    n2TourRenderPasso();
+}
+
+function n2TourRenderPasso() {
+    const passo = N2_TOUR_STEPS[n2TourIdx];
+    if (passo.tab) mostrarAbaN2(passo.tab);
+    const spot = document.getElementById('n2-tour-spot');
+    const card = document.getElementById('n2-tour-card');
+    const el = passo.sel ? document.querySelector(passo.sel) : null;
+    if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        setTimeout(() => n2TourPosicionar(el, spot, card), 180);
+    } else {
+        spot.style.display = 'none';
+        card.style.left = '50%'; card.style.top = '50%'; card.style.transform = 'translate(-50%,-50%)';
+    }
+    document.getElementById('n2-tour-titulo').textContent = passo.title;
+    document.getElementById('n2-tour-desc').textContent = passo.desc;
+    document.getElementById('n2-tour-contador').textContent = (n2TourIdx + 1) + ' / ' + N2_TOUR_STEPS.length;
+    document.getElementById('n2-tour-voltar').style.visibility = n2TourIdx === 0 ? 'hidden' : 'visible';
+    document.getElementById('n2-tour-prox').textContent = n2TourIdx === N2_TOUR_STEPS.length - 1 ? 'Concluir' : 'Próximo';
+}
+
+function n2TourPosicionar(el, spot, card) {
+    const r = el.getBoundingClientRect();
+    spot.style.display = 'block';
+    spot.style.left = (r.left - 8) + 'px';
+    spot.style.top = (r.top - 8) + 'px';
+    spot.style.width = (r.width + 16) + 'px';
+    spot.style.height = (r.height + 16) + 'px';
+    card.style.transform = 'none';
+    const cardW = 320;
+    let left = r.left + r.width / 2 - cardW / 2;
+    left = Math.max(16, Math.min(window.innerWidth - cardW - 16, left));
+    let top = r.bottom + 16;
+    if (top + 180 > window.innerHeight) top = Math.max(16, r.top - 190);
+    card.style.left = left + 'px';
+    card.style.top = top + 'px';
+}
+
+function n2TourProximo() {
+    if (n2TourIdx < N2_TOUR_STEPS.length - 1) { n2TourIdx++; n2TourRenderPasso(); }
+    else n2TourFinalizar();
+}
+function n2TourVoltar() {
+    if (n2TourIdx > 0) { n2TourIdx--; n2TourRenderPasso(); }
+}
+async function n2TourFinalizar() {
+    document.getElementById('n2-tour-overlay').classList.add('hidden');
+    try { await fetch('/api/tutorial-n2/visto', { method: 'POST' }); } catch (e) {}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>
+    // CSRF (double-submit cookie): intercepta fetch() global -- ver mesmo
+    // wrapper em login.html. Aqui não há sessão nem cookie de csrf ainda
+    // (fluxo pré-login), então o header sai vazio e /api/redefinir-senha
+    // está isento no middleware -- mantido só por consistência entre telas.
+    (function() {
+        var _fetchOriginal = window.fetch;
+        function csrfCookie() {
+            var m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        window.fetch = function(input, init) {
+            init = init || {};
+            var metodo = (init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                var token = csrfCookie();
+                if (token) {
+                    var headers = new Headers(init.headers || {});
+                    headers.set('X-CSRF-Token', token);
+                    init = Object.assign({}, init, { headers: headers });
+                }
+            }
+            return _fetchOriginal(input, init);
+        };
+    })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
+    <title>Redefinir senha · Faiston OPS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif; background: #F4F5FA; min-height: 100vh;
+            display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+        }
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0;
+            background-image: linear-gradient(rgba(91,46,224,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(91,46,224,0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .blob { position: fixed; border-radius: 50%; filter: blur(20px); pointer-events: none; z-index: 0; }
+        .blob-1 { top: -20%; right: -10%; width: 520px; height: 520px; background: radial-gradient(circle, rgba(184,38,201,0.20), transparent 60%); }
+        .blob-2 { bottom: -15%; left: -5%; width: 480px; height: 480px; background: radial-gradient(circle, rgba(6,215,230,0.18), transparent 60%); }
+        @keyframes slide-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .card {
+            position: relative; z-index: 1; background: white; border-radius: 28px; border: 1px solid #E5E8F0;
+            padding: 44px 40px 36px; width: 100%; max-width: 440px;
+            box-shadow: 0 24px 48px -16px rgba(13,15,35,0.12), 0 4px 12px -4px rgba(13,15,35,0.05);
+            animation: slide-up 320ms cubic-bezier(0.2,0.8,0.2,1) both;
+        }
+        .logo { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 28px; }
+        .logo-icon {
+            width: 48px; height: 48px; border-radius: 13px;
+            background: linear-gradient(135deg, #3B6BFF 0%, #5B2EE0 55%, #C026D3 100%);
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid rgba(255,255,255,0.18); box-shadow: 0 12px 32px -8px rgba(91,46,224,0.45);
+        }
+        .logo-text { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 26px; font-weight: 700; color: #0B0D1F; letter-spacing: -0.03em; }
+        h2 { font-size: 26px; font-weight: 700; color: #0B0D1F; margin-bottom: 6px; letter-spacing: -0.02em; text-align: center; }
+        p.sub { font-size: 14px; color: #5E647A; margin-bottom: 24px; text-align: center; }
+        label { display: block; font-size: 10px; font-weight: 700; color: #9097AC; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
+        .input-wrap { position: relative; margin-bottom: 14px; }
+        .input-wrap .ico-left { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9097AC; font-size: 18px; }
+        .input-wrap .ico-right { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #9097AC; font-size: 18px; cursor: pointer; background: none; border: none; padding: 0; display: flex; align-items: center; }
+        .input-wrap .ico-right:hover { color: #5B2EE0; }
+        input[type="password"] {
+            width: 100%; padding: 12px 14px 12px 42px; border: 1px solid #E5E8F0; border-radius: 12px;
+            font-size: 14px; font-family: 'Inter', sans-serif; color: #0B0D1F; outline: none; transition: all 0.2s; background: white;
+        }
+        input[type="password"]:focus { border-color: #5B2EE0; box-shadow: 0 0 0 3px rgba(91,46,224,0.12); }
+        input::placeholder { color: #9097AC; }
+        .btn {
+            width: 100%; padding: 14px; background: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
+            color: white; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; box-shadow: 0 12px 32px -8px rgba(184,38,201,0.45), 0 4px 12px -4px rgba(91,46,224,0.35);
+            transition: transform 0.12s ease, box-shadow 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-top: 20px;
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+        .error {
+            background: rgba(236,72,153,0.06); border: 1px solid rgba(236,72,153,0.2); color: #B91C5C;
+            border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; display: none; align-items: center; gap: 8px;
+        }
+        .error.show { display: flex; }
+        .ok { background: #EAF7EE; border-color: #BFE6CC; color: #1F7A3D; }
+        .foot { text-align: center; margin-top: 22px; font-size: 11px; color: #9097AC; letter-spacing: 0.04em; }
+        .strength-bar { height: 4px; border-radius: 2px; background: #E5E8F0; margin-top: 6px; overflow: hidden; }
+        .strength-fill { height: 100%; border-radius: 2px; transition: width 0.3s, background 0.3s; width: 0; }
+        .strength-label { font-size: 11px; color: #9097AC; margin-top: 4px; min-height: 16px; }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="card" id="card-form">
+        <div class="logo">
+            <div class="logo-icon"><i class="ph-fill ph-lock-key" style="color:white;font-size:22px"></i></div>
+            <div class="logo-text">FAISTON</div>
+        </div>
+        <h2>Redefinir senha</h2>
+        <p class="sub">Defina uma nova senha pra sua conta.</p>
+
+        <div class="error" id="error-msg"><i class="ph ph-warning-circle" style="font-size:16px"></i><span id="error-text"></span></div>
+
+        <div>
+            <label>Nova senha</label>
+            <div class="input-wrap">
+                <i class="ph ph-lock ico-left"></i>
+                <input type="password" id="nova-senha" placeholder="Mínimo 8 caracteres, com letras e números" autocomplete="new-password" oninput="avaliarSenha(this.value)">
+                <button class="ico-right" onclick="toggleVer('nova-senha','icon-eye-1')" tabindex="-1"><i class="ph ph-eye" id="icon-eye-1"></i></button>
+            </div>
+            <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+            <div class="strength-label" id="strength-label"></div>
+        </div>
+
+        <div style="margin-top:14px">
+            <label>Confirmar nova senha</label>
+            <div class="input-wrap">
+                <i class="ph ph-lock-simple ico-left"></i>
+                <input type="password" id="confirmar-senha" placeholder="Repita a senha" autocomplete="new-password">
+                <button class="ico-right" onclick="toggleVer('confirmar-senha','icon-eye-2')" tabindex="-1"><i class="ph ph-eye" id="icon-eye-2"></i></button>
+            </div>
+        </div>
+
+        <button class="btn" id="btn-salvar" onclick="salvarNovaSenha()">
+            <i class="ph ph-check"></i> Salvar nova senha
+        </button>
+
+        <div class="foot"><a href="/" style="color:#5B2EE0;font-weight:600;text-decoration:none">&larr; Voltar ao login</a></div>
+    </div>
+
+    <div class="card" id="card-sucesso" style="display:none; text-align:center">
+        <div class="logo"><div class="logo-icon"><i class="ph-fill ph-check-circle" style="color:white;font-size:22px"></i></div><div class="logo-text">FAISTON</div></div>
+        <h2>Senha redefinida!</h2>
+        <p class="sub">Já pode entrar com a nova senha. Redirecionando…</p>
+    </div>
+
+    <div class="card" id="card-invalido" style="display:none; text-align:center">
+        <div class="logo"><div class="logo-icon"><i class="ph-fill ph-warning" style="color:white;font-size:22px"></i></div><div class="logo-text">FAISTON</div></div>
+        <h2>Link inválido ou expirado</h2>
+        <p class="sub">Esse link já foi usado, expirou (30 minutos) ou não existe. Peça um novo na tela de login.</p>
+        <div class="foot" style="margin-top:8px"><a href="/" style="color:#5B2EE0;font-weight:600;text-decoration:none">&larr; Voltar ao login</a></div>
+    </div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const token = params.get('token') || '';
+
+if (!token) {
+    document.getElementById('card-form').style.display = 'none';
+    document.getElementById('card-invalido').style.display = '';
+}
+
+function toggleVer(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    icon.className = isHidden ? 'ph ph-eye-slash' : 'ph ph-eye';
+}
+
+function avaliarSenha(v) {
+    const fill = document.getElementById('strength-fill');
+    const label = document.getElementById('strength-label');
+    if (!v) { fill.style.width = '0'; label.textContent = ''; return; }
+    let score = 0;
+    if (v.length >= 8) score++;
+    if (v.length >= 12) score++;
+    if (/[A-Z]/.test(v)) score++;
+    if (/[0-9]/.test(v)) score++;
+    if (/[^A-Za-z0-9]/.test(v)) score++;
+    const levels = [
+        { w: '20%', bg: '#EC4899', txt: 'Muito fraca' },
+        { w: '40%', bg: '#f59e0b', txt: 'Fraca' },
+        { w: '60%', bg: '#eab308', txt: 'Média' },
+        { w: '80%', bg: '#22c55e', txt: 'Forte' },
+        { w: '100%', bg: '#10b981', txt: 'Muito forte' },
+    ];
+    const l = levels[Math.min(score - 1, 4)] || levels[0];
+    fill.style.width = l.w; fill.style.background = l.bg; label.textContent = l.txt;
+}
+
+async function salvarNovaSenha() {
+    const nova = document.getElementById('nova-senha').value;
+    const conf = document.getElementById('confirmar-senha').value;
+    const errDiv = document.getElementById('error-msg');
+    const errText = document.getElementById('error-text');
+    errDiv.classList.remove('show');
+
+    if (!nova || nova.length < 8 || !/[A-Za-z]/.test(nova) || !/[0-9]/.test(nova)) {
+        errText.textContent = 'A senha deve ter pelo menos 8 caracteres, com letras e números.';
+        errDiv.classList.add('show'); return;
+    }
+    if (nova !== conf) {
+        errText.textContent = 'As senhas não coincidem.';
+        errDiv.classList.add('show'); return;
+    }
+
+    const btn = document.getElementById('btn-salvar');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner" style="animation:spin 1s linear infinite"></i> Salvando...';
+    try {
+        const res = await fetch('/api/redefinir-senha', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, nova_senha: nova })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            if (res.status === 400 && (data.detail || '').toLowerCase().includes('inválido')) {
+                document.getElementById('card-form').style.display = 'none';
+                document.getElementById('card-invalido').style.display = '';
+                return;
+            }
+            errText.textContent = data.detail || 'Erro ao redefinir a senha.';
+            errDiv.classList.add('show');
+            return;
+        }
+        document.getElementById('card-form').style.display = 'none';
+        document.getElementById('card-sucesso').style.display = '';
+        setTimeout(() => { window.location.href = '/'; }, 2200);
+    } catch (e) {
+        errText.textContent = 'Erro de rede. Tente novamente.';
+        errDiv.classList.add('show');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-check"></i> Salvar nova senha';
+    }
+}
+</script>
+</body>
+</html>

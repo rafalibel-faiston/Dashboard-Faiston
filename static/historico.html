@@ -1,8 +1,35 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <script>
+    // CSRF (double-submit cookie): intercepta fetch() global pra anexar o
+    // header X-CSRF-Token em toda chamada que muda estado, sem reescrever
+    // cada fetch() espalhado pela tela (2026-07-30). Precisa rodar antes de
+    // qualquer outro script que chame fetch(), por isso é o primeiro <script>.
+    (function() {
+        var _fetchOriginal = window.fetch;
+        function csrfCookie() {
+            var m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        window.fetch = function(input, init) {
+            init = init || {};
+            var metodo = (init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                var token = csrfCookie();
+                if (token) {
+                    var headers = new Headers(init.headers || {});
+                    headers.set('X-CSRF-Token', token);
+                    init = Object.assign({}, init, { headers: headers });
+                }
+            }
+            return _fetchOriginal(input, init);
+        };
+    })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
     <title>Histórico</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,6 +52,10 @@
     <style>
         .custom-scrollbar::-webkit-scrollbar{width:5px;height:5px}
         .custom-scrollbar::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:10px}
+        /* ── Passada visual (2026-07-28), replicada do Dashboard ── */
+        #page-titulo { font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
         .filter-chip { transition: all 0.15s; }
         .filter-chip.active { background: #5B2EE0; color: white; border-color: #5B2EE0; }
         tr.selected { background: #F0F4FF !important; }
@@ -33,14 +64,14 @@
 <body class="bg-faiston-bg font-sans min-h-screen">
 
 <!-- HEADER -->
-<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+<header class="bg-white border-b border-faiston-border px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2 sticky top-0 z-20">
     <div class="flex items-center gap-3">
         <a href="/dashboard" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark transition-colors">
             <i class="ph ph-arrow-left"></i> Dashboard
         </a>
         <span class="w-px h-4 bg-slate-200"></span>
         <i class="ph ph-clock-clockwise text-faiston-purple"></i>
-        <span class="text-sm font-bold text-faiston-dark">Histórico de Tarefas</span>
+        <span id="page-titulo" class="text-sm font-bold text-faiston-dark">Histórico de Tarefas</span>
     </div>
     <div class="flex items-center gap-3">
         <button onclick="exportarCSV()" class="flex items-center gap-2 bg-faiston-cyan/10 border border-faiston-cyan/30 text-faiston-cyan px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-faiston-cyan/20 transition-colors">
@@ -111,7 +142,7 @@
     </div>
 
     <!-- RESUMO -->
-    <div class="grid grid-cols-3 gap-4 mb-5">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
         <div class="bg-white rounded-xl border border-faiston-border p-4 flex items-center gap-3">
             <div class="w-9 h-9 rounded-lg bg-faiston-purple/10 flex items-center justify-center text-faiston-purple"><i class="ph ph-list-bullets text-lg"></i></div>
             <div>

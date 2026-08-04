@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
     <title>Relatório</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,9 +22,13 @@
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
+        /* ── Passada visual (2026-07-28), replicada do Dashboard ── */
+        #titulo-cliente { font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
         @media print {
             .no-print { display: none !important; }
-            body { background: white; }
+            body { background: white; background-image: none; }
             .print-break { page-break-before: always; }
         }
     </style>
@@ -82,7 +87,7 @@
     </div>
 
     <!-- RESUMO KPIs -->
-    <div class="grid grid-cols-3 gap-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div class="bg-white rounded-xl border border-faiston-border p-5 text-center">
             <p class="text-3xl font-black text-faiston-dark mb-1" id="r-total">—</p>
             <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total de Tarefas</p>
@@ -98,7 +103,7 @@
     </div>
 
     <!-- STATUS -->
-    <div class="grid grid-cols-3 gap-3 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div class="bg-emerald-50 border border-faiston-cyan/30 rounded-xl p-4 flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center"><i class="ph ph-check-circle text-faiston-cyan"></i></div>
             <div>

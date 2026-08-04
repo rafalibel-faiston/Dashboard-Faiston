@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date, timedelta, datetime
 from calendar import monthrange
-import os, hashlib, secrets, csv, io, logging, traceback, uuid
+import os, hashlib, secrets, csv, io, logging, traceback, uuid, bcrypt, re
 import contextvars
 from dotenv import load_dotenv
 from pathlib import Path
@@ -35,6 +35,34 @@ logging.basicConfig(
 logger = logging.getLogger("faiston")
 
 app = FastAPI(title="Faiston Ops - API", version="1.0")
+
+# ── CSRF (double-submit cookie) ───────────────────────────────────────────
+# Cookie de sessão é SameSite=Lax + HttpOnly, o que já barra cookie em POST
+# de outra origem (form) e em fetch/XHR cross-site (bloqueado também por não
+# haver CORS configurado aqui). O gap que sobra é ação de estado exposta via
+# GET (SameSite=Lax ainda manda o cookie em navegação de topo por link) --
+# corrigido à parte (seed-dados virou POST). Esse middleware é a camada
+# redundante: toda rota /api/* que muda estado exige um header X-CSRF-Token
+# batendo com o cookie csrf_token -- um site de fora não consegue ler esse
+# cookie (same-origin policy) pra montar o header certo, mesmo que de alguma
+# forma conseguisse disparar a requisição.
+from starlette.middleware.base import BaseHTTPMiddleware
+
+_CSRF_METODOS = {"POST", "PUT", "PATCH", "DELETE"}
+_CSRF_ISENTAS = {"/api/login", "/api/esqueci-senha", "/api/redefinir-senha"}  # fluxos de pré-login, sem cookie de csrf ainda
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if (request.method in _CSRF_METODOS
+                and request.url.path.startswith("/api/")
+                and request.url.path not in _CSRF_ISENTAS):
+            cookie_token = request.cookies.get("csrf_token")
+            header_token = request.headers.get("x-csrf-token")
+            if not cookie_token or not header_token or cookie_token != header_token:
+                return JSONResponse({"detail": "Token CSRF ausente ou inválido"}, status_code=403)
+        return await call_next(request)
+
+app.add_middleware(CSRFMiddleware)
 
 
 @app.exception_handler(HTTPException)
@@ -112,7 +140,39 @@ def get_db():
         return None
 
 def hash_senha(senha):
+    """bcrypt com salt próprio por senha. SHA-256 puro (o esquema anterior)
+    não tem salt nem custo, o que torna quebra por rainbow table trivial se
+    o banco vazar."""
+    return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
+
+def _hash_legado(senha):
+    """Esquema antigo. Mantido só para validar quem ainda não fez login
+    desde a migração -- a senha é reescrita em bcrypt no primeiro acesso."""
     return hashlib.sha256(senha.encode()).hexdigest()
+
+def senha_confere(senha, hash_armazenado):
+    if not hash_armazenado:
+        return False
+    if hash_armazenado.startswith("$2"):
+        try:
+            return bcrypt.checkpw(senha.encode(), hash_armazenado.encode())
+        except Exception:
+            return False
+    return _hash_legado(senha) == hash_armazenado
+
+def _senha_fraca(senha, usuario=""):
+    """Política mínima de senha forte (2026-07-30). Segue NIST SP 800-63B:
+    prioriza tamanho em vez de regra de composição arbitrária (que empurra
+    pra padrões previsíveis tipo 'Senha1!'), mas ainda barra os casos mais
+    óbvios (só número, só uma palavra, senha = usuário). Retorna a mensagem
+    de erro, ou None se a senha passa."""
+    if not senha or len(senha) < 8:
+        return "A senha deve ter pelo menos 8 caracteres."
+    if not re.search(r'[A-Za-z]', senha) or not re.search(r'[0-9]', senha):
+        return "A senha deve conter letras e números."
+    if usuario and senha.lower() == usuario.strip().lower():
+        return "A senha não pode ser igual ao nome de usuário."
+    return None
 
 def get_session(token: str, page: str = ""):
     if not token:
@@ -127,22 +187,73 @@ def get_session(token: str, page: str = ""):
             cur.execute("""
                 UPDATE sessoes SET last_seen = NOW(), pagina = %s
                 WHERE token = %s AND expira_em > NOW()
-                RETURNING usuario_id, nome, perfil, time_usuario, pagina
+                RETURNING usuario_id, nome, perfil, time_usuario, pagina, cargo
             """, (page, token))
         else:
             cur.execute("""
                 UPDATE sessoes SET last_seen = NOW()
                 WHERE token = %s AND expira_em > NOW()
-                RETURNING usuario_id, nome, perfil, time_usuario, pagina
+                RETURNING usuario_id, nome, perfil, time_usuario, pagina, cargo
             """, (token,))
         row = cur.fetchone()
         conn.commit(); cur.close(); conn.close()
         if not row:
             return None
-        return {"id": row[0], "nome": row[1], "perfil": row[2], "time": row[3], "page": row[4] or ""}
+        # Perfil 'dev' tem acesso equivalente a admin em todo o sistema (todas as
+        # checagens de permissão existentes usam sess["perfil"]) -- "perfil_real"
+        # preserva o valor de fato gravado no banco, só pra exibição/auditoria.
+        perfil_real = row[2]
+        perfil = "admin" if perfil_real == "dev" else perfil_real
+        return {"id": row[0], "nome": row[1], "perfil": perfil, "perfil_real": perfil_real, "time": row[3], "page": row[4] or "", "cargo": row[5] or ""}
     except Exception as e:
         print(f"Erro get_session: {e}")
         return None
+
+# Régua inicial de complexidade (planilha "Performance projetos — Peso das
+# atividades"). Serve só como carga inicial: o INSERT usa ON CONFLICT DO
+# NOTHING, então peso ajustado na tela de admin não é sobrescrito quando o
+# app reinicia.
+SEED_PESOS = {
+    ("Projetos", "Backoffice"): [
+        ("Faturamento", 4, "Faturamento do projeto"),
+        ("Dailys / gestão de agenda com o cliente", 4, "Rotina estratégica (ex.: McDonald's)"),
+        ("Atualização de inventário", 4, "Ex.: inventários da NTT ou validação de equipamentos do McDonald's"),
+        ("Criação de cronograma", 4, "Cronograma de atividades dos projetos"),
+        ("Validação de pagamento de parceiro", 3, "Conferência e validação financeira do parceiro"),
+        ("Atualização de controles / cronograma", 3, "Manutenção dos controles do projeto"),
+        ("Caderno de serviço", 3, "Elaboração e atualização do caderno de serviço"),
+        ("Atualização de dashboard do cliente", 3, "Ex.: dashboard do McDonald's, NTT etc."),
+        ("Acompanhamento / tracking", 2, "Criação de grupos e monitoramento do andamento da atividade"),
+        ("Interação básica com o cliente", 2, "Posicionamento e alinhamentos simples"),
+        ("Relatório simples", 2, "Consolidação de informação do projeto"),
+        ("Validação de seguro", 2, "Verificação de cobertura/seguro"),
+        ("Solicitação de equipamentos", 2, "Pedido e controle de equipamentos"),
+        ("Acionamento", 1, "Abertura/acionamento simples de chamado"),
+        ("Interação em e-mails", 1, "Trocas de e-mail de rotina"),
+    ],
+    ("Projetos", "N2"): [
+        ("Atendimento em campo", 4, "Execução técnica presencial no site"),
+        ("Suporte remoto complexo", 4, "Suporte a ativos de rede e servidores"),
+        ("Reorganização de rack", 4, "Organização física de rack"),
+        ("Configuração/staging de equipamentos", 3, "Staging, atualização de IOS"),
+        ("Criação de relatórios e manuais", 2, "Documentação de apoio N1/N2"),
+        ("Suporte remoto simples", 1, "Acompanhamento remoto e coleta de evidências"),
+        ("Gestão de incidentes / planilhas", 1, "Registro e controle de incidentes"),
+    ],
+}
+
+def _seed_catalogo_pesos(cur):
+    for (area, frente), tipos in SEED_PESOS.items():
+        cur.execute("INSERT INTO frentes (area, nome) VALUES (%s,%s) ON CONFLICT (area, nome) DO NOTHING", (area, frente))
+        cur.execute("SELECT id FROM frentes WHERE area=%s AND nome=%s", (area, frente))
+        fid = cur.fetchone()[0]
+        for nome, peso, desc in tipos:
+            cur.execute(
+                "INSERT INTO tipos_atividade (frente_id, nome, peso, descricao) VALUES (%s,%s,%s,%s) "
+                "ON CONFLICT (frente_id, nome) DO NOTHING",
+                (fid, nome, peso, desc)
+            )
+            
 
 def setup_banco():
     conn = get_db()
@@ -164,6 +275,11 @@ def setup_banco():
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acesso TIMESTAMP DEFAULT NULL")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT ''")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo VARCHAR(20) DEFAULT ''")
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tutorial_n2_visto BOOLEAN DEFAULT FALSE")
+        # bcrypt gera 60 caracteres; a coluna nasceu VARCHAR(64) e fica sem
+        # folga. Ampliar é seguro (não trunca nada já gravado).
+        cur.execute("ALTER TABLE usuarios ALTER COLUMN senha_hash TYPE VARCHAR(255)")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tarefas (
                 id SERIAL PRIMARY KEY,
@@ -264,6 +380,7 @@ def setup_banco():
                 expira_em TIMESTAMP DEFAULT NOW() + INTERVAL '24 hours'
             )
         """)
+        cur.execute("ALTER TABLE sessoes ADD COLUMN IF NOT EXISTS cargo VARCHAR(20) DEFAULT ''")
         # ── Clientes e Projetos (criados aqui para gestão funcionar sem acessar financeiro) ──
         cur.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
@@ -370,6 +487,315 @@ def setup_banco():
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_data ON status_atividades(data)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_cliente ON status_atividades(cliente_id)")
+        # n2_responsavel era só texto livre; n2_usuario_id referencia o usuário
+        # de verdade (perfil n2) responsável, n2_responsavel vira cache de
+        # exibição do nome (mesmo padrão de comentarios_projeto.usuario_nome).
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS n2_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_n2 ON status_atividades(n2_usuario_id)")
+        # Particularidades (ex.: Reversa, Equipamento em posse do cliente) --
+        # lista aberta em vez de booleans fixos, pra não exigir migração toda
+        # vez que surgir uma nova. Material: se foi usado + detalhe em texto,
+        # preenchido pelo N2 quando "sim".
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS particularidades TEXT[] NOT NULL DEFAULT '{}'")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_utilizado BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_detalhe TEXT NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_quantidade INTEGER")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS material_valor NUMERIC(10,2)")
+        # Ticket de suporte associado (preenchido na criação, ex. via import
+        # de planilha) -- e "hora_termino" passa a ser usada como "hora de
+        # saída", preenchida pelo N2 ao finalizar (sem precisar de coluna nova).
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS ticket VARCHAR(100) DEFAULT ''")
+        # Descrição livre do que está acontecendo, preenchida pelo N2 ao
+        # mudar o status pra "em_andamento" (distinto de observacoes, que é
+        # a nota final de encerramento). localizacao/acesso e o histórico
+        # completo de atualizações ficam em status_atividade_andamentos --
+        # essas 3 colunas aqui são só o "snapshot" mais recente, pra listar
+        # e filtrar sem precisar de JOIN toda hora.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS andamento_descricao TEXT NOT NULL DEFAULT ''")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS localizacao VARCHAR(20)")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS acesso VARCHAR(20)")
+        # Subprojeto: texto livre digitado por quem cria a atividade,
+        # reaproveitado como sugestão (autocomplete) pros próximos cadastros
+        # do mesmo cliente -- ver /api/status-campo/subprojetos.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS subprojeto VARCHAR(150) DEFAULT ''")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS equipamento_removido_detalhe TEXT NOT NULL DEFAULT ''")
+        # Detalhe estruturado de equipamento instalado/removido ao finalizar
+        # (particularidades 'equipamento_instalado'/'equipamento_removido'
+        # dizem O QUE aconteceu; estas colunas guardam serial/partnumber).
+        # A posse (técnico/cliente) do equipamento removido reaproveita a
+        # particularidade 'equipamento_em_posse_do_cliente' já existente.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS equipamento_instalado_serial VARCHAR(100) DEFAULT ''")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS equipamento_removido_partnumber VARCHAR(100) DEFAULT ''")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS equipamento_removido_serial VARCHAR(100) DEFAULT ''")
+        # Contato local no momento do atendimento, pro carimbo de encerramento.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS contato_local_nome VARCHAR(150) DEFAULT ''")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS contato_local_matricula VARCHAR(50) DEFAULT ''")
+        # Fluxo escalonado do N2 (tela n2.html): localizacao -> (se no_local)
+        # hora_chegada + acesso -> (se com_acesso) hora_inicio_atividade +
+        # andamento_tipo (o que está fazendo agora). Snapshot mais recente
+        # aqui, histórico completo em status_atividade_andamentos.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS hora_inicio_atividade TIME")
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS andamento_tipo VARCHAR(20)")
+        # O que especificamente está sendo instalado/trocado/removido (ex.:
+        # "Switch Catalyst 9300") -- deixa o andamento_tipo (categoria) bem
+        # mais evidente quando exibido junto, em vez de só a categoria sozinha.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS andamento_equipamento VARCHAR(200) DEFAULT ''")
+        # N2-A (integração com medição de peso): ao finalizar a visita, o
+        # sistema cria sozinho uma tarefa "Atendimento em campo" (peso 4).
+        # Guarda o id gerado aqui pra reeditar a mesma tarefa se a atividade
+        # for finalizada de novo (corrigir status/data), em vez de duplicar.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS tarefa_gerada_id INTEGER REFERENCES tarefas(id) ON DELETE SET NULL")
+        # Equipamentos instalados/removidos ao finalizar -- lista (não mais
+        # um campo único), porque uma atividade pode envolver mais de uma
+        # unidade instalada e/ou removida ao mesmo tempo. Substitui as
+        # colunas equipamento_instalado_serial/equipamento_removido_partnumber/
+        # equipamento_removido_serial acima (mantidas na tabela, não usadas
+        # mais, pra não exigir DROP COLUMN destrutivo nesta etapa).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS status_atividade_equipamentos (
+                id SERIAL PRIMARY KEY,
+                atividade_id INTEGER NOT NULL REFERENCES status_atividades(id) ON DELETE CASCADE,
+                tipo VARCHAR(20) NOT NULL,
+                partnumber VARCHAR(100) DEFAULT '',
+                serial VARCHAR(100) DEFAULT '',
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_status_equip_ativ ON status_atividade_equipamentos(atividade_id)")
+        # Materiais utilizados ao finalizar -- lista (não mais um campo
+        # único), porque uma visita pode usar mais de um material (ex.:
+        # cabo de rede + conectores). quantidade é NUMERIC (não INTEGER)
+        # porque nem todo material se conta em unidades -- ex. "28" com
+        # unidade "metro" pra cabo de rede. Substitui material_detalhe/
+        # material_quantidade/material_valor em status_atividades (mantidas
+        # na tabela, não usadas mais, pra não exigir DROP COLUMN destrutivo).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS status_atividade_materiais (
+                id SERIAL PRIMARY KEY,
+                atividade_id INTEGER NOT NULL REFERENCES status_atividades(id) ON DELETE CASCADE,
+                descricao TEXT NOT NULL DEFAULT '',
+                quantidade NUMERIC(10,2),
+                unidade VARCHAR(20) DEFAULT 'unidade',
+                valor NUMERIC(10,2),
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_status_material_ativ ON status_atividade_materiais(atividade_id)")
+        # Backfill único: atividades já finalizadas antes desta migração que
+        # tinham material_detalhe preenchido (campo único antigo) ganham uma
+        # linha equivalente na tabela nova, pra não sumir do histórico/report.
+        cur.execute("""
+            INSERT INTO status_atividade_materiais (atividade_id, descricao, quantidade, unidade, valor)
+            SELECT a.id, a.material_detalhe, a.material_quantidade, 'unidade', a.material_valor
+            FROM status_atividades a
+            WHERE a.material_utilizado = TRUE AND COALESCE(a.material_detalhe, '') != ''
+              AND NOT EXISTS (SELECT 1 FROM status_atividade_materiais m WHERE m.atividade_id = a.id)
+        """)
+        # Histórico de atualizações de andamento (item: N2 pode registrar
+        # quantas atualizações quiser durante a atividade -- ex. fixação no
+        # rack, configuração, validação -- em vez de um campo único que só
+        # dá pra preencher uma vez).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS status_atividade_andamentos (
+                id SERIAL PRIMARY KEY,
+                atividade_id INTEGER NOT NULL REFERENCES status_atividades(id) ON DELETE CASCADE,
+                localizacao VARCHAR(20),
+                acesso VARCHAR(20),
+                descricao TEXT NOT NULL DEFAULT '',
+                criado_por INTEGER,
+                criado_por_nome VARCHAR(100),
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_status_andamento_ativ ON status_atividade_andamentos(atividade_id)")
+        cur.execute("ALTER TABLE status_atividade_andamentos ADD COLUMN IF NOT EXISTS hora_chegada TIME")
+        cur.execute("ALTER TABLE status_atividade_andamentos ADD COLUMN IF NOT EXISTS hora_inicio_atividade TIME")
+        cur.execute("ALTER TABLE status_atividade_andamentos ADD COLUMN IF NOT EXISTS andamento_tipo VARCHAR(20)")
+        cur.execute("ALTER TABLE status_atividade_andamentos ADD COLUMN IF NOT EXISTS andamento_equipamento VARCHAR(200) DEFAULT ''")
+        # ── Escala N2 (plantão do dia: quem, horário, home/presencial) ──────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS escala_n2 (
+                id SERIAL PRIMARY KEY,
+                data DATE NOT NULL DEFAULT CURRENT_DATE,
+                n2_usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                horario_entrada TIME,
+                modalidade VARCHAR(20) NOT NULL DEFAULT 'presencial',
+                atribuicao VARCHAR(200) DEFAULT '',
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_escala_n2_data ON escala_n2(data)")
+
+        # ── Bloqueios de agenda (férias, afastamento, recorrência semanal) ──
+        # Vale pra qualquer funcionário do sistema -- usado tanto pra
+        # atividades de campo (N2) quanto pra tarefas em geral.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS funcionario_bloqueios (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                tipo VARCHAR(20) NOT NULL,
+                data_inicio DATE,
+                data_fim DATE,
+                dia_semana SMALLINT,
+                hora_inicio TIME,
+                hora_fim TIME,
+                descricao VARCHAR(200) DEFAULT '',
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_funcionario_bloqueios_usuario ON funcionario_bloqueios(usuario_id)")
+
+        # ── Equipe Dev: kanban interno de tarefas do app, restrito a quem
+        # tem perfil 'dev' (só os desenvolvedores do sistema, não admins comuns).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dev_tarefas (
+                id SERIAL PRIMARY KEY,
+                titulo VARCHAR(200) NOT NULL,
+                descricao TEXT DEFAULT '',
+                status VARCHAR(20) NOT NULL DEFAULT 'todo',
+                ordem INTEGER NOT NULL DEFAULT 0,
+                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                atribuido_a INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_tarefas_status ON dev_tarefas(status)")
+        cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS prioridade VARCHAR(10) NOT NULL DEFAULT 'media'")
+        cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS prazo DATE")
+        cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}'")
+        cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS link TEXT NOT NULL DEFAULT ''")
+        # Pausar volta a tarefa pra 'todo' (A Fazer), mas com destaque visual de que
+        # já foi iniciada -- diferencia de uma tarefa que nunca foi começada.
+        cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS pausado BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dev_tarefa_comentarios (
+                id SERIAL PRIMARY KEY,
+                tarefa_id INTEGER NOT NULL REFERENCES dev_tarefas(id) ON DELETE CASCADE,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                usuario_nome VARCHAR(100) NOT NULL,
+                texto TEXT NOT NULL,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_coment_tarefa ON dev_tarefa_comentarios(tarefa_id)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dev_tarefa_checklist (
+                id SERIAL PRIMARY KEY,
+                tarefa_id INTEGER NOT NULL REFERENCES dev_tarefas(id) ON DELETE CASCADE,
+                texto VARCHAR(300) NOT NULL,
+                concluido BOOLEAN NOT NULL DEFAULT FALSE,
+                ordem INTEGER NOT NULL DEFAULT 0,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_dev_checklist_tarefa ON dev_tarefa_checklist(tarefa_id)")
+        # Diário da equipe dev: registro cronológico simples do que foi
+        # mudado no sistema, pra quem não estava na sessão entender o que
+        # já foi feito sem precisar reconstruir pelo git log ou perguntar.
+        # De propósito sem status/tags/prioridade -- só título, descrição,
+        # autor e data, o mínimo pra não repetir trabalho.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dev_diario (
+                id SERIAL PRIMARY KEY,
+                titulo VARCHAR(200) NOT NULL,
+                descricao TEXT DEFAULT '',
+                autor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                autor_nome VARCHAR(100) NOT NULL,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        # Solicitação de suporte: qualquer usuário logado pode abrir (pedido
+        # explícito adiado desde 2026-07-24, "sentiram falta de algo pra
+        # relatar pro suporte"). Só quem é dev (perfil_real='dev', ver
+        # _is_dev) vê/gerencia -- é canal de envio, sem acompanhamento de
+        # status pro usuário que abriu. Anexo em base64 direto no Postgres
+        # por simplicidade (Railway não tem disco persistente entre
+        # deploys, mesmo motivo já documentado pra foto de serial).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS suporte_solicitacoes (
+                id SERIAL PRIMARY KEY,
+                titulo VARCHAR(200) NOT NULL,
+                descricao TEXT NOT NULL,
+                categoria VARCHAR(20) NOT NULL DEFAULT 'duvida',
+                anexo_base64 TEXT,
+                anexo_nome VARCHAR(200),
+                status VARCHAR(20) NOT NULL DEFAULT 'aberto',
+                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                criado_por_nome VARCHAR(150) NOT NULL,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        # Reset de senha por e-mail (2026-07-30). Guarda o HASH do token, não
+        # o token em si -- mesmo princípio de senha_hash: se o banco vazar, o
+        # hash sozinho não deixa ninguém reutilizar o link. sha256 (sem salt)
+        # é suficiente aqui porque o token é aleatório de alta entropia
+        # (32 bytes), diferente de senha de humano -- não tem o que quebrar
+        # por força bruta/rainbow table num espaço desse tamanho.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS senha_reset_tokens (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                token_hash VARCHAR(64) NOT NULL UNIQUE,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                expira_em TIMESTAMP NOT NULL,
+                usado_em TIMESTAMP DEFAULT NULL
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reset_token_hash ON senha_reset_tokens(token_hash)")
+                # --- CATÁLOGO DE COMPLEXIDADE ---
+        # Peso de esforço por tipo de atividade, por frente (N2, Backoffice...)
+        # dentro da área (Projetos, Logística, Rede Credenciada). Cadastro em
+        # vez de planilha: o gestor ajusta a régua pela tela de admin.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS frentes (
+                id SERIAL PRIMARY KEY,
+                area VARCHAR(50) NOT NULL DEFAULT 'Projetos',
+                nome VARCHAR(50) NOT NULL,
+                ativo BOOLEAN NOT NULL DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                UNIQUE (area, nome)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tipos_atividade (
+                id SERIAL PRIMARY KEY,
+                frente_id INTEGER NOT NULL REFERENCES frentes(id) ON DELETE CASCADE,
+                nome VARCHAR(120) NOT NULL,
+                peso SMALLINT NOT NULL CHECK (peso BETWEEN 1 AND 4),
+                descricao TEXT NOT NULL DEFAULT '',
+                ativo BOOLEAN NOT NULL DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                UNIQUE (frente_id, nome)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tipos_ativ_frente ON tipos_atividade(frente_id)")
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS frente_id INTEGER REFERENCES frentes(id)")
+        # Migração 2026-07-28: N2 deixa de ser perfil próprio e vira cargo
+        # dentro de perfil='funcionario' (mesmo nível de Analista/Backoffice).
+        # Idempotente -- não repete em usuário já migrado.
+        cur.execute("UPDATE usuarios SET perfil='funcionario', cargo='n2' WHERE perfil='n2'")
+        _seed_catalogo_pesos(cur)
+                # Medição de performance: tipo de atividade escolhido na abertura e
+        # peso carimbado na própria tarefa -- não resolvido por JOIN, pra que
+        # reajuste de régua não altere relatório de período já fechado.
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS tipo_atividade_id INTEGER REFERENCES tipos_atividade(id)")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS peso SMALLINT")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS peso_estimado BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS natureza VARCHAR(12) NOT NULL DEFAULT 'programada'")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tarefas_tipo_ativ ON tarefas(tipo_atividade_id)")
+        # Tarefas anteriores à medição entram com peso 2 (conservador -- a média
+        # da régua é ~2,7) e marcadas como estimadas, pra poderem ser isoladas
+        # nos indicadores depois.
+        cur.execute("UPDATE tarefas SET peso = 2, peso_estimado = TRUE WHERE peso IS NULL")
+        # Fechamento: quando a tarefa foi concluída de fato (atualizado_em não
+        # serve, muda a cada edição), classificação dentro/fora do prazo
+        # carimbada no momento do fechamento e justificativa do atraso.
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS prazo_status VARCHAR(10)")
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS justificativa_atraso TEXT NOT NULL DEFAULT ''")
         conn.commit(); cur.close(); conn.close()
         print("✅ Banco configurado")
     except Exception as e:
@@ -384,6 +810,13 @@ class LoginRequest(BaseModel):
 
 TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada']
 
+CARGO_VALIDOS = ('analista', 'backoffice', 'n2')
+
+def _eh_n2(sess: dict) -> bool:
+    """N2 deixou de ser perfil próprio e virou cargo dentro de
+    perfil='funcionario' (migração 2026-07-28)."""
+    return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "n2"
+
 class NovoUsuario(BaseModel):
     usuario: str
     senha: str
@@ -391,6 +824,7 @@ class NovoUsuario(BaseModel):
     perfil: str
     email: str = ""
     time: str = "Projetos"
+    cargo: str = ""  # só se aplica quando perfil == 'funcionario'
 
 class AtualizarUsuario(BaseModel):
     nome: str
@@ -399,6 +833,7 @@ class AtualizarUsuario(BaseModel):
     ativo: bool = True
     email: str = ""
     time: str = "Projetos"
+    cargo: str = ""  # só se aplica quando perfil == 'funcionario'
 
 class TarefaModel(BaseModel):
     descricao: str
@@ -411,6 +846,9 @@ class TarefaModel(BaseModel):
     data_prazo: Optional[str] = None
     data_agendamento: Optional[str] = None
     hora_prazo: Optional[str] = None
+    tipo_atividade_id: Optional[int] = None
+    natureza: Optional[str] = None
+    justificativa_atraso: Optional[str] = None
     colaboradores: Optional[List[int]] = None
 
 class AtualizarSegundos(BaseModel):
@@ -471,13 +909,31 @@ class ComentarioProjeto(BaseModel):
 class MeuProjetoStatus(BaseModel):
     status_gestao: str = ""
 
+class DevTarefaModel(BaseModel):
+    titulo: str
+    descricao: str = ""
+    status: str = "todo"
+    prioridade: str = "media"
+    prazo: Optional[str] = None
+    tags: List[str] = []
+    link: str = ""
+    atribuido_a: Optional[int] = None
+    pausado: bool = False
+
+class DevComentarioModel(BaseModel):
+    texto: str
+
+class DevChecklistItemModel(BaseModel):
+    texto: str
+    concluido: bool = False
+
 # --- EMAIL ---
 def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bool:
     system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
     if not destinatario:
         return False
     try:
-        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário", "diretor": "Diretor"}
+        perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário", "diretor": "Diretor", "dev": "Dev"}
         # Botões em tabela (renderizam bem no Outlook/Gmail). bgcolor garante cor sólida onde gradiente não funciona.
         btn = f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 10px">
           <tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">
@@ -602,9 +1058,15 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
         return False
 
 
-def _brevo_send(destinatario: str, subject: str, html: str) -> bool:
-    """Envia um e-mail HTML via API do Brevo. Reaproveitado pelo resumo diário."""
-    if not destinatario:
+def _brevo_send(destinatario, subject: str, html: str, anexos: list = None) -> bool:
+    """Envia um e-mail HTML via API do Brevo. Reaproveitado pelo resumo diário,
+    reset de senha e notificação de suporte. `destinatario` aceita uma string
+    ou uma lista de e-mails (todos no mesmo `to`, visíveis entre si -- uso
+    interno de equipe, não notificação a cliente). `anexos` é opcional:
+    lista de {"content": base64_sem_prefixo, "name": nome_arquivo}."""
+    destinatarios = [destinatario] if isinstance(destinatario, str) else list(destinatario or [])
+    destinatarios = [d for d in destinatarios if d]
+    if not destinatarios:
         return False
     import urllib.request, json as _json
     brevo_key = os.environ.get("BREVO_API_KEY", "")
@@ -613,12 +1075,15 @@ def _brevo_send(destinatario: str, subject: str, html: str) -> bool:
         print("[email] BREVO_API_KEY/EMAIL_USER não configurados")
         return False
     try:
-        payload = _json.dumps({
+        body = {
             "sender": {"name": "Faiston OPS", "email": email_user},
-            "to": [{"email": destinatario}],
+            "to": [{"email": d} for d in destinatarios],
             "subject": subject,
             "htmlContent": html,
-        }).encode()
+        }
+        if anexos:
+            body["attachment"] = anexos
+        payload = _json.dumps(body).encode()
         req = urllib.request.Request(
             "https://api.brevo.com/v3/smtp/email",
             data=payload,
@@ -626,10 +1091,10 @@ def _brevo_send(destinatario: str, subject: str, html: str) -> bool:
             method="POST")
         with urllib.request.urlopen(req, timeout=15) as resp:
             result = _json.loads(resp.read())
-        print(f"[email] Brevo OK — id {result.get('messageId')} → {destinatario}")
+        print(f"[email] Brevo OK — id {result.get('messageId')} → {', '.join(destinatarios)}")
         return True
     except Exception as e:
-        print(f"[email] Falha ao enviar para {destinatario}: {e}")
+        print(f"[email] Falha ao enviar para {', '.join(destinatarios)}: {e}")
         return False
 
 
@@ -962,24 +1427,34 @@ def login(req: LoginRequest, response: Response, request: Request):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos') FROM usuarios WHERE usuario=%s AND senha_hash=%s AND ativo=TRUE",
-                    (req.usuario, hash_senha(req.senha)))
+        cur.execute("SELECT id, nome, perfil, COALESCE(primeiro_acesso, FALSE), COALESCE(time,'Projetos'), COALESCE(cargo,''), senha_hash FROM usuarios WHERE usuario=%s AND ativo=TRUE",
+                    (req.usuario,))
         row = cur.fetchone()
-        if not row:
+        if not row or not senha_confere(req.senha, row[6]):
             cur.close(); conn.close()
             _login_registrar_falha(chaves)
             raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
+        # Migração transparente: quem ainda estava no hash antigo tem a senha
+        # reescrita em bcrypt neste login, sem precisar trocar de senha.
+        if not row[6].startswith("$2"):
+            cur.execute("UPDATE usuarios SET senha_hash=%s WHERE id=%s", (hash_senha(req.senha), row[0]))
         token = secrets.token_hex(32)
         cur.execute("""
-            INSERT INTO sessoes (token, usuario_id, nome, perfil, time_usuario, pagina, expira_em)
-            VALUES (%s, %s, %s, %s, %s, 'dashboard', NOW() + INTERVAL '24 hours')
-        """, (token, row[0], row[1], row[2], row[4]))
+            INSERT INTO sessoes (token, usuario_id, nome, perfil, time_usuario, pagina, cargo, expira_em)
+            VALUES (%s, %s, %s, %s, %s, 'dashboard', %s, NOW() + INTERVAL '24 hours')
+        """, (token, row[0], row[1], row[2], row[4], row[5]))
         # Registra o último acesso (data/hora do login bem-sucedido)
         cur.execute("UPDATE usuarios SET ultimo_acesso = NOW() WHERE id = %s", (row[0],))
         conn.commit(); cur.close(); conn.close()
         _login_limpar(chaves)  # login OK zera o contador de falhas
-        response.set_cookie("faiston_token", token, httponly=True, samesite="lax", max_age=86400)
-        return {"sucesso": True, "perfil": row[2], "nome": row[1], "primeiro_acesso": bool(row[3])}
+        response.set_cookie("faiston_token", token, httponly=True, samesite="lax", secure=True, max_age=86400)
+        # Cookie de CSRF (double-submit) -- deliberadamente NÃO httponly, o JS
+        # do front precisa ler o valor pra ecoar no header X-CSRF-Token em toda
+        # requisição que muda estado. A proteção não depende de sigilo desse
+        # valor, depende de um site de outra origem não conseguir LER o cookie
+        # (same-origin policy) pra montar o header correspondente.
+        response.set_cookie("csrf_token", secrets.token_hex(16), httponly=False, samesite="lax", secure=True, max_age=86400)
+        return {"sucesso": True, "perfil": row[2], "cargo": row[5], "nome": row[1], "primeiro_acesso": bool(row[3])}
     except HTTPException: raise
     except Exception:
         raise HTTPException(status_code=500, detail="Erro ao processar login")
@@ -995,14 +1470,15 @@ def logout(response: Response, faiston_token: str = Cookie(None)):
                 conn.commit(); cur.close(); conn.close()
             except Exception: pass
     response.delete_cookie("faiston_token")
+    response.delete_cookie("csrf_token")
     return {"sucesso": True}
 
 @app.post("/api/trocar-senha")
 def trocar_senha(body: TrocarSenhaModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
-    if not body.nova_senha or len(body.nova_senha) < 6:
-        raise HTTPException(status_code=400, detail="A nova senha deve ter pelo menos 6 caracteres.")
+    erro = _senha_fraca(body.nova_senha, sess.get("nome", ""))
+    if erro: raise HTTPException(status_code=400, detail=erro)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -1013,11 +1489,146 @@ def trocar_senha(body: TrocarSenhaModel, faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+# ── Esqueci minha senha (2026-07-30) ──────────────────────────────────────
+# Token de uso único, expira em 30 min, e o e-mail nunca confirma se o
+# usuário existe (evita enumerar contas válidas por tentativa e erro).
+_RESET_JANELA_S = 900          # 15 min
+_RESET_MAX_PEDIDOS = 3         # pedidos por janela antes de segurar
+_RESET_PEDIDOS: dict = {}
+
+class EsqueciSenhaModel(BaseModel):
+    usuario: str
+
+class RedefinirSenhaModel(BaseModel):
+    token: str
+    nova_senha: str
+
+def _reset_bloqueado(chave) -> bool:
+    agora = _time.time()
+    dq = _RESET_PEDIDOS.get(chave)
+    if not dq: return False
+    while dq and agora - dq[0] > _RESET_JANELA_S: dq.popleft()
+    return len(dq) >= _RESET_MAX_PEDIDOS
+
+def _reset_registrar_pedido(chave):
+    _RESET_PEDIDOS.setdefault(chave, _deque()).append(_time.time())
+
+@app.post("/api/esqueci-senha")
+def esqueci_senha(body: EsqueciSenhaModel, request: Request):
+    resposta_generica = {"sucesso": True, "mensagem": "Se o usuário existir, um e-mail com instruções foi enviado."}
+    chave_ip = f"reset:ip:{_login_ip(request)}"
+    chave_user = f"reset:user:{(body.usuario or '').strip().lower()}"
+    if _reset_bloqueado(chave_ip) or _reset_bloqueado(chave_user):
+        # Mesma resposta genérica de sucesso -- não revela rate limit pra
+        # quem está tentando enumerar/abusar, só não manda o e-mail de novo.
+        return resposta_generica
+    _reset_registrar_pedido(chave_ip)
+    _reset_registrar_pedido(chave_user)
+    conn = get_db()
+    if not conn: return resposta_generica
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, email FROM usuarios WHERE usuario=%s AND ativo=TRUE", (body.usuario,))
+        row = cur.fetchone()
+        if row and row[2]:
+            uid, nome, email = row
+            # Só um token ativo por vez -- os antigos (usados ou não) somem.
+            cur.execute("DELETE FROM senha_reset_tokens WHERE usuario_id=%s", (uid,))
+            token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            cur.execute("""
+                INSERT INTO senha_reset_tokens (usuario_id, token_hash, expira_em)
+                VALUES (%s, %s, NOW() + INTERVAL '30 minutes')
+            """, (uid, token_hash))
+            conn.commit()
+            system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
+            link = f"{system_url}/redefinir-senha?token={token}"
+            corpo = f"""
+                <p style="color:#3D4152;font-size:14.5px;margin:0 0 18px;line-height:1.6">Olá, {nome}. Recebemos um pedido pra redefinir sua senha no Faiston OPS.</p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+                  <tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+                    <a href="{link}" style="display:block;color:#ffffff;text-decoration:none;padding:15px 24px;font-weight:700;font-size:15px;border-radius:12px">Redefinir minha senha &nbsp;&rarr;</a>
+                  </td></tr>
+                </table>
+                <p style="color:#8A8FA3;font-size:12.5px;margin:0;line-height:1.6">Esse link expira em <strong>30 minutos</strong> e só funciona uma vez. Se você não pediu essa troca, pode ignorar este e-mail — sua senha continua a mesma.</p>
+            """
+            _brevo_send(email, "Redefinir sua senha — Faiston OPS",
+                        _shell_email("Redefinir senha", "Link expira em 30 minutos", corpo))
+        cur.close(); conn.close()
+    except Exception as e:
+        print(f"[esqueci-senha] erro: {e}")
+    return resposta_generica
+
+@app.post("/api/redefinir-senha")
+def redefinir_senha(body: RedefinirSenhaModel):
+    if not body.token: raise HTTPException(status_code=400, detail="Link inválido ou expirado.")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+        cur.execute("""
+            SELECT id, usuario_id FROM senha_reset_tokens
+            WHERE token_hash=%s AND usado_em IS NULL AND expira_em > NOW()
+        """, (token_hash,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=400, detail="Link inválido ou expirado. Peça um novo.")
+        rid, uid = row
+        cur.execute("SELECT usuario FROM usuarios WHERE id=%s", (uid,))
+        usuario_row = cur.fetchone()
+        erro = _senha_fraca(body.nova_senha, usuario_row[0] if usuario_row else "")
+        if erro:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=400, detail=erro)
+        cur.execute("UPDATE usuarios SET senha_hash=%s, primeiro_acesso=FALSE WHERE id=%s",
+                    (hash_senha(body.nova_senha), uid))
+        # Uso único: marca gasto -- essa mesma consulta nunca mais bate no
+        # WHERE usado_em IS NULL de cima, então o link não é reaproveitável.
+        cur.execute("UPDATE senha_reset_tokens SET usado_em=NOW() WHERE id=%s", (rid,))
+        # Derruba sessões ativas -- se a conta foi comprometida e por isso
+        # pediu reset, a sessão de quem invadiu também precisa cair.
+        cur.execute("DELETE FROM sessoes WHERE usuario_id=%s", (uid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/me")
 def me(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     return sess
+
+# Tutorial guiado do N2 (2026-07-30) -- flag por usuário, não por sessão,
+# pra "primeiro login" valer entre dispositivos/navegadores diferentes.
+@app.get("/api/tutorial-n2/status")
+def tutorial_n2_status(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(tutorial_n2_visto, FALSE) FROM usuarios WHERE id=%s", (sess["id"],))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        return {"visto": bool(row[0]) if row else False}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tutorial-n2/visto")
+def tutorial_n2_marcar_visto(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE usuarios SET tutorial_n2_visto=TRUE WHERE id=%s", (sess["id"],))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 # --- USUÁRIOS ---
 @app.get("/api/usuarios")
@@ -1029,12 +1640,12 @@ def listar_usuarios(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         if sess["perfil"] == "admin":
-            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso, COALESCE(cargo,'') FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
         else:
-            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (sess.get("time","Projetos"),))
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso, COALESCE(cargo,'') FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (sess.get("time","Projetos"),))
         rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5]), "email": r[6], "time": r[7],
-                 "primeiro_acesso": bool(r[8]), "ultimo_acesso": str(r[9])[:19] if r[9] else None} for r in rows]
+                 "primeiro_acesso": bool(r[8]), "ultimo_acesso": str(r[9])[:19] if r[9] else None, "cargo": r[10]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/funcionarios")
@@ -1060,14 +1671,17 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
-    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    erro = _senha_fraca(u.senha, u.usuario)
+    if erro: raise HTTPException(status_code=400, detail=erro)
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
+    cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso, time) VALUES (%s, %s, %s, %s, %s, TRUE, %s) RETURNING id",
-                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email, time_val))
+        cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso, time, cargo) VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s) RETURNING id",
+                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email, time_val, cargo_val))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         tem_email = bool(u.email)
@@ -1090,21 +1704,25 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
         row = cur2.fetchone(); cur2.close(); conn2.close()
         if not row or row[0] != sess.get("time", "Projetos"):
             raise HTTPException(status_code=403, detail="Acesso negado — usuário não pertence ao seu time")
-        if row[1] in ("admin", "gestor"):
+        if row[1] in ("admin", "gestor", "dev"):
             raise HTTPException(status_code=403, detail="Não é possível editar admins ou gestores")
         if u.perfil not in ("funcionario", "demo"):
             raise HTTPException(status_code=403, detail="Gestores só podem definir perfil funcionário/demo")
+    if u.senha:
+        erro = _senha_fraca(u.senha)
+        if erro: raise HTTPException(status_code=400, detail=erro)
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
+    cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
         if u.senha:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE, time=%s WHERE id=%s",
-                        (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), time_val, uid))
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE, time=%s, cargo=%s WHERE id=%s",
+                        (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), time_val, cargo_val, uid))
         else:
-            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s WHERE id=%s",
-                        (u.nome, u.perfil, u.ativo, u.email, time_val, uid))
+            cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s, cargo=%s WHERE id=%s",
+                        (u.nome, u.perfil, u.ativo, u.email, time_val, cargo_val, uid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1138,7 +1756,7 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
         cur2 = conn2.cursor()
         cur2.execute("SELECT COALESCE(time,'Projetos'), perfil FROM usuarios WHERE id=%s AND usuario != 'admin'", (uid,))
         row = cur2.fetchone(); cur2.close(); conn2.close()
-        if not row or row[0] != sess.get("time", "Projetos") or row[1] in ("admin", "gestor"):
+        if not row or row[0] != sess.get("time", "Projetos") or row[1] in ("admin", "gestor", "dev"):
             raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -1148,6 +1766,290 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+BLOQUEIO_TIPOS_VALIDOS = ('ferias', 'afastamento', 'recorrente')
+
+class BloqueioModel(BaseModel):
+    tipo: str  # 'ferias' | 'afastamento' | 'recorrente'
+    data_inicio: Optional[str] = None
+    data_fim: Optional[str] = None
+    dia_semana: Optional[int] = None  # 0=segunda .. 6=domingo (igual date.weekday())
+    hora_inicio: Optional[str] = None
+    hora_fim: Optional[str] = None
+    descricao: str = ""
+
+@app.get("/api/usuarios/{uid}/bloqueios")
+def listar_bloqueios(uid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, tipo, data_inicio, data_fim, dia_semana, hora_inicio, hora_fim, descricao
+            FROM funcionario_bloqueios WHERE usuario_id=%s ORDER BY data_inicio NULLS LAST, dia_semana NULLS LAST
+        """, (uid,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{
+            "id": r[0], "tipo": r[1],
+            "data_inicio": str(r[2]) if r[2] else None, "data_fim": str(r[3]) if r[3] else None,
+            "dia_semana": r[4], "hora_inicio": str(r[5])[:5] if r[5] else None,
+            "hora_fim": str(r[6])[:5] if r[6] else None, "descricao": r[7],
+        } for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/usuarios/{uid}/bloqueios")
+def criar_bloqueio(uid: int, b: BloqueioModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    if b.tipo not in BLOQUEIO_TIPOS_VALIDOS: raise HTTPException(status_code=400, detail="Tipo de bloqueio inválido")
+    if b.tipo in ("ferias", "afastamento") and not (b.data_inicio and b.data_fim):
+        raise HTTPException(status_code=400, detail="Informe data de início e fim")
+    if b.tipo == "recorrente" and b.dia_semana is None:
+        raise HTTPException(status_code=400, detail="Informe o dia da semana")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM usuarios WHERE id=%s", (uid,))
+        if not cur.fetchone(): raise HTTPException(status_code=404, detail="Funcionário não encontrado")
+        cur.execute("""
+            INSERT INTO funcionario_bloqueios (usuario_id, tipo, data_inicio, data_fim, dia_semana, hora_inicio, hora_fim, descricao)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (uid, b.tipo, b.data_inicio or None, b.data_fim or None, b.dia_semana,
+              b.hora_inicio or None, b.hora_fim or None, b.descricao))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/bloqueios/{bid}")
+def deletar_bloqueio(bid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM funcionario_bloqueios WHERE id=%s", (bid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/bloqueios-ativos-hoje")
+def bloqueios_ativos_hoje(faiston_token: str = Cookie(None)):
+    """Mapa usuario_id -> bloqueio ativo agora (férias/afastamento vigente ou
+    recorrência que cai no dia da semana de hoje) -- alimenta o badge nas
+    listas de Bloqueios de Agenda (Minha Equipe / Gerenciar Usuários), pra
+    o gestor ver quem está bloqueado sem precisar abrir pessoa por pessoa."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        hoje = date.today()
+        cur.execute("""
+            SELECT usuario_id, tipo, data_fim, dia_semana, hora_inicio, hora_fim, descricao
+            FROM funcionario_bloqueios
+            WHERE (tipo IN ('ferias','afastamento') AND data_inicio <= %s AND data_fim >= %s)
+               OR (tipo = 'recorrente' AND dia_semana = %s)
+        """, (hoje, hoje, hoje.weekday()))
+        out = {}
+        for uid, tipo, data_fim, dia_semana, hi, hf, descricao in cur.fetchall():
+            atual = out.get(uid)
+            if atual and atual["tipo"] in ("ferias", "afastamento"):
+                continue  # férias/afastamento tem prioridade sobre recorrência no badge
+            out[str(uid)] = {
+                "tipo": tipo,
+                "descricao": descricao or "",
+                "data_fim": data_fim.isoformat() if data_fim else None,
+                "hora_inicio": hi.strftime("%H:%M") if hi else None,
+                "hora_fim": hf.strftime("%H:%M") if hf else None,
+            }
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- CATÁLOGO DE PESOS ---
+class NovoTipoAtividade(BaseModel):
+    frente_id: int
+    nome: str
+    peso: int
+    descricao: str = ""
+
+class PesoUpdate(BaseModel):
+    peso: int
+
+@app.get("/api/frentes")
+def listar_frentes(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, area, nome FROM frentes WHERE ativo=TRUE ORDER BY area, nome")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "area": r[1], "nome": r[2]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/tipos-atividade")
+def listar_tipos_atividade(area: str = "", frente_id: Optional[int] = None,
+                           faiston_token: str = Cookie(None)):
+    """Leitura liberada pra qualquer usuário logado: todo mundo precisa
+    consultar a tabela de pesos na hora de abrir a tarefa."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cond, params = ["f.ativo = TRUE", "t.ativo = TRUE"], []
+        if area:
+            cond.append("f.area = %s"); params.append(area)
+        if frente_id:
+            cond.append("t.frente_id = %s"); params.append(frente_id)
+        cur.execute(f"""
+            SELECT t.id, t.frente_id, f.area, f.nome, t.nome, t.peso, t.descricao
+            FROM tipos_atividade t JOIN frentes f ON t.frente_id = f.id
+            WHERE {' AND '.join(cond)}
+            ORDER BY f.area, f.nome, t.peso DESC, t.nome
+        """, tuple(params))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "frente_id": r[1], "area": r[2], "frente": r[3],
+                 "nome": r[4], "peso": r[5], "descricao": r[6]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/tipos-atividade/{tid}/peso")
+def atualizar_peso_atividade(tid: int, p: PesoUpdate, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
+    if not 1 <= p.peso <= 4: raise HTTPException(status_code=400, detail="Peso deve ser de 1 a 4")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE tipos_atividade SET peso=%s WHERE id=%s", (p.peso, tid))
+        if cur.rowcount == 0: raise HTTPException(status_code=404, detail="Tipo de atividade não encontrado")
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tipos-atividade")
+def criar_tipo_atividade(t: NovoTipoAtividade, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
+    if not t.nome.strip(): raise HTTPException(status_code=400, detail="Informe o nome da atividade")
+    if not 1 <= t.peso <= 4: raise HTTPException(status_code=400, detail="Peso deve ser de 1 a 4")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO tipos_atividade (frente_id, nome, peso, descricao) VALUES (%s,%s,%s,%s) "
+            "ON CONFLICT (frente_id, nome) DO NOTHING RETURNING id",
+            (t.frente_id, t.nome.strip(), t.peso, t.descricao)
+        )
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=400, detail="Já existe uma atividade com esse nome nessa frente")
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": row[0]}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/tipos-atividade/{tid}")
+def desativar_tipo_atividade(tid: int, faiston_token: str = Cookie(None)):
+    """Desativa em vez de apagar -- tarefas antigas continuam apontando pro
+    tipo, então DELETE de verdade quebraria o histórico."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE tipos_atividade SET ativo=FALSE WHERE id=%s", (tid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+def _bloqueio_ativo(cur, usuario_id, data_str, hora_str=None):
+    """Retorna a descrição do bloqueio ativo desse funcionário nessa
+    data/horário, ou None se estiver livre -- checado antes de criar/editar
+    atividades de campo, escala e tarefas (ponto 4 do feedback: férias,
+    afastamento médico ou recorrência semanal, ex. tratamento toda terça)."""
+    if not usuario_id or not data_str:
+        return None
+    try:
+        data = datetime.strptime(data_str[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    cur.execute("""
+        SELECT tipo, data_inicio, data_fim, dia_semana, hora_inicio, hora_fim, descricao
+        FROM funcionario_bloqueios WHERE usuario_id=%s
+    """, (usuario_id,))
+    for tipo, di, df, dia_semana, hi, hf, descricao in cur.fetchall():
+        if tipo in ("ferias", "afastamento"):
+            if di and df and di <= data <= df:
+                return descricao or ("Férias" if tipo == "ferias" else "Afastamento")
+        elif tipo == "recorrente" and dia_semana is not None and dia_semana == data.weekday():
+            if hora_str and hi and hf:
+                try:
+                    hora = datetime.strptime(hora_str[:5], "%H:%M").time()
+                    if not (hi <= hora <= hf):
+                        continue
+                except ValueError:
+                    pass
+            return descricao or "Recorrência semanal"
+    return None
+
+def _dias_bloqueados_periodo(cur, usuario_id, data_inicio_str, data_fim_str):
+    """Conta quantos dias desse período o funcionário estava de férias,
+    afastado ou numa recorrência semanal, pra virar 'dias trabalhados' nos
+    dashboards (ponto 2 do feedback) -- produtividade calculada só com os
+    dias em que a pessoa realmente estava disponível pra trabalhar, e uma
+    nota (obs) avisando que a produtividade tende a cair nesse período."""
+    if not usuario_id or not data_inicio_str or not data_fim_str:
+        return 0, []
+    try:
+        d0 = datetime.strptime(str(data_inicio_str)[:10], "%Y-%m-%d").date()
+        d1 = datetime.strptime(str(data_fim_str)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return 0, []
+    if d0 > d1:
+        return 0, []
+    cur.execute("""
+        SELECT tipo, data_inicio, data_fim, dia_semana, descricao
+        FROM funcionario_bloqueios WHERE usuario_id=%s
+    """, (usuario_id,))
+    dias_bloqueados = set()
+    notas = []
+    for tipo, di, df, dia_semana, descricao in cur.fetchall():
+        if tipo in ("ferias", "afastamento") and di and df:
+            ini, fim = max(di, d0), min(df, d1)
+            if ini <= fim:
+                d = ini
+                while d <= fim:
+                    dias_bloqueados.add(d)
+                    d += timedelta(days=1)
+                notas.append(descricao or ("Férias" if tipo == "ferias" else "Afastamento"))
+        elif tipo == "recorrente" and dia_semana is not None:
+            achou = False
+            d = d0
+            while d <= d1:
+                if d.weekday() == dia_semana:
+                    dias_bloqueados.add(d)
+                    achou = True
+                d += timedelta(days=1)
+            if achou:
+                notas.append(descricao or "Recorrência semanal")
+    return len(dias_bloqueados), notas
 
 # --- HISTÓRICO DE TAREFAS (resumo diário) ---
 HIST_STATUS_LABEL = {"aberto": "Aberto", "em_andamento": "Em andamento",
@@ -1246,7 +2148,9 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
         conn.commit()
         base_sel = """SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
                              t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome,
-                             t.data_prazo, t.data_agendamento, t.usuario_id, t.hora_prazo
+                             t.data_prazo, t.data_agendamento, t.usuario_id, t.hora_prazo,
+                             t.tipo_atividade_id, t.peso, t.natureza,
+                             t.concluido_em, t.prazo_status, t.justificativa_atraso
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
         if view == "func":
@@ -1283,6 +2187,9 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
                  "data_agendamento": str(r[11]) if r[11] else None,
                  "usuario_id": r[12],
                  "hora_prazo": str(r[13])[:5] if r[13] else None,
+                "tipo_atividade_id": r[14], "peso": r[15], "natureza": r[16],
+                 "concluido_em": str(r[17]) if r[17] else None,
+                 "prazo_status": r[18], "justificativa_atraso": r[19],
                  "sou_colaborador": (r[12] != sess["id"]) and any(c["id"] == sess["id"] for c in colab_map.get(r[0], [])),
                  "colaboradores": colab_map.get(r[0], [])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1316,10 +2223,30 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
             cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (t.funcionario_id,))
             if cur.fetchone():
                 uid = t.funcionario_id
+        data_checar = t.data_agendamento or t.data_prazo
+        bloqueio = _bloqueio_ativo(cur, uid, data_checar, t.hora_prazo)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"Funcionário indisponível nesta data: {bloqueio}")
+        # 2A: campo ainda opcional. Quando vier preenchido, o peso da régua é
+        # copiado pra tarefa. A obrigatoriedade entra no 2B, junto com o campo
+        # no modal -- senão o frontend antigo pararia de criar tarefa.
+        if not t.tipo_atividade_id:
+            raise HTTPException(status_code=400, detail="Informe o tipo de atividade")
+        if not t.data_prazo:
+            raise HTTPException(status_code=400, detail="Informe a previsão de conclusão")
+        peso = None
+        if t.tipo_atividade_id:
+            cur.execute("SELECT peso FROM tipos_atividade WHERE id=%s AND ativo=TRUE", (t.tipo_atividade_id,))
+            row_tipo = cur.fetchone()
+            if not row_tipo:
+                raise HTTPException(status_code=400, detail="Tipo de atividade inválido ou desativado")
+            peso = row_tipo[0]
+        natureza = t.natureza if t.natureza in ("programada", "urgente") else "programada"
         cur.execute(
-            "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id, data_prazo, data_agendamento, hora_prazo) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id, data_prazo, data_agendamento, hora_prazo, tipo_atividade_id, peso, natureza) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
             (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
-             t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None)
+             t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None,
+             t.tipo_atividade_id or None, peso, natureza)
         )
         new_id = cur.fetchone()[0]
         novos_helpers = _sync_colaboradores(cur, new_id, uid, t.colaboradores or [])
@@ -1333,6 +2260,7 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
                 sess["id"], destinatario_id=hid)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/tarefas/{tid}")
@@ -1344,11 +2272,38 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
     try:
         cur = conn.cursor()
         snap_old = _snapshot_tarefa(cur, tid)
+        peso_upd = None
+        if t.tipo_atividade_id:
+            cur.execute("SELECT peso FROM tipos_atividade WHERE id=%s AND ativo=TRUE", (t.tipo_atividade_id,))
+            row_tipo = cur.fetchone()
+            if not row_tipo:
+                raise HTTPException(status_code=400, detail="Tipo de atividade inválido ou desativado")
+            peso_upd = row_tipo[0]
+        natureza_upd = t.natureza if t.natureza in ("programada", "urgente") else None
+        # Só na transição para 'concluido' -- reeditar tarefa já concluída não
+        # recalcula, senão o histórico mudaria sozinho. Comparação por DATA:
+        # concluir no dia previsto conta como dentro do prazo.
+        concluindo = t.status == "concluido" and snap_old.get("status") != "concluido"
+        prazo_status = None
+        justificativa = (t.justificativa_atraso or "").strip()
+        if concluindo:
+            prazo_ref = t.data_prazo or snap_old.get("data_prazo") or ""
+            if prazo_ref:
+                prazo_d = datetime.strptime(str(prazo_ref)[:10], "%Y-%m-%d").date()
+                prazo_status = "dentro" if _hoje_sp() <= prazo_d else "fora"
+            else:
+                prazo_status = "sem_prazo"
+            if prazo_status == "fora" and not justificativa:
+                    raise HTTPException(status_code=400, detail="Tarefa concluída fora do prazo: informe a justificativa do atraso")
         cur.execute(
-            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, hora_prazo=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
+            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, hora_prazo=%s, tipo_atividade_id=COALESCE(%s, tipo_atividade_id), peso=COALESCE(%s, peso), natureza=COALESCE(%s, natureza), atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
             (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
-             t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None, tid, sess["id"])
+             t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None,
+             t.tipo_atividade_id or None, peso_upd, natureza_upd, tid, sess["id"])
         )
+        if concluindo and cur.rowcount:
+            cur.execute("UPDATE tarefas SET concluido_em=NOW(), prazo_status=%s, justificativa_atraso=%s WHERE id=%s",
+                        (prazo_status, justificativa, tid))
         # Registra no histórico cada campo que mudou (compara antes × depois)
         if cur.rowcount and snap_old:
             snap_new = _snapshot_tarefa(cur, tid)
@@ -1372,6 +2327,7 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
                 sess["id"], destinatario_id=hid)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.patch("/api/tarefas/{tid}/segundos")
@@ -1472,6 +2428,60 @@ def usuarios_online(faiston_token: str = Cookie(None)):
         return online
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/admin/diagnostico")
+def diagnostico_tecnico(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+
+    versao = {
+        "commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")[:7] or "desconhecido",
+        "commit_completo": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "desconhecido"),
+        "branch": os.environ.get("RAILWAY_GIT_BRANCH", "desconhecido"),
+        "ambiente": os.environ.get("RAILWAY_ENVIRONMENT_NAME", "local"),
+        "mensagem_commit": os.environ.get("RAILWAY_GIT_COMMIT_MESSAGE", "")[:200],
+    }
+
+    banco = {"ok": False}
+    conn = get_db()
+    if conn:
+        try:
+            t0 = datetime.now()
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            contagens = {}
+            for nome_tabela, sql in [
+                ("usuarios", "SELECT COUNT(*) FROM usuarios WHERE ativo=TRUE"),
+                ("status_atividades", "SELECT COUNT(*) FROM status_atividades"),
+                ("tarefas", "SELECT COUNT(*) FROM tarefas"),
+                ("sessoes_ativas", "SELECT COUNT(*) FROM sessoes WHERE expira_em > NOW()"),
+            ]:
+                try:
+                    cur.execute(sql)
+                    contagens[nome_tabela] = cur.fetchone()[0]
+                except Exception:
+                    contagens[nome_tabela] = None
+            cur.close(); conn.close()
+            banco = {
+                "ok": True,
+                "latencia_ms": round((datetime.now() - t0).total_seconds() * 1000, 1),
+                "contagens": contagens,
+            }
+        except Exception as e:
+            banco = {"ok": False, "erro": str(e)}
+    else:
+        banco = {"ok": False, "erro": "Não foi possível conectar ao banco"}
+
+    logs_recentes = []
+    try:
+        log_path = Path("errors.log")
+        if log_path.exists():
+            linhas = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            logs_recentes = linhas[-200:]
+    except Exception as e:
+        logs_recentes = [f"Erro ao ler errors.log: {e}"]
+
+    return {"versao": versao, "banco": banco, "logs_recentes": logs_recentes}
 
 @app.get("/api/admin/atividades")
 def atividades_recentes(faiston_token: str = Cookie(None)):
@@ -1643,7 +2653,7 @@ def limpar_todas_tarefas(faiston_token: str = Cookie(None)):
 
 # --- MÉTRICAS DASHBOARD ---
 @app.get("/api/metricas")
-def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", projeto: str = "", time: str = "", faiston_token: str = Cookie(None)):
+def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", funcionario: str = "", projeto: str = "", time: str = "", frente: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -1676,11 +2686,19 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         if projeto:
             conditions.append("p.nome = %s")
             params.append(projeto)
+        # Frente (Analista/Backoffice/N2) dentro do time -- N2 migrou de
+        # perfil próprio para cargo dentro de funcionario (2026-07-28) e
+        # já entra em "tarefas" via N2-A (visita de campo finalizada gera
+        # tarefa automática), então filtrar por cargo='n2' aqui funciona
+        # igual às outras frentes.
+        if frente in ("analista", "backoffice", "n2"):
+            conditions.append("u.cargo = %s")
+            params.append(frente)
         filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         params = tuple(params)
 
-        # JOINs necessários — time filter sempre precisa do JOIN com usuarios
-        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if (funcionario or not is_admin or time) else ""
+        # JOINs necessários — time/frente filter sempre precisa do JOIN com usuarios
+        join_u = "JOIN usuarios u ON t.usuario_id = u.id" if (funcionario or not is_admin or time or frente) else ""
         join_p = "LEFT JOIN projetos p ON t.projeto_id = p.id" if projeto else ""
         # Helpers para adicionar condição de status sem quebrar o filtro existente
         def fwhere(extra): return f"{filtro} AND {extra}" if filtro else f"WHERE {extra}"
@@ -1732,6 +2750,21 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             params
         )
         horas_por_cliente = [{"cliente": r[0], "horas": round(r[1]/3600, 1)} for r in cur.fetchall()]
+        # Peso por cliente — mesmo filtro, quebrado por (cliente, peso). Não
+        # vira gráfico à parte; alimenta o drill-down ao clicar na barra do
+        # cliente (visão geral primeiro, pedida em 2026-07-28 pra reduzir a
+        # poluição visual de uma rosca por funcionário sempre visível).
+        cur.execute(
+            f"SELECT t.cliente, COALESCE(t.peso,0), COALESCE(SUM(t.segundos),0), COUNT(t.id) "
+            f"FROM tarefas t {joins} {filtro} GROUP BY t.cliente, t.peso",
+            params
+        )
+        peso_por_cliente = {}
+        for cliente, peso, seg, qtd in cur.fetchall():
+            peso_por_cliente.setdefault(cliente, []).append(
+                {"peso": peso, "horas": round(seg/3600, 1), "tarefas": qtd})
+        for item in horas_por_cliente:
+            item["por_peso"] = sorted(peso_por_cliente.get(item["cliente"], []), key=lambda p: p["peso"])
 
         # Status da fila (para donut)
         cur.execute(f"SELECT t.status, COUNT(*) FROM tarefas t {joins} {filtro} GROUP BY t.status", params)
@@ -1765,7 +2798,9 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
                      "status": r[4], "segundos": r[5], "criado_em": str(r[6]), "funcionario": r[7]}
                     for r in cur.fetchall()]
 
-        # Horas por funcionário — respeita todos os filtros incluindo time
+        # Horas por funcionário — respeita todos os filtros incluindo time.
+        # N2 entra igual a funcionário/backoffice/analista (decisão de
+        # 2026-07-28: N2 é medido como qualquer outra frente, não à parte).
         func_conds = list(conditions) + ["u.perfil = 'funcionario'"]
         if not is_admin and not any("u.time" in c for c in func_conds):
             func_conds.append("COALESCE(u.time,'Projetos') = %s")
@@ -1774,13 +2809,66 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             func_params = params
         func_filtro = "WHERE " + " AND ".join(func_conds)
         cur.execute(
-            f"SELECT u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas, "
+            f"SELECT u.id, u.nome, COALESCE(SUM(t.segundos),0), COUNT(t.id) as total_tarefas, "
             f"COALESCE(u.time,'Projetos') as area "
             f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
-            f"{func_filtro} GROUP BY u.nome, u.time ORDER BY SUM(t.segundos) DESC",
+            f"{func_filtro} GROUP BY u.id, u.nome, u.time ORDER BY SUM(t.segundos) DESC",
             func_params
         )
-        horas_por_func = [{"nome": r[0], "horas": round(r[1]/3600, 1), "tarefas": r[2], "time": r[3]} for r in cur.fetchall()]
+        horas_por_func_rows = cur.fetchall()
+        # Peso: mesmo filtro de cima, quebrado por (funcionário, peso) --
+        # alimenta o gráfico de rosca (horas dentro de cada faixa de peso).
+        cur.execute(
+            f"SELECT t.usuario_id, COALESCE(t.peso, 0), COALESCE(SUM(t.segundos),0), COUNT(t.id) "
+            f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
+            f"{func_filtro} GROUP BY t.usuario_id, t.peso",
+            func_params
+        )
+        peso_por_func = {}
+        for uid, peso, seg, qtd in cur.fetchall():
+            peso_por_func.setdefault(uid, []).append(
+                {"peso": peso, "horas": round(seg/3600, 1), "tarefas": qtd})
+
+        # Aderência a prazo por pessoa -- mesmo escopo/filtro da lista de
+        # funcionários. Só entra quem tem prazo_status carimbado ('sem_prazo',
+        # de tarefa anterior à etapa 2, fica fora do denominador).
+        fw_conc = f"{func_filtro} AND t.status='concluido'" if func_filtro else "WHERE t.status='concluido'"
+        cur.execute(
+            f"SELECT t.usuario_id, COALESCE(t.prazo_status,''), COUNT(*) "
+            f"FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id {join_p} "
+            f"{fw_conc} GROUP BY t.usuario_id, t.prazo_status",
+            func_params
+        )
+        prazo_por_func = {}
+        for uid, pstatus, qtd in cur.fetchall():
+            d = prazo_por_func.setdefault(uid, {"dentro": 0, "fora": 0})
+            if pstatus in d:
+                d[pstatus] += qtd
+        # Dias trabalhados = dias do período filtrado menos os dias de
+        # férias/afastamento/recorrência daquele funcionário -- produtividade
+        # (horas/tarefas por dia) fica mais justa, e uma obs avisa quando a
+        # pessoa ficou fora de parte do período (ponto 2 do feedback).
+        dias_periodo = None
+        if data_inicio and data_fim:
+            try:
+                dias_periodo = (datetime.strptime(data_fim, "%Y-%m-%d").date()
+                                 - datetime.strptime(data_inicio, "%Y-%m-%d").date()).days + 1
+            except ValueError:
+                dias_periodo = None
+        horas_por_func = []
+        for uid, nome, segundos, qtd_tarefas, area in horas_por_func_rows:
+            pf = prazo_por_func.get(uid, {"dentro": 0, "fora": 0})
+            item = {"id": uid, "nome": nome, "horas": round(segundos/3600, 1), "tarefas": qtd_tarefas, "time": area,
+                     "por_peso": sorted(peso_por_func.get(uid, []), key=lambda p: p["peso"]),
+                     "prazo_dentro": pf["dentro"], "prazo_fora": pf["fora"]}
+            if dias_periodo:
+                dias_bloq, notas = _dias_bloqueados_periodo(cur, uid, data_inicio, data_fim)
+                dias_trabalhados = max(1, dias_periodo - dias_bloq)
+                item["dias_trabalhados"] = dias_trabalhados
+                item["horas_por_dia"] = round(segundos/3600 / dias_trabalhados, 2)
+                if dias_bloq:
+                    item["obs"] = f"{dias_bloq} dia(s) fora no período ({', '.join(sorted(set(notas)))}) — produtividade tende a ser menor"
+            horas_por_func.append(item)
 
         # Taxa de conclusão por cliente — respeita todos os filtros
         cur.execute(
@@ -1791,6 +2879,36 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         taxa_rows = cur.fetchall()
         taxa_conclusao = [{"cliente": r[0], "total": r[1], "concluidas": r[2],
             "taxa": round(r[2]/r[1]*100) if r[1] > 0 else 0} for r in taxa_rows]
+
+        # Esforço por tipo de atividade -- substitui o funil, cujas etapas eram
+        # derivadas por aritmética dos status (uma etapa podia ficar maior que a
+        # anterior, o que não existe em funil).
+        cur.execute(
+            f"SELECT COALESCE(ta.nome,'Sem tipo'), COUNT(*), COALESCE(SUM(t.segundos),0), "
+            f"COALESCE(SUM(COALESCE(t.peso,0)),0) "
+            f"FROM tarefas t {joins} LEFT JOIN tipos_atividade ta ON ta.id = t.tipo_atividade_id "
+            f"{filtro} GROUP BY 1 ORDER BY 4 DESC",
+            params
+        )
+        por_tipo = [{"tipo": r[0], "tarefas": r[1], "horas": round(r[2]/3600, 1), "pontos": r[3]}
+                    for r in cur.fetchall()]
+
+        # Etapa 4 da medição: aderência a prazo e natureza da demanda.
+        # 'sem_prazo' (tarefa anterior à etapa 2) fica fora do denominador --
+        # senão a aderência despenca por falta de dado, não por atraso.
+        cur.execute(f"SELECT COALESCE(t.prazo_status,''), COUNT(*) FROM tarefas t {joins} {w_concluido} GROUP BY t.prazo_status", params)
+        pz = {r[0]: r[1] for r in cur.fetchall()}
+        pz_dentro, pz_fora = pz.get('dentro', 0), pz.get('fora', 0)
+        pz_base = pz_dentro + pz_fora
+        cur.execute(f"SELECT COALESCE(NULLIF(t.natureza,''),'programada'), COUNT(*) FROM tarefas t {joins} {filtro} GROUP BY 1", params)
+        nat = {r[0]: r[1] for r in cur.fetchall()}
+        nat_urgente, nat_total = nat.get('urgente', 0), sum(nat.values())
+        prazo = {
+            "dentro": pz_dentro, "fora": pz_fora, "sem_prazo": pz.get('sem_prazo', 0),
+            "aderencia": round(pz_dentro / pz_base * 100) if pz_base else None,
+            "urgentes": nat_urgente, "total_natureza": nat_total,
+            "pct_nao_programado": round(nat_urgente / nat_total * 100) if nat_total else 0,
+        }
 
         cur.close(); conn.close()
         return {
@@ -1809,12 +2927,68 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
             "status_fila": status_fila,
             "volume_semana": volume_semana,
             "funil": funil,
+            "por_tipo": por_tipo,
             "recentes": recentes,
             "horas_por_func": horas_por_func,
-            "taxa_conclusao": taxa_conclusao
+            "taxa_conclusao": taxa_conclusao,
+            "prazo": prazo
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/tarefas-por-peso")
+def tarefas_por_peso(usuario_id: Optional[int] = None, peso: Optional[int] = None, cliente: str = "",
+                      data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
+    """Drill-down dos gráficos do Dashboard que envolvem peso: lista as
+    tarefas no mesmo período filtrado, escopadas por funcionário+peso (rosca
+    "Horas por Funcionário") ou só por cliente (barra "Esforço por Cliente" --
+    aí sem filtrar peso, cada tarefa mostra o próprio peso na lista, decisão
+    de 2026-07-28 de mostrar a visão geral primeiro). Mesma regra de escopo
+    do /api/metricas -- admin/diretor veem qualquer um, resto só quem é do
+    mesmo time."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not usuario_id and not cliente:
+        raise HTTPException(status_code=400, detail="Informe usuario_id ou cliente")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cond, qparams = [], []
+        if usuario_id:
+            if sess["perfil"] not in ("admin", "diretor"):
+                cur.execute("SELECT COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (usuario_id,))
+                row = cur.fetchone()
+                if not row or row[0] != sess.get("time", "Projetos"):
+                    raise HTTPException(status_code=403, detail="Sem acesso a esse funcionário")
+            cond.append("t.usuario_id = %s"); qparams.append(usuario_id)
+            if peso is not None:
+                cond.append("COALESCE(t.peso,0) = %s"); qparams.append(peso)
+        else:
+            # Cliente sozinho, sem restrição por usuário -- mesma regra de
+            # time do /api/metricas: quem não é admin/diretor só vê tarefas
+            # de gente do próprio time.
+            cond.append("t.cliente = %s"); qparams.append(cliente)
+            if sess["perfil"] not in ("admin", "diretor"):
+                cond.append("COALESCE(u.time,'Projetos') = %s"); qparams.append(sess.get("time", "Projetos"))
+        if data_inicio:
+            cond.append("t.criado_em >= %s"); qparams.append(data_inicio + " 00:00:00")
+        if data_fim:
+            cond.append("t.criado_em <= %s"); qparams.append(data_fim + " 23:59:59")
+        cur.execute(f"""
+            SELECT t.id, t.descricao, t.cliente, t.status, t.segundos, t.criado_em, COALESCE(ta.nome, ''),
+                   COALESCE(t.peso, 0), u.nome
+            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
+            LEFT JOIN tipos_atividade ta ON ta.id = t.tipo_atividade_id
+            WHERE {' AND '.join(cond)} ORDER BY t.criado_em DESC
+        """, tuple(qparams))
+        out = [{"id": r[0], "descricao": r[1], "cliente": r[2], "status": r[3],
+                "horas": round(r[4]/3600, 1), "criado_em": str(r[5])[:16], "tipo": r[6],
+                "peso": r[7], "funcionario": r[8]} for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/registrar-acao")
 def registrar_acao(acao: AcaoBackoffice, faiston_token: str = Cookie(None)):
@@ -1948,9 +3122,11 @@ def limpar_seed(faiston_token: str = Cookie(None)):
         conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/seed-dados")
-def seed_dados():
-    import random, hashlib
+@app.post("/api/seed-dados")
+def seed_dados(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin")
+    import random
     from datetime import datetime, timedelta
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -1978,7 +3154,7 @@ def seed_dados():
         for usuario, senha, nome, perfil in funcionarios:
             cur.execute("""INSERT INTO usuarios (usuario, senha_hash, nome, perfil, primeiro_acesso)
                 VALUES (%s,%s,%s,%s,FALSE) ON CONFLICT (usuario) DO UPDATE SET nome=%s RETURNING id""",
-                (usuario, hashlib.sha256(senha.encode()).hexdigest(), nome, perfil, nome))
+                (usuario, hash_senha(senha), nome, perfil, nome))
             ids[nome] = cur.fetchone()[0]
 
         clientes = ["NTT","Arcos Dourados","Zamp","Telcoweb","VIVO VITA"]
@@ -2103,20 +3279,60 @@ def seed_dados():
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- PÁGINAS ---
+# Servir o HTML sem checar sessão aqui dependia só do JS de cada página
+# (fetch /api/me + redirect) pra afastar quem não devia ver aquela tela --
+# esconder o link não é proteção, a rota em si precisa recusar (2026-07-30,
+# a pedido do usuário). O dado sensível de verdade já vem só via /api/* (que
+# já checa sessão/perfil), mas a página em si -- estrutura, JS, lógica de
+# negócio nos comentários -- não deveria ser servida pra quem não tem sessão
+# válida, e telas de nível admin não deveriam nem carregar pra funcionário/N2.
+def _redirect_login_ou_home(sess):
+    """Sem sessão manda pro login; com sessão mas perfil sem acesso a essa
+    página manda pra home de quem já está logado, em vez de forçar relogin
+    -- mesmo mapeamento perfil/cargo → home usado no pós-login (login.html)."""
+    if not sess:
+        return RedirectResponse("/")
+    if sess["perfil"] in ("admin", "gestor", "demo", "diretor"):
+        return RedirectResponse("/dashboard")
+    if sess.get("cargo") == "n2":
+        return RedirectResponse("/n2")
+    return RedirectResponse("/funcionario")
+
 @app.get("/")
 def root(): return FileResponse("static/login.html")
 
 @app.get("/faiston-ops-mark.svg")
 def faiston_ops_mark(): return FileResponse("static/faiston-ops-mark.svg", media_type="image/svg+xml")
 
+@app.get("/redefinir-senha")
+def redefinir_senha_page(): return FileResponse("static/redefinir-senha.html")
+
 @app.get("/dashboard")
-def dashboard(): return FileResponse("static/index.html")
+def dashboard(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"):
+        return _redirect_login_ou_home(sess)
+    return FileResponse("static/index.html")
 
 @app.get("/funcionario")
-def funcionario(): return FileResponse("static/funcionario.html")
+def funcionario(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/funcionario.html")
+
+@app.get("/n2")
+def n2_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    if sess["perfil"] != "admin" and sess.get("cargo") != "n2":
+        return _redirect_login_ou_home(sess)
+    return FileResponse("static/n2.html")
 
 @app.get("/admin")
-def admin_page(): return FileResponse("static/admin.html")
+def admin_page(): return RedirectResponse("/dashboard?go=admin")
+
+@app.get("/devteam")
+def devteam_page(): return RedirectResponse("/dashboard?go=areaDev")
 
 app.mount("/css", StaticFiles(directory="static/css"), name="css")
 app.mount("/js", StaticFiles(directory="static/js"), name="js")
@@ -2232,10 +3448,16 @@ def get_relatorio(cliente: str, mes: str = "", faiston_token: str = Cookie(None)
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/relatorio/{cliente}")
-def relatorio_page(cliente: str): return FileResponse("static/relatorio.html")
+def relatorio_page(cliente: str, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/relatorio.html")
 
 @app.get("/apresentacao")
-def apresentacao_page(): return FileResponse("static/apresentacao.html")
+def apresentacao_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/apresentacao.html")
 
 # --- NOTIFICAÇÕES ---
 def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None, destinatario_id: int = None):
@@ -2590,7 +3812,11 @@ def get_historico(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/historico")
-def historico_page(): return FileResponse("static/historico.html")
+def historico_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"):
+        return _redirect_login_ou_home(sess)
+    return FileResponse("static/historico.html")
 
 # --- NOTAS PESSOAIS ---
 class NotaModel(BaseModel):
@@ -2831,6 +4057,11 @@ def deletar_carimbo(cid: int, faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 # --- CLIENTES ---
+# 2026-07-28: removida uma migração "migrar clientes das tarefas" que
+# rodava aqui a cada listagem (não uma vez só) -- recriava silenciosamente
+# um cliente em texto livre de tarefas.cliente toda vez que alguém abria a
+# tela, mesmo depois de apagado (foi assim que "Arcos" duplicado voltou
+# depois de já ter sido limpo).
 @app.get("/api/clientes")
 def listar_clientes(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -2850,13 +4081,6 @@ def listar_clientes(faiston_token: str = Cookie(None)):
             )
         """)
         cur.execute("ALTER TABLE clientes ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
-        # Migrar clientes existentes das tarefas
-        cur.execute("""
-            INSERT INTO clientes (nome)
-            SELECT DISTINCT cliente FROM tarefas
-            WHERE cliente IS NOT NULL AND cliente != ''
-            ON CONFLICT (nome) DO NOTHING
-        """)
         conn.commit()
         if sess["perfil"] == "admin":
             cur.execute("SELECT id, nome, contato, email, ativo, criado_em, COALESCE(time,'Projetos') FROM clientes WHERE ativo=TRUE ORDER BY nome")
@@ -2946,7 +4170,11 @@ def forecast_page(): return RedirectResponse("/dashboard?go=forecast")
 
 # Detalhe financeiro por cliente — página própria (mantida)
 @app.get("/financeiro/{cid}")
-def financeiro_page(cid: int): return FileResponse("static/financeiro.html")
+def financeiro_page(cid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
+        return _redirect_login_ou_home(sess)
+    return FileResponse("static/financeiro.html")
 
 @app.get("/api/financeiro/resumo")
 def financeiro_resumo(faiston_token: str = Cookie(None)):
@@ -3325,6 +4553,7 @@ def projetos_by_cliente_nome(nome: str = "", faiston_token: str = Cookie(None)):
 def listar_projetos(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -3358,6 +4587,7 @@ def listar_projetos(cid: int, faiston_token: str = Cookie(None)):
 def analise_financeira(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -3450,6 +4680,7 @@ def deletar_projeto(pid: int, faiston_token: str = Cookie(None)):
 def listar_lancamentos(pid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401)
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -4493,6 +5724,7 @@ def _can_gestao(sess):
 def gestao_listar_projetos(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not _can_gestao(sess): raise HTTPException(status_code=403, detail="Sem permissão")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -4639,6 +5871,7 @@ def meus_projetos_status(pid: int, body: MeuProjetoStatus, faiston_token: str = 
 def gestao_listar_contratos(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not _can_gestao(sess): raise HTTPException(status_code=403, detail="Sem permissão")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -4775,13 +6008,55 @@ def gestao_listar_usuarios(faiston_token: str = Cookie(None)):
 
 # ── Status de Campo (despachos técnicos por site/cliente: ARCOS, ZAMP,
 #    HAVAN, Câmeras IP etc.) — substitui a planilha STATUS_REPORT.xlsx ──────
-STATUS_CAMPO_VALIDOS = ('agendado', 'em_andamento', 'concluido', 'parcial', 'improdutiva', 'cancelado')
+STATUS_CAMPO_VALIDOS = ('agendado', 'em_andamento', 'concluido', 'parcial',
+                         'improdutiva_cliente', 'improdutiva_faiston', 'cancelado')
+STATUS_CAMPO_TERMINAIS = ('concluido', 'parcial', 'improdutiva_cliente', 'improdutiva_faiston')
+PARTICULARIDADES_VALIDAS = ('reversa', 'equipamento_em_posse_do_cliente', 'equipamento_removido', 'equipamento_instalado')
+LOCALIZACAO_VALIDOS = ('deslocamento', 'no_local')
+ACESSO_VALIDOS = ('com_acesso', 'verificando_acesso', 'sem_acesso')
+ANDAMENTO_TIPO_VALIDOS = ('instalando', 'trocando', 'removendo', 'validando')
+MATERIAL_UNIDADE_VALIDOS = ('unidade', 'metro', 'caixa', 'rolo', 'par', 'pacote', 'kit')
+
+# Lista única de colunas usada tanto em listar_status_campo quanto em
+# obter_status_campo, pra não desalinhar SELECT/cols de novo (já causou
+# bug em produção quando as colunas de material foram adicionadas).
+STATUS_CAMPO_SELECT_SQL = """a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico,
+                   a.n2_usuario_id, a.n2_responsavel,
+                   a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
+                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em,
+                   a.particularidades, a.material_utilizado, a.material_detalhe,
+                   a.material_quantidade, a.material_valor, a.ticket, a.andamento_descricao,
+                   a.localizacao, a.acesso, a.subprojeto, a.equipamento_removido_detalhe,
+                   a.equipamento_instalado_serial, a.equipamento_removido_partnumber,
+                   a.equipamento_removido_serial, a.contato_local_nome, a.contato_local_matricula,
+                   a.hora_inicio_atividade, a.andamento_tipo, a.andamento_equipamento"""
+STATUS_CAMPO_COLS = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico",
+        "n2_usuario_id", "n2_responsavel",
+        "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
+        "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em",
+        "particularidades", "material_utilizado", "material_detalhe",
+        "material_quantidade", "material_valor", "ticket", "andamento_descricao",
+        "localizacao", "acesso", "subprojeto", "equipamento_removido_detalhe",
+        "equipamento_instalado_serial", "equipamento_removido_partnumber",
+        "equipamento_removido_serial", "contato_local_nome", "contato_local_matricula",
+        "hora_inicio_atividade", "andamento_tipo", "andamento_equipamento"]
+
+class EquipamentoItem(BaseModel):
+    partnumber: str = ""
+    serial: str = ""
+
+class MaterialItem(BaseModel):
+    descricao: str = ""
+    quantidade: Optional[float] = None
+    unidade: str = "unidade"
+    valor: Optional[float] = None
 
 class StatusAtividadeModel(BaseModel):
     cliente_id: int
     data: str
     horario_agendado: Optional[str] = None
     tecnico: str = ""
+    n2_usuario_id: Optional[int] = None
     n2_responsavel: str = ""
     site_sigla: str = ""
     site_nome: str = ""
@@ -4789,14 +6064,55 @@ class StatusAtividadeModel(BaseModel):
     cidade: str = ""
     uf: str = ""
     hora_chegada: Optional[str] = None
-    hora_termino: Optional[str] = None
+    hora_termino: Optional[str] = None  # usado como "hora de saída" no front, preenchido pelo N2
     detalhamento_tecnico: str = ""
     status: str = "agendado"
     observacoes: str = ""
+    particularidades: List[str] = []
+    material_utilizado: bool = False
+    material_detalhe: str = ""
+    material_quantidade: Optional[int] = None
+    material_valor: Optional[float] = None
+    ticket: str = ""
+    andamento_descricao: str = ""
+    localizacao: Optional[str] = None
+    acesso: Optional[str] = None
+    subprojeto: str = ""
+    equipamento_removido_detalhe: str = ""
+    # Opcional, preenchido só na tela de criação do painel principal (admin)
+    # quando o equipamento a instalar/remover já é conhecido de antemão --
+    # mesma tabela/formato usado na finalização (ver EquipamentoItem acima).
+    equipamentos_instalados: List[EquipamentoItem] = []
+    equipamentos_removidos: List[EquipamentoItem] = []
+
+def _resolver_n2(cur, n2_usuario_id, n2_responsavel_texto):
+    """Se veio n2_usuario_id, busca o nome pra cachear em n2_responsavel
+    (mesmo padrão de comentarios_projeto.usuario_nome). Sem id, mantém o
+    texto livre como veio (compatibilidade / preenchimento manual)."""
+    if not n2_usuario_id:
+        return None, n2_responsavel_texto
+    cur.execute("SELECT nome FROM usuarios WHERE id=%s AND ativo=TRUE", (n2_usuario_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=400, detail="N2 responsável inválido")
+    return n2_usuario_id, row[0]
+
+def _pode_gerenciar_status_campo(sess, conn, aid):
+    """admin/gestor/demo podem tudo; n2 só nos despachos onde é o responsável."""
+    if sess["perfil"] in ("admin", "gestor", "demo"):
+        return True
+    if _eh_n2(sess):
+        cur = conn.cursor()
+        cur.execute("SELECT n2_usuario_id FROM status_atividades WHERE id=%s", (aid,))
+        row = cur.fetchone()
+        cur.close()
+        return bool(row) and row[0] == sess["id"]
+    return False
 
 @app.get("/api/status-campo")
 def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
                          cliente_id: int = 0, status: str = "", texto: str = "",
+                         n2_usuario_id: int = 0, apenas_meu: bool = False,
                          faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
@@ -4816,15 +6132,17 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
             where.append("a.cliente_id = %s"); params.append(cliente_id)
         if status:
             where.append("a.status = %s"); params.append(status)
+        if apenas_meu:
+            where.append("a.n2_usuario_id = %s"); params.append(sess["id"])
+        elif n2_usuario_id:
+            where.append("a.n2_usuario_id = %s"); params.append(n2_usuario_id)
         if texto:
             where.append("""(a.tecnico ILIKE %s OR a.n2_responsavel ILIKE %s OR a.site_sigla ILIKE %s
                               OR a.site_nome ILIKE %s OR a.cidade ILIKE %s OR a.observacoes ILIKE %s)""")
             like = f"%{texto}%"
             params.extend([like, like, like, like, like, like])
         cur.execute(f"""
-            SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico, a.n2_responsavel,
-                   a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
-                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em
+            SELECT {STATUS_CAMPO_SELECT_SQL}
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE {' AND '.join(where)}
@@ -4832,18 +6150,28 @@ def listar_status_campo(data: str = "", data_de: str = "", data_ate: str = "",
             LIMIT 300
         """, params)
         rows = cur.fetchall()
+        ids = [r[0] for r in rows]
+        materiais_por_id = {}
+        if ids:
+            cur.execute("""
+                SELECT atividade_id, descricao, quantidade, unidade, valor
+                FROM status_atividade_materiais WHERE atividade_id = ANY(%s) ORDER BY id
+            """, (ids,))
+            for m in cur.fetchall():
+                materiais_por_id.setdefault(m[0], []).append({
+                    "descricao": m[1], "quantidade": float(m[2]) if m[2] is not None else None,
+                    "unidade": m[3], "valor": float(m[4]) if m[4] is not None else None})
         cur.close(); conn.close()
-        cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico", "n2_responsavel",
-                "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
-                "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em"]
         out = []
         for r in rows:
-            item = dict(zip(cols, r))
+            item = dict(zip(STATUS_CAMPO_COLS, r))
             item["data"] = str(item["data"]) if item["data"] else None
-            for k in ("horario_agendado", "hora_chegada", "hora_termino"):
+            for k in ("horario_agendado", "hora_chegada", "hora_termino", "hora_inicio_atividade"):
                 item[k] = str(item[k])[:5] if item[k] else None
             for k in ("criado_em", "atualizado_em"):
                 item[k] = str(item[k])[:16] if item[k] else None
+            item["particularidades"] = item["particularidades"] or []
+            item["materiais"] = materiais_por_id.get(item["id"], [])
             out.append(item)
         return out
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -4858,26 +6186,72 @@ def report_status_campo(data: str, faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         cur.execute("""
             SELECT a.id, c.nome, a.site_sigla, a.site_nome, a.tecnico, a.status, a.observacoes,
-                   a.horario_agendado, a.cidade, a.uf, a.n2_responsavel
+                   a.horario_agendado, a.cidade, a.uf, a.n2_responsavel,
+                   a.particularidades, a.material_utilizado, a.material_detalhe,
+                   a.material_quantidade, a.material_valor, a.ticket,
+                   a.andamento_descricao, a.localizacao, a.acesso, a.subprojeto,
+                   a.equipamento_removido_detalhe, a.andamento_tipo, a.andamento_equipamento,
+                   a.hora_inicio_atividade
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.data = %s
             ORDER BY c.nome NULLS LAST, a.horario_agendado ASC NULLS LAST
         """, (data,))
         rows = cur.fetchall()
+        ids = [r[0] for r in rows]
+        materiais_por_id = {}
+        if ids:
+            cur.execute("""
+                SELECT atividade_id, descricao, quantidade, unidade, valor
+                FROM status_atividade_materiais WHERE atividade_id = ANY(%s) ORDER BY id
+            """, (ids,))
+            for m in cur.fetchall():
+                materiais_por_id.setdefault(m[0], []).append({
+                    "descricao": m[1], "quantidade": float(m[2]) if m[2] is not None else None,
+                    "unidade": m[3], "valor": float(m[4]) if m[4] is not None else None})
         cur.close(); conn.close()
         contagem = {}
         por_cliente = {}
         for r in rows:
-            (aid, cliente_nome, sigla, nome_site, tecnico, status, obs, horario, cidade, uf, n2) = r
+            (aid, cliente_nome, sigla, nome_site, tecnico, status, obs, horario, cidade, uf, n2,
+             particularidades, material_utilizado, material_detalhe,
+             material_quantidade, material_valor, ticket,
+             andamento_descricao, localizacao, acesso, subprojeto, equip_removido_detalhe,
+             andamento_tipo, andamento_equipamento, hora_inicio_atividade) = r
             cliente_nome = cliente_nome or "Sem cliente"
             contagem[status] = contagem.get(status, 0) + 1
             por_cliente.setdefault(cliente_nome, []).append({
-                "id": aid, "site": sigla or nome_site or "(sem site)", "tecnico": tecnico,
+                "id": aid, "site": sigla or nome_site or "", "tecnico": tecnico,
                 "status": status, "observacoes": obs, "horario_agendado": str(horario)[:5] if horario else None,
                 "cidade": cidade, "uf": uf, "n2_responsavel": n2,
+                "particularidades": particularidades or [], "material_utilizado": material_utilizado,
+                "materiais": materiais_por_id.get(aid, []),
+                "ticket": ticket, "andamento_descricao": andamento_descricao,
+                "localizacao": localizacao, "acesso": acesso, "subprojeto": subprojeto,
+                "equipamento_removido_detalhe": equip_removido_detalhe,
+                "andamento_tipo": andamento_tipo, "andamento_equipamento": andamento_equipamento,
+                "hora_inicio_atividade": str(hora_inicio_atividade)[:5] if hora_inicio_atividade else None,
             })
         return {"data": data, "contagem": contagem, "por_cliente": por_cliente, "total": len(rows)}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/status-campo/subprojetos")
+def listar_subprojetos(cliente_id: int, faiston_token: str = Cookie(None)):
+    """Sugestões de subprojeto já usados nesse cliente, pra autocomplete."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT DISTINCT subprojeto FROM status_atividades
+            WHERE cliente_id=%s AND subprojeto IS NOT NULL AND subprojeto != ''
+            ORDER BY subprojeto
+        """, (cliente_id,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [r[0] for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/status-campo/{aid}")
@@ -4888,26 +6262,29 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("""
-            SELECT a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico, a.n2_responsavel,
-                   a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
-                   a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em
+        cur.execute(f"""
+            SELECT {STATUS_CAMPO_SELECT_SQL}
             FROM status_atividades a
             LEFT JOIN clientes c ON c.id = a.cliente_id
             WHERE a.id = %s
         """, (aid,))
         r = cur.fetchone()
-        cur.close(); conn.close()
-        if not r: raise HTTPException(status_code=404, detail="Despacho não encontrado")
-        cols = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico", "n2_responsavel",
-                "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
-                "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em"]
-        item = dict(zip(cols, r))
+        if not r:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=404, detail="Atividade não encontrada")
+        item = dict(zip(STATUS_CAMPO_COLS, r))
         item["data"] = str(item["data"]) if item["data"] else None
-        for k in ("horario_agendado", "hora_chegada", "hora_termino"):
+        for k in ("horario_agendado", "hora_chegada", "hora_termino", "hora_inicio_atividade"):
             item[k] = str(item[k])[:5] if item[k] else None
         for k in ("criado_em", "atualizado_em"):
             item[k] = str(item[k])[:16] if item[k] else None
+        item["particularidades"] = item["particularidades"] or []
+        cur.execute("SELECT tipo, partnumber, serial FROM status_atividade_equipamentos WHERE atividade_id=%s ORDER BY id", (aid,))
+        item["equipamentos"] = [{"tipo": e[0], "partnumber": e[1], "serial": e[2]} for e in cur.fetchall()]
+        cur.execute("SELECT descricao, quantidade, unidade, valor FROM status_atividade_materiais WHERE atividade_id=%s ORDER BY id", (aid,))
+        item["materiais"] = [{"descricao": m[0], "quantidade": float(m[1]) if m[1] is not None else None,
+                               "unidade": m[2], "valor": float(m[3]) if m[3] is not None else None} for m in cur.fetchall()]
+        cur.close(); conn.close()
         return item
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -4915,76 +6292,1445 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
 @app.post("/api/status-campo")
 def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
+        # Uma atividade não pode nascer já concluída/improdutiva -- status
+        # inicial é sempre "agendado", independente do que vier no corpo.
+        status = "agendado"
+        # N2 só cria despacho atribuído a si mesmo -- ignora qualquer
+        # n2_usuario_id que venha no corpo da requisição.
+        n2_uid = sess["id"] if _eh_n2(sess) else a.n2_usuario_id
+        n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
+        bloqueio = _bloqueio_ativo(cur, n2_uid, a.data, a.horario_agendado)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
+        particularidades = [p for p in a.particularidades if p in PARTICULARIDADES_VALIDAS]
+        localizacao = a.localizacao if a.localizacao in LOCALIZACAO_VALIDOS else None
+        acesso = a.acesso if a.acesso in ACESSO_VALIDOS else None
+        # Serial a instalar/remover é opcional e só existe na tela de criação
+        # do painel principal -- se veio preenchido, garante que a
+        # particularidade correspondente também reflita isso.
+        instalados = [(it.partnumber.strip(), it.serial.strip()) for it in a.equipamentos_instalados
+                      if it.partnumber.strip() or it.serial.strip()]
+        removidos = [(it.partnumber.strip(), it.serial.strip()) for it in a.equipamentos_removidos
+                     if it.partnumber.strip() or it.serial.strip()]
+        if instalados and 'equipamento_instalado' not in particularidades:
+            particularidades.append('equipamento_instalado')
+        if removidos and 'equipamento_removido' not in particularidades:
+            particularidades.append('equipamento_removido')
         cur.execute("""
-            INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+            INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico,
+                n2_usuario_id, n2_responsavel,
                 site_sigla, site_nome, endereco, cidade, uf, hora_chegada, hora_termino,
-                detalhamento_tecnico, status, observacoes, criado_por)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
-        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, a.n2_responsavel,
+                detalhamento_tecnico, status, observacoes, criado_por,
+                particularidades, material_utilizado, material_detalhe,
+                material_quantidade, material_valor, ticket, andamento_descricao,
+                localizacao, acesso, subprojeto, equipamento_removido_detalhe)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
-              a.detalhamento_tecnico, status, a.observacoes, sess["id"]))
+              a.detalhamento_tecnico, status, a.observacoes, sess["id"],
+              particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else "",
+              a.material_quantidade if a.material_utilizado else None,
+              a.material_valor if a.material_utilizado else None, a.ticket, a.andamento_descricao,
+              localizacao, acesso, a.subprojeto,
+              a.equipamento_removido_detalhe if 'equipamento_removido' in particularidades else ""))
         new_id = cur.fetchone()[0]
+        itens = [(new_id, 'instalado', pn, sn) for pn, sn in instalados] + \
+                [(new_id, 'removido', pn, sn) for pn, sn in removidos]
+        if itens:
+            cur.executemany(
+                "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
+                itens)
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/status-campo/{aid}")
 def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
+        if not _pode_gerenciar_status_campo(sess, conn, aid):
+            raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
         cur = conn.cursor()
         status = a.status if a.status in STATUS_CAMPO_VALIDOS else "agendado"
+        n2_uid = sess["id"] if _eh_n2(sess) else a.n2_usuario_id
+        n2_uid, n2_nome = _resolver_n2(cur, n2_uid, a.n2_responsavel)
+        bloqueio = _bloqueio_ativo(cur, n2_uid, a.data, a.horario_agendado)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
+        particularidades = [p for p in a.particularidades if p in PARTICULARIDADES_VALIDAS]
+        localizacao = a.localizacao if a.localizacao in LOCALIZACAO_VALIDOS else None
+        acesso = a.acesso if a.acesso in ACESSO_VALIDOS else None
         cur.execute("""
             UPDATE status_atividades SET
-                cliente_id=%s, data=%s, horario_agendado=%s, tecnico=%s, n2_responsavel=%s,
+                cliente_id=%s, data=%s, horario_agendado=%s, tecnico=%s,
+                n2_usuario_id=%s, n2_responsavel=%s,
                 site_sigla=%s, site_nome=%s, endereco=%s, cidade=%s, uf=%s,
                 hora_chegada=%s, hora_termino=%s, detalhamento_tecnico=%s, status=%s, observacoes=%s,
+                particularidades=%s, material_utilizado=%s, material_detalhe=%s,
+                material_quantidade=%s, material_valor=%s, ticket=%s, andamento_descricao=%s,
+                localizacao=%s, acesso=%s, subprojeto=%s, equipamento_removido_detalhe=%s,
                 atualizado_em=NOW()
             WHERE id=%s
-        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, a.n2_responsavel,
+        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
-              a.detalhamento_tecnico, status, a.observacoes, aid))
+              a.detalhamento_tecnico, status, a.observacoes,
+              particularidades, a.material_utilizado, a.material_detalhe if a.material_utilizado else "",
+              a.material_quantidade if a.material_utilizado else None,
+              a.material_valor if a.material_utilizado else None, a.ticket, a.andamento_descricao,
+              localizacao, acesso, a.subprojeto,
+              a.equipamento_removido_detalhe if 'equipamento_removido' in particularidades else "", aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class ReatribuirStatusCampoModel(BaseModel):
+    novo_n2_usuario_id: int
+
+@app.post("/api/status-campo/{aid}/reatribuir")
+def reatribuir_status_campo(aid: int, body: ReatribuirStatusCampoModel, faiston_token: str = Cookie(None)):
+    """Handoff self-service: o próprio N2 responsável passa a atividade pra
+    outro N2 (ex. precisa sair no meio do atendimento) -- antes só admin/
+    gestor conseguiam trocar o responsável, pela tela de edição (2026-07-30,
+    a pedido do usuário). Preserva tudo: situação/andamento atuais e o
+    histórico de quem fez o quê continuam intactos, só o dono muda daqui
+    pra frente -- ver _pode_gerenciar_status_campo/andamentos."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        if not _pode_gerenciar_status_campo(sess, conn, aid):
+            raise HTTPException(status_code=403, detail="Você só pode reatribuir atividades onde é o N2 responsável")
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM usuarios WHERE id=%s AND ativo=TRUE AND perfil='funcionario' AND cargo='n2'",
+                    (body.novo_n2_usuario_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="Usuário informado não é um N2 ativo")
+        novo_nome = row[0]
+        cur.execute("SELECT n2_responsavel, data, horario_agendado FROM status_atividades WHERE id=%s", (aid,))
+        antigo_nome, data_val, horario_val = cur.fetchone()
+        if body.novo_n2_usuario_id == sess["id"]:
+            raise HTTPException(status_code=400, detail="Escolha outro N2 -- essa atividade já é sua")
+        bloqueio = _bloqueio_ativo(cur, body.novo_n2_usuario_id, str(data_val), horario_val)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
+        cur.execute("""
+            UPDATE status_atividades SET n2_usuario_id=%s, n2_responsavel=%s, atualizado_em=NOW()
+            WHERE id=%s
+        """, (body.novo_n2_usuario_id, novo_nome, aid))
+        cur.execute("""
+            INSERT INTO status_atividade_andamentos (atividade_id, descricao, criado_por, criado_por_nome)
+            VALUES (%s, %s, %s, %s)
+        """, (aid, f"Atividade repassada de {antigo_nome or sess['nome']} para {novo_nome}", sess["id"], sess["nome"]))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "novo_responsavel": novo_nome}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 class StatusCampoStatusModel(BaseModel):
     status: str
+    andamento_descricao: Optional[str] = None
+    localizacao: Optional[str] = None
+    acesso: Optional[str] = None
+    hora_chegada: Optional[str] = None
+    hora_inicio_atividade: Optional[str] = None
+    andamento_tipo: Optional[str] = None
+    andamento_equipamento: Optional[str] = None
+    hora_termino: Optional[str] = None
+    material_utilizado: Optional[bool] = None
+    # Lista (não mais um campo único) -- uma visita pode usar mais de um
+    # material, e a quantidade nem sempre é contagem de item (ex.: "28"
+    # com unidade "metro" pra cabo de rede). Ver MaterialItem/MATERIAL_UNIDADE_VALIDOS.
+    materiais: List[MaterialItem] = []
+    # Coletados na finalização (tela "Finalizar atividade"), pra montar o
+    # carimbo de encerramento -- ver POST/README do carimbo no front-end.
+    # Instalado/removido não são mais mutuamente exclusivos (uma atividade
+    # pode envolver os dois ao mesmo tempo) e cada um vira uma lista, já
+    # que pode ter mais de uma unidade instalada/removida na mesma visita.
+    equipamento_status: List[str] = []  # 'equipamento_instalado' e/ou 'equipamento_removido'
+    equipamentos_instalados: List[EquipamentoItem] = []
+    equipamentos_removidos: List[EquipamentoItem] = []
+    equipamento_removido_posse: Optional[str] = None  # 'tecnico' | 'cliente'
+    contato_local_nome: Optional[str] = None
+    contato_local_matricula: Optional[str] = None
+    observacoes: Optional[str] = None
+
+def _registrar_andamento(cur, aid, localizacao, acesso, descricao, sess,
+                          hora_chegada=None, hora_inicio_atividade=None, andamento_tipo=None,
+                          andamento_equipamento=None):
+    """Atualiza o snapshot de situação/andamento em status_atividades e, só
+    quando há conteúdo real de andamento (tipo e/ou equipamento e/ou
+    descrição preenchidos), grava também uma entrada no histórico. Um só
+    botão/modal ("Atualizar", ver n2.html) cobre tanto situação (localização/
+    acesso/chegada) quanto andamento (tipo/equipamento) -- uma chamada que só
+    atualiza situação não passou a poluir a linha do tempo com entradas
+    vazias; uma chamada que também descreve o que está sendo feito, sim.
+    Todos os campos de horário/localização são COALESCE no update do
+    snapshot: só sobrescrevem quando vêm preenchidos, pra uma chamada
+    parcial não apagar o que já estava registrado."""
+    localizacao = localizacao if localizacao in LOCALIZACAO_VALIDOS else None
+    acesso = acesso if acesso in ACESSO_VALIDOS else None
+    andamento_tipo = andamento_tipo if andamento_tipo in ANDAMENTO_TIPO_VALIDOS else None
+    andamento_equipamento = (andamento_equipamento or "").strip()
+    descricao = descricao.strip()
+    if andamento_tipo or andamento_equipamento or descricao:
+        cur.execute("""
+            INSERT INTO status_atividade_andamentos
+                (atividade_id, localizacao, acesso, descricao, criado_por, criado_por_nome,
+                 hora_chegada, hora_inicio_atividade, andamento_tipo, andamento_equipamento)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (aid, localizacao, acesso, descricao, sess["id"], sess["nome"],
+              hora_chegada or None, hora_inicio_atividade or None, andamento_tipo,
+              andamento_equipamento))
+    cur.execute("""
+        UPDATE status_atividades SET andamento_descricao=%s,
+            localizacao=COALESCE(%s, localizacao), acesso=COALESCE(%s, acesso),
+            hora_chegada=COALESCE(%s, hora_chegada),
+            hora_inicio_atividade=COALESCE(%s, hora_inicio_atividade),
+            andamento_tipo=COALESCE(%s, andamento_tipo),
+            andamento_equipamento=COALESCE(NULLIF(%s, ''), andamento_equipamento),
+            atualizado_em=NOW()
+        WHERE id=%s
+    """, (descricao, localizacao, acesso, hora_chegada or None, hora_inicio_atividade or None,
+          andamento_tipo, andamento_equipamento, aid))
+
+def _gerar_ou_atualizar_tarefa_campo(cur, aid):
+    """N2-A: ao finalizar uma visita de campo (qualquer status terminal --
+    concluído, parcial ou improdutiva), cria sozinho uma tarefa "Atendimento
+    em campo" (peso 4) atribuída ao N2 responsável, sem ele digitar nada.
+    Decisão de negócio (2026-07-28): visita malsucedida conta igual a uma
+    bem-sucedida -- o peso mede esforço/complexidade da atividade, não o
+    resultado. Previsão de conclusão = data agendada da própria visita.
+    Idempotente: se a atividade já gerou uma tarefa antes (reeditada), essa
+    mesma tarefa é atualizada em vez de duplicada (status_atividades.tarefa_gerada_id)."""
+    cur.execute("""
+        SELECT sa.data, sa.n2_usuario_id, sa.tarefa_gerada_id, sa.subprojeto, COALESCE(c.nome, sa.site_nome, ''),
+               GREATEST(0, COALESCE(EXTRACT(EPOCH FROM (
+                   CASE WHEN sa.hora_termino < sa.hora_chegada
+                        THEN (sa.hora_termino - sa.hora_chegada) + INTERVAL '24 hours'
+                        ELSE sa.hora_termino - sa.hora_chegada END
+               )), 0))::int
+        FROM status_atividades sa LEFT JOIN clientes c ON c.id = sa.cliente_id
+        WHERE sa.id = %s
+    """, (aid,))
+    row = cur.fetchone()
+    if not row: return
+    data_visita, n2_uid, tarefa_id, subprojeto, cliente_nome, segundos = row
+    if not n2_uid: return  # sem N2 responsável definido -- nada a gerar
+    cur.execute("""
+        SELECT ta.id, ta.peso FROM tipos_atividade ta JOIN frentes f ON f.id = ta.frente_id
+        WHERE f.area='Projetos' AND f.nome='N2' AND ta.nome='Atendimento em campo' AND ta.ativo=TRUE
+    """)
+    row_tipo = cur.fetchone()
+    if not row_tipo: return  # catálogo sem esse tipo cadastrado -- não bloqueia o fluxo de campo
+    tipo_id, peso = row_tipo
+    descricao = f"Atendimento em campo — {subprojeto}" if subprojeto else "Atendimento em campo"
+    prazo_status = "dentro" if (not data_visita or _hoje_sp() <= data_visita) else "fora"
+    # Horas da visita = hora_termino - hora_chegada (fica 0 se algum dos dois
+    # não foi preenchido, ex. quando o N2 pula a etapa "no local"/chegada).
+    # Atividade que cruza a meia-noite (ex. chegada 22h, término 2h) tem
+    # hora_termino < hora_chegada -- sem o CASE acima isso dava diferença
+    # negativa e o GREATEST(0,...) zerava a duração inteira da visita
+    # (achado real, 2026-07-30: atividade noturna ficava com 0h trabalhadas).
+    if tarefa_id:
+        cur.execute("""
+            UPDATE tarefas SET descricao=%s, cliente=%s, status='concluido', tipo_atividade_id=%s, peso=%s,
+                   segundos=%s, data_prazo=%s, concluido_em=NOW(), prazo_status=%s, atualizado_em=NOW()
+            WHERE id=%s
+        """, (descricao, cliente_nome, tipo_id, peso, segundos, data_visita, prazo_status, tarefa_id))
+    else:
+        cur.execute("""
+            INSERT INTO tarefas (usuario_id, descricao, cliente, status, tipo_atividade_id, peso, segundos,
+                                  natureza, data_prazo, concluido_em, prazo_status)
+            VALUES (%s,%s,%s,'concluido',%s,%s,%s,'programada',%s,NOW(),%s) RETURNING id
+        """, (n2_uid, descricao, cliente_nome, tipo_id, peso, segundos, data_visita, prazo_status))
+        cur.execute("UPDATE status_atividades SET tarefa_gerada_id=%s WHERE id=%s", (cur.fetchone()[0], aid))
 
 @app.patch("/api/status-campo/{aid}/status")
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
     if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
+    # "em_andamento" exige localização (primeiro passo do fluxo escalonado do
+    # N2: deslocamento/no local -> chegada+acesso -> início+tipo); os status
+    # terminais exigem confirmar a hora de saída (se houve material fica a
+    # critério do N2, mas o campo precisa vir preenchido explicitamente).
+    if body.status == "em_andamento" and body.localizacao not in LOCALIZACAO_VALIDOS:
+        raise HTTPException(status_code=400, detail="Selecione a localização")
+    # Progressão: só faz sentido dizer o que está sendo instalado/trocado/
+    # removido depois que o acesso ao local foi confirmado (o próprio modal
+    # só libera esses campos nesse ponto) -- e tipo sem dizer o quê é
+    # inexistente na prática, então equipamento é obrigatório junto do tipo.
+    if body.status == "em_andamento" and body.andamento_tipo in ANDAMENTO_TIPO_VALIDOS:
+        if body.acesso != "com_acesso":
+            raise HTTPException(status_code=400, detail="Confirme o acesso ao local antes de iniciar a atividade")
+        if not (body.andamento_equipamento or "").strip():
+            raise HTTPException(status_code=400, detail="Diga o que está sendo instalado/trocado/removido")
+    if body.status in STATUS_CAMPO_TERMINAIS:
+        if not body.hora_termino:
+            raise HTTPException(status_code=400, detail="Informe a hora de saída para finalizar a atividade")
+        if body.material_utilizado is None:
+            raise HTTPException(status_code=400, detail="Informe se houve utilização de material")
+        if body.material_utilizado and not any(m.descricao.strip() for m in body.materiais):
+            raise HTTPException(status_code=400, detail="Informe ao menos um material utilizado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        if not _pode_gerenciar_status_campo(sess, conn, aid):
+            raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
+        cur = conn.cursor()
+        sets = ["status=%s", "atualizado_em=NOW()"]
+        params = [body.status]
+        if body.status in STATUS_CAMPO_TERMINAIS:
+            material_ok = bool(body.material_utilizado)
+            sets += ["hora_termino=%s", "material_utilizado=%s"]
+            params += [body.hora_termino, material_ok]
+            # Merge das particularidades ligadas ao equipamento (instalado/
+            # removido/posse) -- preserva 'reversa' e qualquer outra tag que
+            # não seja dessas 3, só substitui o que veio do modal de finalizar.
+            equip_tags = [t for t in body.equipamento_status if t in ('equipamento_instalado', 'equipamento_removido')]
+            instalado = 'equipamento_instalado' in equip_tags
+            removido = 'equipamento_removido' in equip_tags
+            cur.execute("SELECT particularidades FROM status_atividades WHERE id=%s", (aid,))
+            atuais = (cur.fetchone() or [[]])[0] or []
+            outras = [p for p in atuais if p not in
+                      ('equipamento_instalado', 'equipamento_removido', 'equipamento_em_posse_do_cliente')]
+            novas_particularidades = outras + equip_tags
+            if removido and body.equipamento_removido_posse == 'cliente':
+                novas_particularidades.append('equipamento_em_posse_do_cliente')
+            sets += ["particularidades=%s", "contato_local_nome=%s", "contato_local_matricula=%s", "observacoes=%s"]
+            params += [novas_particularidades,
+                       body.contato_local_nome or "", body.contato_local_matricula or "",
+                       body.observacoes or ""]
+        params.append(aid)
+        cur.execute(f"UPDATE status_atividades SET {', '.join(sets)} WHERE id=%s", params)
+        if body.status in STATUS_CAMPO_TERMINAIS:
+            # Lista de equipamentos é sempre substituída por completo (não
+            # incremental) -- reflete exatamente o que veio do modal de
+            # finalizar nesta confirmação, igual o resto do fluxo.
+            cur.execute("DELETE FROM status_atividade_equipamentos WHERE atividade_id=%s", (aid,))
+            itens = []
+            if instalado:
+                itens += [(aid, 'instalado', it.partnumber.strip(), it.serial.strip())
+                          for it in body.equipamentos_instalados if it.partnumber.strip() or it.serial.strip()]
+            if removido:
+                itens += [(aid, 'removido', it.partnumber.strip(), it.serial.strip())
+                          for it in body.equipamentos_removidos if it.partnumber.strip() or it.serial.strip()]
+            if itens:
+                cur.executemany(
+                    "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
+                    itens)
+            # Lista de materiais também é sempre substituída por completo,
+            # mesmo padrão dos equipamentos acima -- reflete exatamente o
+            # que veio do modal de finalizar nesta confirmação.
+            cur.execute("DELETE FROM status_atividade_materiais WHERE atividade_id=%s", (aid,))
+            if material_ok:
+                materiais_itens = [
+                    (aid, m.descricao.strip(), m.quantidade,
+                     m.unidade if m.unidade in MATERIAL_UNIDADE_VALIDOS else 'unidade', m.valor)
+                    for m in body.materiais if m.descricao.strip()
+                ]
+                if materiais_itens:
+                    cur.executemany(
+                        "INSERT INTO status_atividade_materiais (atividade_id, descricao, quantidade, unidade, valor) VALUES (%s,%s,%s,%s,%s)",
+                        materiais_itens)
+            _gerar_ou_atualizar_tarefa_campo(cur, aid)
+        if body.status == "em_andamento":
+            _registrar_andamento(cur, aid, body.localizacao, body.acesso, body.andamento_descricao or "", sess,
+                                 body.hora_chegada, body.hora_inicio_atividade, body.andamento_tipo,
+                                 body.andamento_equipamento)
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/status-campo/{aid}/andamento")
+def listar_andamentos(aid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE status_atividades SET status=%s, atualizado_em=NOW() WHERE id=%s", (body.status, aid))
-        conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True}
+        cur.execute("""
+            SELECT id, localizacao, acesso, descricao, criado_por_nome, criado_em,
+                   hora_chegada, hora_inicio_atividade, andamento_tipo, andamento_equipamento
+            FROM status_atividade_andamentos WHERE atividade_id=%s ORDER BY criado_em ASC
+        """, (aid,))
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "localizacao": r[1], "acesso": r[2], "descricao": r[3],
+                 "criado_por_nome": r[4], "criado_em": str(r[5])[:16],
+                 "hora_chegada": str(r[6])[:5] if r[6] else None,
+                 "hora_inicio_atividade": str(r[7])[:5] if r[7] else None,
+                 "andamento_tipo": r[8], "andamento_equipamento": r[9]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/status-campo/{aid}")
 def deletar_status_campo(aid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        if not _pode_gerenciar_status_campo(sess, conn, aid):
+            raise HTTPException(status_code=403, detail="Você só pode excluir atividades onde é o N2 responsável")
+        cur = conn.cursor()
+        cur.execute("DELETE FROM status_atividades WHERE id=%s", (aid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/status-campo/usuarios/n2")
+def listar_usuarios_n2(faiston_token: str = Cookie(None)):
+    """Dropdown de N2 responsável -- restrito a cargo='n2' (2026-07-28, a
+    pedido do usuário). Antes listava qualquer usuário ativo (a ideia era
+    permitir admin/gestor atuando como N2 em campo também), mas na prática
+    isso deixava a lista poluída com quem não é N2 de verdade."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, perfil FROM usuarios WHERE ativo=TRUE AND perfil='funcionario' AND cargo='n2' ORDER BY nome")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1], "perfil": r[2]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ── Painel de Controle do N2 ─────────────────────────────────────────────────
+MODALIDADES_ESCALA = ('presencial', 'home', 'externo')
+
+class EscalaN2Model(BaseModel):
+    data: str
+    n2_usuario_id: int
+    horario_entrada: Optional[str] = None
+    modalidade: str = "presencial"
+    atribuicao: str = ""
+
+@app.get("/api/escala-n2")
+def listar_escala_n2(data: str = "", faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        if data:
+            cur.execute("""
+                SELECT e.id, e.data, e.n2_usuario_id, u.nome, e.horario_entrada, e.modalidade, e.atribuicao
+                FROM escala_n2 e JOIN usuarios u ON u.id = e.n2_usuario_id
+                WHERE e.data = %s ORDER BY e.horario_entrada ASC NULLS LAST, u.nome
+            """, (data,))
+        else:
+            cur.execute("""
+                SELECT e.id, e.data, e.n2_usuario_id, u.nome, e.horario_entrada, e.modalidade, e.atribuicao
+                FROM escala_n2 e JOIN usuarios u ON u.id = e.n2_usuario_id
+                WHERE e.data = CURRENT_DATE ORDER BY e.horario_entrada ASC NULLS LAST, u.nome
+            """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "data": str(r[1]), "n2_usuario_id": r[2], "n2_nome": r[3],
+                 "horario_entrada": str(r[4])[:5] if r[4] else None, "modalidade": r[5], "atribuicao": r[6]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+def _escala_data_valida(data_str):
+    """Valida a data antes de gravar em escala_n2 -- o Postgres aceita
+    qualquer ano no tipo DATE (mesmo um com dígito a mais), mas o
+    psycopg2/Python trava ao ler de volta (datetime só vai até 9999),
+    derrubando a consulta inteira por causa de uma única linha ruim. Mesmo
+    bug já visto e corrigido em dev_tarefas.prazo (2026-07-27) -- validar
+    aqui evita repetir a história noutra tabela."""
+    try:
+        date.fromisoformat(data_str)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Data inválida — use o formato AAAA-MM-DD")
+
+@app.post("/api/escala-n2")
+def criar_escala_n2(e: EscalaN2Model, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    _escala_data_valida(e.data)
+    modalidade = e.modalidade if e.modalidade in MODALIDADES_ESCALA else "presencial"
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM status_atividades WHERE id=%s", (aid,))
+        bloqueio = _bloqueio_ativo(cur, e.n2_usuario_id, e.data, e.horario_entrada)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
+        cur.execute("""
+            INSERT INTO escala_n2 (data, n2_usuario_id, horario_entrada, modalidade, atribuicao)
+            VALUES (%s,%s,%s,%s,%s) RETURNING id
+        """, (e.data, e.n2_usuario_id, e.horario_entrada or None, modalidade, e.atribuicao))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
+    except Exception as e2: raise HTTPException(status_code=500, detail=str(e2))
+
+@app.put("/api/escala-n2/{eid}")
+def atualizar_escala_n2(eid: int, e: EscalaN2Model, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    _escala_data_valida(e.data)
+    modalidade = e.modalidade if e.modalidade in MODALIDADES_ESCALA else "presencial"
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        bloqueio = _bloqueio_ativo(cur, e.n2_usuario_id, e.data, e.horario_entrada)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data/horário: {bloqueio}")
+        cur.execute("""
+            UPDATE escala_n2 SET data=%s, n2_usuario_id=%s, horario_entrada=%s, modalidade=%s, atribuicao=%s, atualizado_em=NOW()
+            WHERE id=%s
+        """, (e.data, e.n2_usuario_id, e.horario_entrada or None, modalidade, e.atribuicao, eid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e2: raise HTTPException(status_code=500, detail=str(e2))
+
+@app.delete("/api/escala-n2/{eid}")
+def deletar_escala_n2(eid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM escala_n2 WHERE id=%s", (eid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class AtribuirLoteModel(BaseModel):
+    cliente_id: int
+    data: str
+    quantidade: int
+    n2_usuario_id: int
+
+@app.post("/api/status-campo/atribuir-lote")
+def atribuir_lote_status_campo(body: AtribuirLoteModel, faiston_token: str = Cookie(None)):
+    """Usado pelo Gerador de Escala: atribui de verdade o N2 a até
+    `quantidade` atividades já existentes (sem N2 ainda) daquele
+    cliente/data -- gerar escala sem isso só criava um registro de
+    plantão sem vínculo real com as atividades."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    try:
+        if datetime.strptime(body.data, "%Y-%m-%d").date() < date.today():
+            raise HTTPException(status_code=400, detail="Não é possível gerar escala pra uma data que já passou")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        bloqueio = _bloqueio_ativo(cur, body.n2_usuario_id, body.data)
+        if bloqueio:
+            raise HTTPException(status_code=400, detail=f"N2 indisponível nesta data: {bloqueio}")
+        _, n2_nome = _resolver_n2(cur, body.n2_usuario_id, "")
+        cur.execute("""
+            UPDATE status_atividades SET n2_usuario_id=%s, n2_responsavel=%s, atualizado_em=NOW()
+            WHERE id IN (
+                SELECT id FROM status_atividades
+                WHERE cliente_id=%s AND data=%s AND n2_usuario_id IS NULL
+                ORDER BY horario_agendado ASC NULLS LAST, id
+                LIMIT %s
+            )
+            RETURNING id
+        """, (body.n2_usuario_id, n2_nome, body.cliente_id, body.data, body.quantidade))
+        ids = [r[0] for r in cur.fetchall()]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "atribuidas": len(ids), "ids": ids}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ── Importação de planilha de cronograma/atividades ─────────────────────────
+# Mapeia só as colunas que já existem no sistema (cliente, subprojeto,
+# cidade/UF, técnico, agendamento/horário, status, N2 responsável, ticket,
+# observação) -- ignora de propósito colunas sensíveis/sem equivalente
+# (RG/CPF/telefone, valores financeiros, KM, HE, seriais, estoque etc.).
+_SC_IMPORT_HEADERS = {
+    'CLIENTE': 'cliente', 'PROJETO': 'projeto', 'SUBPROJETO': 'subprojeto',
+    'RESPONSAVEL': 'n2_responsavel', 'LOCALIDADE/ITASK': 'site', 'LOCALIDADE': 'site',
+    'ENDERECO': 'endereco', 'CIDADE': 'cidade', 'UF': 'uf',
+    'AGENDAMENTO': 'data', 'HORARIO': 'horario_agendado', 'TECNICO': 'tecnico',
+    'TICKET ATENDIMENTO': 'ticket', 'STATUS ATIVIDADE': 'status_raw', 'OBSERVACAO': 'observacoes',
+}
+
+def _sc_strip_acentos(s):
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFKD', str(s)) if not unicodedata.combining(c))
+
+def _sc_norm_header(h):
+    import re as _re
+    if h is None: return ""
+    s = _sc_strip_acentos(str(h)).strip().upper()
+    return _re.sub(r'\s+', ' ', s)
+
+def _sc_norm_nome(s):
+    import re as _re
+    s = _sc_strip_acentos(str(s or '')).strip().upper()
+    s = _re.sub(r'[^A-Z0-9 ]', ' ', s)
+    return _re.sub(r'\s+', ' ', s).strip()
+
+def _sc_mapear_status(raw):
+    u = _sc_strip_acentos(str(raw or '')).upper()
+    if 'CONCLUID' in u: return 'concluido'
+    if 'PARCIAL' in u: return 'parcial'
+    if 'IMPRODUTIV' in u: return 'improdutiva_cliente'
+    if 'CANCELAD' in u: return 'cancelado'
+    if 'ANDAMENTO' in u: return 'em_andamento'
+    if 'AGENDAD' in u: return 'agendado'
+    return None
+
+def _sc_find_sheet_and_header(wb):
+    """Escaneia todas as abas procurando a que tem mais colunas reconhecidas
+    (CLIENTE, STATUS ATIVIDADE, TECNICO etc.) nas primeiras linhas -- a
+    planilha real pode ter várias abas de resumo/tabela dinâmica junto,
+    só a aba com o log linha-a-linha interessa."""
+    melhor = None
+    for sname in wb.sheetnames:
+        ws = wb[sname]
+        for i, r in enumerate(ws.iter_rows(max_row=10, values_only=True)):
+            normed = {_sc_norm_header(c) for c in r if c is not None}
+            hits = len(normed & set(_SC_IMPORT_HEADERS.keys()))
+            if hits >= 3 and (melhor is None or hits > melhor[2]):
+                melhor = (sname, i, hits)
+    return melhor
+
+@app.post("/api/status-campo/importar-planilha")
+async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_token: str = Cookie(None)):
+    """Importa atividades de uma planilha externa (ex.: cronograma geral),
+    mapeando só as colunas que já existem no sistema. Cliente/Projeto da
+    planilha são casados por nome aproximado contra os clientes já
+    cadastrados -- o que não bate fica de fora e é reportado, não cria
+    cliente novo sozinho nem adivinha."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    global _OPENPYXL_OK, openpyxl
+    if not _OPENPYXL_OK:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
+        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        content = await file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+        achado = _sc_find_sheet_and_header(wb)
+        if not achado:
+            raise HTTPException(status_code=400,
+                detail="Nenhuma aba reconhecida (esperado colunas como CLIENTE, STATUS ATIVIDADE, TECNICO etc.)")
+        sname, hi, _ = achado
+        rows = list(wb[sname].iter_rows(values_only=True))
+        headers = rows[hi]
+        col = {}
+        for idx, h in enumerate(headers):
+            key = _SC_IMPORT_HEADERS.get(_sc_norm_header(h))
+            if key and key not in col: col[key] = idx
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM clientes WHERE ativo = TRUE")
+        clientes_norm = [(_sc_norm_nome(nome), cid) for cid, nome in cur.fetchall()]
+
+        def buscar_cliente(cliente_raw, projeto_raw):
+            for cand in (cliente_raw, projeto_raw, f"{cliente_raw} {projeto_raw}".strip()):
+                nn = _sc_norm_nome(cand)
+                if not nn: continue
+                for norm_nome, cid in clientes_norm:
+                    if norm_nome and (nn == norm_nome or nn in norm_nome or norm_nome in nn):
+                        return cid
+            return None
+
+        def get(r, field):
+            idx = col.get(field)
+            v = r[idx] if idx is not None and idx < len(r) else None
+            return v
+
+        def corta(v, tam):
+            return str(v or '').strip()[:tam]
+
+        importadas = 0
+        puladas_sem_cliente = {}
+        puladas_sem_status = 0
+        puladas_sem_data = 0
+        puladas_erro = 0
+        for r in rows[hi + 1:]:
+            cliente_raw = str(get(r, 'cliente') or '').strip()
+            projeto_raw = str(get(r, 'projeto') or '').strip()
+            if not cliente_raw and not projeto_raw:
+                continue
+            data_raw = get(r, 'data')
+            if isinstance(data_raw, datetime): data_val = data_raw.date().isoformat()
+            elif isinstance(data_raw, date): data_val = data_raw.isoformat()
+            else: data_val = None
+            if not data_val:
+                puladas_sem_data += 1
+                continue
+            cid = buscar_cliente(cliente_raw, projeto_raw)
+            if not cid:
+                chave = f"{cliente_raw} {projeto_raw}".strip()
+                puladas_sem_cliente[chave] = puladas_sem_cliente.get(chave, 0) + 1
+                continue
+            status_mapeado = _sc_mapear_status(get(r, 'status_raw'))
+            if not status_mapeado:
+                puladas_sem_status += 1
+                continue
+            horario_raw = get(r, 'horario_agendado')
+            horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
+            # Savepoint por linha -- planilhas reais têm valor fora do
+            # padrão de vez em quando (campo longo demais etc.); sem isso,
+            # uma linha ruim aborta a transação inteira e nada é salvo.
+            cur.execute("SAVEPOINT linha_import")
+            try:
+                cur.execute("""
+                    INSERT INTO status_atividades
+                        (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+                         site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (cid, data_val, horario_val, corta(get(r, 'tecnico'), 150),
+                      corta(get(r, 'n2_responsavel'), 150), corta(get(r, 'site'), 150),
+                      str(get(r, 'endereco') or '').strip(), corta(get(r, 'cidade'), 100),
+                      corta(get(r, 'uf'), 2), corta(get(r, 'subprojeto'), 150),
+                      corta(get(r, 'ticket'), 100), status_mapeado,
+                      str(get(r, 'observacoes') or '').strip(), sess["id"]))
+                cur.execute("RELEASE SAVEPOINT linha_import")
+                importadas += 1
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT linha_import")
+                puladas_erro += 1
+        conn.commit(); cur.close(); conn.close()
+        return {
+            "sucesso": True, "importadas": importadas, "aba_usada": sname,
+            "puladas_erro": puladas_erro,
+            "puladas_sem_cliente": [{"nome": k, "ocorrencias": v}
+                                     for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
+            "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
+        }
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao importar planilha: {str(e)}")
+
+# ── Importação da mesma planilha, agora pra Escala N2 ────────────────────
+# TECNICO (instalador de campo) e N2 (suporte remoto) são papéis sem
+# relação nenhuma entre si (esclarecido pelo usuário, 2026-07-30) -- casar
+# por nome nunca fazia sentido pra esse tipo de planilha (a versão antiga
+# deste endpoint fazia isso). Passa a fazer as duas coisas de uma vez: (1)
+# cria as atividades no Cronograma exatamente como o import de lá (mesmo
+# casamento de cliente por nome), e (2) distribui os N2 ativos por
+# rodízio entre as atividades recém-criadas sem N2 -- até 3 do mesmo
+# cliente/data por N2, mesma regra do Gerador de Escala manual (Painel
+# N2) -- gravando o vínculo em status_atividades e o plantão em escala_n2.
+@app.post("/api/escala-n2/importar-planilha")
+async def importar_planilha_escala_n2(file: UploadFile = File(...), faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    global _OPENPYXL_OK, openpyxl
+    if not _OPENPYXL_OK:
+        import subprocess, sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
+        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        content = await file.read()
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+        achado = _sc_find_sheet_and_header(wb)
+        if not achado:
+            raise HTTPException(status_code=400,
+                detail="Nenhuma aba reconhecida (esperado colunas como CLIENTE, STATUS ATIVIDADE, TECNICO etc.)")
+        sname, hi, _ = achado
+        rows = list(wb[sname].iter_rows(values_only=True))
+        headers = rows[hi]
+        col = {}
+        for idx, h in enumerate(headers):
+            key = _SC_IMPORT_HEADERS.get(_sc_norm_header(h))
+            if key and key not in col: col[key] = idx
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM clientes WHERE ativo = TRUE")
+        clientes_rows = cur.fetchall()
+        clientes_norm = [(_sc_norm_nome(nome), cid) for cid, nome in clientes_rows]
+        cliente_nome_por_id = {cid: nome for cid, nome in clientes_rows}
+
+        def buscar_cliente(cliente_raw, projeto_raw):
+            for cand in (cliente_raw, projeto_raw, f"{cliente_raw} {projeto_raw}".strip()):
+                nn = _sc_norm_nome(cand)
+                if not nn: continue
+                for norm_nome, cid in clientes_norm:
+                    if norm_nome and (nn == norm_nome or nn in norm_nome or norm_nome in nn):
+                        return cid
+            return None
+
+        cur.execute("SELECT id, nome FROM usuarios WHERE ativo=TRUE AND perfil='funcionario' AND cargo='n2' ORDER BY nome")
+        n2_ativos = cur.fetchall()
+        if not n2_ativos:
+            raise HTTPException(status_code=400, detail="Nenhum N2 ativo cadastrado -- não é possível gerar escala.")
+
+        def get(r, field):
+            idx = col.get(field)
+            v = r[idx] if idx is not None and idx < len(r) else None
+            return v
+
+        def corta(v, tam):
+            return str(v or '').strip()[:tam]
+
+        importadas = 0
+        puladas_sem_cliente = {}
+        puladas_sem_status = 0
+        puladas_sem_data = 0
+        puladas_erro = 0
+        criadas = []  # (id, data_iso, cliente_id, horario_val) -- só as escaláveis (não terminais)
+        for r in rows[hi + 1:]:
+            cliente_raw = str(get(r, 'cliente') or '').strip()
+            projeto_raw = str(get(r, 'projeto') or '').strip()
+            if not cliente_raw and not projeto_raw:
+                continue
+            data_raw = get(r, 'data')
+            if isinstance(data_raw, datetime): data_val = data_raw.date().isoformat()
+            elif isinstance(data_raw, date): data_val = data_raw.isoformat()
+            else: data_val = None
+            if not data_val:
+                puladas_sem_data += 1
+                continue
+            cid = buscar_cliente(cliente_raw, projeto_raw)
+            if not cid:
+                chave = f"{cliente_raw} {projeto_raw}".strip()
+                puladas_sem_cliente[chave] = puladas_sem_cliente.get(chave, 0) + 1
+                continue
+            status_mapeado = _sc_mapear_status(get(r, 'status_raw'))
+            if not status_mapeado:
+                puladas_sem_status += 1
+                continue
+            horario_raw = get(r, 'horario_agendado')
+            horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
+            cur.execute("SAVEPOINT linha_escala_import")
+            try:
+                cur.execute("""
+                    INSERT INTO status_atividades
+                        (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+                         site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                """, (cid, data_val, horario_val, corta(get(r, 'tecnico'), 150),
+                      None, corta(get(r, 'site'), 150),
+                      str(get(r, 'endereco') or '').strip(), corta(get(r, 'cidade'), 100),
+                      corta(get(r, 'uf'), 2), corta(get(r, 'subprojeto'), 150),
+                      corta(get(r, 'ticket'), 100), status_mapeado,
+                      str(get(r, 'observacoes') or '').strip(), sess["id"]))
+                new_id = cur.fetchone()[0]
+                cur.execute("RELEASE SAVEPOINT linha_escala_import")
+                importadas += 1
+                if status_mapeado not in STATUS_CAMPO_TERMINAIS:
+                    criadas.append((new_id, data_val, cid, horario_val))
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT linha_escala_import")
+                puladas_erro += 1
+
+        # Distribui N2 por rodízio entre as atividades recém-criadas ainda
+        # sem N2, agrupadas por (data, cliente) e em blocos de até 3 -- não
+        # tenta escalar o que já entrou concluído/cancelado/etc. como
+        # histórico (não faz sentido gerar plantão pro passado).
+        grupos = {}
+        for aid, data_val, cid, horario_val in criadas:
+            grupos.setdefault((data_val, cid), []).append((aid, horario_val))
+
+        # Regra de negócio: Kleber nunca atende Arcos Dourados (instrução
+        # explícita do usuário, 2026-07-30) -- pula pro próximo N2 do
+        # rodízio quando o cliente do bloco for esse.
+        def _n2_bloqueado_pro_cliente(nome_n2, cliente_nome_norm):
+            return cliente_nome_norm == 'ARCOS DOURADOS' and _sc_norm_nome(nome_n2) == 'KLEBER'
+
+        cursor_n2 = 0
+        dia_atual = None
+        escalas_criadas = 0
+        blocos_sem_n2 = 0
+        for (data_val, cid), itens in sorted(grupos.items()):
+            # reseta o rodízio a cada dia novo -- garante que todo N2
+            # disponível receba atividade no dia, em vez de sempre
+            # concentrar nos primeiros da lista quando o dia anterior
+            # deixou o cursor no meio (achado real, 2026-07-30).
+            if data_val != dia_atual:
+                dia_atual = data_val
+                cursor_n2 = 0
+            itens.sort(key=lambda x: (x[1] is None, x[1] or ''))
+            cliente_nome_norm = _sc_norm_nome(cliente_nome_por_id.get(cid, ''))
+            for i in range(0, len(itens), 3):
+                bloco = itens[i:i + 3]
+                bloco_ids = [b[0] for b in bloco]
+                horario_bloco = bloco[0][1]
+                n2_id = n2_nome = None
+                for offset in range(len(n2_ativos)):
+                    idx = (cursor_n2 + offset) % len(n2_ativos)
+                    cand_id, cand_nome = n2_ativos[idx]
+                    if _n2_bloqueado_pro_cliente(cand_nome, cliente_nome_norm):
+                        continue
+                    if _bloqueio_ativo(cur, cand_id, data_val, horario_bloco):
+                        continue
+                    n2_id, n2_nome = cand_id, cand_nome
+                    cursor_n2 = idx + 1  # próximo bloco continua depois deste, sem desalinhar
+                    break
+                if not n2_id:
+                    blocos_sem_n2 += 1
+                    cursor_n2 += 1
+                    continue
+                cur.execute("""
+                    UPDATE status_atividades SET n2_usuario_id=%s, n2_responsavel=%s, atualizado_em=NOW()
+                    WHERE id = ANY(%s)
+                """, (n2_id, n2_nome, bloco_ids))
+                hora_num = int(horario_bloco[:2]) if horario_bloco else None
+                modalidade = 'home' if (hora_num is not None and (hora_num < 8 or hora_num >= 18)) else 'presencial'
+                cliente_nome = cliente_nome_por_id.get(cid, '?')
+                atribuicao = f"{cliente_nome} ({len(bloco)} atividade{'s' if len(bloco) > 1 else ''})"[:200]
+                cur.execute("""
+                    INSERT INTO escala_n2 (data, n2_usuario_id, horario_entrada, modalidade, atribuicao)
+                    VALUES (%s,%s,%s,%s,%s)
+                """, (data_val, n2_id, horario_bloco, modalidade, atribuicao))
+                escalas_criadas += 1
+
+        conn.commit(); cur.close(); conn.close()
+        return {
+            "sucesso": True, "importadas": importadas, "aba_usada": sname,
+            "puladas_erro": puladas_erro,
+            "puladas_sem_cliente": [{"nome": k, "ocorrencias": v}
+                                     for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
+            "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
+            "escalas_criadas": escalas_criadas, "blocos_sem_n2_disponivel": blocos_sem_n2,
+        }
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao importar planilha: {str(e)}")
+
+@app.get("/api/painel-n2/resumo")
+def painel_n2_resumo(faiston_token: str = Cookie(None)):
+    """Lista de usuários N2 com atividades concluídas e horas trabalhadas
+    (hora_chegada -> hora_termino) na semana e no mês corrente -- substitui
+    o antigo resumo total/concluído/pendente, que não dava visão de carga
+    de trabalho por período."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, ativo FROM usuarios WHERE perfil='funcionario' AND cargo='n2' ORDER BY ativo DESC, nome")
+        n2s = cur.fetchall()
+        out = []
+        for uid, nome, ativo in n2s:
+            # Atividade que cruza a meia-noite (chegada 22h, término 2h) tem
+            # hora_termino < hora_chegada -- o CASE trata isso como "terminou
+            # no dia seguinte" em vez de excluir a visita da soma de horas
+            # (achado real, 2026-07-30: visita noturna sumia do total).
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE status='concluido' AND data >= date_trunc('week', CURRENT_DATE)::date),
+                    COUNT(*) FILTER (WHERE status='concluido' AND data >= date_trunc('month', CURRENT_DATE)::date),
+                    COALESCE(SUM(EXTRACT(EPOCH FROM (
+                        CASE WHEN hora_termino < hora_chegada
+                             THEN (hora_termino - hora_chegada) + INTERVAL '24 hours'
+                             ELSE hora_termino - hora_chegada END
+                    )) / 3600.0)
+                        FILTER (WHERE status='concluido' AND hora_chegada IS NOT NULL AND hora_termino IS NOT NULL
+                                AND data >= date_trunc('week', CURRENT_DATE)::date), 0),
+                    COALESCE(SUM(EXTRACT(EPOCH FROM (
+                        CASE WHEN hora_termino < hora_chegada
+                             THEN (hora_termino - hora_chegada) + INTERVAL '24 hours'
+                             ELSE hora_termino - hora_chegada END
+                    )) / 3600.0)
+                        FILTER (WHERE status='concluido' AND hora_chegada IS NOT NULL AND hora_termino IS NOT NULL
+                                AND data >= date_trunc('month', CURRENT_DATE)::date), 0)
+                FROM status_atividades WHERE n2_usuario_id = %s
+            """, (uid,))
+            ativ_semana, ativ_mes, horas_semana, horas_mes = cur.fetchone()
+            # Dias trabalhados = dias do período menos férias/afastamento/
+            # recorrência -- produtividade mais justa, com obs quando a
+            # pessoa ficou fora de parte do período (ponto 2 do feedback).
+            hoje = date.today()
+            inicio_semana = hoje - timedelta(days=hoje.weekday())
+            inicio_mes = hoje.replace(day=1)
+            dias_bloq_semana, _ = _dias_bloqueados_periodo(cur, uid, str(inicio_semana), str(hoje))
+            dias_bloq_mes, notas_mes = _dias_bloqueados_periodo(cur, uid, str(inicio_mes), str(hoje))
+            dias_trab_semana = max(1, (hoje - inicio_semana).days + 1 - dias_bloq_semana)
+            dias_trab_mes = max(1, (hoje - inicio_mes).days + 1 - dias_bloq_mes)
+            item = {
+                "id": uid, "nome": nome, "ativo": ativo,
+                "atividades_semana": ativ_semana, "atividades_mes": ativ_mes,
+                "horas_semana": round(float(horas_semana), 1), "horas_mes": round(float(horas_mes), 1),
+                "dias_trabalhados_semana": dias_trab_semana, "dias_trabalhados_mes": dias_trab_mes,
+                "horas_por_dia_mes": round(float(horas_mes) / dias_trab_mes, 2),
+            }
+            if dias_bloq_mes:
+                item["obs"] = f"{dias_bloq_mes} dia(s) fora no mês ({', '.join(sorted(set(notas_mes)))}) — produtividade tende a ser menor"
+            out.append(item)
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- EQUIPE DEV (kanban interno, restrito a perfil 'dev') ---
+DEV_STATUS_VALIDOS = ("backlog", "todo", "doing", "done")
+DEV_PRIORIDADE_VALIDAS = ("baixa", "media", "alta", "urgente")
+
+def _is_dev(sess):
+    return bool(sess) and sess.get("perfil_real") == "dev"
+
+def _dev_prazo_ou_none(prazo):
+    if not prazo: return None
+    try:
+        date.fromisoformat(prazo)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Prazo inválido — use o formato AAAA-MM-DD")
+    return prazo
+
+@app.get("/api/dev-tarefas/usuarios")
+def dev_listar_usuarios(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM usuarios WHERE perfil='dev' AND ativo=TRUE ORDER BY nome")
+        out = [{"id": r[0], "nome": r[1]} for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/dev-tarefas")
+def dev_listar_tarefas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT t.id, t.titulo, t.descricao, t.status, t.ordem, t.prioridade, t.prazo, t.tags, t.link,
+                   t.criado_por, cp.nome, t.atribuido_a, at.nome,
+                   t.criado_em, t.atualizado_em,
+                   (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id),
+                   (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id AND c.concluido),
+                   (SELECT COUNT(*) FROM dev_tarefa_comentarios cm WHERE cm.tarefa_id = t.id),
+                   t.pausado
+            FROM dev_tarefas t
+            LEFT JOIN usuarios cp ON cp.id = t.criado_por
+            LEFT JOIN usuarios at ON at.id = t.atribuido_a
+            ORDER BY t.status, t.ordem, t.criado_em
+        """)
+        out = [{
+            "id": r[0], "titulo": r[1], "descricao": r[2], "status": r[3], "ordem": r[4],
+            "prioridade": r[5], "prazo": r[6].isoformat() if r[6] else None, "tags": r[7] or [], "link": r[8],
+            "criado_por": r[9], "criado_por_nome": r[10],
+            "atribuido_a": r[11], "atribuido_a_nome": r[12],
+            "criado_em": r[13].strftime("%d/%m/%Y %H:%M") if r[13] else "",
+            "atualizado_em": r[14].strftime("%d/%m/%Y %H:%M") if r[14] else "",
+            "checklist_total": r[15], "checklist_concluidos": r[16], "comentarios_total": r[17],
+            "pausado": r[18],
+        } for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/dev-tarefas")
+def dev_criar_tarefa(t: DevTarefaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not t.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
+    status = t.status if t.status in DEV_STATUS_VALIDOS else "todo"
+    prioridade = t.prioridade if t.prioridade in DEV_PRIORIDADE_VALIDAS else "media"
+    tags = [tg.strip() for tg in t.tags if tg.strip()]
+    prazo = _dev_prazo_ou_none(t.prazo)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM dev_tarefas WHERE status = %s", (status,))
+        ordem = cur.fetchone()[0]
+        cur.execute("""
+            INSERT INTO dev_tarefas (titulo, descricao, status, ordem, prioridade, prazo, tags, link, criado_por, atribuido_a, pausado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a, t.pausado))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/dev-tarefas/{tid}")
+def dev_atualizar_tarefa(tid: int, t: DevTarefaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not t.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
+    status = t.status if t.status in DEV_STATUS_VALIDOS else "todo"
+    prioridade = t.prioridade if t.prioridade in DEV_PRIORIDADE_VALIDAS else "media"
+    tags = [tg.strip() for tg in t.tags if tg.strip()]
+    prazo = _dev_prazo_ou_none(t.prazo)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT status FROM dev_tarefas WHERE id = %s", (tid,))
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+        if row[0] != status:
+            cur.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM dev_tarefas WHERE status = %s", (status,))
+            ordem = cur.fetchone()[0]
+            cur.execute("""
+                UPDATE dev_tarefas SET titulo=%s, descricao=%s, status=%s, ordem=%s, prioridade=%s,
+                       prazo=%s, tags=%s, link=%s, atribuido_a=%s, pausado=%s, atualizado_em=NOW() WHERE id=%s
+            """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, tid))
+        else:
+            cur.execute("""
+                UPDATE dev_tarefas SET titulo=%s, descricao=%s, prioridade=%s, prazo=%s, tags=%s,
+                       link=%s, atribuido_a=%s, pausado=%s, atualizado_em=NOW() WHERE id=%s
+            """, (t.titulo.strip(), t.descricao, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, tid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/dev-tarefas/{tid}")
+def dev_deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM dev_tarefas WHERE id = %s", (tid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- EQUIPE DEV: comentários por tarefa ---
+@app.get("/api/dev-tarefas/{tid}/comentarios")
+def dev_listar_comentarios(tid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, usuario_nome, texto, criado_em FROM dev_tarefa_comentarios
+            WHERE tarefa_id = %s ORDER BY criado_em
+        """, (tid,))
+        out = [{"id": r[0], "usuario_nome": r[1], "texto": r[2],
+                "criado_em": r[3].strftime("%d/%m/%Y %H:%M") if r[3] else ""} for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/dev-tarefas/{tid}/comentarios")
+def dev_criar_comentario(tid: int, c: DevComentarioModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not c.texto.strip(): raise HTTPException(status_code=400, detail="Comentário vazio")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM dev_tarefas WHERE id = %s", (tid,))
+        if not cur.fetchone(): raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+        cur.execute("""
+            INSERT INTO dev_tarefa_comentarios (tarefa_id, usuario_id, usuario_nome, texto)
+            VALUES (%s, %s, %s, %s) RETURNING id
+        """, (tid, sess["id"], sess["nome"], c.texto.strip()))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/dev-tarefas/comentarios/{cid}")
+def dev_deletar_comentario(cid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM dev_tarefa_comentarios WHERE id = %s", (cid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- EQUIPE DEV: checklist por tarefa ---
+@app.get("/api/dev-tarefas/{tid}/checklist")
+def dev_listar_checklist(tid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, texto, concluido FROM dev_tarefa_checklist
+            WHERE tarefa_id = %s ORDER BY ordem, id
+        """, (tid,))
+        out = [{"id": r[0], "texto": r[1], "concluido": r[2]} for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/dev-tarefas/{tid}/checklist")
+def dev_criar_item_checklist(tid: int, item: DevChecklistItemModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not item.texto.strip(): raise HTTPException(status_code=400, detail="Item vazio")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM dev_tarefas WHERE id = %s", (tid,))
+        if not cur.fetchone(): raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+        cur.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM dev_tarefa_checklist WHERE tarefa_id = %s", (tid,))
+        ordem = cur.fetchone()[0]
+        cur.execute("""
+            INSERT INTO dev_tarefa_checklist (tarefa_id, texto, ordem) VALUES (%s, %s, %s) RETURNING id
+        """, (tid, item.texto.strip(), ordem))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/dev-tarefas/checklist/{iid}")
+def dev_atualizar_item_checklist(iid: int, item: DevChecklistItemModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not item.texto.strip(): raise HTTPException(status_code=400, detail="Item vazio")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE dev_tarefa_checklist SET texto=%s, concluido=%s WHERE id=%s",
+                    (item.texto.strip(), item.concluido, iid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/dev-tarefas/checklist/{iid}")
+def dev_deletar_item_checklist(iid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM dev_tarefa_checklist WHERE id = %s", (iid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# --- DIÁRIO DA EQUIPE DEV (registro do que foi mudado, pra não repetir trabalho) ---
+class DevDiarioModel(BaseModel):
+    titulo: str
+    descricao: str = ""
+
+@app.get("/api/dev-diario")
+def dev_listar_diario(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, titulo, descricao, autor_id, autor_nome, criado_em
+            FROM dev_diario ORDER BY criado_em DESC
+        """)
+        out = [{
+            "id": r[0], "titulo": r[1], "descricao": r[2], "autor_id": r[3], "autor_nome": r[4],
+            "criado_em": r[5].strftime("%d/%m/%Y %H:%M") if r[5] else "",
+        } for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/dev-diario")
+def dev_criar_diario(d: DevDiarioModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not d.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO dev_diario (titulo, descricao, autor_id, autor_nome)
+            VALUES (%s,%s,%s,%s) RETURNING id
+        """, (d.titulo.strip(), d.descricao.strip(), sess["id"], sess["nome"]))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/dev-diario/{did}")
+def dev_deletar_diario(did: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM dev_diario WHERE id = %s", (did,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ══════════════════════════════════════════════════════════════════
+# SUPORTE: qualquer usuário logado abre uma solicitação (bug, dúvida,
+# pedido de melhoria); só a equipe dev vê/gerencia. Canal de envio --
+# quem abre não acompanha status depois (decidido explicitamente).
+# ══════════════════════════════════════════════════════════════════
+SUPORTE_CATEGORIA_VALIDAS = ('bug', 'duvida', 'melhoria')
+SUPORTE_STATUS_VALIDOS = ('aberto', 'em_andamento', 'resolvido')
+SUPORTE_ANEXO_MAX_CHARS = 7_000_000  # ~5MB de imagem original, já em base64 (~33% maior)
+
+class SuporteSolicitacaoModel(BaseModel):
+    titulo: str
+    descricao: str
+    categoria: str = "duvida"
+    anexo_base64: Optional[str] = None
+    anexo_nome: Optional[str] = None
+
+SUPORTE_NOTIFICAR_EMAILS = ["vinicios75soares165@gmail.com", "rafael.libel@gmail.com"]
+
+def _suporte_enviar_notificacao(titulo, descricao, categoria, autor_nome, anexo_base64, anexo_nome):
+    """Dispara em background (não atrasa a resposta pra quem abriu a
+    solicitação). Só na branch de teste por enquanto (2026-07-30, a pedido
+    do usuário) -- destinatários fixos, não passa pela tela de admin."""
+    categoria_label = {"bug": "Bug", "duvida": "Dúvida", "melhoria": "Pedido de melhoria"}.get(categoria, categoria)
+    corpo = f"""
+        <p style="color:#3D4152;font-size:14.5px;margin:0 0 14px;line-height:1.6"><strong>{_esc_html_email(autor_nome)}</strong> abriu uma solicitação de suporte.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td style="background:#F7F7FB;border:1px solid #E5E8F0;border-radius:12px;padding:16px 18px">
+            <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#9097AC">{categoria_label}</p>
+            <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#0B0D1F">{_esc_html_email(titulo)}</p>
+            <p style="margin:0;font-size:14px;color:#3D4152;white-space:pre-line">{_esc_html_email(descricao)}</p>
+          </td></tr>
+        </table>
+        <p style="color:#8A8FA3;font-size:12.5px;margin:0;line-height:1.6">{"Print anexado a este e-mail." if anexo_base64 else "Sem anexo."} Veja e gerencie na Área de Dev &gt; Suporte.</p>
+    """
+    anexos = None
+    if anexo_base64 and "," in anexo_base64:
+        conteudo_b64 = anexo_base64.split(",", 1)[1]
+        anexos = [{"content": conteudo_b64, "name": anexo_nome or "anexo.png"}]
+    _brevo_send(SUPORTE_NOTIFICAR_EMAILS, f"🎫 Nova solicitação de suporte — {titulo}",
+                _shell_email("Nova solicitação", categoria_label, corpo), anexos=anexos)
+
+def _esc_html_email(s):
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+@app.post("/api/suporte")
+def criar_suporte(s: SuporteSolicitacaoModel, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if not s.titulo.strip(): raise HTTPException(status_code=400, detail="Título obrigatório")
+    if not s.descricao.strip(): raise HTTPException(status_code=400, detail="Descrição obrigatória")
+    categoria = s.categoria if s.categoria in SUPORTE_CATEGORIA_VALIDAS else "duvida"
+    if s.anexo_base64 and len(s.anexo_base64) > SUPORTE_ANEXO_MAX_CHARS:
+        raise HTTPException(status_code=400, detail="Anexo muito grande (máximo ~5MB)")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO suporte_solicitacoes
+                (titulo, descricao, categoria, anexo_base64, anexo_nome, criado_por, criado_por_nome)
+            VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (s.titulo.strip()[:200], s.descricao.strip(), categoria,
+              s.anexo_base64 or None, (s.anexo_nome or '').strip()[:200] or None,
+              sess["id"], sess["nome"]))
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        bg.add_task(_suporte_enviar_notificacao, s.titulo.strip()[:200], s.descricao.strip(), categoria,
+                    sess["nome"], s.anexo_base64, s.anexo_nome)
+        return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/dev-suporte")
+def dev_listar_suporte(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, titulo, descricao, categoria, status, criado_por_nome, criado_em,
+                   (anexo_base64 IS NOT NULL) AS tem_anexo
+            FROM suporte_solicitacoes ORDER BY criado_em DESC
+        """)
+        out = [{
+            "id": r[0], "titulo": r[1], "descricao": r[2], "categoria": r[3], "status": r[4],
+            "criado_por_nome": r[5], "criado_em": r[6].strftime("%d/%m/%Y %H:%M") if r[6] else "",
+            "tem_anexo": r[7],
+        } for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/dev-suporte/{sid}/anexo")
+def dev_ver_anexo_suporte(sid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT anexo_base64, anexo_nome FROM suporte_solicitacoes WHERE id=%s", (sid,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row or not row[0]: raise HTTPException(status_code=404, detail="Sem anexo")
+        return {"anexo_base64": row[0], "anexo_nome": row[1]}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class SuporteStatusModel(BaseModel):
+    status: str
+
+@app.put("/api/dev-suporte/{sid}/status")
+def dev_atualizar_status_suporte(sid: int, s: SuporteStatusModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if s.status not in SUPORTE_STATUS_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE suporte_solicitacoes SET status=%s, atualizado_em=NOW() WHERE id=%s", (s.status, sid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/dev-suporte/{sid}")
+def dev_deletar_suporte(sid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM suporte_solicitacoes WHERE id = %s", (sid,))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

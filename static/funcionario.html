@@ -1,11 +1,38 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <script>
+    // CSRF (double-submit cookie): intercepta fetch() global pra anexar o
+    // header X-CSRF-Token em toda chamada que muda estado, sem reescrever
+    // cada fetch() espalhado pela tela (2026-07-30). Precisa rodar antes de
+    // qualquer outro script que chame fetch(), por isso é o primeiro <script>.
+    (function() {
+        var _fetchOriginal = window.fetch;
+        function csrfCookie() {
+            var m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        window.fetch = function(input, init) {
+            init = init || {};
+            var metodo = (init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                var token = csrfCookie();
+                if (token) {
+                    var headers = new Headers(init.headers || {});
+                    headers.set('X-CSRF-Token', token);
+                    init = Object.assign({}, init, { headers: headers });
+                }
+            }
+            return _fetchOriginal(input, init);
+        };
+    })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
     <title>Painel do Funcionário</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -26,6 +53,13 @@
             --grad: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
             --glow: 0 12px 32px -8px rgba(184,38,201,0.45), 0 4px 12px -4px rgba(91,46,224,0.35);
         }
+        /* ── Passada visual (2026-07-28), replicada do Dashboard ── */
+        #page-titulo, h2.text-base.font-bold.text-faiston-dark {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            letter-spacing: -0.01em;
+        }
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
         .grad-bg  { background: var(--grad); }
         .grad-text{ background: var(--grad); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; }
         .btn-grad { background: var(--grad); box-shadow: var(--glow); transition: transform .12s ease, box-shadow .2s ease; }
@@ -168,14 +202,14 @@
 <body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
 
 <!-- HEADER -->
-<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+<header class="bg-white border-b border-faiston-border px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sticky top-0 z-20">
     <div class="flex items-center gap-3" data-embed-hide>
         <img src="/faiston-ops-mark.svg" alt="" class="w-9 h-9 rounded-[10px] shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
         <span class="font-extrabold tracking-tight text-faiston-dark text-[15px]">FAISTON <span class="grad-text">OPS</span></span>
         <span class="w-px h-4 bg-slate-200 mx-1"></span>
-        <span class="text-sm text-slate-500 font-medium">Minhas Tarefas</span>
+        <span id="page-titulo" class="text-sm text-slate-500 font-medium">Minhas Tarefas</span>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
         <!-- Timer global -->
         <div id="global-timer" class="hidden items-center gap-2 bg-white border border-faiston-purple/30 rounded-lg px-3 py-1.5 shadow-[0_0_0_4px_rgba(91,46,224,0.06)]">
             <div class="w-2 h-2 rounded-full bg-faiston-purple pulse-dot"></div>
@@ -217,6 +251,9 @@
                 </div>
             </div>
         </div>
+        <button onclick="suporteAbrirModal()" data-embed-hide title="Falar com o suporte" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple">
+            <i class="ph ph-lifebuoy text-lg"></i>
+        </button>
         <button onclick="logout()" data-embed-hide class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
             <i class="ph ph-sign-out"></i> Sair
         </button>
@@ -260,13 +297,18 @@
             style="background:transparent;color:#9097AC;box-shadow:none">
             <i class="ph ph-folder-open text-base"></i> Projetos
         </button>
+        <button onclick="switchTab('statusreport')" id="tab-statusreport"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-map-pin-line text-base"></i> Status Report
+        </button>
     </div>
 
     <!-- VIEW: KANBAN -->
     <div id="view-kanban-func">
 
     <!-- KPIs -->
-    <div class="grid grid-cols-4 gap-4 mb-5">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <div class="bg-white rounded-2xl p-4 border border-faiston-border flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
                 <i class="ph ph-clipboard-text text-lg text-faiston-muted"></i>
@@ -306,7 +348,7 @@
     </div>
 
     <!-- KANBAN -->
-    <div class="grid grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 
         <!-- COLUNA: ABERTO -->
         <div class="flex flex-col">
@@ -437,6 +479,52 @@
         </div>
     </div>
 
+    <!-- VIEW: STATUS REPORT (leitura) -->
+    <div id="view-statusreport-func" class="hidden">
+        <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
+            <div>
+                <h2 class="text-base font-bold text-faiston-dark">Status Report</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Atividades de campo (N2) por site/cliente — visão de leitura.</p>
+            </div>
+            <div class="flex items-center gap-1 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+                <button onclick="frSetView('kanban')" id="fr-view-kanban-btn"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                    style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+                    <i class="ph ph-kanban"></i> Kanban
+                </button>
+                <button onclick="frSetView('lista')" id="fr-view-lista-btn"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                    style="background:transparent;color:#9097AC;box-shadow:none">
+                    <i class="ph ph-list-bullets"></i> Lista
+                </button>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-faiston-border p-4 mb-4 flex items-center gap-3 flex-wrap">
+            <select id="fr-f-cliente" onchange="frBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os projetos</option>
+            </select>
+            <select id="fr-f-status" onchange="frBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
+                <option value="">Todos os status</option>
+                <option value="agendado">Agendado</option>
+                <option value="em_andamento">Em andamento</option>
+                <option value="concluido">Concluído</option>
+                <option value="parcial">Parcial</option>
+                <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+                <option value="improdutiva_faiston">Improdutiva — Faiston</option>
+                <option value="cancelado">Cancelado</option>
+            </select>
+            <input type="date" id="fr-f-data" onchange="frBuscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-cyan">
+            <button onclick="frLimparFiltros()" class="text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1">
+                <i class="ph ph-x-circle"></i> Limpar
+            </button>
+            <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full ml-auto" id="fr-count-label">carregando...</span>
+        </div>
+        <div id="fr-kanban-wrap" class="overflow-x-auto custom-scrollbar pb-2">
+            <div id="fr-kanban" class="flex items-stretch gap-3"></div>
+        </div>
+        <div id="fr-lista" class="hidden"></div>
+    </div>
+
     <!-- MODAL CARIMBO (criar/editar) -->
     <div id="modal-carimbo-func" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden slide-up border border-faiston-border">
@@ -467,7 +555,19 @@
     </div>
 
 </main>
-
+<!-- MODAL TABELA DE PESOS (consulta) -->
+<div id="modal-pesos" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[60] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col border border-faiston-border">
+        <div class="px-5 py-3 border-b border-faiston-border flex items-center justify-between">
+            <div>
+                <span class="font-bold text-faiston-dark text-sm">Tabela de Pesos</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">1 = rotina rápida · 4 = complexa</p>
+            </div>
+            <button onclick="fecharTabelaPesos()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="conteudo-tabela-pesos" class="overflow-y-auto p-4 space-y-4 text-sm"></div>
+    </div>
+</div>
 <!-- MODAL NOVA/EDITAR TAREFA -->
 <div id="modal" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden slide-up border border-faiston-border">
@@ -504,6 +604,22 @@
                     class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                 <datalist id="lista-demandas"></datalist>
                 <p class="text-[10px] text-faiston-faint mt-1">Não cria cliente nem projeto — só agrupa as tarefas no quadro.</p>
+            </div>
+                        <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block flex items-center justify-between">
+                    <span>Tipo de Atividade <span class="text-faiston-pink">*</span></span>
+                    <button type="button" onclick="abrirTabelaPesos()" class="normal-case tracking-normal text-[10px] font-semibold text-faiston-purple hover:underline">ver tabela de pesos</button>
+                </label>
+                <select id="input-tipo-atividade" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="">Selecione...</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Natureza <span class="text-faiston-pink">*</span></label>
+                <select id="input-natureza" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                    <option value="programada">Programada</option>
+                    <option value="urgente">Urgente / última hora</option>
+                </select>
             </div>
             <div>
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Prioridade</label>
@@ -542,7 +658,7 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">
-                        <i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Prazo (até quando)
+                        <i class="ph ph-calendar-x text-faiston-pink mr-1"></i>Previsão de conclusão <span class="text-faiston-pink">*</span>
                     </label>
                     <div class="flex gap-2">
                         <input type="date" id="input-prazo"
@@ -655,7 +771,7 @@
 </div>
 
 <!-- NOTAS WIDGET -->
-<div id="notas-widget" style="position:fixed;bottom:24px;right:24px;z-index:40;width:360px">
+<div id="notas-widget" style="position:fixed;bottom:16px;right:16px;left:16px;z-index:40;width:360px;max-width:calc(100vw - 32px);margin-left:auto">
     <div id="notas-collapsed" onclick="toggleNotas()"
         class="cursor-pointer flex items-center gap-3 bg-white border border-faiston-border rounded-2xl px-4 py-3 transition-all"
         style="box-shadow:0 4px 24px rgba(74,0,224,0.12)">
@@ -727,6 +843,7 @@ let calMes = new Date().getMonth();
 let calAno = new Date().getFullYear();
 let agrupamentoFunc = localStorage.getItem('agrupamentoFunc') || 'cliente';
 const gruposRecolhidos = new Set();  // chaves "status::grupo" recolhidas no kanban
+const diasRecolhidosFunc = new Set();  // dias (yyyy-mm-dd) recolhidos na coluna Concluído
 
 function toggleGrupoFunc(headerEl) {
     const gkey  = headerEl.dataset.gkey;
@@ -736,6 +853,27 @@ function toggleGrupoFunc(headerEl) {
     cards.style.display = aberto ? 'none' : 'flex';
     if (chev) chev.style.transform = aberto ? 'rotate(-90deg)' : 'rotate(0deg)';
     if (aberto) gruposRecolhidos.add(gkey); else gruposRecolhidos.delete(gkey);
+}
+
+function toggleDiaFunc(headerEl) {
+    const dia   = headerEl.dataset.dia;
+    const body  = headerEl.parentElement.querySelector('.dia-cards');
+    const chev  = headerEl.querySelector('.dia-chevron');
+    const aberto = body.style.display !== 'none';
+    body.style.display = aberto ? 'none' : 'flex';
+    if (chev) chev.style.transform = aberto ? 'rotate(0deg)' : 'rotate(180deg)';
+    if (aberto) diasRecolhidosFunc.add(dia); else diasRecolhidosFunc.delete(dia);
+}
+
+function gkDiaLabel(dataISO) {
+    if (!dataISO || !/^\d{4}-\d{2}-\d{2}$/.test(dataISO)) return 'Sem data';
+    const [ano, mes, dia] = dataISO.split('-').map(Number);
+    const d = new Date(ano, mes - 1, dia);
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const ontem = new Date(hoje); ontem.setDate(ontem.getDate() - 1);
+    if (d.getTime() === hoje.getTime()) return 'Hoje';
+    if (d.getTime() === ontem.getTime()) return 'Ontem';
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
 function setAgrupamentoFunc(modo) {
@@ -960,13 +1098,172 @@ function switchTab(tab) {
     document.getElementById('tab-agenda').style.cssText   = tab==='agenda'   ? ACTIVE : INACTIVE;
     document.getElementById('tab-carimbos').style.cssText = tab==='carimbos' ? ACTIVE : INACTIVE;
     document.getElementById('tab-projetos').style.cssText = tab==='projetos' ? ACTIVE : INACTIVE;
+    document.getElementById('tab-statusreport').style.cssText = tab==='statusreport' ? ACTIVE : INACTIVE;
     document.getElementById('view-kanban-func').classList.toggle('hidden', tab !== 'kanban');
     document.getElementById('view-agenda-func').classList.toggle('hidden', tab !== 'agenda');
     document.getElementById('view-carimbos-func').classList.toggle('hidden', tab !== 'carimbos');
     document.getElementById('view-projetos-func').classList.toggle('hidden', tab !== 'projetos');
+    document.getElementById('view-statusreport-func').classList.toggle('hidden', tab !== 'statusreport');
     if (tab === 'agenda') renderAgenda();
     if (tab === 'carimbos') renderCarimbos();
     if (tab === 'projetos') renderProjetos();
+    if (tab === 'statusreport') frAbrir();
+}
+
+// ── STATUS REPORT (leitura, todos os perfis podem ver) ──────────────
+const FR_STATUS_LABEL = {
+    agendado: 'Agendado', em_andamento: 'Em andamento', concluido: 'Concluído',
+    parcial: 'Parcial', improdutiva_cliente: 'Improdutiva — Cliente', improdutiva_faiston: 'Improdutiva — Faiston',
+    cancelado: 'Cancelado',
+};
+const FR_STATUS_MAP = {
+    'Agendado': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Em andamento': 'text-faiston-cyan bg-faiston-cyan/10 border-faiston-cyan/30',
+    'Concluído': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+    'Parcial': 'text-amber-600 bg-amber-50 border-amber-200',
+    'Improdutiva — Cliente': 'text-faiston-pink bg-faiston-pink/10 border-faiston-pink/30',
+    'Improdutiva — Faiston': 'text-faiston-magenta bg-faiston-magenta/10 border-faiston-magenta/30',
+    'Cancelado': 'text-slate-500 bg-slate-100 border-slate-200',
+};
+let frCarregado = false;
+
+async function frAbrir() {
+    if (frCarregado) { frBuscar(); return; }
+    frCarregado = true;
+    frSetView(frModoView);
+    try {
+        const res = await fetch('/api/clientes');
+        if (res.ok) {
+            const clientes = await res.json();
+            document.getElementById('fr-f-cliente').insertAdjacentHTML('beforeend',
+                clientes.map(c => `<option value="${c.id}">${escHtmlC(c.nome)}</option>`).join(''));
+        }
+    } catch (e) {}
+    frBuscar();
+}
+
+function frLimparFiltros() {
+    document.getElementById('fr-f-cliente').value = '';
+    document.getElementById('fr-f-status').value = '';
+    document.getElementById('fr-f-data').value = '';
+    frBuscar();
+}
+
+function frCardAtividade(a) {
+    const chips = [];
+    if (a.subprojeto) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${escHtmlC(a.subprojeto)}</span>`);
+    if (a.ticket) chips.push(`<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">Ticket ${escHtmlC(a.ticket)}</span>`);
+    return `
+        <div class="bg-white border border-faiston-border rounded-xl p-4 mb-3">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                    <span class="text-xs font-bold text-faiston-purple">${escHtmlC(a.cliente_nome || '—')}</span>
+                    <span class="text-sm font-semibold ml-2">${escHtmlC(a.site_sigla || a.site_nome || '(sem site)')}</span>
+                </div>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ${FR_STATUS_MAP[FR_STATUS_LABEL[a.status]] || 'text-slate-500 bg-slate-100 border-slate-200'}">${escHtmlC(FR_STATUS_LABEL[a.status] || a.status)}</span>
+            </div>
+            <div class="flex gap-3 flex-wrap text-xs text-faiston-muted mt-1.5">
+                <span>${fmtDataProj(a.data)}</span>
+                ${a.horario_agendado ? `<span>${escHtmlC(a.horario_agendado)}</span>` : ''}
+                ${a.tecnico ? `<span>Técnico: ${escHtmlC(a.tecnico)}</span>` : ''}
+                ${a.n2_responsavel ? `<span>N2: ${escHtmlC(a.n2_responsavel)}</span>` : ''}
+                ${a.cidade ? `<span>${escHtmlC(a.cidade)}${a.uf ? '/' + escHtmlC(a.uf) : ''}</span>` : ''}
+            </div>
+            ${chips.length ? `<div class="flex gap-1.5 flex-wrap mt-2">${chips.join('')}</div>` : ''}
+            ${a.andamento_descricao ? `<div class="text-xs text-faiston-cyan mt-2"><i class="ph ph-info"></i> ${escHtmlC(a.andamento_descricao)}</div>` : ''}
+            ${a.observacoes ? `<div class="text-xs text-faiston-faint mt-1.5 italic">${escHtmlC(a.observacoes)}</div>` : ''}
+        </div>`;
+}
+
+let frModoView = localStorage.getItem('frModoView') || 'kanban';
+let frUltimaLista = [];
+
+function frSetView(modo) {
+    frModoView = modo;
+    localStorage.setItem('frModoView', modo);
+    const ACTIVE = 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+    const INACTIVE = 'background:transparent;color:#9097AC;box-shadow:none';
+    document.getElementById('fr-view-kanban-btn').style.cssText = modo==='kanban' ? ACTIVE : INACTIVE;
+    document.getElementById('fr-view-lista-btn').style.cssText  = modo==='lista'  ? ACTIVE : INACTIVE;
+    document.getElementById('fr-kanban-wrap').classList.toggle('hidden', modo !== 'kanban');
+    document.getElementById('fr-lista').classList.toggle('hidden', modo !== 'lista');
+    frRenderView(frUltimaLista);
+}
+
+function frRenderView(rows) {
+    document.getElementById('fr-count-label').textContent = `${rows.length} atividade(s)`;
+    if (frModoView === 'kanban') { frRenderKanban(rows); return; }
+    const lista = document.getElementById('fr-lista');
+    lista.innerHTML = rows.length
+        ? rows.map(frCardAtividade).join('')
+        : '<div class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</div>';
+}
+
+const FR_KANBAN_COLUNAS = [
+    { status: 'agendado', label: 'Agendado', dot: 'bg-amber-400' },
+    { status: 'em_andamento', label: 'Em andamento', dot: 'bg-faiston-cyan' },
+    { status: 'parcial', label: 'Parcial', dot: 'bg-amber-400' },
+    { status: 'concluido', label: 'Concluído', dot: 'bg-emerald-400' },
+    { status: 'improdutiva_cliente', label: 'Improdutiva — Cliente', dot: 'bg-faiston-pink' },
+    { status: 'improdutiva_faiston', label: 'Improdutiva — Faiston', dot: 'bg-faiston-magenta' },
+    { status: 'cancelado', label: 'Cancelado', dot: 'bg-slate-400' },
+];
+
+function frKanbanCardHtml(r) {
+    return `<div class="bg-white border border-faiston-border rounded-xl p-3">
+        <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="text-xs font-bold text-faiston-purple truncate">${escHtmlC(r.cliente_nome || '—')}</span>
+            <span class="text-[10px] text-faiston-faint whitespace-nowrap flex-shrink-0">${fmtDataProj(r.data)}</span>
+        </div>
+        <p class="text-sm font-semibold text-faiston-dark truncate">${escHtmlC(r.site_sigla || r.site_nome || '—')}</p>
+        ${r.subprojeto ? `<p class="text-[11px] text-slate-500 truncate">${escHtmlC(r.subprojeto)}</p>` : ''}
+        <div class="flex flex-col gap-0.5 mt-1.5 text-[11px] text-faiston-muted">
+            ${r.tecnico ? `<span class="truncate"><i class="ph ph-hard-hat"></i> ${escHtmlC(r.tecnico)}</span>` : ''}
+            ${r.n2_responsavel ? `<span class="truncate"><i class="ph ph-headset"></i> ${escHtmlC(r.n2_responsavel)}</span>` : ''}
+        </div>
+    </div>`;
+}
+
+function frRenderKanban(rows) {
+    const board = document.getElementById('fr-kanban');
+    if (!rows.length) {
+        board.innerHTML = '<div class="w-full text-center py-12 text-slate-300 text-sm">Nenhuma atividade encontrada.</div>';
+        return;
+    }
+    board.innerHTML = FR_KANBAN_COLUNAS.map(col => {
+        const itens = rows.filter(r => r.status === col.status);
+        return `<div class="flex-shrink-0 w-72 flex flex-col">
+            <div class="flex items-center gap-2 mb-2 px-1">
+                <span class="w-2 h-2 rounded-full ${col.dot} flex-shrink-0"></span>
+                <span class="text-xs font-bold text-faiston-dark truncate">${col.label}</span>
+                <span class="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full ml-auto flex-shrink-0">${itens.length}</span>
+            </div>
+            <div class="flex flex-col gap-2 bg-slate-50/60 rounded-2xl border border-faiston-border p-2 min-h-[140px] flex-1">
+                ${itens.map(frKanbanCardHtml).join('') || '<p class="text-center text-[11px] text-slate-300 py-8">Vazio</p>'}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function frBuscar() {
+    const params = new URLSearchParams();
+    const clienteId = document.getElementById('fr-f-cliente').value;
+    const status = document.getElementById('fr-f-status').value;
+    const data = document.getElementById('fr-f-data').value;
+    if (clienteId) params.set('cliente_id', clienteId);
+    if (status) params.set('status', status);
+    if (data) params.set('data', data);
+
+    try {
+        const res = await fetch('/api/status-campo?' + params.toString());
+        if (!res.ok) throw new Error();
+        frUltimaLista = await res.json();
+        frRenderView(frUltimaLista);
+    } catch (e) {
+        document.getElementById('fr-count-label').textContent = 'erro';
+        document.getElementById('fr-kanban').innerHTML = '<div class="w-full text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+        document.getElementById('fr-lista').innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+    }
 }
 
 // ── TAREFAS ──────────────────────────────────────────────────────────
@@ -982,6 +1279,33 @@ async function carregarTarefas() {
 }
 
 // ── KANBAN RENDER ────────────────────────────────────────────────────
+function montarGruposFunc(tasksList, status, porProjeto, diaPrefix) {
+    const grupos = {};
+    tasksList.forEach(t => {
+        const chave = porProjeto ? (t.projeto_nome || 'Sem projeto') : t.cliente;
+        if (!grupos[chave]) grupos[chave] = [];
+        grupos[chave].push(t);
+    });
+
+    return Object.entries(grupos).map(([chave, grpTasks]) => {
+        const cor = getClientColor(chave);
+        const icone = porProjeto ? '<i class="ph ph-folder-simple text-[11px]" style="color:'+cor+'"></i>' : '<div class="w-2 h-2 rounded-full flex-shrink-0" style="background:'+cor+'"></div>';
+        const cards = grpTasks.map(task => renderKanbanCard(task, status)).join('');
+        const gkey = status + '::' + (diaPrefix ? diaPrefix + '::' : '') + chave;
+        const recolhido = gruposRecolhidos.has(gkey);
+        const safeKey = gkey.replace(/"/g, '&quot;');
+        return `<div class="mb-4">
+            <div onclick="toggleGrupoFunc(this)" data-gkey="${safeKey}" class="flex items-center gap-2 mb-2 px-1 cursor-pointer select-none rounded-md hover:bg-slate-100/60 py-1 transition-colors">
+                ${icone}
+                <span class="text-[10px] font-bold uppercase tracking-wider" style="color:${cor}">${chave}</span>
+                <span class="text-[10px] text-slate-400 ml-auto">${grpTasks.length} tarefa${grpTasks.length>1?'s':''}</span>
+                <i class="ph ph-caret-down text-[11px] text-slate-400 grp-chevron" style="transition:transform .2s ease;transform:rotate(${recolhido?'-90deg':'0deg'})"></i>
+            </div>
+            <div class="grp-cards flex flex-col gap-2" style="display:${recolhido?'none':'flex'}">${cards}</div>
+        </div>`;
+    }).join('');
+}
+
 function renderTasks() {
     const fc = document.getElementById('filter-cliente').value;
     const fp = document.getElementById('filter-prioridade').value;
@@ -1009,28 +1333,38 @@ function renderTasks() {
 
         // Agrupa por cliente ou por projeto (seletor "Agrupar")
         const porProjeto = agrupamentoFunc === 'projeto';
-        const grupos = {};
+
+        if (status !== 'concluido') {
+            col.innerHTML = montarGruposFunc(filtered, status, porProjeto, '');
+            return;
+        }
+
+        // Concluído: agrupa por dia de conclusão antes de agrupar por cliente/projeto
+        const porDia = {};
         filtered.forEach(t => {
-            const chave = porProjeto ? (t.projeto_nome || 'Sem projeto') : t.cliente;
-            if (!grupos[chave]) grupos[chave] = [];
-            grupos[chave].push(t);
+            const raw = t.concluido_em || t.atualizado_em || t.criado_em;
+            const chave = (raw && /^\d{4}-\d{2}-\d{2}/.test(raw)) ? raw.slice(0, 10) : 'sem-data';
+            (porDia[chave] = porDia[chave] || []).push(t);
+        });
+        const diasOrdenados = Object.keys(porDia).sort((a, b) => {
+            if (a === 'sem-data') return 1;
+            if (b === 'sem-data') return -1;
+            return b.localeCompare(a);
         });
 
-        col.innerHTML = Object.entries(grupos).map(([chave, grpTasks]) => {
-            const cor = getClientColor(chave);
-            const icone = porProjeto ? '<i class="ph ph-folder-simple text-[11px]" style="color:'+cor+'"></i>' : '<div class="w-2 h-2 rounded-full flex-shrink-0" style="background:'+cor+'"></div>';
-            const cards = grpTasks.map(task => renderKanbanCard(task, status)).join('');
-            const gkey = status + '::' + chave;
-            const recolhido = gruposRecolhidos.has(gkey);
-            const safeKey = gkey.replace(/"/g, '&quot;');
-            return `<div class="mb-4">
-                <div onclick="toggleGrupoFunc(this)" data-gkey="${safeKey}" class="flex items-center gap-2 mb-2 px-1 cursor-pointer select-none rounded-md hover:bg-slate-100/60 py-1 transition-colors">
-                    ${icone}
-                    <span class="text-[10px] font-bold uppercase tracking-wider" style="color:${cor}">${chave}</span>
-                    <span class="text-[10px] text-slate-400 ml-auto">${grpTasks.length} tarefa${grpTasks.length>1?'s':''}</span>
-                    <i class="ph ph-caret-down text-[11px] text-slate-400 grp-chevron" style="transition:transform .2s ease;transform:rotate(${recolhido?'-90deg':'0deg'})"></i>
+        col.innerHTML = diasOrdenados.map(dia => {
+            const tasksDoDia = porDia[dia];
+            const label = gkDiaLabel(dia);
+            const aberto = !diasRecolhidosFunc.has(dia) && (label === 'Hoje' || label === 'Ontem');
+            const safeDia = dia.replace(/"/g, '&quot;');
+            return `<div class="mb-5">
+                <div onclick="toggleDiaFunc(this)" data-dia="${safeDia}" class="flex items-center gap-2 mb-2 px-1 py-1 cursor-pointer select-none border-b border-faiston-border">
+                    <i class="ph ph-calendar-check text-[12px] text-faiston-cyan"></i>
+                    <span class="text-[11px] font-extrabold uppercase tracking-wider text-faiston-dark">${label}</span>
+                    <span class="text-[10px] text-slate-400">${tasksDoDia.length} tarefa${tasksDoDia.length>1?'s':''}</span>
+                    <i class="ph ph-caret-down text-[11px] text-slate-400 ml-auto dia-chevron" style="transition:transform .2s ease;transform:rotate(${aberto?'180deg':'0deg'})"></i>
                 </div>
-                <div class="grp-cards flex flex-col gap-2" style="display:${recolhido?'none':'flex'}">${cards}</div>
+                <div class="dia-cards flex flex-col" style="display:${aberto?'flex':'none'}">${montarGruposFunc(tasksDoDia, status, porProjeto, dia)}</div>
             </div>`;
         }).join('');
     });
@@ -1215,6 +1549,10 @@ function editTask(taskId) {
     }
     selecionarProjeto(task.projeto_id || '');
     document.getElementById('input-prioridade').value = task.prioridade;
+    carregarTiposAtividade().then(() => {
+    document.getElementById('input-tipo-atividade').value = task.tipo_atividade_id || '';
+    });
+    document.getElementById('input-natureza').value = task.natureza || 'programada';
     document.getElementById('input-status').value = task.status;
     // Mostra o tempo total, incluindo a sessão em andamento, para que o usuário edite o valor correto
     const totalSecs = task._running && timerStart
@@ -1228,7 +1566,51 @@ function editTask(taskId) {
     document.getElementById('modal').classList.remove('hidden');
 }
 
+// --- TIPO DE ATIVIDADE / TABELA DE PESOS ---
+let _tiposAtividade = [];
+
+async function carregarTiposAtividade() {
+    if (_tiposAtividade.length) return;
+    const res = await fetch('/api/tipos-atividade');
+    if (!res.ok) return;
+    _tiposAtividade = await res.json();
+    const sel = document.getElementById('input-tipo-atividade');
+    const porFrente = {};
+    _tiposAtividade.forEach(t => (porFrente[t.frente] = porFrente[t.frente] || []).push(t));
+    sel.innerHTML = '<option value="">Selecione...</option>' +
+        Object.entries(porFrente).map(([frente, itens]) =>
+            `<optgroup label="${frente}">` +
+            itens.map(t => `<option value="${t.id}">${t.nome} (peso ${t.peso})</option>`).join('') +
+            `</optgroup>`
+        ).join('');
+}
+
+function abrirTabelaPesos() {
+    const porFrente = {};
+    _tiposAtividade.forEach(t => (porFrente[t.frente] = porFrente[t.frente] || []).push(t));
+    document.getElementById('conteudo-tabela-pesos').innerHTML = Object.entries(porFrente).map(([frente, itens]) => `
+        <div>
+            <div class="font-semibold text-faiston-dark mb-2">${frente}</div>
+            <table class="w-full">
+                <tbody>
+                    ${itens.map(t => `
+                        <tr class="border-t border-faiston-border">
+                            <td class="py-2 pr-3 font-medium align-top w-1/3">${t.nome}</td>
+                            <td class="py-2 pr-3 text-faiston-muted text-xs align-top">${t.descricao || '--'}</td>
+                            <td class="py-2 text-center w-12"><span class="inline-flex w-6 h-6 rounded-md bg-faiston-purple/10 text-faiston-purple font-bold text-xs items-center justify-center">${t.peso}</span></td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`).join('');
+    document.getElementById('modal-pesos').classList.remove('hidden');
+}
+
+function fecharTabelaPesos() { document.getElementById('modal-pesos').classList.add('hidden'); }
+
 function openModal() {
+    carregarTiposAtividade();
+    document.getElementById('input-tipo-atividade').value = '';
+    document.getElementById('input-natureza').value = 'programada';
     document.getElementById('modal-title').textContent = 'Nova Tarefa';
     document.getElementById('edit-id').value = '';
     document.getElementById('input-descricao').value = '';
@@ -1325,9 +1707,22 @@ async function saveTask() {
     const _proj = (_todosProjetos || []).find(p => p.id == projeto_id);
     const projeto_nome = _proj ? _proj.nome : '';
     if (!descricao) { alert('Preencha a descrição da tarefa.'); return; }
+    const tipoAtividadeId = parseInt(document.getElementById('input-tipo-atividade').value) || null;
+    if (!tipoAtividadeId) { alert('Selecione o tipo de atividade.'); return; }
+    if (!document.getElementById('input-prazo').value) { alert('Informe a previsão de conclusão.'); return; }
     const horas    = parseInt(document.getElementById('input-horas').value) || 0;
     const minutos  = parseInt(document.getElementById('input-minutos').value) || 0;
     const segundos = (horas*3600)+(minutos*60);
+    // Mesma regra do concluirTarefa(): concluir atrasado exige motivo.
+    let justificativa = '';
+    if (document.getElementById('input-status').value === 'concluido' && document.getElementById('input-prazo').value) {
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        const prazo = new Date(document.getElementById('input-prazo').value + 'T00:00:00');
+        if (hoje > prazo) {
+            justificativa = (prompt('Esta tarefa está sendo concluída FORA do prazo previsto.\n\nInforme o motivo do atraso:') || '').trim();
+            if (!justificativa) return;
+        }
+    }
     const editId   = document.getElementById('edit-id').value;
     const body = {
         descricao, cliente, projeto_id,
@@ -1337,6 +1732,9 @@ async function saveTask() {
         data_prazo: document.getElementById('input-prazo').value || null,
         hora_prazo: document.getElementById('input-hora-prazo').value || null,
         data_agendamento: document.getElementById('input-agendamento').value || null,
+        tipo_atividade_id: tipoAtividadeId,
+        natureza: document.getElementById('input-natureza').value,
+        justificativa_atraso: justificativa,
         colaboradores: _colabSelecionados.slice()
     };
 
@@ -1350,7 +1748,12 @@ async function saveTask() {
             // body.segundos reflete o valor que o usuário viu; mas se o timer acumulou mais
             // tempo enquanto o modal estava aberto, preservamos o maior valor.
             body.segundos = Math.min(Math.max(body.segundos, task.segundos), MAX_SEGUNDOS);
-            await fetch(`/api/tarefas/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const res = await fetch(`/api/tarefas/${editId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            if (!res.ok) {
+                const json = await res.json().catch(() => ({}));
+                alert(json.detail || 'Erro ao salvar a tarefa');
+                return;
+            }
             Object.assign(task, body, { projeto_nome });
             if (!task._running && body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(parseInt(editId)); return; }
         }
@@ -1368,6 +1771,19 @@ async function concluirTarefa(taskId) {
     if (activeTaskId===taskId) await stopTimer(taskId,true);
     const task = tasks.find(t=>t.id===taskId);
     if (!task) return;
+    // Fora do prazo exige justificativa antes de concluir (o backend também
+    // valida -- isto aqui é só pra não deixar o usuário levar erro na cara).
+    let justificativa = '';
+    if (task.data_prazo) {
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        const prazo = new Date(String(task.data_prazo).slice(0,10) + 'T00:00:00');
+        if (hoje > prazo) {
+            justificativa = (prompt('Esta tarefa está sendo concluída FORA do prazo previsto (' +
+                String(task.data_prazo).slice(0,10).split('-').reverse().join('/') +
+                ').\n\nInforme o motivo do atraso:') || '').trim();
+            if (!justificativa) return;
+        }
+    }
     const statusAnterior = task.status;
     task.status = 'concluido'; task._running = false;
     renderTasks(); updateSummary();
@@ -1375,7 +1791,8 @@ async function concluirTarefa(taskId) {
         const res = await fetch(`/api/tarefas/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({descricao:task.descricao,cliente:task.cliente,prioridade:task.prioridade,status:'concluido',
                 segundos:Math.min(task.segundos, MAX_SEGUNDOS),
-                data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null})});
+                data_prazo:task.data_prazo||null,data_agendamento:task.data_agendamento||null,
+                justificativa_atraso:justificativa})});
         if (!res.ok) {
             const json = await res.json().catch(() => ({}));
             const errId = json.error_id ? ` [ID: ${json.error_id}]` : '';
@@ -1558,7 +1975,14 @@ async function enviarComentario() {
     finally { btn.disabled=false; btn.classList.remove('opacity-60'); }
 }
 
-document.getElementById('modal').addEventListener('click',e=>{ if(e.target===document.getElementById('modal')) closeModal(); });
+// O fechar-no-backdrop dos comentários vive no próprio #drawer-bg (onclick inline);
+// o antigo #modal-comentarios não existe mais desde que o painel virou drawer.
+let modalMousedownTarget = null;
+document.getElementById('modal').addEventListener('mousedown', e => { modalMousedownTarget = e.target; });
+document.getElementById('modal').addEventListener('click', e => {
+    const modal = document.getElementById('modal');
+    if (e.target === modal && modalMousedownTarget === modal) closeModal();
+});
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') { closeModal(); fecharComentarios(); } });
 
 // ── AGENDA (Outlook style) ────────────────────────────────────────────
@@ -2221,5 +2645,102 @@ init();
 setInterval(() => fetch('/api/admin/ping?page=funcionario', { method: 'POST' }), 60000);
 </script>
 <script src="/js/faiston-erros.js"></script>
+
+<!-- MODAL: abrir solicitação de suporte (visível pra qualquer usuário logado) -->
+<div id="modal-suporte-criar" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[70] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-faiston-border" style="max-height:92vh;overflow-y:auto">
+        <div class="px-6 py-4 border-b border-faiston-border flex items-center justify-between">
+            <div>
+                <span class="font-bold text-faiston-dark text-sm flex items-center gap-2"><i class="ph ph-lifebuoy text-faiston-purple"></i> Falar com o suporte</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">Reporte um bug, tire uma dúvida ou peça uma melhoria</p>
+            </div>
+            <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="p-6 flex flex-col gap-3">
+            <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="duvida">Dúvida</option>
+                <option value="bug">Bug / algo não funciona</option>
+                <option value="melhoria">Pedido de melhoria</option>
+            </select>
+            <input type="text" id="suporte-titulo" placeholder="Título — resuma em uma frase" maxlength="200"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            <textarea id="suporte-descricao" rows="4" placeholder="Descreva o que aconteceu ou o que você precisa"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Anexar print (opcional)</label>
+                <input type="file" id="suporte-arquivo" accept="image/*" onchange="suporteSelecionarArquivo(this)"
+                    class="w-full text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white">
+                <div id="suporte-preview" class="hidden mt-2 relative inline-block">
+                    <img id="suporte-preview-img" src="" class="max-h-32 rounded-lg border border-faiston-border">
+                    <button onclick="suporteRemoverAnexo()" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-faiston-dark text-white flex items-center justify-center text-xs"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            <p id="suporte-msg" class="text-xs"></p>
+            <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
+        </div>
+    </div>
+</div>
+<script>
+let suporteAnexoBase64 = null, suporteAnexoNome = null;
+
+function suporteAbrirModal() {
+    document.getElementById('suporte-categoria').value = 'duvida';
+    document.getElementById('suporte-titulo').value = '';
+    document.getElementById('suporte-descricao').value = '';
+    document.getElementById('suporte-arquivo').value = '';
+    document.getElementById('suporte-msg').textContent = '';
+    suporteRemoverAnexo();
+    document.getElementById('modal-suporte-criar').classList.remove('hidden');
+}
+function suporteFecharModal() {
+    document.getElementById('modal-suporte-criar').classList.add('hidden');
+}
+function suporteSelecionarArquivo(input) {
+    const file = input.files[0];
+    const msg = document.getElementById('suporte-msg');
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+        msg.textContent = 'Imagem muito grande (máximo 5MB).'; msg.className = 'text-xs text-red-500';
+        input.value = ''; return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+        suporteAnexoBase64 = reader.result;
+        suporteAnexoNome = file.name;
+        document.getElementById('suporte-preview-img').src = suporteAnexoBase64;
+        document.getElementById('suporte-preview').classList.remove('hidden');
+        msg.textContent = '';
+    };
+    reader.readAsDataURL(file);
+}
+function suporteRemoverAnexo() {
+    suporteAnexoBase64 = null; suporteAnexoNome = null;
+    document.getElementById('suporte-preview').classList.add('hidden');
+    document.getElementById('suporte-preview-img').src = '';
+}
+async function suporteEnviar() {
+    const titulo = document.getElementById('suporte-titulo').value.trim();
+    const descricao = document.getElementById('suporte-descricao').value.trim();
+    const categoria = document.getElementById('suporte-categoria').value;
+    const msg = document.getElementById('suporte-msg');
+    if (!titulo) { msg.textContent = 'Preencha o título.'; msg.className = 'text-xs text-red-500'; return; }
+    if (!descricao) { msg.textContent = 'Preencha a descrição.'; msg.className = 'text-xs text-red-500'; return; }
+    const btn = document.getElementById('suporte-btn-enviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    try {
+        const res = await fetch('/api/suporte', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ titulo, descricao, categoria, anexo_base64: suporteAnexoBase64, anexo_nome: suporteAnexoNome })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = err.detail || 'Erro ao enviar.'; msg.className = 'text-xs text-red-500'; return; }
+        msg.textContent = 'Enviado! O suporte vai dar uma olhada.'; msg.className = 'text-xs text-emerald-600 font-semibold';
+        setTimeout(suporteFecharModal, 1400);
+    } catch (e) {
+        msg.textContent = 'Erro de rede ao enviar.'; msg.className = 'text-xs text-red-500';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Enviar solicitação';
+    }
+}
+</script>
 </body>
 </html>

@@ -1,8 +1,35 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <script>
+    // CSRF (double-submit cookie): intercepta fetch() global pra anexar o
+    // header X-CSRF-Token em toda chamada que muda estado, sem reescrever
+    // cada fetch() espalhado pela tela (2026-07-30). Precisa rodar antes de
+    // qualquer outro script que chame fetch(), por isso é o primeiro <script>.
+    (function() {
+        var _fetchOriginal = window.fetch;
+        function csrfCookie() {
+            var m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        window.fetch = function(input, init) {
+            init = init || {};
+            var metodo = (init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                var token = csrfCookie();
+                if (token) {
+                    var headers = new Headers(init.headers || {});
+                    headers.set('X-CSRF-Token', token);
+                    init = Object.assign({}, init, { headers: headers });
+                }
+            }
+            return _fetchOriginal(input, init);
+        };
+    })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
     <title>Login · Faiston OPS</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -176,7 +203,7 @@
                     <input type="checkbox" id="manter-conectado" checked>
                     <span>Manter conectado</span>
                 </label>
-                <a href="#" class="forgot" onclick="return false;">Esqueci a senha</a>
+                <a href="#" class="forgot" onclick="mostrarEsqueciSenha(); return false;">Esqueci a senha</a>
             </div>
 
             <button class="btn" id="btn-login" onclick="fazerLogin()">
@@ -210,7 +237,7 @@
             <label>Nova Senha</label>
             <div class="input-wrap">
                 <i class="ph ph-lock ico-left"></i>
-                <input type="password" id="nova-senha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"
+                <input type="password" id="nova-senha" placeholder="Mínimo 8 caracteres, com letras e números" autocomplete="new-password"
                        oninput="avaliarSenha(this.value)">
                 <button class="ico-right" onclick="toggleNovaSenha()" tabindex="-1">
                     <i class="ph ph-eye" id="icon-eye-nova"></i>
@@ -235,9 +262,43 @@
         <div class="foot" style="margin-top:16px">Você será redirecionado automaticamente após confirmar.</div>
     </div>
 
+    <!-- ESQUECI MINHA SENHA -->
+    <div class="card" id="card-esqueci" style="display:none">
+        <div class="logo">
+            <div class="logo-icon"><i class="ph-fill ph-envelope-simple" style="color:white;font-size:22px"></i></div>
+            <div class="logo-text">FAISTON</div>
+        </div>
+        <h2>Esqueci minha senha</h2>
+        <p class="sub">Informe seu usuário — se ele existir, mandamos um link de redefinição pro e-mail cadastrado.</p>
+
+        <div class="error" id="error-esqueci">
+            <i class="ph ph-warning-circle" style="font-size:16px"></i>
+            <span id="error-esqueci-text">Erro</span>
+        </div>
+        <div class="error" id="ok-esqueci" style="background:#EAF7EE;border-color:#BFE6CC;color:#1F7A3D">
+            <i class="ph ph-check-circle" style="font-size:16px"></i>
+            <span>Se o usuário existir, um e-mail com o link foi enviado. Confira sua caixa de entrada.</span>
+        </div>
+
+        <div>
+            <label>Usuário</label>
+            <div class="input-wrap">
+                <i class="ph ph-user ico-left"></i>
+                <input type="text" id="esqueci-usuario" placeholder="seu.usuario" autocomplete="username">
+            </div>
+        </div>
+
+        <button class="btn" id="btn-esqueci" onclick="enviarEsqueciSenha()" style="margin-top:20px">
+            <i class="ph ph-paper-plane-tilt"></i> Enviar link de redefinição
+        </button>
+
+        <div class="foot" style="margin-top:16px"><a href="#" onclick="voltarAoLogin(); return false;" style="color:#5B2EE0;font-weight:600;text-decoration:none">&larr; Voltar ao login</a></div>
+    </div>
+
 <script>
 let roleAtivo = 'admin';
 let _perfilPendente = null;
+let _cargoPendente = null;
 
 function setRole(role) {
     roleAtivo = role;
@@ -255,6 +316,47 @@ function toggleSenha() {
 
 document.getElementById('senha').addEventListener('keydown', e => { if (e.key === 'Enter') fazerLogin(); });
 document.getElementById('usuario').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('senha').focus(); });
+
+function mostrarEsqueciSenha() {
+    document.getElementById('card-login').style.display = 'none';
+    document.getElementById('card-esqueci').style.display = '';
+    document.getElementById('error-esqueci').classList.remove('show');
+    document.getElementById('ok-esqueci').classList.remove('show');
+    document.getElementById('esqueci-usuario').value = '';
+    document.getElementById('esqueci-usuario').focus();
+}
+function voltarAoLogin() {
+    document.getElementById('card-esqueci').style.display = 'none';
+    document.getElementById('card-login').style.display = '';
+}
+async function enviarEsqueciSenha() {
+    const usuario = document.getElementById('esqueci-usuario').value.trim();
+    const errDiv = document.getElementById('error-esqueci');
+    const okDiv = document.getElementById('ok-esqueci');
+    errDiv.classList.remove('show'); okDiv.classList.remove('show');
+    if (!usuario) {
+        document.getElementById('error-esqueci-text').textContent = 'Informe o usuário.';
+        errDiv.classList.add('show'); return;
+    }
+    const btn = document.getElementById('btn-esqueci');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ph ph-spinner" style="animation:spin 1s linear infinite"></i> Enviando...';
+    try {
+        await fetch('/api/esqueci-senha', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuario })
+        });
+        // Resposta é sempre genérica (não revela se o usuário existe) --
+        // mostra sucesso independente do que o servidor retornar.
+        okDiv.classList.add('show');
+    } catch (e) {
+        document.getElementById('error-esqueci-text').textContent = 'Erro de rede. Tente novamente.';
+        errDiv.classList.add('show');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-paper-plane-tilt"></i> Enviar link de redefinição';
+    }
+}
 
 async function fazerLogin() {
     const usuario = document.getElementById('usuario').value.trim();
@@ -289,13 +391,14 @@ async function fazerLogin() {
         }
         if (data.primeiro_acesso) {
             _perfilPendente = data.perfil;
+            _cargoPendente = data.cargo;
             document.getElementById('badge-nome').textContent = `Olá, ${data.nome}! Crie sua senha pessoal.`;
             document.getElementById('card-login').style.display = 'none';
             document.getElementById('card-trocar').style.display = '';
             document.getElementById('nova-senha').focus();
             return;
         }
-        redirecionarPorPerfil(data.perfil);
+        redirecionarPorPerfil(data.perfil, data.cargo);
     } catch(e) {
         errText.textContent = 'Erro de conexão. Tente novamente.';
         errDiv.classList.add('show');
@@ -304,9 +407,10 @@ async function fazerLogin() {
     }
 }
 
-function redirecionarPorPerfil(perfil) {
-    if (perfil === 'admin' || perfil === 'gestor' || perfil === 'demo') window.location.href = '/dashboard';
+function redirecionarPorPerfil(perfil, cargo) {
+    if (perfil === 'admin' || perfil === 'gestor' || perfil === 'demo' || perfil === 'dev') window.location.href = '/dashboard';
     else if (perfil === 'diretor') window.location.href = '/gestao';
+    else if (perfil === 'funcionario' && cargo === 'n2') window.location.href = '/n2';
     else window.location.href = '/funcionario';
 }
 
@@ -355,8 +459,8 @@ async function trocarSenha() {
     const errText = document.getElementById('error-trocar-text');
     errDiv.classList.remove('show');
 
-    if (!nova || nova.length < 6) {
-        errText.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+    if (!nova || nova.length < 8 || !/[A-Za-z]/.test(nova) || !/[0-9]/.test(nova)) {
+        errText.textContent = 'A senha deve ter pelo menos 8 caracteres, com letras e números.';
         errDiv.classList.add('show'); return;
     }
     if (nova !== conf) {
@@ -383,7 +487,7 @@ async function trocarSenha() {
             return;
         }
         // Acabou de definir a senha (primeiro acesso) → vai para o Guia de Uso
-        irParaGuia(_perfilPendente || 'funcionario');
+        irParaGuia(_perfilPendente === 'funcionario' && _cargoPendente === 'n2' ? 'n2' : (_perfilPendente || 'funcionario'));
     } catch(e) {
         errText.textContent = 'Erro de conexão. Tente novamente.';
         errDiv.classList.add('show');

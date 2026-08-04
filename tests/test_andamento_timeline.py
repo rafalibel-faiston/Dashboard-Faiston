@@ -1,0 +1,360 @@
+"""
+Testes da terceira rodada de ajustes: histórico de andamento (localização
+do técnico + status de acesso + descrição, com quantas atualizações forem
+necessárias durante a atividade), subprojeto com autocomplete por cliente,
+e a particularidade "equipamento removido".
+"""
+from fastapi.testclient import TestClient
+
+
+def _payload(cliente_id, **overrides):
+    base = {"cliente_id": cliente_id, "data": "2026-07-22"}
+    base.update(overrides)
+    return base
+
+
+def _n2_client(app, n2_user):
+    client = TestClient(app)
+    resp = client.post("/api/login", json={"usuario": n2_user["usuario"], "senha": n2_user["senha"]})
+    assert resp.status_code == 200, resp.text
+    return client
+
+
+class TestTransicaoParaEmAndamentoRegistraHistorico:
+    def test_registra_entrada_no_historico(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "Chegou no local, iniciando",
+                "localizacao": "no_local", "acesso": "com_acesso",
+            })
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["localizacao"] == "no_local"
+            assert item["acesso"] == "com_acesso"
+
+            hist = admin_client.get(f"/api/status-campo/{aid}/andamento").json()
+            assert len(hist) == 1
+            assert hist[0]["localizacao"] == "no_local"
+            assert hist[0]["acesso"] == "com_acesso"
+            assert hist[0]["descricao"] == "Chegou no local, iniciando"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_localizacao_invalida_retorna_400(self, admin_client, cliente_teste):
+        # Localização virou o campo obrigatório do fluxo escalonado do N2
+        # (deslocamento/no local -> chegada+acesso -> início+tipo) -- um
+        # valor inválido/ausente barra a transição pra "em_andamento" em vez
+        # de silenciosamente virar null.
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "teste",
+                "localizacao": "valor-invalido", "acesso": "outro-invalido",
+            })
+            assert resp.status_code == 400
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_acesso_invalido_vira_null(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "teste",
+                "localizacao": "no_local", "acesso": "outro-invalido",
+            })
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["localizacao"] == "no_local"
+            assert item["acesso"] is None
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+
+class TestAtualizacoesConstantesDeAndamento:
+    """Situação (localização/acesso/chegada) e andamento (o que está sendo
+    feito tecnicamente) foram unificados num único botão/endpoint --
+    PATCH /status reenviado com status="em_andamento" -- porque o usuário
+    achou confuso ter os dois botões separados. Uma chamada que só atualiza
+    situação (sem tipo/equipamento/descrição) não cria entrada no histórico
+    de andamento, ver TestAtualizarSituacao; uma que também descreve o
+    trabalho, sim."""
+    def test_pode_adicionar_varias_atualizacoes_sem_trocar_status(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "Fixando no rack",
+                "localizacao": "no_local", "acesso": "com_acesso",
+            })
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "Configurando o switch",
+                "localizacao": "no_local", "acesso": "com_acesso",
+                "andamento_tipo": "instalando", "andamento_equipamento": "Switch Catalyst 9300",
+            })
+            assert resp.status_code == 200, resp.text
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "Validando conectividade",
+                "localizacao": "no_local", "acesso": "com_acesso",
+                "andamento_tipo": "validando", "andamento_equipamento": "Switch Catalyst 9300",
+            })
+            assert resp.status_code == 200, resp.text
+
+            hist = admin_client.get(f"/api/status-campo/{aid}/andamento").json()
+            assert len(hist) == 3
+            assert [h["descricao"] for h in hist] == ["Fixando no rack", "Configurando o switch", "Validando conectividade"]
+
+            # o snapshot na atividade reflete a última atualização
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["andamento_descricao"] == "Validando conectividade"
+            assert item["andamento_tipo"] == "validando"
+            # localização/acesso definidos na transição inicial não são
+            # apagados por uma atualização de andamento que não os envia
+            assert item["localizacao"] == "no_local"
+            assert item["acesso"] == "com_acesso"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_descricao_vazia_e_permitida_com_andamento_tipo(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "",
+                "localizacao": "no_local", "acesso": "com_acesso",
+                "andamento_tipo": "trocando", "andamento_equipamento": "Switch",
+            })
+            assert resp.status_code == 200, resp.text
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_andamento_equipamento_ausente_retorna_400(self, admin_client, cliente_teste):
+        # Ponto de feedback: "que estamos instalando" precisa ficar evidente
+        # -- o tipo sozinho (instalando/trocando/removendo/validando) não basta.
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "x",
+                "localizacao": "no_local", "acesso": "com_acesso", "andamento_tipo": "instalando",
+            })
+            assert resp.status_code == 400
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_andamento_tipo_sem_acesso_confirmado_retorna_400(self, admin_client, cliente_teste):
+        # Progressão: só dá pra dizer o que está sendo feito depois que o
+        # acesso ao local foi confirmado -- pedido explícito do usuário.
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "x",
+                "localizacao": "no_local", "acesso": "verificando_acesso",
+                "andamento_tipo": "instalando", "andamento_equipamento": "Switch",
+            })
+            assert resp.status_code == 400
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_validando_e_um_tipo_de_andamento_valido(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "Checando link",
+                "localizacao": "no_local", "acesso": "com_acesso",
+                "andamento_tipo": "validando", "andamento_equipamento": "Switch Catalyst 9300",
+            })
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["andamento_tipo"] == "validando"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_n2_de_outro_nao_pode_atualizar_andamento(self, admin_client, app, n2_user, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            n2_client = _n2_client(app, n2_user)
+            resp = n2_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "não deveria funcionar",
+                "localizacao": "no_local", "acesso": "com_acesso",
+                "andamento_tipo": "instalando", "andamento_equipamento": "Switch",
+            })
+            assert resp.status_code == 403
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+
+class TestAtualizarSituacao:
+    """Uma chamada ao endpoint unificado que só traz localização/acesso/hora
+    de chegada (sem tipo/equipamento/descrição) é a "situação" -- não gera
+    entrada na linha do tempo de andamento, só atualiza o snapshot."""
+    def test_atualiza_sem_criar_entrada_no_historico(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "localizacao": "no_local", "acesso": "com_acesso",
+                "hora_chegada": "14:30",
+            })
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["localizacao"] == "no_local"
+            assert item["acesso"] == "com_acesso"
+            assert item["hora_chegada"] == "14:30"
+
+            hist = admin_client.get(f"/api/status-campo/{aid}/andamento").json()
+            assert hist == []
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_localizacao_ausente_retorna_400(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "acesso": "com_acesso",
+            })
+            assert resp.status_code == 400
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_atualizacao_de_situacao_seguida_de_andamento_nao_perde_entrada_vazia(self, admin_client, cliente_teste):
+        # Situação-só não deve gerar entrada no histórico; andamento real,
+        # sim -- confirma que as duas coisas convivem no mesmo endpoint.
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "localizacao": "deslocamento",
+            })
+            admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "localizacao": "no_local", "acesso": "com_acesso", "hora_chegada": "14:00",
+            })
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "localizacao": "no_local", "acesso": "com_acesso",
+                "andamento_descricao": "Iniciando", "andamento_tipo": "instalando",
+                "andamento_equipamento": "Switch",
+            })
+            assert resp.status_code == 200, resp.text
+            hist = admin_client.get(f"/api/status-campo/{aid}/andamento").json()
+            assert len(hist) == 1
+            assert hist[0]["descricao"] == "Iniciando"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_n2_de_outro_nao_pode_atualizar_situacao(self, admin_client, app, n2_user, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            n2_client = _n2_client(app, n2_user)
+            resp = n2_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "localizacao": "no_local",
+            })
+            assert resp.status_code == 403
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+
+class TestEquipamentosFinalizacao:
+    """Instalado e Removido não são mais mutuamente exclusivos (uma
+    atividade pode envolver os dois, ex. troca de equipamento) e cada um
+    vira uma lista -- pode ter mais de uma unidade instalada/removida na
+    mesma visita, o que o campo único antigo não suportava."""
+
+    def _finalizar(self, admin_client, aid, **overrides):
+        base = {"status": "concluido", "hora_termino": "17:00", "material_utilizado": False}
+        base.update(overrides)
+        return admin_client.patch(f"/api/status-campo/{aid}/status", json=base)
+
+    def test_instalado_e_removido_simultaneos_com_varios_itens(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = self._finalizar(admin_client, aid,
+                equipamento_status=["equipamento_instalado", "equipamento_removido"],
+                equipamentos_instalados=[{"partnumber": "PN-1", "serial": "SN-1"}, {"partnumber": "PN-2", "serial": "SN-2"}],
+                equipamentos_removidos=[{"partnumber": "PN-OLD", "serial": "SN-OLD"}],
+                equipamento_removido_posse="cliente",
+            )
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert "equipamento_instalado" in item["particularidades"]
+            assert "equipamento_removido" in item["particularidades"]
+            assert "equipamento_em_posse_do_cliente" in item["particularidades"]
+            instalados = [e for e in item["equipamentos"] if e["tipo"] == "instalado"]
+            removidos = [e for e in item["equipamentos"] if e["tipo"] == "removido"]
+            assert len(instalados) == 2
+            assert len(removidos) == 1
+            assert {"PN-1", "PN-2"} == {e["partnumber"] for e in instalados}
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_reenviar_finalizacao_substitui_lista_de_equipamentos(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            self._finalizar(admin_client, aid, status="parcial",
+                equipamento_status=["equipamento_instalado"],
+                equipamentos_instalados=[{"partnumber": "PN-1", "serial": "SN-1"}])
+            resp = self._finalizar(admin_client, aid,
+                equipamento_status=["equipamento_removido"],
+                equipamentos_removidos=[{"partnumber": "PN-2", "serial": "SN-2"}])
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert len(item["equipamentos"]) == 1
+            assert item["equipamentos"][0]["tipo"] == "removido"
+            assert "equipamento_instalado" not in item["particularidades"]
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_sem_equipamento_nao_grava_itens(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
+        try:
+            resp = self._finalizar(admin_client, aid)
+            assert resp.status_code == 200, resp.text
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["equipamentos"] == []
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+
+class TestSubprojeto:
+    def test_subprojeto_e_salvo(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste, subprojeto="Migração de core")).json()["id"]
+        try:
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["subprojeto"] == "Migração de core"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_autocomplete_lista_subprojetos_distintos_do_cliente(self, admin_client, cliente_teste):
+        a1 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, subprojeto="Migração de core")).json()["id"]
+        a2 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, subprojeto="Migração de core")).json()["id"]
+        a3 = admin_client.post("/api/status-campo", json=_payload(cliente_teste, subprojeto="Expansão de wifi")).json()["id"]
+        try:
+            resp = admin_client.get("/api/status-campo/subprojetos", params={"cliente_id": cliente_teste})
+            assert resp.status_code == 200
+            assert sorted(resp.json()) == ["Expansão de wifi", "Migração de core"]
+        finally:
+            for aid in (a1, a2, a3):
+                admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_autocomplete_vazio_pra_cliente_sem_subprojetos(self, admin_client, cliente_teste):
+        resp = admin_client.get("/api/status-campo/subprojetos", params={"cliente_id": cliente_teste})
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
+class TestEquipamentoRemovido:
+    def test_particularidade_e_detalhe_sao_salvos(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(
+            cliente_teste, particularidades=["equipamento_removido"],
+            equipamento_removido_detalhe="Switch antigo, S/N ABC123",
+        )).json()["id"]
+        try:
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert "equipamento_removido" in item["particularidades"]
+            assert item["equipamento_removido_detalhe"] == "Switch antigo, S/N ABC123"
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")
+
+    def test_sem_particularidade_ignora_detalhe(self, admin_client, cliente_teste):
+        aid = admin_client.post("/api/status-campo", json=_payload(
+            cliente_teste, equipamento_removido_detalhe="não deveria salvar isso",
+        )).json()["id"]
+        try:
+            item = admin_client.get(f"/api/status-campo/{aid}").json()
+            assert item["equipamento_removido_detalhe"] == ""
+        finally:
+            admin_client.delete(f"/api/status-campo/{aid}")

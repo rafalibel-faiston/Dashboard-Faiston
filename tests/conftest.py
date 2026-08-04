@@ -31,6 +31,42 @@ if not TEST_DATABASE_URL:
 else:
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
+# O admin de seed não nasce mais com senha fixa (endurecimento de 2026-07-23):
+# vem de ADMIN_INITIAL_PASSWORD ou é gerado aleatório. Fixamos a variável antes
+# de qualquer import de `main` pra que o setup_banco() crie um admin conhecido.
+ADMIN_SENHA = os.environ.setdefault("ADMIN_INITIAL_PASSWORD", "senhaTeste123")
+
+
+# ── Adaptação do TestClient ao endurecimento de sessão ───────────────────────
+# Duas coisas mudaram no login e afetam TODO teste que usa TestClient:
+#   1. o cookie de sessão passou a ser secure=True, e o cookie jar do httpx só
+#      devolve cookie Secure em https -- por isso a base_url deixa de ser http;
+#   2. o middleware de CSRF exige o header X-CSRF-Token batendo com o cookie
+#      csrf_token em POST/PUT/PATCH/DELETE.
+# Em vez de repetir isso nos 6 arquivos de teste que instanciam TestClient
+# direto, o ajuste fica aqui: conftest é carregado antes dos módulos de teste,
+# então o `from fastapi.testclient import TestClient` deles já pega esta versão.
+import fastapi.testclient as _testclient
+
+_TestClientOriginal = _testclient.TestClient
+
+
+class _ClienteFaiston(_TestClientOriginal):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("base_url", "https://testserver")
+        super().__init__(*args, **kwargs)
+
+    def request(self, *args, **kwargs):
+        resp = super().request(*args, **kwargs)
+        # Depois do login o cookie de CSRF existe; ecoa no header daqui pra frente.
+        token = self.cookies.get("csrf_token")
+        if token and self.headers.get("X-CSRF-Token") != token:
+            self.headers["X-CSRF-Token"] = token
+        return resp
+
+
+_testclient.TestClient = _ClienteFaiston
+
 
 def pytest_collection_modifyitems(config, items):
     if not TEST_DATABASE_URL:
@@ -47,10 +83,10 @@ def app():
 
 @pytest.fixture(scope="session")
 def admin_client(app):
-    """Cliente HTTP autenticado como admin (usuário seed padrão admin/admin123)."""
+    """Cliente HTTP autenticado como admin (senha vinda de ADMIN_INITIAL_PASSWORD)."""
     from fastapi.testclient import TestClient
     client = TestClient(app)
-    resp = client.post("/api/login", json={"usuario": "admin", "senha": "admin123"})
+    resp = client.post("/api/login", json={"usuario": "admin", "senha": ADMIN_SENHA})
     assert resp.status_code == 200, f"login falhou: {resp.text}"
     return client
 
@@ -64,3 +100,22 @@ def cliente_teste(admin_client):
     cid = resp.json()["id"]
     yield cid
     admin_client.delete(f"/api/clientes/{cid}")
+
+
+@pytest.fixture()
+def n2_user(admin_client):
+    """Cria um usuário N2 temporário pra isolar os testes; limpa no teardown.
+
+    N2 deixou de ser perfil próprio e virou cargo dentro de 'funcionario'
+    (migração de 2026-07-28) -- ver _eh_n2() em main.py.
+    """
+    usuario = f"teste_n2_{uuid.uuid4().hex[:8]}"
+    senha = "senhaTeste123"
+    resp = admin_client.post("/api/usuarios", json={
+        "usuario": usuario, "senha": senha, "nome": "N2 Fixture Teste",
+        "perfil": "funcionario", "cargo": "n2",
+    })
+    assert resp.status_code == 200, resp.text
+    uid = resp.json()["id"]
+    yield {"id": uid, "usuario": usuario, "senha": senha}
+    admin_client.delete(f"/api/usuarios/{uid}")

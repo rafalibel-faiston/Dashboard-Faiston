@@ -64,7 +64,8 @@ body {
     box-shadow: 4px 0 24px rgba(15, 23, 42, 0.04);
 }
 
-.shadow-card { box-shadow: var(--shadow-card); }
+.shadow-card { box-shadow: var(--shadow-card); transition: box-shadow .25s ease, transform .25s ease; }
+.shadow-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
 .shadow-hover { box-shadow: var(--shadow-hover); }
 
 /* Gradiente */
