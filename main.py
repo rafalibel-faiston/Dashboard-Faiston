@@ -817,6 +817,16 @@ def _eh_n2(sess: dict) -> bool:
     perfil='funcionario' (migração 2026-07-28)."""
     return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "n2"
 
+def _perfil_guia(perfil: str, cargo: str = "", perfil_real: str = "") -> str:
+    """Traduz perfil+cargo do banco na aba correspondente do guia (/ajuda).
+    O guia tem aba por FUNÇÃO, não por perfil cru: N2 e backoffice vivem
+    dentro de perfil='funcionario' desde a migração de 2026-07-28."""
+    if perfil == "funcionario" and cargo in ("n2", "backoffice"):
+        return cargo
+    if perfil_real == "dev":
+        return "dev"
+    return perfil or ""
+
 class NovoUsuario(BaseModel):
     usuario: str
     senha: str
@@ -928,10 +938,14 @@ class DevChecklistItemModel(BaseModel):
     concluido: bool = False
 
 # --- EMAIL ---
-def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bool:
+def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha, perfil_guia: str = "") -> bool:
     system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
     if not destinatario:
         return False
+    # O guia carrega o perfil na URL porque o e-mail costuma ser aberto antes
+    # do primeiro login: sem cookie de sessão, /ajuda cairia no fallback
+    # anônimo e mostraria as abas de todos os perfis.
+    url_ajuda = f"{system_url}/ajuda?perfil={perfil_guia}" if perfil_guia else f"{system_url}/ajuda"
     try:
         perfil_map = {"admin": "Admin", "gestor": "Gestor", "funcionario": "Funcionário", "diretor": "Diretor", "dev": "Dev"}
         # Botões em tabela (renderizam bem no Outlook/Gmail). bgcolor garante cor sólida onde gradiente não funciona.
@@ -942,10 +956,10 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
         </table>"""
         btn_ajuda = f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 4px">
           <tr><td align="center" bgcolor="#ffffff" style="border-radius:12px;border:2px solid #E5E8F0">
-            <a href="{system_url}/ajuda" style="display:block;color:#5B2EE0;text-decoration:none;padding:13px 24px;font-weight:700;font-size:14px;border-radius:12px">📖 Ver Guia de Uso</a>
+            <a href="{url_ajuda}" style="display:block;color:#5B2EE0;text-decoration:none;padding:13px 24px;font-weight:700;font-size:14px;border-radius:12px">📖 Ver Guia de Uso</a>
           </td></tr>
         </table>"""
-        ajuda = f"<a href='{system_url}/ajuda' style='color:#5B2EE0;font-weight:600'>Guia de Uso</a>"
+        ajuda = f"<a href='{url_ajuda}' style='color:#5B2EE0;font-weight:600'>Guia de Uso</a>"
         if senha is None:
             bloco_senha = """<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px">
               <tr><td style="background:#FFF8E6;border:1px solid #FFD166;border-radius:12px;padding:16px 18px">
@@ -1686,7 +1700,8 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
         conn.commit(); cur.close(); conn.close()
         tem_email = bool(u.email)
         if tem_email:
-            bg.add_task(enviar_email_acesso, u.email, u.nome, u.usuario, u.senha)
+            bg.add_task(enviar_email_acesso, u.email, u.nome, u.usuario, u.senha,
+                        _perfil_guia(u.perfil, cargo_val))
         return {"sucesso": True, "id": new_id, "email_enviado": tem_email}
     except psycopg2.errors.UniqueViolation: raise HTTPException(status_code=400, detail="Usuário já existe")
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -1735,12 +1750,12 @@ def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT nome, usuario, email FROM usuarios WHERE id=%s AND ativo=TRUE", (uid,))
+        cur.execute("SELECT nome, usuario, email, perfil, COALESCE(cargo,'') FROM usuarios WHERE id=%s AND ativo=TRUE", (uid,))
         row = cur.fetchone(); cur.close(); conn.close()
         if not row: raise HTTPException(status_code=404, detail="Usuário não encontrado")
-        nome, usuario, email = row
+        nome, usuario, email, perfil_u, cargo_u = row
         if not email: raise HTTPException(status_code=400, detail="Este usuário não tem email cadastrado")
-        enviado = enviar_email_acesso(email, nome, usuario, None)
+        enviado = enviar_email_acesso(email, nome, usuario, None, _perfil_guia(perfil_u, cargo_u))
         if not enviado: raise HTTPException(status_code=500, detail="Falha ao enviar email — verifique as variáveis EMAIL_USER e EMAIL_APP_PASSWORD no servidor")
         return {"sucesso": True}
     except HTTPException: raise
@@ -4151,17 +4166,8 @@ def ajuda_page(perfil: str = "", faiston_token: str = Cookie(None)):
     if not perfil:
         sess = get_session(faiston_token)
         if sess and sess.get("perfil"):
-            # O guia tem aba por função, não por perfil do banco. Quem é N2 ou
-            # backoffice entra como perfil='funcionario' desde a migração de
-            # 2026-07-28, então sem traduzir aqui esses dois caíam na aba de
-            # analista e a aba de N2 ficava inalcançável pra quem é N2.
-            destino = sess["perfil"]
-            if _eh_n2(sess):
-                destino = "n2"
-            elif sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice":
-                destino = "backoffice"
-            elif sess.get("perfil_real") == "dev":
-                destino = "dev"
+            destino = _perfil_guia(sess["perfil"], sess.get("cargo", ""),
+                                   sess.get("perfil_real", ""))
             return RedirectResponse(f"/ajuda?perfil={destino}")
     return FileResponse("static/ajuda.html")
 
