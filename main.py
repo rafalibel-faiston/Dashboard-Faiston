@@ -4151,7 +4151,18 @@ def ajuda_page(perfil: str = "", faiston_token: str = Cookie(None)):
     if not perfil:
         sess = get_session(faiston_token)
         if sess and sess.get("perfil"):
-            return RedirectResponse(f"/ajuda?perfil={sess['perfil']}")
+            # O guia tem aba por função, não por perfil do banco. Quem é N2 ou
+            # backoffice entra como perfil='funcionario' desde a migração de
+            # 2026-07-28, então sem traduzir aqui esses dois caíam na aba de
+            # analista e a aba de N2 ficava inalcançável pra quem é N2.
+            destino = sess["perfil"]
+            if _eh_n2(sess):
+                destino = "n2"
+            elif sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice":
+                destino = "backoffice"
+            elif sess.get("perfil_real") == "dev":
+                destino = "dev"
+            return RedirectResponse(f"/ajuda?perfil={destino}")
     return FileResponse("static/ajuda.html")
 
 # Rotas antigas (páginas standalone duplicadas) → redirecionam para a SPA,

@@ -195,7 +195,15 @@
         <div style="display:flex;gap:0;overflow-x:auto;scrollbar-width:none">
             <button class="tab-btn active" onclick="setTab('func')" id="tb-func">
                 <span class="tab-icon"><i class="ph ph-user"></i></span>
-                <span class="lbl">Funcionário</span>
+                <span class="lbl">Analista</span>
+            </button>
+            <button class="tab-btn" onclick="setTab('backoffice')" id="tb-backoffice">
+                <span class="tab-icon"><i class="ph ph-clipboard-text"></i></span>
+                <span class="lbl">Backoffice</span>
+            </button>
+            <button class="tab-btn" onclick="setTab('n2')" id="tb-n2">
+                <span class="tab-icon"><i class="ph ph-headset"></i></span>
+                <span class="lbl">N2</span>
             </button>
             <button class="tab-btn" onclick="setTab('gestor')" id="tb-gestor">
                 <span class="tab-icon"><i class="ph ph-chart-line-up"></i></span>
@@ -205,9 +213,9 @@
                 <span class="tab-icon"><i class="ph ph-crown-simple"></i></span>
                 <span class="lbl">Diretor</span>
             </button>
-            <button class="tab-btn" onclick="setTab('n2')" id="tb-n2">
-                <span class="tab-icon"><i class="ph ph-headset"></i></span>
-                <span class="lbl">N2</span>
+            <button class="tab-btn" onclick="setTab('dev')" id="tb-dev">
+                <span class="tab-icon"><i class="ph ph-code"></i></span>
+                <span class="lbl">Equipe Dev</span>
             </button>
         </div>
     </div>
@@ -251,7 +259,14 @@
                                 <div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">3</div>
                                 <span style="font-size:12px;font-weight:700">Crie sua senha</span>
                             </div>
-                            <p style="font-size:12px;color:rgba(255,255,255,.7)">Mínimo 6 caracteres</p>
+                            <p style="font-size:12px;color:rgba(255,255,255,.7)">Mínimo 8 caracteres, com letras e números</p>
+                        </div>
+                    </div>
+                    <div style="margin-top:16px;background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px);display:flex;align-items:flex-start;gap:10px">
+                        <i class="ph ph-key" style="font-size:17px;margin-top:1px"></i>
+                        <div>
+                            <p style="font-size:12.5px;font-weight:700;margin-bottom:3px">Esqueceu a senha depois?</p>
+                            <p style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.6">Na tela de login, clique em <strong style="color:white">Esqueci minha senha</strong>. Você recebe um link por e-mail que vale <strong style="color:white">30 minutos</strong> e só funciona uma vez. Não precisa mais pedir para o admin redefinir.</p>
                         </div>
                     </div>
                 </div>
@@ -321,13 +336,21 @@
                         </div>
                         <div style="display:flex;align-items:flex-start;gap:10px">
                             <div class="step-num" style="margin-top:1px;flex-shrink:0">4</div>
-                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Defina <strong style="color:#0B0D1F">Prazo</strong> (até quando entregar) e/ou <strong style="color:#0B0D1F">Agendamento</strong> (quando trabalhar)</p>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Escolha o <strong style="color:#0B0D1F">Tipo de Atividade</strong> e a <strong style="color:#0B0D1F">Natureza</strong> (programada ou urgente). Os dois são <strong style="color:#EC4899">obrigatórios</strong></p>
                         </div>
                         <div style="display:flex;align-items:flex-start;gap:10px">
                             <div class="step-num" style="margin-top:1px;flex-shrink:0">5</div>
-                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Clique em <strong style="color:#0B0D1F">Salvar</strong></p>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Informe a <strong style="color:#0B0D1F">Previsão de conclusão</strong> — também <strong style="color:#EC4899">obrigatória</strong>. É ela que define se a entrega ficou dentro ou fora do prazo</p>
                         </div>
-                        <div class="hbox" style="background:#06D7E608;border:1px solid #06D7E625;margin-top:4px">
+                        <div style="display:flex;align-items:flex-start;gap:10px">
+                            <div class="step-num" style="margin-top:1px;flex-shrink:0">6</div>
+                            <p style="font-size:13px;color:#5E647A;line-height:1.6">Se quiser, defina também o <strong style="color:#0B0D1F">Agendamento</strong> (o dia em que você pretende trabalhar nela) e clique em <strong style="color:#0B0D1F">Salvar</strong></p>
+                        </div>
+                        <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025;margin-top:4px">
+                            <i class="ph ph-scales" style="color:#5B2EE0;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                            <p style="font-size:12px;color:#5E647A;line-height:1.55">Cada <strong style="color:#0B0D1F">Tipo de Atividade</strong> tem um <strong style="color:#0B0D1F">peso de complexidade</strong> de 1 a 4, definido pela gestão. É assim que o sistema mede esforço de verdade — dez e-mails de rotina não valem o mesmo que um faturamento. Você não precisa fazer nada além de escolher o tipo certo.</p>
+                        </div>
+                        <div class="hbox" style="background:#06D7E608;border:1px solid #06D7E625">
                             <i class="ph ph-lightbulb" style="color:#06D7E6;font-size:17px;flex-shrink:0;margin-top:1px"></i>
                             <p style="font-size:12px;color:#5E647A;line-height:1.55"><strong style="color:#0B0D1F">Demanda</strong> é uma atividade sem projeto formal (ex.: "Reunião interna", "Suporte avulso"). Ela aparece no quadro sem precisar de cliente ou projeto cadastrado.</p>
                         </div>
@@ -350,8 +373,96 @@
                         <div class="info-row"><i class="ph ph-hand" style="color:#5B2EE0"></i><div>Arraste o card para outra coluna (<strong>drag & drop</strong>)</div></div>
                         <div class="info-row"><i class="ph ph-check-circle" style="color:#06D7E6"></i><div>Clique no <strong>✓</strong> do card para concluir direto</div></div>
                         <div class="info-row"><i class="ph ph-pencil" style="color:#9097AC"></i><div>Clique no <strong>lápis</strong> para editar status, prazo e horas</div></div>
+                        <div class="hbox" style="background:#EC489908;border:1px solid #EC489925;margin-top:4px">
+                            <i class="ph ph-warning-circle" style="color:#EC4899;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                            <p style="font-size:12px;color:#5E647A;line-height:1.55">Ao concluir uma tarefa <strong style="color:#0B0D1F">depois da previsão</strong>, o sistema pede uma <strong style="color:#0B0D1F">justificativa do atraso</strong> antes de deixar salvar. Não é burocracia: é o que permite separar atraso por dependência externa de atraso por sobrecarga, na hora de olhar os números do time.</p>
+                        </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dentro ou fora do prazo -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#EC4899,#B826C9)"><i class="ph ph-timer" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Dentro ou fora do prazo</div>
+                <div class="sec-hd-sub">Como o sistema classifica sua entrega</div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <div class="fcard fcard-accent" style="border-left-color:#10B981">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+                    <i class="ph-fill ph-check-circle" style="color:#10B981;font-size:20px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Dentro do prazo</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">Você concluiu até a data prevista. Concluir <strong style="color:#0B0D1F">no próprio dia</strong> da previsão também conta como dentro.</p>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#EC4899">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+                    <i class="ph-fill ph-clock-countdown" style="color:#EC4899;font-size:20px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Fora do prazo</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">Passou da data. O sistema <strong style="color:#0B0D1F">exige a justificativa</strong> para salvar a conclusão.</p>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#9097AC">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+                    <i class="ph-fill ph-minus-circle" style="color:#9097AC;font-size:20px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Sem prazo</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">Tarefas antigas, sem previsão definida. Ficam de fora da conta de aderência.</p>
+            </div>
+        </div>
+
+        <div class="hbox" style="background:#06D7E608;border:1px solid #06D7E625;margin-top:12px">
+            <i class="ph ph-info" style="color:#06D7E6;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:12.5px;color:#5E647A;line-height:1.6">A comparação usa o fuso de <strong style="color:#0B0D1F">Brasília</strong>. Concluir às 23h de uma terça conta como terça, não como quarta.</p>
+        </div>
+    </div>
+
+    <!-- Suporte -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)"><i class="ph ph-lifebuoy" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Precisa de ajuda? Fale com o suporte</div>
+                <div class="sec-hd-sub">Direto do sistema, sem sair da tela</div>
+            </div>
+        </div>
+
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">
+                No topo da tela existe um ícone de <strong style="color:#0B0D1F">salva-vidas</strong> <i class="ph ph-lifebuoy" style="color:#5B2EE0"></i>. Ele abre um formulário que vai direto para a equipe de desenvolvimento — não é e-mail, não é grupo de WhatsApp, e ninguém precisa intermediar.
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px">
+                <div class="fcard" style="padding:14px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+                        <i class="ph ph-question" style="color:#5B2EE0;font-size:17px"></i>
+                        <span style="font-size:13px;font-weight:700;color:#0B0D1F">Dúvida</span>
+                    </div>
+                    <p style="font-size:12px;color:#9097AC;line-height:1.5">Não sabe como fazer algo no sistema</p>
+                </div>
+                <div class="fcard" style="padding:14px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+                        <i class="ph ph-bug" style="color:#EC4899;font-size:17px"></i>
+                        <span style="font-size:13px;font-weight:700;color:#0B0D1F">Bug</span>
+                    </div>
+                    <p style="font-size:12px;color:#9097AC;line-height:1.5">Algo não funciona ou mostra dado errado</p>
+                </div>
+                <div class="fcard" style="padding:14px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+                        <i class="ph ph-sparkle" style="color:#06D7E6;font-size:17px"></i>
+                        <span style="font-size:13px;font-weight:700;color:#0B0D1F">Melhoria</span>
+                    </div>
+                    <p style="font-size:12px;color:#9097AC;line-height:1.5">Uma ideia para o sistema ficar melhor</p>
+                </div>
+            </div>
+            <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025">
+                <i class="ph ph-image" style="color:#5B2EE0;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                <p style="font-size:12.5px;color:#5E647A;line-height:1.6">Dá para <strong style="color:#0B0D1F">anexar um print</strong> (até 5 MB). Numa tela cheia de dado, uma imagem economiza várias idas e vindas — vale sempre que o problema for visual.</p>
             </div>
         </div>
     </div>
@@ -786,14 +897,61 @@
                 <div class="step-line"><div class="step-connector"></div></div>
                 <div style="display:flex;align-items:flex-start;gap:12px">
                     <div class="step-num">2</div>
-                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">O funcionário recebe email com <strong style="color:#0B0D1F">usuário e senha temporária</strong> e cria a própria senha no primeiro acesso</p>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Escolha o <strong style="color:#0B0D1F">cargo</strong> — é ele que define a tela em que a pessoa entra e o que ela enxerga</p>
                 </div>
                 <div class="step-line"><div class="step-connector"></div></div>
                 <div style="display:flex;align-items:flex-start;gap:12px">
                     <div class="step-num">3</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">O funcionário recebe email com <strong style="color:#0B0D1F">usuário e senha temporária</strong> e cria a própria senha no primeiro acesso (mínimo 8 caracteres, com letras e números)</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">4</div>
                     <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">A partir daí você já pode <strong style="color:#0B0D1F">atribuir tarefas</strong> a essa pessoa</p>
                 </div>
             </div>
+        </div>
+
+        <!-- Os três cargos -->
+        <div class="card" style="padding:24px;margin-bottom:12px">
+            <p style="font-size:13px;font-weight:800;color:#0B0D1F;margin-bottom:4px;font-family:'Space Grotesk',sans-serif">Os três cargos</p>
+            <p style="font-size:13px;color:#9097AC;line-height:1.6;margin-bottom:16px">A escolha não é cosmética: cada cargo abre uma tela diferente no login.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px">
+                <div class="fcard fcard-accent" style="border-left-color:#5B2EE0;padding:16px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                        <i class="ph-fill ph-user" style="color:#5B2EE0;font-size:18px"></i>
+                        <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Analista</p>
+                    </div>
+                    <p style="font-size:12.5px;color:#5E647A;line-height:1.55">Apontamento comum. Kanban, agenda e carimbos próprios.</p>
+                </div>
+                <div class="fcard fcard-accent" style="border-left-color:#06D7E6;padding:16px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                        <i class="ph-fill ph-clipboard-text" style="color:#06D7E6;font-size:18px"></i>
+                        <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Backoffice</p>
+                    </div>
+                    <p style="font-size:12.5px;color:#5E647A;line-height:1.55">Igual ao analista, mais leitura do Kanban da Equipe e do Status Report.</p>
+                </div>
+                <div class="fcard fcard-accent" style="border-left-color:#EC4899;padding:16px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                        <i class="ph-fill ph-headset" style="color:#EC4899;font-size:18px"></i>
+                        <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">N2</p>
+                    </div>
+                    <p style="font-size:12.5px;color:#5E647A;line-height:1.55">Técnico de campo. Cai na tela de Status Report e entra na escala de plantão.</p>
+                </div>
+            </div>
+            <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025;margin-top:12px">
+                <i class="ph ph-arrows-clockwise" style="color:#5B2EE0;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                <p style="font-size:12.5px;color:#5E647A;line-height:1.6">Trocou o cargo de alguém? A mudança vale <strong style="color:#0B0D1F">no próximo login</strong> da pessoa. Se ela estiver com o sistema aberto, precisa sair e entrar de novo.</p>
+            </div>
+        </div>
+
+        <!-- Bloqueio de agenda -->
+        <div class="card" style="padding:24px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+                <i class="ph-fill ph-calendar-x" style="color:#EC4899;font-size:19px"></i>
+                <p style="font-size:14px;font-weight:800;color:#0B0D1F;font-family:'Space Grotesk',sans-serif">Bloqueio de agenda</p>
+            </div>
+            <p style="font-size:13.5px;color:#5E647A;line-height:1.65">Férias, atestado, treinamento. Na aba <strong style="color:#0B0D1F">Bloqueios de Agenda</strong> você marca o período em que a pessoa está indisponível — e o sistema passa a <strong style="color:#0B0D1F">recusar</strong> a atribuição de tarefa naquelas datas, explicando o motivo. Evita descobrir tarde demais que atribuiu trabalho para quem estava de férias.</p>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
             <div class="fcard" style="padding:16px">
@@ -1017,6 +1175,46 @@
             <div>
                 <div class="sec-hd-txt">Outras Funcionalidades</div>
                 <div class="sec-hd-sub">Carimbos, Clientes & Financeiro</div>
+            </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#5B2EE012"><i class="ph ph-scales" style="color:#5B2EE0;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Catálogo de pesos</p>
+                        <p style="font-size:12px;color:#9097AC">Admin → aba Pesos</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:6px">Cada <strong style="color:#0B0D1F">tipo de atividade</strong> tem um peso de <strong style="color:#0B0D1F">1 a 4</strong>. É o que transforma "quantidade de tarefas" em <strong style="color:#0B0D1F">esforço real</strong> — sem isso, dez interações de e-mail pareceriam mais trabalho do que um faturamento.</p>
+                        <div class="info-row"><i class="ph ph-pencil-simple" style="color:#5B2EE0"></i><div>Ajuste o peso direto na tabela — vale para os próximos apontamentos</div></div>
+                        <div class="info-row"><i class="ph ph-plus" style="color:#06D7E6"></i><div>Crie tipos novos por <strong>frente</strong> (Analista, Backoffice, N2)</div></div>
+                        <div class="info-row"><i class="ph ph-eye-slash" style="color:#9097AC"></i><div>Desativar um tipo o esconde do formulário, mas <strong>preserva o histórico</strong> de quem já apontou nele</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="acc-item" onclick="toggleAcc(this)">
+                <div class="acc-head">
+                    <div class="acc-icon" style="background:#EC489912"><i class="ph ph-headset" style="color:#EC4899;font-size:20px"></i></div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Operação de campo (N2)</p>
+                        <p style="font-size:12px;color:#9097AC">Status Report, Escala e Painel</p>
+                    </div>
+                    <i class="ph ph-caret-down acc-arrow"></i>
+                </div>
+                <div class="acc-body">
+                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
+                        <div class="info-row"><i class="ph ph-broadcast" style="color:#EC4899"></i><div><strong>Status Report</strong> — as atividades de campo do dia, em lista ou Kanban. Arraste o card para mudar o status</div></div>
+                        <div class="info-row"><i class="ph ph-calendar-check" style="color:#5B2EE0"></i><div><strong>Escala N2</strong> — quem está de plantão em cada dia e em que modalidade (presencial, home ou externo). Dá para <strong>gerar por rodízio</strong> ou importar de planilha</div></div>
+                        <div class="info-row"><i class="ph ph-gauge" style="color:#06D7E6"></i><div><strong>Painel N2</strong> — resumo por técnico: quantas atividades e quantas horas na semana</div></div>
+                        <div class="info-row"><i class="ph ph-users-three" style="color:#B826C9"></i><div><strong>Atribuição em lote</strong> — distribui de uma vez as atividades que ainda estão sem responsável</div></div>
+                        <div class="info-row"><i class="ph ph-arrows-left-right" style="color:#9097AC"></i><div><strong>Reatribuir</strong> — troca o N2 responsável sem perder o que já foi registrado</div></div>
+                    </div>
+                </div>
             </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px">
@@ -1258,12 +1456,12 @@
         <div class="sec-hd">
             <div class="sec-hd-num" style="background:linear-gradient(135deg,#B826C9,#EC4899)"><i class="ph ph-presentation-chart" style="font-size:16px"></i></div>
             <div>
-                <div class="sec-hd-txt">Visão PMO <span style="font-size:11px;font-weight:700;color:#B826C9;background:#B826C915;padding:2px 8px;border-radius:6px;margin-left:6px;vertical-align:middle">EXCLUSIVO</span></div>
+                <div class="sec-hd-txt">Visão PMO <span style="font-size:11px;font-weight:700;color:#B45309;background:#F59E0B18;padding:2px 8px;border-radius:6px;margin-left:6px;vertical-align:middle">INDISPONÍVEL</span></div>
                 <div class="sec-hd-sub">Torre de controle do portfólio — só o diretor vê</div>
             </div>
         </div>
         <div class="card" style="padding:24px">
-            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:18px">No menu <strong style="color:#0B0D1F">Gestão de Projetos → Visão PMO</strong>, você tem o panorama executivo de todo o portfólio.</p>
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:12px">O panorama executivo do portfólio, pensado para o diretor. <strong style="color:#B45309">Está temporariamente fora do ar</strong> — veja a observação no fim desta página. Quando voltar, é isto que ele entrega:</p>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                 <div class="fcard" style="border-left:3px solid #B826C9">
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><i class="ph ph-heartbeat" style="color:#B826C9;font-size:22px"></i><p style="font-size:14px;font-weight:700;color:#0B0D1F">Saúde do Portfólio</p></div>
@@ -1285,47 +1483,56 @@
         </div>
     </div>
 
-    <!-- Gestão de Projetos -->
+    <!-- Forecast -->
     <div class="reveal">
         <div class="sec-hd">
-            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#06D7E6)"><i class="ph ph-folder-open" style="font-size:16px"></i></div>
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#06D7E6)"><i class="ph ph-chart-line-up" style="font-size:16px"></i></div>
             <div>
-                <div class="sec-hd-txt">Gestão de Projetos</div>
-                <div class="sec-hd-sub">Clientes, projetos, contratos e o financeiro dos projetos</div>
+                <div class="sec-hd-txt">Forecast / P&amp;L</div>
+                <div class="sec-hd-sub">A previsão de receita, mês a mês</div>
             </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div class="acc-item" onclick="toggleAcc(this)">
-                <div class="acc-head">
-                    <div class="acc-icon" style="background:#5B2EE012"><i class="ph ph-folders" style="color:#5B2EE0;font-size:20px"></i></div>
-                    <div>
-                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Clientes · Projetos · Contratos</p>
-                        <p style="font-size:12px;color:#9097AC">Status, responsável e histórico de cada projeto</p>
+        <div class="card" style="padding:24px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="info-row"><i class="ph ph-table" style="color:#EC4899"></i><div>Visão <strong>Geral</strong> e <strong>Detalhada</strong>, com as colunas da planilha FORECAST2026</div></div>
+                <div class="info-row"><i class="ph ph-funnel" style="color:#5B2EE0"></i><div>Os filtros recalculam os <strong>KPIs na hora</strong></div></div>
+                <div class="info-row"><i class="ph ph-upload-simple" style="color:#06D7E6"></i><div>Dá para <strong>importar a planilha</strong> direto, sem digitar projeto a projeto</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Limites do perfil -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#9097AC,#5E647A)"><i class="ph ph-shield-check" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">O que não é seu</div>
+                <div class="sec-hd-sub">Para não procurar o que não está lá</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">
+                O perfil de diretor é o mais <strong style="color:#0B0D1F">amplo em alcance</strong> — as três áreas, todos os funcionários, todas as métricas. Em compensação, dois módulos ficam de fora por decisão de negócio:
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
+                <div class="fcard fcard-accent" style="border-left-color:#9097AC">
+                    <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+                        <i class="ph ph-currency-circle-dollar" style="color:#9097AC;font-size:19px"></i>
+                        <span style="font-size:14px;font-weight:800;color:#0B0D1F">Financeiro</span>
                     </div>
-                    <i class="ph ph-caret-down acc-arrow"></i>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Lançamentos e margem por cliente são do gestor e do admin. O Forecast, esse sim, é seu.</p>
                 </div>
-                <div class="acc-body">
-                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
-                        <div class="info-row"><i class="ph ph-cursor-click" style="color:#5B2EE0"></i><div>Clique num projeto para abrir <strong>comentários e status</strong></div></div>
-                        <div class="info-row"><i class="ph ph-chat-circle-dots" style="color:#06D7E6"></i><div>O responsável atualiza pela aba <strong>Projetos</strong> dele — e sobe para cá</div></div>
+                <div class="fcard fcard-accent" style="border-left-color:#9097AC">
+                    <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+                        <i class="ph ph-folders" style="color:#9097AC;font-size:19px"></i>
+                        <span style="font-size:14px;font-weight:800;color:#0B0D1F">Cadastro de projetos e contratos</span>
                     </div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Criar e editar projeto ou contrato é do gestor da área. Você acompanha o resultado pelas métricas.</p>
                 </div>
             </div>
-            <div class="acc-item" onclick="toggleAcc(this)">
-                <div class="acc-head">
-                    <div class="acc-icon" style="background:#EC489912"><i class="ph ph-currency-dollar" style="color:#EC4899;font-size:20px"></i></div>
-                    <div>
-                        <p style="font-size:14px;font-weight:700;color:#0B0D1F">Forecast / P&L</p>
-                        <p style="font-size:12px;color:#9097AC">Margem por projeto e P&L mensal</p>
-                    </div>
-                    <i class="ph ph-caret-down acc-arrow"></i>
-                </div>
-                <div class="acc-body">
-                    <div class="acc-body-inner" style="display:flex;flex-direction:column;gap:8px">
-                        <div class="info-row"><i class="ph ph-table" style="color:#EC4899"></i><div>Visão <strong>Geral</strong> e <strong>Detalhada</strong> com as colunas da planilha FORECAST2026</div></div>
-                        <div class="info-row"><i class="ph ph-funnel" style="color:#5B2EE0"></i><div>Filtros recalculam os <strong>KPIs na hora</strong></div></div>
-                    </div>
-                </div>
+            <div class="hbox" style="background:#F59E0B08;border:1px solid #F59E0B25;margin-top:12px">
+                <i class="ph ph-warning-circle" style="color:#B45309;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                <p style="font-size:12.5px;color:#5E647A;line-height:1.6"><strong style="color:#0B0D1F">A Visão PMO está indisponível no momento.</strong> O item aparece na barra lateral, mas os dados que ele consome vêm do cadastro de projetos — que, como está acima, não é acessível ao diretor. A equipe já foi avisada; até ser resolvido, use as <strong style="color:#0B0D1F">Métricas</strong> e o <strong style="color:#0B0D1F">Forecast</strong>, que funcionam normalmente.</p>
             </div>
         </div>
     </div>
@@ -1369,21 +1576,181 @@
         </div>
     </div>
 
-    <!-- Como funciona -->
+    <!-- As 4 abas da sua tela -->
     <div class="reveal">
         <div class="sec-hd">
-            <div class="sec-hd-num"><i class="ph ph-list-checks" style="font-size:16px"></i></div>
+            <div class="sec-hd-num"><i class="ph ph-squares-four" style="font-size:16px"></i></div>
             <div>
-                <div class="sec-hd-txt">Como funciona</div>
-                <div class="sec-hd-sub">Suas atividades, do jeito mais direto possível</div>
+                <div class="sec-hd-txt">As quatro abas da sua tela</div>
+                <div class="sec-hd-sub">O que você encontra em cada uma</div>
             </div>
         </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
+            <div class="fcard fcard-accent" style="border-left-color:#5B2EE0">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+                    <i class="ph-fill ph-user-focus" style="color:#5B2EE0;font-size:19px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Minhas atividades</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">Só o que está atribuído a você. É onde você trabalha no dia a dia.</p>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#06D7E6">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+                    <i class="ph-fill ph-globe" style="color:#06D7E6;font-size:19px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Atividades em geral</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">O quadro completo do dia, de todos os N2. Serve para saber como está a operação.</p>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#B826C9">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+                    <i class="ph-fill ph-plus-square" style="color:#B826C9;font-size:19px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Outras Atividades</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">O que você fez fora das visitas agendadas — também entra na sua medição de esforço.</p>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#EC4899">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+                    <i class="ph-fill ph-printer" style="color:#EC4899;font-size:19px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Enviar Status Report</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">Gera o relatório do dia por cliente, pronto para enviar.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fluxo da atividade -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)"><i class="ph ph-path" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">O caminho de uma atividade</div>
+                <div class="sec-hd-sub">Do agendamento ao encerramento</div>
+            </div>
+        </div>
+
+        <div class="card" style="padding:24px">
+            <div style="display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num" style="margin-top:1px">1</div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F;margin-bottom:3px">Onde você está</p>
+                        <p style="font-size:13px;color:#5E647A;line-height:1.6">Marque <strong style="color:#0B0D1F">Em deslocamento</strong> ou <strong style="color:#0B0D1F">No local</strong>. A localização é obrigatória para registrar andamento — é ela que dá contexto a quem acompanha de fora.</p>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num" style="margin-top:1px">2</div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F;margin-bottom:3px">Conseguiu acesso ao site?</p>
+                        <p style="font-size:13px;color:#5E647A;line-height:1.6">Três respostas possíveis: <strong style="color:#0B0D1F">com acesso</strong>, <strong style="color:#0B0D1F">verificando acesso</strong> ou <strong style="color:#0B0D1F">sem acesso</strong>. Sem confirmar o acesso, o sistema não deixa registrar que a intervenção começou.</p>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num" style="margin-top:1px">3</div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F;margin-bottom:3px">O que está fazendo agora</p>
+                        <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:8px">Escolha o tipo de andamento. Você pode registrar <strong style="color:#0B0D1F">quantas atualizações quiser</strong> sem mudar o status — cada uma vira uma entrada na linha do tempo.</p>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <span class="pill" style="background:#5B2EE012;color:#5B2EE0">Instalando</span>
+                            <span class="pill" style="background:#B826C912;color:#B826C9">Trocando</span>
+                            <span class="pill" style="background:#EC489912;color:#EC4899">Removendo</span>
+                            <span class="pill" style="background:#06D7E612;color:#0891a3">Validando</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num" style="margin-top:1px">4</div>
+                    <div>
+                        <p style="font-size:14px;font-weight:700;color:#0B0D1F;margin-bottom:3px">Encerrar</p>
+                        <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:8px">Ao fechar, registre equipamento e material. Depois de encerrada, a atividade recebe um <strong style="color:#0B0D1F">carimbo</strong> com o resumo — clicando nela no Kanban ou no Histórico você vê exatamente como ela terminou.</p>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <span class="pill" style="background:#10B98112;color:#10B981">Concluído</span>
+                            <span class="pill" style="background:#F59E0B12;color:#B45309">Parcial</span>
+                            <span class="pill" style="background:#EC489912;color:#EC4899">Improdutiva cliente</span>
+                            <span class="pill" style="background:#EC489912;color:#EC4899">Improdutiva Faiston</span>
+                            <span class="pill" style="background:#9097AC15;color:#5E647A">Cancelado</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equipamento e material -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#B826C9,#EC4899)"><i class="ph ph-package" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Equipamento e material</div>
+                <div class="sec-hd-sub">O que precisa ser registrado ao encerrar</div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px">
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+                    <i class="ph-fill ph-hard-drives" style="color:#5B2EE0;font-size:19px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Equipamento</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                    <div class="info-row" style="font-size:13px"><i class="ph ph-arrow-down-left" style="color:#10B981"></i><div><strong>Instalado</strong> — informe o número de série</div></div>
+                    <div class="info-row" style="font-size:13px"><i class="ph ph-arrow-up-right" style="color:#EC4899"></i><div><strong>Removido</strong> — série, part number e quem ficou com ele</div></div>
+                    <div class="info-row" style="font-size:13px"><i class="ph ph-stack" style="color:#9097AC"></i><div>Dá para registrar <strong>vários itens</strong> na mesma visita, instalados e removidos ao mesmo tempo</div></div>
+                </div>
+            </div>
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">
+                    <i class="ph-fill ph-toolbox" style="color:#06D7E6;font-size:19px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Material</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:9px">Cada material tem <strong style="color:#0B0D1F">quantidade, unidade e valor</strong>. É o que permite fechar o custo real da visita.</p>
+                <div style="display:flex;gap:5px;flex-wrap:wrap">
+                    <span class="pill" style="background:#F4F5FA;color:#5E647A;font-size:11px">unidade</span>
+                    <span class="pill" style="background:#F4F5FA;color:#5E647A;font-size:11px">metro</span>
+                    <span class="pill" style="background:#F4F5FA;color:#5E647A;font-size:11px">caixa</span>
+                    <span class="pill" style="background:#F4F5FA;color:#5E647A;font-size:11px">rolo</span>
+                    <span class="pill" style="background:#F4F5FA;color:#5E647A;font-size:11px">par</span>
+                    <span class="pill" style="background:#F4F5FA;color:#5E647A;font-size:11px">pacote</span>
+                    <span class="pill" style="background:#F4F5FA;color:#5E647A;font-size:11px">kit</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025;margin-top:12px">
+            <i class="ph ph-tag" style="color:#5B2EE0;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:12.5px;color:#5E647A;line-height:1.6">As <strong style="color:#0B0D1F">particularidades</strong> — reversa, equipamento em posse do cliente, removido, instalado — são marcações rápidas que ajudam quem for faturar ou auditar depois. Marque o que se aplicar.</p>
+        </div>
+    </div>
+
+    <!-- Escala e regras -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#EC4899,#B826C9)"><i class="ph ph-calendar-check" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Escala e o que é seu</div>
+                <div class="sec-hd-sub">Plantão, responsabilidade e limites</div>
+            </div>
+        </div>
+
         <div class="card" style="padding:24px">
             <div style="display:flex;flex-direction:column;gap:10px">
-                <div class="info-row"><i class="ph ph-eye" style="color:#06D7E6"></i><div><strong>Minhas atividades</strong> mostra só o que está atribuído a você — nada de garimpar entre atividades de outras pessoas</div></div>
-                <div class="info-row"><i class="ph ph-plus-circle" style="color:#5B2EE0"></i><div><strong>Nova atividade</strong> já registra você como N2 responsável automaticamente</div></div>
-                <div class="info-row"><i class="ph ph-arrows-clockwise" style="color:#EC4899"></i><div>Pra mudar o status (Concluído, Improdutiva, etc.), usa o <strong>seletor direto na linha</strong> da atividade — não precisa abrir o formulário inteiro</div></div>
-                <div class="info-row"><i class="ph ph-note-pencil" style="color:#06D7E6"></i><div>Preencha <strong>Observações</strong> com o que aconteceu na visita, e <strong>Material</strong> se algo foi usado/deixado no site</div></div>
+                <div class="info-row"><i class="ph ph-calendar-blank" style="color:#5B2EE0"></i><div>A <strong>escala do dia</strong> é montada pela gestão e define quem está de plantão, em que modalidade: <strong>presencial</strong>, <strong>home</strong> ou <strong>externo</strong></div></div>
+                <div class="info-row"><i class="ph ph-user-check" style="color:#06D7E6"></i><div>Ao criar uma atividade, <strong>você já entra como responsável</strong> automaticamente</div></div>
+                <div class="info-row"><i class="ph ph-lock-simple" style="color:#EC4899"></i><div>Você edita e encerra <strong>apenas as atividades onde é o responsável</strong>. As dos colegas você vê, mas não altera</div></div>
+                <div class="info-row"><i class="ph ph-arrows-left-right" style="color:#9097AC"></i><div>Se uma atividade precisar trocar de mão, a <strong>gestão reatribui</strong> — o histórico do que já foi registrado é preservado</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tour -->
+    <div class="reveal">
+        <div class="card" style="padding:22px;border:1.5px solid #06D7E625;background:linear-gradient(135deg,#06D7E606,#5B2EE006)">
+            <div style="display:flex;align-items:flex-start;gap:14px">
+                <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#06D7E6,#5B2EE0);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <i class="ph ph-graduation-cap" style="color:white;font-size:20px"></i>
+                </div>
+                <div>
+                    <p style="font-size:15px;font-weight:800;color:#0B0D1F;margin-bottom:5px;font-family:'Space Grotesk',sans-serif">Tem um tour guiado na sua tela</p>
+                    <p style="font-size:13.5px;color:#5E647A;line-height:1.65">Na primeira vez que você entra, ele abre sozinho e passa pelos pontos principais. Depois disso, o ícone de <strong style="color:#0B0D1F">chapéu de formatura</strong> no topo reabre quando quiser — sem limite de vezes.</p>
+                </div>
             </div>
         </div>
     </div>
@@ -1391,6 +1758,173 @@
     <div class="reveal" style="text-align:center;padding:8px 0">
         <a href="/n2" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;font-weight:700;font-size:14px;padding:12px 24px;border-radius:12px;text-decoration:none">
             <i class="ph ph-arrow-right"></i> Ir para minhas atividades
+        </a>
+    </div>
+
+</div>
+
+<!-- ════════════ BACKOFFICE ════════════ -->
+<div id="tab-backoffice" class="tab-panel" style="display:none;flex-direction:column;gap:32px">
+
+    <div class="reveal">
+        <div style="background:linear-gradient(135deg,#5B2EE0,#B826C9,#EC4899);border-radius:20px;padding:28px;color:white;position:relative;overflow:hidden">
+            <div style="position:absolute;top:-30px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
+            <div style="display:flex;align-items:flex-start;gap:16px;position:relative">
+                <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;backdrop-filter:blur(10px)">
+                    <i class="ph ph-clipboard-text" style="font-size:22px;color:white"></i>
+                </div>
+                <div style="flex:1">
+                    <h3 style="font-size:18px;font-weight:800;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Bem-vindo, Backoffice</h3>
+                    <p style="font-size:14px;color:rgba(255,255,255,.75);line-height:1.7">Sua tela é a mesma do analista — Kanban, Agenda e Carimbos — <strong style="color:white">com um acréscimo</strong>: você acompanha o andamento do time inteiro, em modo leitura.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num"><i class="ph ph-eyes" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">O que você enxerga a mais</div>
+                <div class="sec-hd-sub">Liberado em agosto de 2026</div>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+            <div class="fcard fcard-accent" style="border-left-color:#5B2EE0">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+                    <i class="ph-fill ph-kanban" style="color:#5B2EE0;font-size:19px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Kanban da Equipe</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">As tarefas do time, agrupadas por responsável ou projeto, com o total de horas por coluna. Você vê tudo — mas não arrasta nem edita.</p>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#06D7E6">
+                <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+                    <i class="ph-fill ph-broadcast" style="color:#06D7E6;font-size:19px"></i>
+                    <span style="font-size:14px;font-weight:800;color:#0B0D1F">Status Report</span>
+                </div>
+                <p style="font-size:13px;color:#5E647A;line-height:1.6">As atividades de campo do dia, incluindo a visão Kanban do N2. Ideal para saber o que já fechou antes de responder ao cliente.</p>
+            </div>
+        </div>
+
+        <div class="hbox" style="background:#06D7E608;border:1px solid #06D7E625;margin-top:12px">
+            <i class="ph ph-info" style="color:#06D7E6;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:12.5px;color:#5E647A;line-height:1.6"><strong style="color:#0B0D1F">Leitura significa leitura.</strong> Você acompanha o andamento de todo mundo, mas alterar tarefa ou atividade continua sendo do dono dela ou da gestão. Suas próprias tarefas você edita normalmente.</p>
+        </div>
+    </div>
+
+    <div class="reveal">
+        <div class="card" style="padding:22px;border:1.5px solid #5B2EE025">
+            <div style="display:flex;align-items:flex-start;gap:14px">
+                <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <i class="ph ph-book-open" style="color:white;font-size:20px"></i>
+                </div>
+                <div>
+                    <p style="font-size:15px;font-weight:800;color:#0B0D1F;margin-bottom:5px;font-family:'Space Grotesk',sans-serif">O resto funciona igual</p>
+                    <p style="font-size:13.5px;color:#5E647A;line-height:1.65">Criar tarefa, cronômetro, prazos, ajudantes, carimbos e agenda: tudo idêntico ao guia do analista. Abra a aba <strong style="color:#0B0D1F">Analista</strong> aqui em cima para o passo a passo completo.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ════════════ EQUIPE DEV ════════════ -->
+<div id="tab-dev" class="tab-panel" style="display:none;flex-direction:column;gap:32px">
+
+    <div class="reveal">
+        <div style="background:linear-gradient(135deg,#0B0D1F,#2d0a3e,#5B2EE0);border-radius:20px;padding:28px;color:white;position:relative;overflow:hidden">
+            <div style="position:absolute;top:-30px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
+            <div style="display:flex;align-items:flex-start;gap:16px;position:relative">
+                <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;backdrop-filter:blur(10px)">
+                    <i class="ph ph-code" style="font-size:22px;color:white"></i>
+                </div>
+                <div style="flex:1">
+                    <h3 style="font-size:18px;font-weight:800;margin-bottom:6px;font-family:'Space Grotesk',sans-serif">Área da Equipe Dev</h3>
+                    <p style="font-size:14px;color:rgba(255,255,255,.75);line-height:1.7">Você entra no sistema com <strong style="color:white">acesso equivalente ao admin</strong> — todos os times, todos os módulos — e ainda tem uma área que só a equipe técnica enxerga.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#06D7E6)"><i class="ph ph-kanban" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Quadro de tarefas técnicas</div>
+                <div class="sec-hd-sub">Sidebar → Área Dev</div>
+            </div>
+        </div>
+
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Quatro colunas, separado do Kanban operacional. É onde vive o trabalho de desenvolvimento — bug, melhoria, dívida técnica.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+                <span class="pill" style="background:#9097AC15;color:#5E647A">Backlog</span>
+                <span class="pill" style="background:#5B2EE012;color:#5B2EE0">A fazer</span>
+                <span class="pill" style="background:#B826C912;color:#B826C9">Fazendo</span>
+                <span class="pill" style="background:#10B98112;color:#10B981">Concluído</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:9px">
+                <div class="info-row"><i class="ph ph-flag" style="color:#EC4899"></i><div><strong>Prioridade, prazo, tags e link</strong> em cada card — o link serve para apontar o PR, o ticket ou a referência</div></div>
+                <div class="info-row"><i class="ph ph-list-checks" style="color:#5B2EE0"></i><div><strong>Checklist</strong> por tarefa, com contador visível já na listagem</div></div>
+                <div class="info-row"><i class="ph ph-chat-circle-text" style="color:#06D7E6"></i><div><strong>Comentários</strong> por tarefa, também com contador na listagem</div></div>
+                <div class="info-row"><i class="ph ph-user-switch" style="color:#9097AC"></i><div>Atribuição para outro dev, direto no card</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#B826C9)"><i class="ph ph-notebook" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Diário da equipe</div>
+                <div class="sec-hd-sub">Registro cronológico do que foi feito</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7">Um log simples, em ordem de tempo, do que a equipe mexeu. Serve para reconstruir contexto depois — quando alguém pergunta <em>"por que isso mudou?"</em> três semanas depois, a resposta costuma estar aqui.</p>
+        </div>
+    </div>
+
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#EC4899,#5B2EE0)"><i class="ph ph-lifebuoy" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Fila de suporte</div>
+                <div class="sec-hd-sub">O que o resto da empresa reportou</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:14px">Qualquer pessoa logada abre uma solicitação pelo ícone de salva-vidas. Ela cai aqui, e a equipe recebe um <strong style="color:#0B0D1F">aviso por e-mail</strong> na hora.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+                <span class="pill" style="background:#EC489912;color:#EC4899">Aberto</span>
+                <span class="pill" style="background:#5B2EE012;color:#5B2EE0">Em andamento</span>
+                <span class="pill" style="background:#10B98112;color:#10B981">Resolvido</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:9px">
+                <div class="info-row"><i class="ph ph-image" style="color:#5B2EE0"></i><div>Se a pessoa anexou um <strong>print</strong>, ele abre direto do card</div></div>
+                <div class="info-row"><i class="ph ph-eye-slash" style="color:#9097AC"></i><div>O botão de <strong>abrir suporte</strong> fica escondido para você — não faz sentido abrir chamado para si mesmo</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="reveal">
+        <div class="card" style="padding:22px;border:1.5px solid #EC489925;background:linear-gradient(135deg,#EC489906,#5B2EE006)">
+            <div style="display:flex;align-items:flex-start;gap:14px">
+                <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#EC4899,#B826C9);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <i class="ph ph-eye" style="color:white;font-size:20px"></i>
+                </div>
+                <div>
+                    <p style="font-size:15px;font-weight:800;color:#0B0D1F;margin-bottom:5px;font-family:'Space Grotesk',sans-serif">O sistema sabe que você é dev</p>
+                    <p style="font-size:13.5px;color:#5E647A;line-height:1.65">Internamente seu perfil é elevado a <strong style="color:#0B0D1F">admin</strong>, para que todas as permissões existentes funcionem sem exceção. Mas o perfil original fica guardado — é ele que libera esta área e que aparece como <strong style="color:#0B0D1F">Dev</strong> na barra lateral, em vez de "Administrador".</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="reveal" style="text-align:center;padding:8px 0">
+        <a href="/dashboard?go=areaDev" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#5B2EE0,#B826C9);color:white;font-weight:700;font-size:14px;padding:12px 24px;border-radius:12px;text-decoration:none">
+            <i class="ph ph-arrow-right"></i> Ir para a Área Dev
         </a>
     </div>
 
@@ -1558,21 +2092,29 @@ document.getElementById('ano').textContent = new Date().getFullYear();
     const perfil = (params.get('perfil') || '').toLowerCase();
     const tabParam = (params.get('tab') || '').toLowerCase();
 
-    // Abas que cada perfil enxerga no guia.
-    // Funcionário, gestor e diretor veem só a própria. Demo e admin veem mais.
+    // Abas que cada função enxerga no guia. O parâmetro ?perfil= aqui é a
+    // FUNÇÃO da pessoa, não o perfil cru do banco: a rota /ajuda traduz
+    // funcionario+cargo=n2 em "n2" e funcionario+cargo=backoffice em
+    // "backoffice" antes de redirecionar.
+    const TODAS = ['func', 'backoffice', 'gestor', 'diretor', 'n2', 'dev'];
     const perfilAbas = {
         funcionario: ['func'],
+        backoffice:  ['backoffice', 'func'],
         gestor:      ['gestor'],
         diretor:     ['diretor'],
         n2:          ['n2'],
+        dev:         TODAS,
         demo:        ['func', 'gestor'],
-        admin:       ['func', 'gestor', 'diretor', 'n2']
+        admin:       TODAS
     };
-    // Aba padrão (ativa) de cada perfil
-    const perfilParaAba = { funcionario: 'func', gestor: 'gestor', demo: 'gestor', admin: 'gestor', diretor: 'diretor', n2: 'n2' };
+    // Aba padrão (ativa) de cada função
+    const perfilParaAba = {
+        funcionario: 'func', backoffice: 'backoffice', gestor: 'gestor',
+        demo: 'gestor', admin: 'gestor', diretor: 'diretor', n2: 'n2', dev: 'dev'
+    };
 
     // Sem perfil conhecido → mostra tudo (fallback para acesso anônimo)
-    const permitidas = perfilAbas[perfil] || ['func', 'gestor', 'diretor', 'n2'];
+    const permitidas = perfilAbas[perfil] || TODAS;
 
     // Esconde os botões das abas que não pertencem ao perfil
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -1594,8 +2136,12 @@ document.getElementById('ano').textContent = new Date().getFullYear();
     if (!aba) aba = permitidas[0];
     if (aba && document.getElementById('tb-' + aba)) setTab(aba);
 
-    // Destino do botão de saída conforme o perfil
-    const destino = { funcionario: '/funcionario', gestor: '/dashboard', demo: '/dashboard', admin: '/dashboard', diretor: '/gestao', n2: '/n2' };
+    // Destino do botão de saída conforme a função
+    const destino = {
+        funcionario: '/funcionario', backoffice: '/funcionario', gestor: '/dashboard',
+        demo: '/dashboard', admin: '/dashboard', dev: '/dashboard',
+        diretor: '/dashboard', n2: '/n2'
+    };
     if (perfil && destino[perfil]) {
         const cta = document.getElementById('hero-cta');
         const label = document.getElementById('hero-cta-label');
