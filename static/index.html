@@ -2690,6 +2690,17 @@
 
     <div id="dev-diagnostico">
         <div id="dev-conteudo"></div>
+        <!-- Integração Microsoft Loop (esqueleto, 2026-08-04): snapshot só-leitura
+             sincronizado periodicamente pelo backend. Ver
+             wiki/entities/dashboard-faiston-integracao-microsoft-loop.md --
+             placement final (quem além de admin/dev vê isso) ainda em aberto. -->
+        <div class="bg-white border border-faiston-border rounded-xl p-4 mt-4">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Planejamento (Microsoft Loop)</p>
+                <span id="loop-area_dev-status" class="text-[11px] text-faiston-muted"></span>
+            </div>
+            <div id="loop-area_dev-conteudo" class="text-sm text-faiston-muted"></div>
+        </div>
     </div>
 
     <!-- ABA SUPORTE: solicitações abertas por qualquer usuário logado -->
@@ -5504,6 +5515,37 @@ async function devCarregarDiagnostico() {
     }
 }
 
+// ── Integração Microsoft Loop (esqueleto, 2026-08-04) ──
+// Reaproveitável: qualquer tela que precise mostrar um snapshot do Loop chama
+// carregarLoopSnapshot(chave), desde que exista #loop-{chave}-conteudo (e,
+// opcionalmente, #loop-{chave}-status) no HTML daquela tela. Hoje só ligado
+// na aba Diagnóstico (chave 'area_dev') -- Gestão de Projetos ainda não tem
+// os elementos/chamada, pendente de decisão de onde entra ali.
+async function carregarLoopSnapshot(chave) {
+    const elConteudo = document.getElementById(`loop-${chave}-conteudo`);
+    const elStatus = document.getElementById(`loop-${chave}-status`);
+    if (!elConteudo) return;
+    elConteudo.innerHTML = '<p class="text-sm text-faiston-muted">Carregando...</p>';
+    if (elStatus) elStatus.textContent = '';
+    try {
+        const res = await fetch(`/api/loop-snapshot/${chave}`);
+        if (!res.ok) throw new Error('Falha ao buscar snapshot');
+        const d = await res.json();
+        if (!d.configurado) {
+            elConteudo.innerHTML = '<p class="text-sm text-faiston-muted">Integração com o Microsoft Loop ainda não configurada (aguardando setup no Entra ID).</p>';
+            return;
+        }
+        if (d.erro) {
+            elConteudo.innerHTML = `<p class="text-sm text-faiston-pink">Última sincronização falhou: ${d.erro}</p>`;
+        } else {
+            elConteudo.innerHTML = d.html || '<p class="text-sm text-faiston-muted">Sem conteúdo ainda.</p>';
+        }
+        if (elStatus && d.atualizado_em) elStatus.textContent = `atualizado ${d.atualizado_em}`;
+    } catch (e) {
+        elConteudo.innerHTML = `<p class="text-sm text-faiston-pink">Erro ao carregar snapshot do Loop: ${e.message}</p>`;
+    }
+}
+
 // ── Área de Dev: alternância de abas (Planejamento / Diagnóstico) ──
 let _devPlanCarregado = false;
 
@@ -5537,6 +5579,7 @@ function devSetTab(tab) {
         devDiarioCarregar();
     } else if (tab === 'diagnostico') {
         devCarregarDiagnostico();
+        carregarLoopSnapshot('area_dev');
     } else if (tab === 'suporte') {
         devSuporteCarregar();
     }
