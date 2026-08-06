@@ -23,7 +23,20 @@
                     init = Object.assign({}, init, { headers: headers });
                 }
             }
-            return _fetchOriginal(input, init);
+            return _fetchOriginal(input, init).then(function(res) {
+                if (res.status === 403) {
+                    return res.clone().text().then(function(corpo) {
+                        if (corpo.indexOf('CSRF') !== -1) {
+                            // Sessão aberta antes do cookie de CSRF existir (ou expirado):
+                            // reloga em vez de expor o erro cru "Token CSRF ausente ou inválido".
+                            window.location.href = '/';
+                            return new Promise(function() {});
+                        }
+                        return res;
+                    });
+                }
+                return res;
+            });
         };
     })();
     </script>
