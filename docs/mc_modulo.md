@@ -161,20 +161,35 @@ Ordem tentada por `_mc_resolver_contrato()`, hoje **casamento exato**:
 
 ## Tela
 
-**Gestão → MC's Recebidas** (`/dashboard?go=mc`), no `static/index.html`:
+**Módulo próprio na sidebar: MC** (`/dashboard?go=mc`), no `static/index.html`.
+
+Não é sub-aba da Gestão de propósito. A Gestão é cadastro
+(cliente/projeto/contrato) e o Forecast é consolidado de margem; MC é ingestão
+de planilha de kick-off, com ciclo de vida próprio (recebida → conferida →
+processada) e um estado que exige ação humana. Misturar com cadastro
+esconderia esse ciclo dentro de uma tela que não é sobre isso.
+
+Estrutura: `<div id="mod-mc">`, registrado na lista de `mods` do `setModule()`,
+com link `#link-mc` na navegação principal (entre Financeiro e Histórico).
+Não precisa de gating extra por perfil: `/dashboard` já só admite
+admin/gestor/diretor/demo — `funcionario` é redirecionado para `/funcionario` —
+e esse é exatamente o conjunto de `MC_PERFIS_LEITURA`.
+
+Conteúdo:
 
 - KPIs por status, clicáveis (filtram a lista; clicar de novo limpa).
-- Badge na sidebar com o total que **exige ação humana**
-  (`REVISAO_MANUAL` + `ERRO`).
+- Badge no link MC da sidebar com o total que **exige ação humana**
+  (`REVISAO_MANUAL` + `ERRO`), oculto quando é zero.
 - Lista com busca por contrato/cliente/projeto e filtro de status.
 - Modal de detalhe: cabeçalho, linhas de equipe e de investimento, marcação de
   "confere com a planilha" por bloco, histórico de ingestões daquela MC e botão
   *Marcar como processada*.
 - Modal separado com o histórico geral de ingestões (`mc_ingestoes_log`).
 
-> **Pendência (Rafael/Bruna):** quem vê essa tela. Hoje segue o Forecast —
-> admin/gestor/diretor/demo. Se for pra restringir a admin, é mudar
-> `MC_PERFIS_LEITURA` no `main.py`.
+> **Pendência (Rafael/Bruna):** quem vê essa tela. Hoje é todo mundo que entra
+> no dashboard — admin/gestor/diretor/demo. Pra restringir a admin: mudar
+> `MC_PERFIS_LEITURA` no `main.py` **e** esconder o `#link-mc` no `init()` do
+> `index.html`, do mesmo jeito que o `#link-admin` já é escondido.
 
 ## Testes
 

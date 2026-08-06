@@ -198,11 +198,6 @@
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-pink" id="dot-forecast"></div>
                             Forecast / P&L
                         </a>
-                        <a href="#" onclick="setModule('gestao','mc'); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
-                            <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-magenta" id="dot-mc"></div>
-                            MC's Recebidas
-                            <span id="sb-badge-mc" class="hidden ml-auto text-[10px] font-bold text-white bg-amber-500 rounded-full px-1.5 py-0.5"></span>
-                        </a>
                     </div>
                 </div>
                 <div class="flex flex-col">
@@ -221,6 +216,10 @@
                 </a>
                 <a href="#" id="link-financeiro" data-nav-mod="financeiro" onclick="setModule('financeiro'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-currency-circle-dollar text-lg"></i> Financeiro
+                </a>
+                <a href="#" id="link-mc" data-nav-mod="mc" onclick="setModule('mc'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-chart-donut text-lg"></i> <span class="flex-1">MC</span>
+                    <span id="sb-badge-mc" class="hidden text-[10px] font-bold text-white bg-amber-500 rounded-full px-1.5 py-0.5"></span>
                 </a>
                 <a href="#" data-nav-mod="historico" onclick="setModule('historico'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-lg"></i> Histórico
@@ -1196,84 +1195,6 @@
             </div>
         </div>
 
-        <!-- ═══════════ MC's RECEBIDAS ═══════════ -->
-        <div id="view-mc" class="hidden">
-            <!-- KPIs por status -->
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-5">
-                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
-                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total de MC's</p>
-                    <p class="text-xl font-black text-faiston-dark" id="mc-kpi-total">—</p>
-                </div>
-                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm cursor-pointer hover:border-faiston-cyan transition-colors" onclick="mcFiltrarStatus('RECEBIDA')">
-                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Recebidas</p>
-                    <p class="text-xl font-black text-faiston-cyan" id="mc-kpi-recebida">—</p>
-                </div>
-                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm cursor-pointer hover:border-emerald-500 transition-colors" onclick="mcFiltrarStatus('PROCESSADA')">
-                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Processadas</p>
-                    <p class="text-xl font-black text-emerald-600" id="mc-kpi-processada">—</p>
-                </div>
-                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm cursor-pointer hover:border-amber-500 transition-colors" onclick="mcFiltrarStatus('REVISAO_MANUAL')">
-                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Revisão manual</p>
-                    <p class="text-xl font-black text-amber-600" id="mc-kpi-revisao">—</p>
-                </div>
-                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm cursor-pointer hover:border-faiston-pink transition-colors" onclick="mcFiltrarStatus('ERRO')">
-                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Com erro</p>
-                    <p class="text-xl font-black text-faiston-pink" id="mc-kpi-erro">—</p>
-                </div>
-            </div>
-
-            <!-- Toolbar -->
-            <div class="flex flex-wrap items-center gap-2 mb-4">
-                <div class="relative flex-1 min-w-[200px]">
-                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                    <input id="mc-busca" oninput="mcRenderTabela()" placeholder="Buscar por contrato, cliente ou projeto..."
-                           class="w-full border border-faiston-border rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
-                </div>
-                <select id="mc-filtro-status" onchange="mcRenderTabela()"
-                        class="border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
-                    <option value="">Todos os status</option>
-                    <option value="RECEBIDA">Recebida</option>
-                    <option value="PROCESSADA">Processada</option>
-                    <option value="REVISAO_MANUAL">Revisão manual</option>
-                    <option value="ERRO">Erro</option>
-                </select>
-                <button onclick="mcCarregar(true)" class="border border-faiston-border rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                    <i class="ph ph-arrows-clockwise"></i> Atualizar
-                </button>
-                <button onclick="mcAbrirLog()" class="border border-faiston-border rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                    <i class="ph ph-clock-counter-clockwise"></i> Histórico de ingestões
-                </button>
-            </div>
-
-            <!-- Tabela -->
-            <div class="bg-white rounded-xl border border-faiston-border shadow-sm overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
-                            <tr>
-                                <th class="text-left font-semibold px-4 py-3">Contrato</th>
-                                <th class="text-left font-semibold px-4 py-3">Ano</th>
-                                <th class="text-left font-semibold px-4 py-3">Cliente / Projeto</th>
-                                <th class="text-right font-semibold px-4 py-3">Equipe</th>
-                                <th class="text-right font-semibold px-4 py-3">Investimentos</th>
-                                <th class="text-right font-semibold px-4 py-3">Total</th>
-                                <th class="text-left font-semibold px-4 py-3">Status</th>
-                                <th class="text-left font-semibold px-4 py-3">Recebida em</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mc-tbody"></tbody>
-                    </table>
-                </div>
-            </div>
-            <div id="mc-vazio" class="hidden text-center py-14">
-                <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                    <i class="ph ph-file-magnifying-glass text-2xl text-slate-400"></i>
-                </div>
-                <p class="font-semibold text-slate-600 mb-1">Nenhuma MC recebida</p>
-                <p class="text-sm text-slate-400 mb-4">As MC's aparecem aqui depois que a planilha do kick-off é extraída e enviada para <span class="font-mono">/api/mc/importar</span></p>
-            </div>
-        </div>
-
     </main>
 </div>
 
@@ -1634,6 +1555,102 @@
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- MODULE: FINANCEIRO                                              -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════════════
+     MÓDULO MC — MARGEM DE CONTRIBUIÇÃO
+     Módulo próprio, independente da Gestão: MC é ingestão de planilha de
+     kick-off, não cadastro de cliente/projeto/contrato.
+     ══════════════════════════════════════════════════════════════════ -->
+<div id="mod-mc" class="hidden flex-1 overflow-y-auto custom-scrollbar">
+<div class="px-6 py-6">
+
+    <!-- Header do módulo -->
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-6">
+        <div>
+            <h1 class="text-2xl font-black text-faiston-dark flex items-center gap-2">
+                <i class="ph ph-chart-donut text-faiston-magenta"></i> MC — Margem de Contribuição
+            </h1>
+            <p class="text-sm text-slate-500 mt-1" id="mc-header-sub">Margem de contribuição por contrato/ano, extraída das planilhas de kick-off</p>
+        </div>
+    </div>
+
+            <!-- KPIs por status -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-5">
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total de MC's</p>
+                    <p class="text-xl font-black text-faiston-dark" id="mc-kpi-total">—</p>
+                </div>
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm cursor-pointer hover:border-faiston-cyan transition-colors" onclick="mcFiltrarStatus('RECEBIDA')">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Recebidas</p>
+                    <p class="text-xl font-black text-faiston-cyan" id="mc-kpi-recebida">—</p>
+                </div>
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm cursor-pointer hover:border-emerald-500 transition-colors" onclick="mcFiltrarStatus('PROCESSADA')">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Processadas</p>
+                    <p class="text-xl font-black text-emerald-600" id="mc-kpi-processada">—</p>
+                </div>
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm cursor-pointer hover:border-amber-500 transition-colors" onclick="mcFiltrarStatus('REVISAO_MANUAL')">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Revisão manual</p>
+                    <p class="text-xl font-black text-amber-600" id="mc-kpi-revisao">—</p>
+                </div>
+                <div class="bg-white rounded-xl border border-faiston-border p-4 shadow-sm cursor-pointer hover:border-faiston-pink transition-colors" onclick="mcFiltrarStatus('ERRO')">
+                    <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Com erro</p>
+                    <p class="text-xl font-black text-faiston-pink" id="mc-kpi-erro">—</p>
+                </div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="flex flex-wrap items-center gap-2 mb-4">
+                <div class="relative flex-1 min-w-[200px]">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input id="mc-busca" oninput="mcRenderTabela()" placeholder="Buscar por contrato, cliente ou projeto..."
+                           class="w-full border border-faiston-border rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                </div>
+                <select id="mc-filtro-status" onchange="mcRenderTabela()"
+                        class="border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                    <option value="">Todos os status</option>
+                    <option value="RECEBIDA">Recebida</option>
+                    <option value="PROCESSADA">Processada</option>
+                    <option value="REVISAO_MANUAL">Revisão manual</option>
+                    <option value="ERRO">Erro</option>
+                </select>
+                <button onclick="mcCarregar(true)" class="border border-faiston-border rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                    <i class="ph ph-arrows-clockwise"></i> Atualizar
+                </button>
+                <button onclick="mcAbrirLog()" class="border border-faiston-border rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                    <i class="ph ph-clock-counter-clockwise"></i> Histórico de ingestões
+                </button>
+            </div>
+
+            <!-- Tabela -->
+            <div class="bg-white rounded-xl border border-faiston-border shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
+                            <tr>
+                                <th class="text-left font-semibold px-4 py-3">Contrato</th>
+                                <th class="text-left font-semibold px-4 py-3">Ano</th>
+                                <th class="text-left font-semibold px-4 py-3">Cliente / Projeto</th>
+                                <th class="text-right font-semibold px-4 py-3">Equipe</th>
+                                <th class="text-right font-semibold px-4 py-3">Investimentos</th>
+                                <th class="text-right font-semibold px-4 py-3">Total</th>
+                                <th class="text-left font-semibold px-4 py-3">Status</th>
+                                <th class="text-left font-semibold px-4 py-3">Recebida em</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mc-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="mc-vazio" class="hidden text-center py-14">
+                <div class="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                    <i class="ph ph-file-magnifying-glass text-2xl text-slate-400"></i>
+                </div>
+                <p class="font-semibold text-slate-600 mb-1">Nenhuma MC recebida</p>
+                <p class="text-sm text-slate-400 mb-4">As MC's aparecem aqui depois que a planilha do kick-off é extraída e enviada para <span class="font-mono">/api/mc/importar</span></p>
+            </div>
+
+</div>
+</div>
+
 <div id="mod-financeiro" class="hidden flex-1 overflow-y-auto custom-scrollbar">
     <div class="px-8 py-6">
         <!-- BANNER EM DESENVOLVIMENTO -->
@@ -3849,7 +3866,7 @@ async function init() {
     else if (go === 'gestao')     setModule('gestao');
     else if (go === 'financeiro') setModule('financeiro');
     else if (go === 'forecast')   setModule('gestao', 'forecast');
-    else if (go === 'mc')         setModule('gestao', 'mc');
+    else if (go === 'mc')         setModule('mc');
     else if (go === 'areaDev')    setModule('areaDev');
     else if (go === 'admin')      setModule('admin');
 }
@@ -5483,7 +5500,7 @@ function atualizarNavAtiva(mod) {
 }
 
 function setModule(mod, gestaoTab) {
-    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo','painelN2','areaDev'];
+    const mods = ['dashboard','gestao','mc','financeiro','historico','admin','minhas','statuscampo','painelN2','areaDev'];
     mods.forEach(m => {
         const el = document.getElementById('mod-' + m);
         if (el) el.classList.toggle('hidden', m !== mod);
@@ -5516,6 +5533,8 @@ function setModule(mod, gestaoTab) {
         } else if (gestaoTab) {
             setTab(gestaoTab);
         }
+    } else if (mod === 'mc') {
+        mcCarregar();
     } else if (mod === 'financeiro') {
         if (!_finCarregado) { _finCarregado = true; finCarregar(); }
     } else if (mod === 'historico') {
@@ -6245,10 +6264,9 @@ function setTab(tab) {
         'carimbos': { color: '#06D7E6', shadow: '0 0 8px #06D7E6' },
         'pmo':      { color: '#B826C9', shadow: '0 0 8px #B826C9' },
         'forecast': { color: '#EC4899', shadow: '0 0 8px #EC4899' },
-        'mc':       { color: '#B826C9', shadow: '0 0 8px #B826C9' },
     };
 
-    ['clientes','projetos','contratos','carimbos','pmo','forecast','mc'].forEach(t => {
+    ['clientes','projetos','contratos','carimbos','pmo','forecast'].forEach(t => {
         const view   = document.getElementById(`view-${t}`);
         const navBtn = document.getElementById(`nav-${t}`);
         const dot    = document.getElementById(`dot-${t}`);
@@ -6276,10 +6294,6 @@ function setTab(tab) {
         if (kpiSec) kpiSec.classList.add('hidden');
         if (gTitle) gTitle.textContent = 'Forecast / P&L';
         if (gSub)   gSub.textContent = 'Controle de margem por projeto e P&L mensal';
-    } else if (tab === 'mc') {
-        if (kpiSec) kpiSec.classList.add('hidden');
-        if (gTitle) gTitle.textContent = "MC's Recebidas";
-        if (gSub)   gSub.textContent = 'Margem de contribuição por contrato/ano, extraída das planilhas de kick-off';
     } else {
         if (kpiSec) kpiSec.classList.remove('hidden');
         if (gTitle) gTitle.textContent = 'Gestão de Projetos e Contratos';
@@ -6308,10 +6322,6 @@ function setTab(tab) {
         toggleGrupo.classList.add('hidden');
         document.getElementById('btn-nova-acao').classList.add('hidden');
         fcRender();
-    } else if (tab === 'mc') {
-        toggleGrupo.classList.add('hidden');
-        document.getElementById('btn-nova-acao').classList.add('hidden');
-        mcCarregar();
     } else {
         toggleGrupo.classList.add('hidden');
         document.getElementById('btn-nova-label').textContent = 'Novo Contrato';
@@ -6321,7 +6331,7 @@ function setTab(tab) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// MC's RECEBIDAS (dentro da Gestão)
+// MÓDULO MC — MARGEM DE CONTRIBUIÇÃO
 // Lista as MC's ingeridas por /api/mc/importar. O status vem do backend:
 // PROCESSADA só quando os totais da planilha fecham com a soma das linhas
 // E o contrato foi vinculado — o resto cai em REVISAO_MANUAL pra alguém
