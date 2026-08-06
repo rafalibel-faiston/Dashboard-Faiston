@@ -8049,3 +8049,639 @@ def dev_deletar_suporte(sid: int, faiston_token: str = Cookie(None)):
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  MC — MARGEM DE CONTRIBUIÇÃO
+#
+#  Ingestão das planilhas de MC (uma por contrato/ano) que hoje chegam por
+#  e-mail de KICK-OFF e ficam na pasta de MC's do OneDrive. A extração do
+#  .xlsb roda FORA daqui (script `mc_extractor.py`, no Cowork) e entrega um
+#  JSON; este módulo só recebe, valida e persiste esse JSON.
+#
+#  Por que tabelas novas: nenhuma estrutura existente comporta MC.
+#  `forecast_projetos` é 1 linha por projeto com o consolidado de margem já
+#  calculado (não tem as linhas de custo que produzem esse número);
+#  `lancamentos` é realizado por projeto, não planejado por contrato/ano;
+#  `contratos_gestao` é só cadastro. MC é o *planejado detalhado* por
+#  contrato/ano — linhas de equipe e de investimento —, então vira estrutura
+#  própria (mc_contratos + mc_equipe + mc_investimentos) com log de ingestão.
+#
+#  Status de mc_contratos:
+#    RECEBIDA        — cabeçalho gravado, linhas ainda não conferidas
+#    PROCESSADA      — totais conferem e o contrato foi vinculado
+#    REVISAO_MANUAL  — divergência de totais e/ou contrato não vinculado
+#    ERRO            — payload sem linhas aproveitáveis
+# ═════════════════════════════════════════════════════════════════════════════
+
+MC_STATUS_VALIDOS = ("RECEBIDA", "PROCESSADA", "REVISAO_MANUAL", "ERRO")
+MC_PERFIS_LEITURA = ("admin", "gestor", "demo", "diretor")
+# Escrita não inclui 'demo': MC alimenta número financeiro de contrato e este
+# endpoint é o mesmo que a automação vai chamar mais pra frente.
+MC_PERFIS_ESCRITA = ("admin", "gestor", "diretor")
+# Tolerância ao comparar o total declarado na planilha com a soma das linhas.
+# Um centavo cobre arredondamento de float no caminho .xlsb → JSON.
+MC_TOLERANCIA = 0.01
+
+
+def _ensure_mc_tables(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS mc_contratos (
+            id SERIAL PRIMARY KEY,
+            contrato_codigo VARCHAR(40) NOT NULL,
+            ano VARCHAR(10) NOT NULL DEFAULT '01',
+            contrato_id INTEGER REFERENCES contratos_gestao(id) ON DELETE SET NULL,
+            match_origem VARCHAR(30) DEFAULT 'nenhum',
+            cliente VARCHAR(150) DEFAULT '',
+            cliente_final VARCHAR(150) DEFAULT '',
+            projeto VARCHAR(300) DEFAULT '',
+            tcv NUMERIC(16,2) DEFAULT 0,
+            total_equipe NUMERIC(16,2) DEFAULT 0,
+            total_investimentos NUMERIC(16,2) DEFAULT 0,
+            total_declarado_equipe NUMERIC(16,2),
+            total_declarado_investimentos NUMERIC(16,2),
+            status VARCHAR(20) NOT NULL DEFAULT 'RECEBIDA',
+            motivo_revisao TEXT DEFAULT '',
+            arquivo_nome VARCHAR(300) DEFAULT '',
+            arquivo_hash VARCHAR(64) DEFAULT '',
+            payload JSONB,
+            recebido_em TIMESTAMP DEFAULT NOW(),
+            processado_em TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    # Um contrato tem uma MC por ano; reimportar o mesmo par substitui.
+    cur.execute("""CREATE UNIQUE INDEX IF NOT EXISTS idx_mc_contratos_chave
+                   ON mc_contratos(contrato_codigo, ano)""")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_mc_contratos_status ON mc_contratos(status)")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS mc_equipe (
+            id SERIAL PRIMARY KEY,
+            mc_id INTEGER NOT NULL REFERENCES mc_contratos(id) ON DELETE CASCADE,
+            ordem INTEGER DEFAULT 0,
+            funcao VARCHAR(200) DEFAULT '',
+            quantidade NUMERIC(12,4) DEFAULT 0,
+            salario NUMERIC(16,2) DEFAULT 0,
+            encargos NUMERIC(16,2) DEFAULT 0,
+            beneficios NUMERIC(16,2) DEFAULT 0,
+            custo_mensal NUMERIC(16,2) DEFAULT 0,
+            meses NUMERIC(12,4) DEFAULT 0,
+            custo_total NUMERIC(16,2) DEFAULT 0,
+            bruto JSONB
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_mc_equipe_mc ON mc_equipe(mc_id)")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS mc_investimentos (
+            id SERIAL PRIMARY KEY,
+            mc_id INTEGER NOT NULL REFERENCES mc_contratos(id) ON DELETE CASCADE,
+            ordem INTEGER DEFAULT 0,
+            item VARCHAR(300) DEFAULT '',
+            categoria VARCHAR(100) DEFAULT '',
+            quantidade NUMERIC(12,4) DEFAULT 0,
+            valor_unitario NUMERIC(16,2) DEFAULT 0,
+            valor_total NUMERIC(16,2) DEFAULT 0,
+            bruto JSONB
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_mc_investimentos_mc ON mc_investimentos(mc_id)")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS mc_ingestoes_log (
+            id SERIAL PRIMARY KEY,
+            mc_id INTEGER REFERENCES mc_contratos(id) ON DELETE SET NULL,
+            contrato_codigo VARCHAR(40) DEFAULT '',
+            ano VARCHAR(10) DEFAULT '',
+            arquivo_nome VARCHAR(300) DEFAULT '',
+            resultado VARCHAR(20) NOT NULL,
+            detalhe TEXT DEFAULT '',
+            linhas_equipe INTEGER DEFAULT 0,
+            linhas_investimentos INTEGER DEFAULT 0,
+            usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+            usuario_nome VARCHAR(100) DEFAULT '',
+            criado_em TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_mc_log_codigo ON mc_ingestoes_log(contrato_codigo)")
+
+
+def _mc_num(v):
+    """Número tolerante ao que o extractor pode mandar.
+
+    O .xlsb às vezes sai como float, às vezes como texto já formatado em
+    pt-BR ("R$ 310.926,63"), às vezes com o total entre parênteses pra
+    negativo. Cair de nariz em `float()` aqui reprovaria uma planilha
+    inteira por causa de formatação de célula, então normaliza."""
+    if v is None or v == "":
+        return 0.0
+    if isinstance(v, bool):
+        return 0.0
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip()
+    if not s:
+        return 0.0
+    neg = s.startswith("(") and s.endswith(")")
+    s = s.strip("()").replace("R$", "").replace("\xa0", " ").strip()
+    s = re.sub(r"[^\d,.\-]", "", s)
+    if "," in s and "." in s:
+        # pt-BR: ponto é milhar, vírgula é decimal
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        n = float(s)
+    except ValueError:
+        return 0.0
+    return -n if neg else n
+
+
+def _mc_pega(d: dict, *nomes, default=None):
+    """Primeiro nome presente e não-vazio no dict (case/acento-insensível)."""
+    if not isinstance(d, dict):
+        return default
+    norm = {}
+    for k, v in d.items():
+        norm.setdefault(_mc_slug(k), v)
+    for n in nomes:
+        v = norm.get(_mc_slug(n))
+        if v not in (None, ""):
+            return v
+    return default
+
+
+def _mc_slug(s: str) -> str:
+    s = str(s).strip().lower()
+    for a, b in (("ç", "c"), ("ã", "a"), ("á", "a"), ("â", "a"), ("é", "e"), ("ê", "e"),
+                 ("í", "i"), ("ó", "o"), ("õ", "o"), ("ô", "o"), ("ú", "u")):
+        s = s.replace(a, b)
+    return re.sub(r"[^a-z0-9]", "", s)
+
+
+def _mc_lista(payload: dict, *nomes):
+    """Lista de linhas sob qualquer um dos apelidos, ignorando não-dicts."""
+    v = _mc_pega(payload, *nomes, default=None)
+    if v is None:
+        return []
+    if isinstance(v, dict):
+        # Extractor pode agrupar por aba/categoria: {"Equipe A": [...], ...}
+        linhas = []
+        for chave, sub in v.items():
+            if isinstance(sub, list):
+                for item in sub:
+                    if isinstance(item, dict):
+                        item = dict(item)
+                        item.setdefault("categoria", chave)
+                        linhas.append(item)
+        return linhas
+    if isinstance(v, list):
+        return [x for x in v if isinstance(x, dict)]
+    return []
+
+
+class MCImportModel(BaseModel):
+    """Envelope do JSON do `mc_extractor.py`.
+
+    Só o código do contrato é obrigatório. Os nomes de campo das *linhas*
+    não são validados aqui de propósito: cada linha é normalizada pelos
+    apelidos conhecidos e guardada inteira em `bruto` (JSONB), então uma
+    coluna nova na planilha nunca derruba a importação nem se perde.
+    """
+    contrato: Optional[str] = None
+    contrato_codigo: Optional[str] = None
+    codigo: Optional[str] = None
+    ano: Optional[str] = None
+    cliente: Optional[str] = None
+    cliente_final: Optional[str] = None
+    projeto: Optional[str] = None
+    tcv: Optional[float] = None
+    arquivo: Optional[str] = None
+    arquivo_nome: Optional[str] = None
+    arquivo_hash: Optional[str] = None
+    equipe: Optional[object] = None
+    investimentos: Optional[object] = None
+    totais: Optional[dict] = None
+
+    class Config:
+        extra = "allow"
+
+
+def _mc_normalizar_equipe(linhas):
+    out = []
+    for i, ln in enumerate(linhas):
+        custo_total = _mc_num(_mc_pega(ln, "custo_total", "total", "valor_total", "custo anual"))
+        custo_mensal = _mc_num(_mc_pega(ln, "custo_mensal", "custo mes", "custo_mes", "mensal"))
+        meses = _mc_num(_mc_pega(ln, "meses", "qtd_meses", "periodo_meses"))
+        qtd = _mc_num(_mc_pega(ln, "quantidade", "qtd", "headcount", "hc"))
+        # Só deriva o total quando a planilha não trouxe — nunca sobrescreve
+        # o número da planilha, que é a fonte da verdade da conferência.
+        if not custo_total and custo_mensal:
+            custo_total = custo_mensal * (meses or 1) * (qtd or 1)
+        out.append({
+            "ordem": i,
+            "funcao": str(_mc_pega(ln, "funcao", "cargo", "descricao", "item", default="") or "")[:200],
+            "quantidade": qtd,
+            "salario": _mc_num(_mc_pega(ln, "salario", "salario_base")),
+            "encargos": _mc_num(_mc_pega(ln, "encargos", "encargos_sociais")),
+            "beneficios": _mc_num(_mc_pega(ln, "beneficios")),
+            "custo_mensal": custo_mensal,
+            "meses": meses,
+            "custo_total": custo_total,
+            "bruto": ln,
+        })
+    return out
+
+
+def _mc_normalizar_investimentos(linhas):
+    out = []
+    for i, ln in enumerate(linhas):
+        qtd = _mc_num(_mc_pega(ln, "quantidade", "qtd"))
+        unit = _mc_num(_mc_pega(ln, "valor_unitario", "unitario", "valor_unit", "preco_unitario"))
+        total = _mc_num(_mc_pega(ln, "valor_total", "total", "valor"))
+        if not total and unit:
+            total = unit * (qtd or 1)
+        out.append({
+            "ordem": i,
+            "item": str(_mc_pega(ln, "item", "descricao", "investimento", "equipamento", default="") or "")[:300],
+            "categoria": str(_mc_pega(ln, "categoria", "tipo", "grupo", default="") or "")[:100],
+            "quantidade": qtd,
+            "valor_unitario": unit,
+            "valor_total": total,
+            "bruto": ln,
+        })
+    return out
+
+
+def _mc_resolver_contrato(cur, codigo: str, cliente: str, projeto: str):
+    """Vincula a MC a um contrato existente.
+
+    Hoje o casamento é exato (código ou nome), que é o combinado — a regra
+    definitiva ainda está em aberto com o time. Quando não casa, a MC é
+    gravada do mesmo jeito e marcada pra revisão manual: perder o arquivo é
+    pior do que vincular depois.
+
+    Retorna (contrato_id, origem_do_match, cliente, cliente_final, projeto),
+    completando cliente/projeto com o que o Ops já sabe quando o payload
+    vier sem esses campos.
+    """
+    codigo = (codigo or "").strip()
+    # 1) código do projeto no forecast (F260015 etc.) — é lá que vive o código.
+    #    forecast_projetos é criada sob demanda (_ensure_forecast_tables), então
+    #    num banco onde ninguém abriu o Forecast ainda ela pode não existir —
+    #    sem o to_regclass a MC inteira falharia por causa disso.
+    cur.execute("SELECT to_regclass('public.forecast_projetos') IS NOT NULL")
+    if cur.fetchone()[0]:
+        cur.execute("""SELECT cliente, cliente_final, projeto FROM forecast_projetos
+                       WHERE UPPER(TRIM(codigo)) = UPPER(%s) ORDER BY id LIMIT 1""", (codigo,))
+        row = cur.fetchone()
+        if row:
+            return (None, "forecast_codigo", cliente or (row[0] or ""),
+                    (row[1] or ""), projeto or (row[2] or ""))
+    # 2) nome exato do contrato em contratos_gestao
+    cur.execute("""SELECT cg.id, COALESCE(c.nome, '') FROM contratos_gestao cg
+                   LEFT JOIN clientes c ON c.id = cg.cliente_id
+                   WHERE UPPER(TRIM(cg.nome)) = UPPER(%s) ORDER BY cg.id LIMIT 1""", (codigo,))
+    row = cur.fetchone()
+    if row:
+        return (row[0], "contrato_nome", cliente or row[1], "", projeto)
+    return (None, "nenhum", cliente, "", projeto)
+
+
+def _mc_registrar_log(cur, *, mc_id, codigo, ano, arquivo, resultado, detalhe,
+                      n_equipe, n_inv, sess):
+    cur.execute("""
+        INSERT INTO mc_ingestoes_log
+            (mc_id, contrato_codigo, ano, arquivo_nome, resultado, detalhe,
+             linhas_equipe, linhas_investimentos, usuario_id, usuario_nome)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    """, (mc_id, codigo, ano, arquivo, resultado, detalhe, n_equipe, n_inv,
+          (sess or {}).get("id"), (sess or {}).get("nome", "")))
+
+
+@app.post("/api/mc/importar")
+def mc_importar(m: MCImportModel, faiston_token: str = Cookie(None)):
+    """Recebe o JSON extraído de uma planilha de MC e persiste.
+
+    Idempotente por (contrato, ano): reimportar substitui as linhas e mantém
+    o mesmo `mc_contratos.id`, pra não duplicar MC quando a planilha é
+    corrigida e reenviada."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in MC_PERFIS_ESCRITA:
+        raise HTTPException(status_code=403, detail="Acesso restrito")
+
+    dados = m.model_dump(exclude_none=False)
+    codigo = str(_mc_pega(dados, "contrato_codigo", "contrato", "codigo", default="") or "").strip()
+    if not codigo:
+        raise HTTPException(status_code=400, detail="Informe o contrato (ex.: F260015).")
+    ano = str(_mc_pega(dados, "ano", "ano_contrato", "ano_indice", default="01") or "01").strip()
+    arquivo = str(_mc_pega(dados, "arquivo_nome", "arquivo", default="") or "")[:300]
+
+    equipe = _mc_normalizar_equipe(_mc_lista(dados, "equipe", "custos_equipe", "mao_de_obra"))
+    invest = _mc_normalizar_investimentos(_mc_lista(dados, "investimentos", "investimento", "capex"))
+
+    soma_equipe = round(sum(l["custo_total"] for l in equipe), 2)
+    soma_invest = round(sum(l["valor_total"] for l in invest), 2)
+
+    totais = dados.get("totais") or {}
+    decl_equipe = _mc_pega(totais, "equipe", "total_equipe")
+    decl_invest = _mc_pega(totais, "investimentos", "total_investimentos", "investimento")
+    decl_equipe = _mc_num(decl_equipe) if decl_equipe not in (None, "") else None
+    decl_invest = _mc_num(decl_invest) if decl_invest not in (None, "") else None
+
+    motivos = []
+    if decl_equipe is not None and abs(decl_equipe - soma_equipe) > MC_TOLERANCIA:
+        motivos.append(f"Total de equipe divergente: planilha {decl_equipe:.2f} × soma das linhas {soma_equipe:.2f}")
+    if decl_invest is not None and abs(decl_invest - soma_invest) > MC_TOLERANCIA:
+        motivos.append(f"Total de investimentos divergente: planilha {decl_invest:.2f} × soma das linhas {soma_invest:.2f}")
+
+    conn = get_db()
+    if not conn:
+        raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        import json as _json
+        cur = conn.cursor()
+        _ensure_mc_tables(cur)
+
+        cliente = str(_mc_pega(dados, "cliente", default="") or "")[:150]
+        cliente_final = str(_mc_pega(dados, "cliente_final", default="") or "")[:150]
+        projeto = str(_mc_pega(dados, "projeto", default="") or "")[:300]
+        contrato_id, origem, cliente, cf_resolvido, projeto = _mc_resolver_contrato(
+            cur, codigo, cliente, projeto)
+        cliente_final = cliente_final or (cf_resolvido or "")
+        if origem == "nenhum":
+            motivos.append(f"Contrato '{codigo}' não encontrado no Ops — vincular manualmente")
+
+        if not equipe and not invest:
+            status = "ERRO"
+            motivos.insert(0, "Payload sem linhas de equipe nem de investimentos")
+        elif motivos:
+            status = "REVISAO_MANUAL"
+        else:
+            status = "PROCESSADA"
+        motivo = " | ".join(motivos)
+
+        cur.execute("""
+            INSERT INTO mc_contratos
+                (contrato_codigo, ano, contrato_id, match_origem, cliente, cliente_final,
+                 projeto, tcv, total_equipe, total_investimentos, total_declarado_equipe,
+                 total_declarado_investimentos, status, motivo_revisao, arquivo_nome,
+                 arquivo_hash, payload, recebido_em, processado_em, atualizado_em)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),
+                    CASE WHEN %s = 'PROCESSADA' THEN NOW() ELSE NULL END, NOW())
+            ON CONFLICT (contrato_codigo, ano) DO UPDATE SET
+                contrato_id = EXCLUDED.contrato_id,
+                match_origem = EXCLUDED.match_origem,
+                cliente = EXCLUDED.cliente,
+                cliente_final = EXCLUDED.cliente_final,
+                projeto = EXCLUDED.projeto,
+                tcv = EXCLUDED.tcv,
+                total_equipe = EXCLUDED.total_equipe,
+                total_investimentos = EXCLUDED.total_investimentos,
+                total_declarado_equipe = EXCLUDED.total_declarado_equipe,
+                total_declarado_investimentos = EXCLUDED.total_declarado_investimentos,
+                status = EXCLUDED.status,
+                motivo_revisao = EXCLUDED.motivo_revisao,
+                arquivo_nome = EXCLUDED.arquivo_nome,
+                arquivo_hash = EXCLUDED.arquivo_hash,
+                payload = EXCLUDED.payload,
+                processado_em = EXCLUDED.processado_em,
+                atualizado_em = NOW()
+            RETURNING id
+        """, (codigo, ano, contrato_id, origem, cliente, cliente_final, projeto,
+              _mc_num(dados.get("tcv")), soma_equipe, soma_invest, decl_equipe, decl_invest,
+              status, motivo, arquivo,
+              str(_mc_pega(dados, "arquivo_hash", default="") or "")[:64],
+              _json.dumps(dados, default=str), status))
+        mc_id = cur.fetchone()[0]
+
+        # Substitui as linhas (a planilha é a fonte da verdade do detalhe)
+        cur.execute("DELETE FROM mc_equipe WHERE mc_id=%s", (mc_id,))
+        cur.execute("DELETE FROM mc_investimentos WHERE mc_id=%s", (mc_id,))
+        for l in equipe:
+            cur.execute("""
+                INSERT INTO mc_equipe (mc_id, ordem, funcao, quantidade, salario, encargos,
+                                       beneficios, custo_mensal, meses, custo_total, bruto)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (mc_id, l["ordem"], l["funcao"], l["quantidade"], l["salario"], l["encargos"],
+                  l["beneficios"], l["custo_mensal"], l["meses"], l["custo_total"],
+                  _json.dumps(l["bruto"], default=str)))
+        for l in invest:
+            cur.execute("""
+                INSERT INTO mc_investimentos (mc_id, ordem, item, categoria, quantidade,
+                                              valor_unitario, valor_total, bruto)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (mc_id, l["ordem"], l["item"], l["categoria"], l["quantidade"],
+                  l["valor_unitario"], l["valor_total"], _json.dumps(l["bruto"], default=str)))
+
+        _mc_registrar_log(cur, mc_id=mc_id, codigo=codigo, ano=ano, arquivo=arquivo,
+                          resultado=status, detalhe=motivo, n_equipe=len(equipe),
+                          n_inv=len(invest), sess=sess)
+        conn.commit(); cur.close(); conn.close()
+        return {
+            "sucesso": True, "id": mc_id, "status": status,
+            "contrato": codigo, "ano": ano,
+            "contrato_id": contrato_id, "match_origem": origem,
+            "linhas_equipe": len(equipe), "linhas_investimentos": len(invest),
+            "total_equipe": soma_equipe, "total_investimentos": soma_invest,
+            "motivo_revisao": motivo,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            conn.rollback()
+            cur = conn.cursor()
+            _ensure_mc_tables(cur)
+            _mc_registrar_log(cur, mc_id=None, codigo=codigo, ano=ano, arquivo=arquivo,
+                              resultado="ERRO", detalhe=str(e)[:2000],
+                              n_equipe=len(equipe), n_inv=len(invest), sess=sess)
+            conn.commit(); cur.close()
+        except Exception:
+            pass
+        logger.error(f"Falha ao importar MC {codigo}/{ano}: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=400, detail=f"Erro ao importar MC: {str(e)}")
+
+
+@app.get("/api/mc/contratos")
+def mc_listar(status: str = "", contrato: str = "", faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in MC_PERFIS_LEITURA:
+        raise HTTPException(status_code=403, detail="Acesso restrito")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        _ensure_mc_tables(cur); conn.commit()
+        sql = """SELECT m.id, m.contrato_codigo, m.ano, m.contrato_id, m.match_origem,
+                        m.cliente, m.cliente_final, m.projeto, m.tcv, m.total_equipe,
+                        m.total_investimentos, m.status, m.motivo_revisao, m.arquivo_nome,
+                        m.recebido_em, m.processado_em,
+                        (SELECT COUNT(*) FROM mc_equipe e WHERE e.mc_id = m.id),
+                        (SELECT COUNT(*) FROM mc_investimentos i WHERE i.mc_id = m.id)
+                 FROM mc_contratos m WHERE 1=1"""
+        params = []
+        if status:
+            sql += " AND m.status = %s"; params.append(status.upper())
+        if contrato:
+            sql += " AND UPPER(m.contrato_codigo) LIKE UPPER(%s)"; params.append(f"%{contrato}%")
+        sql += " ORDER BY m.recebido_em DESC, m.id DESC"
+        cur.execute(sql, tuple(params))
+        itens = [{
+            "id": r[0], "contrato": r[1], "ano": r[2], "contrato_id": r[3], "match_origem": r[4],
+            "cliente": r[5], "cliente_final": r[6], "projeto": r[7],
+            "tcv": float(r[8] or 0), "total_equipe": float(r[9] or 0),
+            "total_investimentos": float(r[10] or 0),
+            "total_geral": float(r[9] or 0) + float(r[10] or 0),
+            "status": r[11], "motivo_revisao": r[12] or "", "arquivo_nome": r[13] or "",
+            "recebido_em": r[14].isoformat() if r[14] else None,
+            "processado_em": r[15].isoformat() if r[15] else None,
+            "linhas_equipe": r[16], "linhas_investimentos": r[17],
+        } for r in cur.fetchall()]
+        cur.close(); conn.close()
+        contagem = {s: 0 for s in MC_STATUS_VALIDOS}
+        for it in itens:
+            contagem[it["status"]] = contagem.get(it["status"], 0) + 1
+        return {"itens": itens, "total": len(itens), "por_status": contagem}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/mc/contratos/{mid}")
+def mc_detalhe(mid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in MC_PERFIS_LEITURA:
+        raise HTTPException(status_code=403, detail="Acesso restrito")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        _ensure_mc_tables(cur); conn.commit()
+        cur.execute("""SELECT id, contrato_codigo, ano, contrato_id, match_origem, cliente,
+                              cliente_final, projeto, tcv, total_equipe, total_investimentos,
+                              total_declarado_equipe, total_declarado_investimentos, status,
+                              motivo_revisao, arquivo_nome, recebido_em, processado_em
+                       FROM mc_contratos WHERE id=%s""", (mid,))
+        r = cur.fetchone()
+        if not r:
+            raise HTTPException(status_code=404, detail="MC não encontrada")
+        cur.execute("""SELECT funcao, quantidade, salario, encargos, beneficios, custo_mensal,
+                              meses, custo_total FROM mc_equipe WHERE mc_id=%s
+                       ORDER BY ordem, id""", (mid,))
+        equipe = [{"funcao": e[0], "quantidade": float(e[1] or 0), "salario": float(e[2] or 0),
+                   "encargos": float(e[3] or 0), "beneficios": float(e[4] or 0),
+                   "custo_mensal": float(e[5] or 0), "meses": float(e[6] or 0),
+                   "custo_total": float(e[7] or 0)} for e in cur.fetchall()]
+        cur.execute("""SELECT item, categoria, quantidade, valor_unitario, valor_total
+                       FROM mc_investimentos WHERE mc_id=%s ORDER BY ordem, id""", (mid,))
+        invest = [{"item": i[0], "categoria": i[1], "quantidade": float(i[2] or 0),
+                   "valor_unitario": float(i[3] or 0), "valor_total": float(i[4] or 0)}
+                  for i in cur.fetchall()]
+        cur.execute("""SELECT resultado, detalhe, linhas_equipe, linhas_investimentos,
+                              usuario_nome, criado_em FROM mc_ingestoes_log
+                       WHERE mc_id=%s ORDER BY criado_em DESC, id DESC LIMIT 50""", (mid,))
+        log = [{"resultado": l[0], "detalhe": l[1] or "", "linhas_equipe": l[2],
+                "linhas_investimentos": l[3], "usuario": l[4] or "",
+                "criado_em": l[5].isoformat() if l[5] else None} for l in cur.fetchall()]
+        cur.close(); conn.close()
+        return {
+            "id": r[0], "contrato": r[1], "ano": r[2], "contrato_id": r[3], "match_origem": r[4],
+            "cliente": r[5], "cliente_final": r[6], "projeto": r[7], "tcv": float(r[8] or 0),
+            "total_equipe": float(r[9] or 0), "total_investimentos": float(r[10] or 0),
+            "total_declarado_equipe": float(r[11]) if r[11] is not None else None,
+            "total_declarado_investimentos": float(r[12]) if r[12] is not None else None,
+            "status": r[13], "motivo_revisao": r[14] or "", "arquivo_nome": r[15] or "",
+            "recebido_em": r[16].isoformat() if r[16] else None,
+            "processado_em": r[17].isoformat() if r[17] else None,
+            "equipe": equipe, "investimentos": invest, "historico": log,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class MCStatusModel(BaseModel):
+    status: str
+    contrato_id: Optional[int] = None
+    observacao: Optional[str] = ""
+
+
+@app.patch("/api/mc/contratos/{mid}/status")
+def mc_atualizar_status(mid: int, body: MCStatusModel, faiston_token: str = Cookie(None)):
+    """Resolve uma MC em REVISAO_MANUAL: marca como PROCESSADA e, se preciso,
+    vincula o contrato na mão (o casamento automático é exato hoje)."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in MC_PERFIS_ESCRITA:
+        raise HTTPException(status_code=403, detail="Acesso restrito")
+    novo = (body.status or "").strip().upper()
+    if novo not in MC_STATUS_VALIDOS:
+        raise HTTPException(status_code=400, detail=f"Status inválido. Use um de: {', '.join(MC_STATUS_VALIDOS)}")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        _ensure_mc_tables(cur)
+        cur.execute("SELECT contrato_codigo, ano FROM mc_contratos WHERE id=%s", (mid,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="MC não encontrada")
+        if body.contrato_id is not None:
+            cur.execute("SELECT 1 FROM contratos_gestao WHERE id=%s", (body.contrato_id,))
+            if not cur.fetchone():
+                raise HTTPException(status_code=400, detail="Contrato informado não existe")
+            cur.execute("""UPDATE mc_contratos SET contrato_id=%s, match_origem='manual'
+                           WHERE id=%s""", (body.contrato_id, mid))
+        cur.execute("""UPDATE mc_contratos SET status=%s, atualizado_em=NOW(),
+                           processado_em = CASE WHEN %s='PROCESSADA' THEN NOW() ELSE processado_em END
+                       WHERE id=%s""", (novo, novo, mid))
+        _mc_registrar_log(cur, mc_id=mid, codigo=row[0], ano=row[1], arquivo="",
+                          resultado=novo, detalhe=(body.observacao or "ajuste manual de status")[:2000],
+                          n_equipe=0, n_inv=0, sess=sess)
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "status": novo}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/mc/contratos/{mid}")
+def mc_deletar(mid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in MC_PERFIS_ESCRITA:
+        raise HTTPException(status_code=403, detail="Acesso restrito")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        _ensure_mc_tables(cur)
+        # O log fica (mc_id vira NULL por ON DELETE SET NULL): histórico de
+        # tentativas é auditoria, não deve sumir com a MC.
+        cur.execute("DELETE FROM mc_contratos WHERE id=%s", (mid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/mc/ingestoes")
+def mc_listar_ingestoes(limite: int = 100, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in MC_PERFIS_LEITURA:
+        raise HTTPException(status_code=403, detail="Acesso restrito")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        _ensure_mc_tables(cur); conn.commit()
+        cur.execute("""SELECT id, mc_id, contrato_codigo, ano, arquivo_nome, resultado, detalhe,
+                              linhas_equipe, linhas_investimentos, usuario_nome, criado_em
+                       FROM mc_ingestoes_log ORDER BY criado_em DESC, id DESC LIMIT %s""",
+                    (max(1, min(limite, 500)),))
+        itens = [{"id": r[0], "mc_id": r[1], "contrato": r[2], "ano": r[3],
+                  "arquivo_nome": r[4] or "", "resultado": r[5], "detalhe": r[6] or "",
+                  "linhas_equipe": r[7], "linhas_investimentos": r[8],
+                  "usuario": r[9] or "", "criado_em": r[10].isoformat() if r[10] else None}
+                 for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return {"itens": itens, "total": len(itens)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

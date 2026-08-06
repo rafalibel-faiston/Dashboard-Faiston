@@ -45,14 +45,33 @@ def app():
     return main.app
 
 
+def login_client(app, usuario: str, senha: str):
+    """TestClient logado e já com o header de CSRF armado.
+
+    O CSRFMiddleware (main.py) exige X-CSRF-Token batendo com o cookie
+    csrf_token em todo POST/PUT/PATCH/DELETE de /api/*. No navegador quem
+    faz isso é o patch global de fetch no index.html; no TestClient ninguém
+    fazia, então toda escrita da suíte voltava 403 — o mesmo papel precisa
+    ser cumprido aqui.
+
+    base_url em https porque os cookies de sessão e de CSRF são emitidos com
+    secure=True: em http o TestClient aceita o Set-Cookie mas não reenvia,
+    e o middleware via header sem cookie (403 em toda escrita).
+    """
+    from fastapi.testclient import TestClient
+    client = TestClient(app, base_url="https://testserver")
+    resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
+    assert resp.status_code == 200, f"login falhou: {resp.text}"
+    token = client.cookies.get("csrf_token")
+    assert token, "login não devolveu cookie csrf_token"
+    client.headers["X-CSRF-Token"] = token
+    return client
+
+
 @pytest.fixture(scope="session")
 def admin_client(app):
     """Cliente HTTP autenticado como admin (usuário seed padrão admin/admin123)."""
-    from fastapi.testclient import TestClient
-    client = TestClient(app)
-    resp = client.post("/api/login", json={"usuario": "admin", "senha": "admin123"})
-    assert resp.status_code == 200, f"login falhou: {resp.text}"
-    return client
+    return login_client(app, "admin", "admin123")
 
 
 @pytest.fixture()
