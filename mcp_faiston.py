@@ -177,8 +177,13 @@ TOOLS = [
         "name": "mc_importar",
         "title": "Importar MC no Faiston Ops",
         "description": (
-            "Grava no Faiston Ops uma MC (Margem de Contribuição) extraída da planilha de "
-            "kick-off. Idempotente por contrato+ano: reimportar o mesmo par substitui a MC "
+            "Grava uma MC a partir de números que você já tem em mão. "
+            "PREFIRA `mc_importar_planilha` quando a planilha estiver na nuvem: lá o Ops lê "
+            "o arquivo e você não precisa transcrever nada. Use esta tool só quando não "
+            "houver .xlsx acessível — por exemplo pra registrar o que veio no corpo do "
+            "e-mail de kick-off enquanto a planilha não chega (pode mandar só contrato, "
+            "cliente e projeto: a MC fica com status RECEBIDA aguardando as linhas).\n\n"
+            "Idempotente por contrato+ano: reimportar o mesmo par substitui a MC "
             "anterior em vez de duplicar, então pode reenviar uma planilha corrigida.\n\n"
             "Copie os números da planilha como estão — não recalcule nem arredonde. Informe "
             "em `totais` os totais que a própria planilha declara: o Ops compara com a soma "
@@ -208,6 +213,39 @@ TOOLS = [
             },
             "required": ["contrato"],
             "additionalProperties": True,
+        },
+    },
+    {
+        "name": "mc_importar_planilha",
+        "title": "Importar MC a partir da planilha (.xlsx)",
+        "description": (
+            "Forma preferida de registrar uma MC. Passe o link da planilha .xlsx no "
+            "OneDrive/SharePoint e o Ops baixa, lê e extrai os valores por conta própria — "
+            "você NÃO precisa abrir a planilha nem digitar número nenhum.\n\n"
+            "Use esta tool em vez de mc_importar sempre que a planilha estiver na nuvem. "
+            "Ela é melhor porque a leitura é determinística e os totais declarados saem da "
+            "própria planilha, então a conferência do Ops sempre roda.\n\n"
+            "A planilha precisa ser .xlsx. Se o arquivo for .xlsb, ele precisa ser salvo como "
+            ".xlsx antes — nem o Ops nem você conseguem ler .xlsb.\n\n"
+            "Contrato e ano são inferidos do nome do arquivo. Informe `contrato` "
+            "explicitamente quando souber que o nome do arquivo está errado (já aconteceu: "
+            "o assunto do e-mail dizia F260301 mas o código de faturamento era F260534). "
+            "Os campos de cliente/projeto servem pra complementar com o que você leu no "
+            "corpo do e-mail."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "Link da planilha .xlsx no OneDrive/SharePoint"},
+                "contrato": {"type": "string", "description": "Sobrescreve o contrato inferido do nome do arquivo"},
+                "ano": {"type": "string"},
+                "cliente": {"type": "string"},
+                "cliente_final": {"type": "string"},
+                "projeto": {"type": "string"},
+                "tcv": {"type": "number"},
+            },
+            "required": ["url"],
+            "additionalProperties": False,
         },
     },
     {
@@ -266,7 +304,8 @@ TOOLS = [
 
 def montar_mcp(app, *, get_db, senha_confere, mc_processar_importacao,
                mc_consultar_lista, mc_consultar_detalhe,
-               perfis_leitura, perfis_escrita):
+               perfis_leitura, perfis_escrita,
+               mc_importar_de_planilha=None, baixar_planilha=None):
     """Registra as rotas do MCP no app.
 
     As dependências entram por parâmetro (e não por `import main`) pra não criar
@@ -662,6 +701,35 @@ def montar_mcp(app, *, get_db, senha_confere, mc_processar_importacao,
                                 + (r.get("motivo_revisao") or r.get("status", "")))
             return (r, False)
 
+        if nome == "mc_importar_planilha":
+            if sess["perfil"] not in perfis_escrita:
+                return ({"erro": f"O perfil '{sess['perfil']}' não pode importar MC."}, True)
+            if not (mc_importar_de_planilha and baixar_planilha):
+                return ({"erro": "Importação por planilha não está disponível nesta instância."}, True)
+            url = str((args or {}).get("url") or "").strip()
+            if not url:
+                return ({"erro": "Informe a url da planilha .xlsx."}, True)
+            if not url.lower().split("?")[0].endswith(".xlsx"):
+                # Aviso, não bloqueio: link de compartilhamento do OneDrive
+                # costuma não terminar em .xlsx. Quem valida de verdade é o
+                # parser, olhando o conteúdo.
+                logger.info("mc_importar_planilha: url sem extensão .xlsx (%s)", url[:120])
+            try:
+                conteudo = baixar_planilha(url)
+            except Exception as e:
+                return ({"erro": f"Não consegui baixar a planilha: {e}. Confira se o link "
+                                 f"permite acesso sem login."}, True)
+            extra = {k: v for k, v in (args or {}).items()
+                     if k != "url" and v not in (None, "")}
+            from mc_planilha import nome_do_arquivo_da_url
+            nome_arq = nome_do_arquivo_da_url(url)
+            r = mc_importar_de_planilha(conteudo, nome_arq, sess, extra)
+            if r.get("status") != "PROCESSADA":
+                r = dict(r)
+                r["atencao"] = ("A MC foi gravada, mas precisa de conferência humana: "
+                                + (r.get("motivo_revisao") or r.get("status", "")))
+            return (r, False)
+
         if nome == "mc_listar":
             if sess["perfil"] not in perfis_leitura:
                 return ({"erro": "Sem permissão de leitura de MC."}, True)
@@ -762,12 +830,16 @@ def montar_mcp(app, *, get_db, senha_confere, mc_processar_importacao,
                 "serverInfo": {"name": "faiston-ops-mc", "version": "1.0.0",
                                "title": "Faiston Ops — MC"},
                 "instructions": (
-                    "Conector do Faiston Ops para MC (Margem de Contribuição). "
-                    "Use mc_listar para ver o que já entrou e mc_importar para gravar uma MC "
-                    "extraída da planilha de kick-off. Copie os números da planilha como estão "
-                    "e informe os totais que ela declara: o Ops confere e marca para revisão "
-                    "humana se não fecharem. Nunca invente contrato ou linha de custo — se a "
-                    "planilha não traz, omita o campo. "
+                    "Conector do Faiston Ops para MC (Margem de Contribuição).\n\n"
+                    "Fluxo esperado: quando chegar um e-mail de KICK-OFF, registre o que dá "
+                    "com mc_importar (contrato, cliente, projeto do corpo do e-mail) — a MC "
+                    "fica RECEBIDA aguardando a planilha. Quando a planilha .xlsx estiver no "
+                    "OneDrive, chame mc_importar_planilha com o link: o Ops baixa e extrai os "
+                    "valores sozinho, e isso substitui o registro anterior sem duplicar.\n\n"
+                    "Não transcreva números de planilha à mão se houver .xlsx acessível — "
+                    "deixe o Ops ler. Se só houver .xlsb, ele precisa ser salvo como .xlsx "
+                    "primeiro; nem você nem o Ops leem .xlsb.\n\n"
+                    "Nunca invente contrato ou linha de custo. Se a planilha não traz, omita. "
                     f"Você está autenticado como {sess['nome']} (perfil {sess['perfil']})."),
             }}
 

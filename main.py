@@ -8553,6 +8553,10 @@ def mc_processar_importacao(dados: dict, sess: dict) -> dict:
         return {
             "sucesso": True, "id": mc_id, "status": status,
             "contrato": codigo, "ano": ano,
+            # Devolve o que ficou gravado (e não só o que foi enviado): o
+            # cliente pode ter sido completado pelo Ops a partir do forecast,
+            # e quem chamou precisa saber o que valeu.
+            "cliente": cliente, "cliente_final": cliente_final, "projeto": projeto,
             "contrato_id": contrato_id, "match_origem": origem,
             "linhas_equipe": len(equipe), "linhas_investimentos": len(invest),
             "total_equipe": soma_equipe, "total_investimentos": soma_invest,
@@ -8747,6 +8751,111 @@ def mc_deletar(mid: int, faiston_token: str = Cookie(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class MCPlanilhaModel(BaseModel):
+    """Importa MC a partir da planilha, em vez de JSON já extraído."""
+    url: Optional[str] = None          # link do OneDrive/SharePoint
+    contrato: Optional[str] = None     # sobrescreve o que vier do nome do arquivo
+    ano: Optional[str] = None
+    cliente: Optional[str] = None
+    cliente_final: Optional[str] = None
+    projeto: Optional[str] = None
+    tcv: Optional[float] = None
+
+
+def mc_importar_de_planilha(conteudo: bytes, nome: str, sess: dict,
+                            extra: Optional[dict] = None) -> dict:
+    """Extrai a MC do .xlsx e persiste pelo mesmo caminho do JSON.
+
+    Aqui o Ops lê a planilha em vez de receber números de terceiros: a extração
+    fica determinística e os totais declarados saem da própria planilha, então a
+    conferência sempre roda — era o que faltava quando o modelo mandava o JSON
+    sem `totais`."""
+    from mc_planilha import extrair_mc_de_xlsx
+    dados = extrair_mc_de_xlsx(conteudo, nome)
+    diag = dados.pop("_diagnostico", {})
+    for k, v in (extra or {}).items():
+        if v not in (None, ""):
+            dados[k] = v          # o que vem do e-mail vence o nome do arquivo
+    if not (dados.get("contrato") or "").strip():
+        raise HTTPException(status_code=400, detail=(
+            "Não deu pra identificar o contrato pelo nome do arquivo "
+            f"({nome!r}). Informe o contrato explicitamente."))
+    if not dados.get("equipe") and not dados.get("investimentos"):
+        raise HTTPException(status_code=422, detail=(
+            "Nenhuma linha de equipe ou investimento reconhecida na planilha. "
+            f"Abas vistas: {', '.join(diag.get('abas') or []) or '(nenhuma)'}. "
+            "Se o layout for diferente do esperado, mande este diagnóstico para "
+            "ajustar o mapeamento de colunas."))
+    r = mc_processar_importacao(dados, sess)
+    r["planilha"] = diag
+    return r
+
+
+MC_PLANILHA_CAMPOS = ("contrato", "ano", "cliente", "cliente_final", "projeto", "tcv")
+
+
+@app.post("/api/mc/importar-planilha")
+async def mc_importar_planilha(request: Request, faiston_token: str = Cookie(None)):
+    """Importa MC a partir da planilha: arquivo enviado (multipart) ou url (JSON).
+
+    O corpo é lido na mão em vez de por modelo Pydantic porque as duas formas
+    convivem no mesmo endpoint: num multipart o FastAPI não popula um modelo de
+    body, e os campos do form eram silenciosamente ignorados — o que fazia o
+    `contrato` informado à mão ser descartado, justo o caso de o nome do arquivo
+    trazer o código errado."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in MC_PERFIS_ESCRITA:
+        raise HTTPException(status_code=403, detail="Acesso restrito")
+
+    tipo = (request.headers.get("content-type") or "").lower()
+    extra, nome, conteudo = {}, "", None
+
+    if tipo.startswith("multipart/form-data"):
+        form = await request.form()
+        arquivo = form.get("file")
+        extra = {k: str(form[k]).strip() for k in MC_PLANILHA_CAMPOS
+                 if form.get(k) not in (None, "")}
+        if arquivo is not None and hasattr(arquivo, "read"):
+            conteudo = await arquivo.read()
+            nome = getattr(arquivo, "filename", "") or ""
+        else:
+            url = str(form.get("url") or "").strip()
+            if not url:
+                raise HTTPException(status_code=400,
+                                    detail="Envie o arquivo .xlsx ou a url dele.")
+            conteudo, nome = _mc_baixar_para_importar(url)
+    else:
+        try:
+            corpo = await request.json()
+        except Exception:
+            corpo = {}
+        if not isinstance(corpo, dict):
+            corpo = {}
+        extra = {k: corpo[k] for k in MC_PLANILHA_CAMPOS
+                 if corpo.get(k) not in (None, "")}
+        url = str(corpo.get("url") or "").strip()
+        if not url:
+            raise HTTPException(status_code=400, detail="Envie o arquivo .xlsx ou a url dele.")
+        conteudo, nome = _mc_baixar_para_importar(url)
+
+    if "tcv" in extra:
+        extra["tcv"] = _mc_num(extra["tcv"])
+    try:
+        return mc_importar_de_planilha(conteudo, nome, sess, extra)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+def _mc_baixar_para_importar(url: str):
+    from mc_planilha import nome_do_arquivo_da_url
+    try:
+        return _download_planilha(url), nome_do_arquivo_da_url(url)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Falha ao baixar a planilha: {e}")
+
+
 @app.get("/api/mc/ingestoes")
 def mc_listar_ingestoes(limite: int = 100, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -8787,6 +8896,8 @@ try:
         mc_processar_importacao=mc_processar_importacao,
         mc_consultar_lista=mc_consultar_lista,
         mc_consultar_detalhe=mc_consultar_detalhe,
+        mc_importar_de_planilha=mc_importar_de_planilha,
+        baixar_planilha=_download_planilha,
         perfis_leitura=MC_PERFIS_LEITURA,
         perfis_escrita=MC_PERFIS_ESCRITA,
     )

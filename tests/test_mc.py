@@ -369,3 +369,114 @@ class TestAchadosDoUsoReal:
         body = importar(admin_client, payload_mc(contrato=f"ZZZ{uuid.uuid4().hex[:8].upper()}-9"),
                         mc_limpa)
         assert "parecido no Ops" not in body["motivo_revisao"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Importação a partir da planilha (.xlsx), em vez de JSON já extraído
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.fixture()
+def xlsx_mc():
+    """Planilha .xlsx no formato do template de MC."""
+    openpyxl = pytest.importorskip("openpyxl")
+    import io
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    ws = wb.create_sheet("2.1 Equipe")
+    for l in [["MC — Custo de Equipe"], [],
+              ["Função", "Quantidade", "Salário", "Custo Mensal", "Meses", "Custo Total"],
+              ["Coordenador de Projeto", 1, 9500, 18300, 12, 219600.00],
+              ["Analista de Suporte N2", 1, 4200, 7610.5525, 12, 91326.63],
+              ["TOTAL EQUIPE", None, None, None, None, 310926.63]]:
+        ws.append(l)
+    ws = wb.create_sheet("2.2 Investimentos")
+    for l in [["Investimentos"],
+              ["Item", "Categoria", "Quantidade", "Valor Unitário", "Valor Total"],
+              ["Notebook Dell Latitude", "Equipamentos", 4, 5600, 22400.00],
+              ["Kit de ferramentas", "Equipamentos", 4, 1500, 6000.00],
+              ["TOTAL INVESTIMENTOS", None, None, None, 28400.00]]:
+        ws.append(l)
+    buf = io.BytesIO(); wb.save(buf)
+    return buf.getvalue()
+
+
+class TestImportarPlanilha:
+    def test_upload_extrai_e_confere_sozinho(self, admin_client, mc_limpa, xlsx_mc):
+        """O ganho da mudança: ninguém digitou número, e a conferência rodou
+        porque o total declarado saiu da própria planilha."""
+        r = admin_client.post(
+            "/api/mc/importar-planilha",
+            files={"file": ("MC F260015-9 SGB - ANO 01.xlsx", xlsx_mc,
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+        assert r.status_code == 200, r.text
+        d = r.json()
+        mc_limpa.append(d["id"])
+        assert d["contrato"] == "F260015-9"      # inferido do nome do arquivo
+        assert d["ano"] == "01"
+        assert d["total_equipe"] == TOTAL_EQUIPE
+        assert d["total_investimentos"] == TOTAL_INVEST
+        assert "divergente" not in d["motivo_revisao"]
+        assert d["planilha"]["linhas_equipe"] == 2
+
+    def test_sem_arquivo_nem_url_rejeita(self, admin_client):
+        r = admin_client.post("/api/mc/importar-planilha", json={})
+        assert r.status_code == 400
+
+    def test_nome_sem_contrato_rejeita_com_mensagem_util(self, admin_client, xlsx_mc):
+        r = admin_client.post("/api/mc/importar-planilha",
+                              files={"file": ("planilha.xlsx", xlsx_mc)})
+        assert r.status_code == 400
+        assert "identificar o contrato" in r.json()["detail"]
+
+    def test_contrato_do_form_vence_o_nome_do_arquivo(self, admin_client, mc_limpa, xlsx_mc):
+        """Aconteceu de verdade: o nome trazia F260301 e o certo era F260534."""
+        r = admin_client.post("/api/mc/importar-planilha",
+                              files={"file": ("MC F260301 - ANO 01.xlsx", xlsx_mc)},
+                              data={"contrato": "F260534"})
+        assert r.status_code == 200, r.text
+        d = r.json()
+        mc_limpa.append(d["id"])
+        assert d["contrato"] == "F260534"
+
+    def test_planilha_sem_linhas_reconheciveis_devolve_diagnostico(self, admin_client):
+        openpyxl = pytest.importorskip("openpyxl")
+        import io
+        wb = openpyxl.Workbook(); wb.active.append(["foo", "bar"])
+        buf = io.BytesIO(); wb.save(buf)
+        r = admin_client.post("/api/mc/importar-planilha",
+                              files={"file": ("MC F260999 - ANO 01.xlsx", buf.getvalue())})
+        assert r.status_code == 422
+        assert "Abas vistas" in r.json()["detail"]
+
+    def test_xlsb_da_mensagem_pedindo_conversao(self, admin_client):
+        r = admin_client.post("/api/mc/importar-planilha",
+                              files={"file": ("MC F260015 - ANO 01.xlsb",
+                                              b"PK\x03\x04" + b"\x00" * 300)})
+        assert r.status_code == 422
+        assert "xlsx" in r.json()["detail"]
+
+    def test_substitui_o_placeholder_do_kickoff(self, admin_client, mc_limpa, xlsx_mc):
+        """Fluxo real: o e-mail cria o registro, a planilha completa depois."""
+        ph = importar(admin_client, {"contrato": "F260015-9", "ano": "01",
+                                     "cliente": "T-SYSTEMS"}, mc_limpa)
+        assert ph["status"] == "RECEBIDA"
+        r = admin_client.post("/api/mc/importar-planilha",
+                              files={"file": ("MC F260015-9 SGB - ANO 01.xlsx", xlsx_mc)})
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["id"] == ph["id"]                    # substituiu, não duplicou
+        assert d["total_equipe"] == TOTAL_EQUIPE
+
+    def test_demo_nao_importa_planilha(self, admin_client, app, xlsx_mc):
+        from conftest import login_client
+        usuario = f"teste_mcpl_{uuid.uuid4().hex[:8]}"
+        r = admin_client.post("/api/usuarios", json={
+            "usuario": usuario, "senha": "senhaTeste123", "nome": "Demo", "perfil": "demo"})
+        uid = r.json()["id"]
+        try:
+            c = login_client(app, usuario, "senhaTeste123")
+            r = c.post("/api/mc/importar-planilha",
+                       files={"file": ("MC F260015 - ANO 01.xlsx", xlsx_mc)})
+            assert r.status_code == 403
+        finally:
+            admin_client.delete(f"/api/usuarios/{uid}")

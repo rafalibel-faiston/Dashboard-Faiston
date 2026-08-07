@@ -3,20 +3,43 @@
 Ingestão e visualização das planilhas de MC que chegam junto com o e-mail de
 KICK-OFF e ficam na pasta de MC's do OneDrive.
 
-A extração do `.xlsb` **não roda aqui**. Ela acontece fora do Ops (script
-`mc_extractor.py`, no Cowork) e entrega um JSON. Este módulo recebe esse JSON,
-confere, persiste e expõe na tela.
+O Ops lê a planilha `.xlsx`, confere os totais contra o que ela declara,
+persiste e expõe na tela.
+
+## Dois caminhos de ingestão
+
+**Preferido — o Ops lê a planilha:**
 
 ```
-planilha .xlsb  →  mc_extractor.py (fora do Ops)  →  JSON
-                                                      ↓
-                                          POST /api/mc/importar
-                                                      ↓
-                        mc_contratos + mc_equipe + mc_investimentos
-                                   + mc_ingestoes_log
-                                                      ↓
-                                 Gestão → MC's Recebidas (index.html)
+planilha .xlsx no OneDrive
+        ↓  (só o link)
+POST /api/mc/importar-planilha   ou   tool MCP mc_importar_planilha
+        ↓  o Ops baixa, extrai e lê os totais declarados
+mc_contratos + mc_equipe + mc_investimentos + mc_ingestoes_log
+        ↓
+módulo MC (index.html)
 ```
+
+**Alternativo — números já em mão:**
+
+```
+JSON  →  POST /api/mc/importar  (ou tool mc_importar)
+```
+
+O caminho da planilha existe porque o primeiro desenho — o Claude ler o
+`.xlsb` e mandar JSON — não se sustentou: leitura variável, e o modelo não
+mandava os totais declarados, então a conferência do Ops ficava desligada e
+número errado entrava sem ninguém ver. Com o Ops lendo o arquivo, a extração é
+determinística e os totais saem da própria planilha, então a conferência sempre
+roda.
+
+O caminho do JSON continua útil para registrar o que veio no **corpo do e-mail
+de kick-off** antes de a planilha existir (status `RECEBIDA`), e reimportar
+pela planilha depois substitui esse registro.
+
+> **`.xlsb` não serve.** Nem o `openpyxl` do Ops lê, nem o conector do
+> Microsoft 365 aceita o MIME. O arquivo precisa ser salvo como `.xlsx` — é o
+> único passo manual que sobra no fluxo.
 
 ## Por que tabelas novas
 
@@ -65,7 +88,8 @@ vincular/conferir depois. `PATCH /api/mc/contratos/{id}/status` resolve na mão.
 
 | Método | Rota | Perfis |
 | --- | --- | --- |
-| `POST` | `/api/mc/importar` | admin, gestor, diretor |
+| `POST` | `/api/mc/importar-planilha` (arquivo ou url) | admin, gestor, diretor |
+| `POST` | `/api/mc/importar` (JSON) | admin, gestor, diretor |
 | `GET` | `/api/mc/contratos` (`?status=&contrato=`) | admin, gestor, diretor, demo |
 | `GET` | `/api/mc/contratos/{id}` | admin, gestor, diretor, demo |
 | `PATCH` | `/api/mc/contratos/{id}/status` | admin, gestor, diretor |
@@ -80,6 +104,44 @@ Como toda rota `/api/*` que muda estado, `POST/PATCH/DELETE` passam pelo
 `CSRFMiddleware` e exigem o header `X-CSRF-Token` batendo com o cookie
 `csrf_token`. No navegador o patch global de `fetch` (topo do `index.html`) já
 cuida disso; num cliente fora do navegador é preciso mandar o header à mão.
+
+## Importar pela planilha
+
+`POST /api/mc/importar-planilha` aceita as duas formas:
+
+- **multipart** com o campo `file` (o `.xlsx` em si) — é o que a tela usa;
+- **JSON** com `url` — link do OneDrive/SharePoint, baixado por
+  `_download_planilha()`, o mesmo utilitário que a sincronização de planilha de
+  projeto já usa.
+
+Nos dois casos dá para mandar `contrato`, `ano`, `cliente`, `cliente_final`,
+`projeto` e `tcv` junto: **o que é informado vence** o que foi inferido do nome
+do arquivo. Isso importa porque o nome do arquivo nem sempre traz o código de
+faturamento certo — aconteceu de o assunto do e-mail dizer `F260301` quando o
+correto era `F260534`.
+
+A extração vive em `mc_planilha.py`, separada de propósito: é a peça que precisa
+de calibragem quando aparecer um layout diferente.
+
+- **Nada de posição fixa de célula.** O template tem várias abas e versões desde
+  2021. O parser acha a *linha de cabeçalho* por nome de coluna (mesma
+  estratégia do `_parse_forecast_workbook` no Forecast) e lê dali para baixo.
+- **Vocabulário de colunas** tolerante: `Função`/`Cargo`/`Recurso`,
+  `Qtde`/`Quantidade`/`HC`, `Custo Total (R$)`/`Total`/`Custo Anual`, etc.
+- **Desempate equipe × investimento**: `salário`, `encargos` e `meses` só
+  existem em equipe; o nome da aba (`2.1 Equipe`, `Investimentos`) resolve o
+  resto.
+- **Linha de `TOTAL` encerra o bloco** em vez de entrar como item — somá-la
+  junto dobraria o valor.
+- **Totais declarados**: procura células tipo `TOTAL EQUIPE` / `TOTAL
+  INVESTIMENTOS` e pega o número à direita. É o dado mais importante do
+  arquivo: é contra ele que a conferência acontece.
+- **Diagnóstico sempre**: a resposta traz as abas vistas e os cabeçalhos
+  reconhecidos. Quando não reconhece nada, o erro (422) lista as abas — calibrar
+  fica uma iteração em vez de adivinhação.
+- Nome de arquivo vindo de URL é **desescapado** antes de procurar o contrato:
+  `MC%20F260015-7%20-%20ANO%2001.xlsx` esconderia o código, porque o `0` do
+  `%20` cola no `F` e mata o limite de palavra do regex.
 
 ## Contrato do JSON de `POST /api/mc/importar`
 
