@@ -3,9 +3,8 @@
 Ingestão e visualização das planilhas de MC que chegam junto com o e-mail de
 KICK-OFF e ficam na pasta de MC's do OneDrive.
 
-A extração do `.xlsb` **não roda aqui**. Ela acontece fora do Ops (script
-`mc_extractor.py`, no Cowork) e entrega um JSON. Este módulo recebe esse JSON,
-confere, persiste e expõe na tela.
+O Ops lê a planilha `.xlsx`, confere os totais contra o que ela declara,
+persiste e expõe na tela.
 
 ## Dois caminhos de ingestão
 
@@ -89,7 +88,8 @@ vincular/conferir depois. `PATCH /api/mc/contratos/{id}/status` resolve na mão.
 
 | Método | Rota | Perfis |
 | --- | --- | --- |
-| `POST` | `/api/mc/importar` | admin, gestor, diretor |
+| `POST` | `/api/mc/importar-planilha` (arquivo ou url) | admin, gestor, diretor |
+| `POST` | `/api/mc/importar` (JSON) | admin, gestor, diretor |
 | `GET` | `/api/mc/contratos` (`?status=&contrato=`) | admin, gestor, diretor, demo |
 | `GET` | `/api/mc/contratos/{id}` | admin, gestor, diretor, demo |
 | `PATCH` | `/api/mc/contratos/{id}/status` | admin, gestor, diretor |
