@@ -53,10 +53,10 @@ app já aplica.
 
 | Status | Significado |
 | --- | --- |
-| `RECEBIDA` | Estado inicial reservado (hoje a importação já resolve para um dos de baixo na mesma transação). |
+| `RECEBIDA` | Só o cabeçalho chegou (cliente/projeto do corpo do e-mail de kick-off), a planilha ainda não foi extraída. Reimportar com as linhas substitui. |
 | `PROCESSADA` | Os totais declarados na planilha fecham com a soma das linhas **e** o contrato foi vinculado. |
 | `REVISAO_MANUAL` | Divergência de total e/ou contrato não encontrado no Ops. O motivo fica em `motivo_revisao`. |
-| `ERRO` | Payload sem nenhuma linha aproveitável. |
+| `ERRO` | Falha de verdade na ingestão (exceção gravada no log). |
 
 A MC é **sempre gravada**, mesmo com problema — perder o arquivo é pior do que
 vincular/conferir depois. `PATCH /api/mc/contratos/{id}/status` resolve na mão.
@@ -138,6 +138,15 @@ soma das linhas é aceita.
 
 ### Idempotência
 
+O `ano` é normalizado para dois dígitos (`"1"`, `"01"` e `"ANO 01"` viram `01`).
+Sem isso a chave tratava a mesma MC escrita de outro jeito como uma segunda MC
+— apareceu de verdade: a extração mandou `"1"` e o exemplo mandou `"01"`.
+
+Linhas em branco da planilha (sem descrição e sem nenhum valor) são descartadas:
+a extração real trouxe linhas de separação junto, que poluíam o detalhe sem
+somar nada. Linha com descrição e valor zero **fica** — `Despesa Operação` a
+zero é informação da planilha, não lixo.
+
 Reimportar o mesmo `(contrato, ano)` **substitui**: as linhas antigas são
 apagadas, o `mc_contratos.id` é mantido (`ON CONFLICT ... DO UPDATE`) e uma nova
 entrada aparece no `mc_ingestoes_log`. Planilha corrigida e reenviada não gera
@@ -155,9 +164,16 @@ Ordem tentada por `_mc_resolver_contrato()`, hoje **casamento exato**:
 2. `contratos_gestao.nome` — preenche `mc_contratos.contrato_id` (FK real).
 3. Nada casou → grava com `match_origem = 'nenhum'` e joga em `REVISAO_MANUAL`.
 
-> **Pendência (Rafael/Bruna):** a regra definitiva de match. Nome/código exato
-> pode não ser suficiente. Enquanto não define, nada se perde: cai em revisão
-> manual e a tela permite vincular.
+Quando nada casa, o motivo da revisão traz **sugestões** de códigos parecidos
+(prefixo antes do sufixo) — sem vincular. Isso saiu do uso real: o extrator tira
+o código do nome do arquivo, que vem com sufixo de versão (`F260015-7`),
+enquanto o Ops guarda o código base (`F260015`). Vincular por prefixo
+automaticamente seria arriscado (o `-7` pode ser outro item, não só revisão da
+planilha), então a pista vai para quem decide.
+
+> **Pendência (Rafael/Bruna):** a regra definitiva de match. Enquanto não
+> define, nada se perde: cai em revisão manual, com a sugestão do parecido, e a
+> tela permite vincular.
 
 ## Tela
 
