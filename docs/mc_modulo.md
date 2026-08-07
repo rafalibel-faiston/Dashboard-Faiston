@@ -185,6 +185,15 @@ Conteúdo:
   "confere com a planilha" por bloco, histórico de ingestões daquela MC e botão
   *Marcar como processada*.
 - Modal separado com o histórico geral de ingestões (`mc_ingestoes_log`).
+- Botão **Importar MC**: aceita o JSON do extrator colado ou como arquivo
+  `.json`, uma MC ou uma lista. Valida no navegador antes de enviar (JSON
+  malformado aponta a posição; MC sem `contrato` é barrada), e mostra o
+  resultado por MC — status, totais e motivo da revisão. Só aparece para
+  admin/gestor/diretor, espelhando `MC_PERFIS_ESCRITA`; `demo` vê a lista mas
+  não o botão.
+
+  O fluxo desenhado é o extrator chamar `POST /api/mc/importar` direto — este
+  modal existe pra dar um caminho pela tela, sem depender de ferramenta de API.
 
 > **Pendência (Rafael/Bruna):** quem vê essa tela. Hoje é todo mundo que entra
 > no dashboard — admin/gestor/diretor/demo. Pra restringir a admin: mudar
