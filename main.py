@@ -8264,9 +8264,33 @@ class MCImportModel(BaseModel):
         extra = "allow"
 
 
+def _mc_normalizar_ano(v) -> str:
+    """Normaliza o ano do contrato para dois dígitos.
+
+    A chave de idempotência é (contrato, ano), então "1", "01" e "ANO 01"
+    precisam virar a mesma coisa — senão reimportar a mesma MC escrita de
+    outro jeito cria uma segunda MC em vez de substituir. Apareceu de
+    verdade: a extração da planilha mandou "1" e o exemplo mandou "01"."""
+    s = str(v if v is not None else "").strip()
+    digitos = re.sub(r"\D", "", s)
+    if digitos:
+        return digitos.lstrip("0").zfill(2) if digitos.strip("0") else "01"
+    return s[:10] or "01"
+
+
+def _mc_linha_vazia(d: dict, campos) -> bool:
+    """Linha sem descrição e sem nenhum valor: lixo de extração.
+
+    A planilha tem linhas de separação e de cabeçalho que o extrator traz
+    junto — gravá-las polui o detalhe da MC sem somar nada."""
+    if str(d.get("funcao") or d.get("item") or "").strip():
+        return False
+    return not any(_mc_num(d.get(c)) for c in campos)
+
+
 def _mc_normalizar_equipe(linhas):
     out = []
-    for i, ln in enumerate(linhas):
+    for ln in linhas:
         custo_total = _mc_num(_mc_pega(ln, "custo_total", "total", "valor_total", "custo anual"))
         custo_mensal = _mc_num(_mc_pega(ln, "custo_mensal", "custo mes", "custo_mes", "mensal"))
         meses = _mc_num(_mc_pega(ln, "meses", "qtd_meses", "periodo_meses"))
@@ -8275,8 +8299,8 @@ def _mc_normalizar_equipe(linhas):
         # o número da planilha, que é a fonte da verdade da conferência.
         if not custo_total and custo_mensal:
             custo_total = custo_mensal * (meses or 1) * (qtd or 1)
-        out.append({
-            "ordem": i,
+        linha = {
+            "ordem": len(out),
             "funcao": str(_mc_pega(ln, "funcao", "cargo", "descricao", "item", default="") or "")[:200],
             "quantidade": qtd,
             "salario": _mc_num(_mc_pega(ln, "salario", "salario_base")),
@@ -8286,28 +8310,60 @@ def _mc_normalizar_equipe(linhas):
             "meses": meses,
             "custo_total": custo_total,
             "bruto": ln,
-        })
+        }
+        if _mc_linha_vazia(linha, ("quantidade", "salario", "custo_mensal", "custo_total")):
+            continue
+        out.append(linha)
     return out
 
 
 def _mc_normalizar_investimentos(linhas):
     out = []
-    for i, ln in enumerate(linhas):
+    for ln in linhas:
         qtd = _mc_num(_mc_pega(ln, "quantidade", "qtd"))
         unit = _mc_num(_mc_pega(ln, "valor_unitario", "unitario", "valor_unit", "preco_unitario"))
         total = _mc_num(_mc_pega(ln, "valor_total", "total", "valor"))
         if not total and unit:
             total = unit * (qtd or 1)
-        out.append({
-            "ordem": i,
+        linha = {
+            "ordem": len(out),
             "item": str(_mc_pega(ln, "item", "descricao", "investimento", "equipamento", default="") or "")[:300],
             "categoria": str(_mc_pega(ln, "categoria", "tipo", "grupo", default="") or "")[:100],
             "quantidade": qtd,
             "valor_unitario": unit,
             "valor_total": total,
             "bruto": ln,
-        })
+        }
+        if _mc_linha_vazia(linha, ("quantidade", "valor_unitario", "valor_total")):
+            continue
+        out.append(linha)
     return out
+
+
+def _mc_candidatos_parecidos(cur, codigo: str, limite: int = 3):
+    """Códigos do Ops parecidos com o que veio, pra ajudar o vínculo manual.
+
+    O extrator tira o código do nome do arquivo, que costuma ter sufixo de
+    versão ('F260015-7'), enquanto o Ops guarda o código base ('F260015').
+    Isso não vincula nada: só põe a pista no motivo da revisão pra quem for
+    resolver não precisar procurar."""
+    base = re.split(r"[-_/\s]", (codigo or "").strip())[0]
+    if len(base) < 4 or base.upper() == (codigo or "").strip().upper():
+        return []
+    achados = []
+    try:
+        cur.execute("SELECT to_regclass('public.forecast_projetos') IS NOT NULL")
+        if cur.fetchone()[0]:
+            cur.execute("""SELECT DISTINCT codigo FROM forecast_projetos
+                           WHERE codigo ILIKE %s ORDER BY codigo LIMIT %s""",
+                        (f"{base}%", limite))
+            achados += [r[0] for r in cur.fetchall()]
+        cur.execute("""SELECT nome FROM contratos_gestao
+                       WHERE nome ILIKE %s ORDER BY nome LIMIT %s""", (f"{base}%", limite))
+        achados += [r[0] for r in cur.fetchall()]
+    except Exception:
+        return []      # sugestão é conveniência; não pode derrubar a ingestão
+    return achados[:limite]
 
 
 def _mc_resolver_contrato(cur, codigo: str, cliente: str, projeto: str):
@@ -8379,7 +8435,7 @@ def mc_processar_importacao(dados: dict, sess: dict) -> dict:
     codigo = str(_mc_pega(dados, "contrato_codigo", "contrato", "codigo", default="") or "").strip()
     if not codigo:
         raise HTTPException(status_code=400, detail="Informe o contrato (ex.: F260015).")
-    ano = str(_mc_pega(dados, "ano", "ano_contrato", "ano_indice", default="01") or "01").strip()
+    ano = _mc_normalizar_ano(_mc_pega(dados, "ano", "ano_contrato", "ano_indice", default="01"))
     arquivo = str(_mc_pega(dados, "arquivo_nome", "arquivo", default="") or "")[:300]
 
     equipe = _mc_normalizar_equipe(_mc_lista(dados, "equipe", "custos_equipe", "mao_de_obra"))
@@ -8415,11 +8471,22 @@ def mc_processar_importacao(dados: dict, sess: dict) -> dict:
             cur, codigo, cliente, projeto)
         cliente_final = cliente_final or (cf_resolvido or "")
         if origem == "nenhum":
-            motivos.append(f"Contrato '{codigo}' não encontrado no Ops — vincular manualmente")
+            aviso = f"Contrato '{codigo}' não encontrado no Ops — vincular manualmente"
+            # Sufixo de versão da MC ('F260015-7') não casa com o código do
+            # contrato ('F260015'). Sugere os parecidos em vez de vincular por
+            # conta própria: '-7' pode ser revisão da planilha ou outro item,
+            # e vincular errado é pior que deixar pendente.
+            for cand in _mc_candidatos_parecidos(cur, codigo):
+                aviso += f" | parecido no Ops: {cand}"
+            motivos.append(aviso)
 
         if not equipe and not invest:
-            status = "ERRO"
-            motivos.insert(0, "Payload sem linhas de equipe nem de investimentos")
+            # Só o cabeçalho (nome do cliente/projeto do corpo do e-mail),
+            # sem a planilha extraída ainda. É um estado legítimo do fluxo —
+            # o kick-off chega antes da MC completa —, então fica RECEBIDA
+            # esperando a planilha, não ERRO. Reimportar substitui.
+            status = "RECEBIDA"
+            motivos.insert(0, "Aguardando as linhas da planilha (só o cabeçalho chegou)")
         elif motivos:
             status = "REVISAO_MANUAL"
         else:

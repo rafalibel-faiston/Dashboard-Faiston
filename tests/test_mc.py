@@ -181,10 +181,13 @@ class TestImportacao:
         resp = admin_client.post("/api/mc/importar", json={"ano": "01", "equipe": []})
         assert resp.status_code == 400
 
-    def test_payload_vazio_marca_erro(self, admin_client, mc_limpa):
+    def test_payload_sem_linhas_fica_aguardando(self, admin_client, mc_limpa):
+        """Antes isso era ERRO. Virou RECEBIDA quando o uso real mostrou que é
+        estado legítimo: o kick-off chega antes da planilha ser extraída, e
+        marcar como erro fazia parecer falha do que era só espera."""
         body = importar(admin_client, payload_mc(equipe=[], investimentos=[], totais={}), mc_limpa)
-        assert body["status"] == "ERRO"
-        assert "sem linhas" in body["motivo_revisao"]
+        assert body["status"] == "RECEBIDA"
+        assert "Aguardando as linhas da planilha" in body["motivo_revisao"]
 
     def test_coluna_nova_da_planilha_nao_quebra(self, admin_client, mc_limpa):
         p = payload_mc()
@@ -291,3 +294,78 @@ class TestExclusao:
         assert admin_client.get(f"/api/mc/contratos/{body['id']}").status_code == 404
         log = admin_client.get("/api/mc/ingestoes?limite=200").json()
         assert any(l["contrato"] == body["contrato"] for l in log["itens"])
+
+
+class TestAchadosDoUsoReal:
+    """Casos que só apareceram quando a extração da planilha de verdade rodou
+    (F260015-7 T-SYSTEMS/SGB e o kick-off do F260534 ZAMP)."""
+
+    def test_ano_normalizado_mantem_idempotencia(self, admin_client, mc_limpa):
+        """A extração mandou ano "1" e o exemplo mandou "01". Sem normalizar,
+        a chave (contrato, ano) tratava como duas MC's diferentes."""
+        p = payload_mc(ano="01")
+        primeiro = importar(admin_client, p, mc_limpa)
+        segundo = importar(admin_client, payload_mc(contrato=p["contrato"], ano="1"))
+        assert segundo["id"] == primeiro["id"]
+        assert segundo["ano"] == "01"
+
+    def test_ano_com_texto(self, admin_client, mc_limpa):
+        body = importar(admin_client, payload_mc(ano="ANO 03"), mc_limpa)
+        assert body["ano"] == "03"
+
+    def test_linha_vazia_da_planilha_e_descartada(self, admin_client, mc_limpa):
+        """A planilha real trouxe linhas de separação: função vazia, tudo zero."""
+        p = payload_mc()
+        p["equipe"] = ([{"funcao": "", "quantidade": 0, "salario": 0, "custo_mensal": 0,
+                         "custo_total": 0}]
+                       + [dict(l) for l in EQUIPE_F260015]
+                       + [{"funcao": "", "custo_total": 0}])
+        p["investimentos"] = [{"item": "", "quantidade": 0, "valor_total": 0}] + \
+                             [dict(l) for l in INVEST_F260015]
+        body = importar(admin_client, p, mc_limpa)
+        assert body["linhas_equipe"] == 2
+        assert body["linhas_investimentos"] == 2
+        assert body["total_equipe"] == TOTAL_EQUIPE
+
+    def test_linha_com_descricao_e_valor_zero_fica(self, admin_client, mc_limpa):
+        """'Despesa Operação' com valor 0 é informação da planilha, não lixo."""
+        p = payload_mc()
+        p["investimentos"] = [{"item": "Despesa Operação", "quantidade": 1, "valor_total": 0}]
+        p["totais"] = {"equipe": TOTAL_EQUIPE, "investimentos": 0}
+        body = importar(admin_client, p, mc_limpa)
+        assert body["linhas_investimentos"] == 1
+
+    def test_so_cabecalho_fica_recebida_nao_erro(self, admin_client, mc_limpa):
+        """Kick-off chega antes da MC completa: é estado legítimo do fluxo."""
+        body = importar(admin_client, {
+            "contrato": f"TESTE-MC-{uuid.uuid4().hex[:8].upper()}",
+            "cliente": "ZAMP", "projeto": "Obsolescência de infraestrutura",
+        }, mc_limpa)
+        assert body["status"] == "RECEBIDA"
+        assert "Aguardando as linhas da planilha" in body["motivo_revisao"]
+
+    def test_placeholder_e_substituido_pela_mc_completa(self, admin_client, mc_limpa):
+        contrato = f"TESTE-MC-{uuid.uuid4().hex[:8].upper()}"
+        ph = importar(admin_client, {"contrato": contrato, "cliente": "ZAMP"}, mc_limpa)
+        assert ph["status"] == "RECEBIDA"
+        completa = importar(admin_client, payload_mc(contrato=contrato))
+        assert completa["id"] == ph["id"]          # substitui, não duplica
+        assert completa["total_equipe"] == TOTAL_EQUIPE
+
+    def test_sugere_contrato_parecido_no_motivo(self, admin_client, mc_limpa, cliente_teste):
+        """'F260015-7' não casa com 'F260015'. Em vez de só dizer que não
+        achou, aponta o parecido — sem vincular, que a decisão é humana."""
+        base = f"TESTEMC{uuid.uuid4().hex[:6].upper()}"
+        cid = admin_client.post("/api/gestao/contratos",
+                                json={"cliente_id": cliente_teste, "nome": base}).json()["id"]
+        try:
+            body = importar(admin_client, payload_mc(contrato=f"{base}-7"), mc_limpa)
+            assert body["match_origem"] == "nenhum"      # não vinculou sozinho
+            assert f"parecido no Ops: {base}" in body["motivo_revisao"]
+        finally:
+            admin_client.delete(f"/api/gestao/contratos/{cid}")
+
+    def test_sem_parecido_nao_inventa_sugestao(self, admin_client, mc_limpa):
+        body = importar(admin_client, payload_mc(contrato=f"ZZZ{uuid.uuid4().hex[:8].upper()}-9"),
+                        mc_limpa)
+        assert "parecido no Ops" not in body["motivo_revisao"]
