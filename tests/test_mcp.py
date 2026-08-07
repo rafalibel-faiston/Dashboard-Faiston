@@ -476,3 +476,139 @@ class TestTokenFixo:
         r = admin_client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "ping"},
                               headers={"Authorization": "Bearer qualquer-coisa"})
         assert r.status_code == 401
+
+
+class TestToolPlanilha:
+    """A tool preferida: o Claude passa o link e o Ops lê a planilha.
+
+    O download é exercitado de verdade (servidor HTTP local), não mockado —
+    é justamente o caminho que quebra na vida real."""
+
+    @pytest.fixture()
+    def servidor_xlsx(self):
+        import http.server, io, socket, threading
+        openpyxl = pytest.importorskip("openpyxl")
+        wb = openpyxl.Workbook(); wb.remove(wb.active)
+        ws = wb.create_sheet("2.1 Equipe")
+        for l in [["MC — Custo de Equipe"], [],
+                  ["Função", "Quantidade", "Salário", "Custo Mensal", "Meses", "Custo Total"],
+                  ["Coordenador de Projeto", 1, 9500, 18300, 12, 219600.00],
+                  ["Analista de Suporte N2", 1, 4200, 7610.5525, 12, 91326.63],
+                  ["TOTAL EQUIPE", None, None, None, None, 310926.63]]:
+            ws.append(l)
+        ws = wb.create_sheet("2.2 Investimentos")
+        for l in [["Investimentos"],
+                  ["Item", "Categoria", "Quantidade", "Valor Unitário", "Valor Total"],
+                  ["Notebook Dell Latitude", "Equipamentos", 4, 5600, 22400.00],
+                  ["Kit de ferramentas", "Equipamentos", 4, 1500, 6000.00],
+                  ["TOTAL INVESTIMENTOS", None, None, None, 28400.00]]:
+            ws.append(l)
+        buf = io.BytesIO(); wb.save(buf)
+        conteudo = buf.getvalue()
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path.endswith(".xlsx"):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/vnd.openxmlformats-"
+                                                     "officedocument.spreadsheetml.sheet")
+                    self.send_header("Content-Length", str(len(conteudo)))
+                    self.end_headers()
+                    self.wfile.write(conteudo)
+                elif self.path.endswith("login.xlsx.html") or "login" in self.path:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html")
+                    self.end_headers()
+                    self.wfile.write(b"<!DOCTYPE html><html>Sign in to OneDrive</html>" * 3)
+                else:
+                    self.send_response(404); self.end_headers()
+
+            def log_message(self, *a):
+                pass
+
+        s = socket.socket(); s.bind(("127.0.0.1", 0)); porta = s.getsockname()[1]; s.close()
+        srv = http.server.HTTPServer(("127.0.0.1", porta), H)
+        t = threading.Thread(target=srv.serve_forever, daemon=True); t.start()
+        yield f"http://127.0.0.1:{porta}"
+        srv.shutdown()
+
+    def test_ops_baixa_le_e_confere_sozinho(self, admin_client, token, servidor_xlsx):
+        """Ninguém transcreveu número: o Ops leu a planilha e conferiu contra o
+        total que ela declara."""
+        res = chamar(admin_client, token, "mc_importar_planilha", {
+            "url": f"{servidor_xlsx}/MC%20F260015-8%20SGB%20-%20ANO%2001.xlsx"})
+        assert res["isError"] is False, res
+        d = res["structuredContent"]
+        try:
+            assert d["contrato"] == "F260015-8"       # veio do nome do arquivo
+            assert d["ano"] == "01"
+            assert d["total_equipe"] == 310926.63
+            assert d["total_investimentos"] == 28400.00
+            assert "divergente" not in d["motivo_revisao"]
+            assert d["planilha"]["linhas_equipe"] == 2
+        finally:
+            admin_client.delete(f"/api/mc/contratos/{d['id']}")
+
+    def test_contrato_informado_vence_o_nome_do_arquivo(self, admin_client, token, servidor_xlsx):
+        res = chamar(admin_client, token, "mc_importar_planilha", {
+            "url": f"{servidor_xlsx}/MC%20F260301%20-%20ANO%2001.xlsx",
+            "contrato": "F260534", "cliente": "ZAMP"})
+        d = res["structuredContent"]
+        try:
+            assert d["contrato"] == "F260534"
+            assert d["cliente"] == "ZAMP"
+        finally:
+            admin_client.delete(f"/api/mc/contratos/{d['id']}")
+
+    def test_substitui_o_placeholder_do_kickoff(self, admin_client, token, servidor_xlsx):
+        """O fluxo inteiro: e-mail cria o registro, planilha completa depois."""
+        ph = chamar(admin_client, token, "mc_importar", {
+            "contrato": "F260015-8", "ano": "01", "cliente": "T-SYSTEMS",
+        })["structuredContent"]
+        assert ph["status"] == "RECEBIDA"
+        d = chamar(admin_client, token, "mc_importar_planilha", {
+            "url": f"{servidor_xlsx}/MC%20F260015-8%20SGB%20-%20ANO%2001.xlsx",
+        })["structuredContent"]
+        try:
+            assert d["id"] == ph["id"]                 # substituiu
+            assert d["total_equipe"] == 310926.63
+            assert d["linhas_equipe"] == 2
+        finally:
+            admin_client.delete(f"/api/mc/contratos/{d['id']}")
+
+    def test_link_que_pede_login_da_erro_claro(self, admin_client, token, servidor_xlsx):
+        """Engano mais comum do OneDrive: o link volta HTML de login."""
+        res = chamar(admin_client, token, "mc_importar_planilha", {
+            "url": f"{servidor_xlsx}/login.xlsx.html", "contrato": "F260777"})
+        assert res["isError"] is True
+        assert "login" in res["structuredContent"]["erro"].lower()
+
+    def test_url_inacessivel_da_erro_claro(self, admin_client, token, servidor_xlsx):
+        res = chamar(admin_client, token, "mc_importar_planilha", {
+            "url": f"{servidor_xlsx}/nao-existe.zip"})
+        assert res["isError"] is True
+        assert "baixar" in res["structuredContent"]["erro"].lower()
+
+    def test_sem_url_da_erro(self, admin_client, token):
+        res = chamar(admin_client, token, "mc_importar_planilha", {})
+        assert res["isError"] is True
+
+    def test_tool_aparece_na_lista(self, admin_client, token):
+        tools = {t["name"]: t for t in rpc(admin_client, token, "tools/list")["result"]["tools"]}
+        assert "mc_importar_planilha" in tools
+        # a descrição precisa dizer pro modelo preferir esta tool
+        assert "PREFIRA" in tools["mc_importar"]["description"]
+
+    def test_demo_nao_importa_planilha(self, admin_client, app, cliente_oauth, servidor_xlsx):
+        usuario = f"teste_mcpldemo_{uuid.uuid4().hex[:8]}"
+        senha = "senhaTeste123"
+        uid = admin_client.post("/api/usuarios", json={
+            "usuario": usuario, "senha": senha, "nome": "Demo", "perfil": "demo"}).json()["id"]
+        try:
+            t = autorizar(admin_client, cliente_oauth, usuario, senha)["access_token"]
+            res = chamar(admin_client, t, "mc_importar_planilha", {
+                "url": f"{servidor_xlsx}/MC%20F260015-8%20-%20ANO%2001.xlsx"})
+            assert res["isError"] is True
+            assert "não pode importar" in res["structuredContent"]["erro"]
+        finally:
+            admin_client.delete(f"/api/usuarios/{uid}")
