@@ -6541,11 +6541,23 @@ async function mcAbrirDetalhe(mid) {
             <p class="text-sm text-amber-800">${mcEsc(d.motivo_revisao)}</p>
         </div>` : '';
 
-    const acoes = (d.status === 'PROCESSADA') ? '' : `
-        <div class="flex items-center justify-end gap-2 pt-1">
-            <button onclick="mcMarcarProcessada(${d.id})" class="btn-grad text-white rounded-lg px-4 py-2 text-sm font-semibold">
-                <i class="ph ph-check mr-1"></i> Marcar como processada
-            </button>
+    // Excluir e marcar-como-processada só pra quem o backend deixa escrever
+    // (MC_PERFIS_ESCRITA em main.py).
+    const podeEscrever = ['admin', 'gestor', 'diretor'].includes(
+        (window.ME && window.ME.perfil) || meuPerfil);
+    const btnProcessar = (d.status === 'PROCESSADA' || !podeEscrever) ? '' : `
+        <button onclick="mcMarcarProcessada(${d.id})" class="btn-grad text-white rounded-lg px-4 py-2 text-sm font-semibold">
+            <i class="ph ph-check mr-1"></i> Marcar como processada
+        </button>`;
+    const btnExcluir = !podeEscrever ? '' : `
+        <button onclick="mcExcluir(${d.id}, '${mcEsc(d.contrato)}', '${mcEsc(d.ano)}')"
+                class="text-sm font-semibold text-faiston-pink hover:bg-faiston-pink/10 rounded-lg px-3 py-2 transition-colors">
+            <i class="ph ph-trash"></i> Excluir
+        </button>`;
+    const acoes = (!btnProcessar && !btnExcluir) ? '' : `
+        <div class="flex items-center justify-between gap-2 pt-1">
+            ${btnExcluir}
+            <div class="ml-auto">${btnProcessar}</div>
         </div>`;
 
     body.innerHTML = `
@@ -6732,6 +6744,22 @@ async function mcEnviarImport() {
     box.classList.remove('hidden');
 
     await mcCarregar(true);   // atualiza lista, KPIs e badge por trás do modal
+}
+
+async function mcExcluir(mid, contrato, ano) {
+    // Apagar a MC não apaga o histórico de ingestões (mc_id vira NULL por
+    // ON DELETE SET NULL) -- a auditoria de quem tentou o quê continua.
+    if (!confirm(`Excluir a MC ${contrato} / ano ${ano}?\n\n`
+               + `As linhas de equipe e investimento vão embora. O histórico de `
+               + `ingestões continua registrado.`)) return;
+    try {
+        const r = await fetch(`/api/mc/contratos/${mid}`, { method: 'DELETE' });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `HTTP ${r.status}`);
+        mcFecharModal();
+        await mcCarregar(true);
+    } catch (e) {
+        alert('Não foi possível excluir: ' + e.message);
+    }
 }
 
 async function mcAbrirLog() {
