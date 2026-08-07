@@ -8360,14 +8360,22 @@ def _mc_registrar_log(cur, *, mc_id, codigo, ano, arquivo, resultado, detalhe,
 def mc_importar(m: MCImportModel, faiston_token: str = Cookie(None)):
     """Recebe o JSON extraído de uma planilha de MC e persiste.
 
-    Idempotente por (contrato, ano): reimportar substitui as linhas e mantém
-    o mesmo `mc_contratos.id`, pra não duplicar MC quando a planilha é
-    corrigida e reenviada."""
+    Casca fina: a lógica vive em `mc_processar_importacao()`, que o servidor
+    MCP também chama — assim os dois caminhos de ingestão (HTTP e conector do
+    Claude) não podem divergir na conferência de totais nem no status."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in MC_PERFIS_ESCRITA:
         raise HTTPException(status_code=403, detail="Acesso restrito")
+    return mc_processar_importacao(m.model_dump(exclude_none=False), sess)
 
-    dados = m.model_dump(exclude_none=False)
+
+def mc_processar_importacao(dados: dict, sess: dict) -> dict:
+    """Confere e persiste uma MC já desserializada.
+
+    Idempotente por (contrato, ano): reimportar substitui as linhas e mantém
+    o mesmo `mc_contratos.id`, pra não duplicar MC quando a planilha é
+    corrigida e reenviada. Levanta HTTPException nos casos de erro — quem
+    chama de fora do HTTP (o MCP) traduz para o formato dele."""
     codigo = str(_mc_pega(dados, "contrato_codigo", "contrato", "codigo", default="") or "").strip()
     if not codigo:
         raise HTTPException(status_code=400, detail="Informe o contrato (ex.: F260015).")
@@ -8505,6 +8513,11 @@ def mc_listar(status: str = "", contrato: str = "", faiston_token: str = Cookie(
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in MC_PERFIS_LEITURA:
         raise HTTPException(status_code=403, detail="Acesso restrito")
+    return mc_consultar_lista(status, contrato)
+
+
+def mc_consultar_lista(status: str = "", contrato: str = "") -> dict:
+    """Lista as MC's. Compartilhada com o servidor MCP."""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -8549,6 +8562,11 @@ def mc_detalhe(mid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in MC_PERFIS_LEITURA:
         raise HTTPException(status_code=403, detail="Acesso restrito")
+    return mc_consultar_detalhe(mid)
+
+
+def mc_consultar_detalhe(mid: int) -> dict:
+    """Detalhe de uma MC com linhas e histórico. Compartilhada com o MCP."""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -8685,3 +8703,27 @@ def mc_listar_ingestoes(limite: int = 100, faiston_token: str = Cookie(None)):
         return {"itens": itens, "total": len(itens)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  MCP — conector do Claude para o módulo de MC
+#  Implementação em mcp_faiston.py (protocolo + OAuth). Aqui só a montagem,
+#  injetando as funções do Ops que as tools usam — as mesmas que os endpoints
+#  /api/mc/* usam, pra os dois caminhos não divergirem.
+# ═════════════════════════════════════════════════════════════════════════════
+try:
+    from mcp_faiston import montar_mcp as _montar_mcp
+    _montar_mcp(
+        app,
+        get_db=get_db,
+        senha_confere=senha_confere,
+        mc_processar_importacao=mc_processar_importacao,
+        mc_consultar_lista=mc_consultar_lista,
+        mc_consultar_detalhe=mc_consultar_detalhe,
+        perfis_leitura=MC_PERFIS_LEITURA,
+        perfis_escrita=MC_PERFIS_ESCRITA,
+    )
+except Exception as _e:
+    # O MCP é acessório: se ele falhar ao montar, o Ops tem que subir de todo
+    # jeito. Sem esse guarda, um erro aqui derrubaria o app inteiro no deploy.
+    logger.error(f"MCP não foi montado: {_e}\n{traceback.format_exc()}")
