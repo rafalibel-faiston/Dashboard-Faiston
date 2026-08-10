@@ -8782,6 +8782,7 @@ let adminUsuariosCache = [];
 async function adminCarregarUsuarios() {
     const res = await fetch('/api/usuarios');
     const usuarios = await res.json();
+    if (!res.ok) { alert(usuarios.detail || 'Erro ao carregar usuários'); return; }
     adminUsuariosCache = usuarios;
     const sel = document.getElementById('filtro-func');
     sel.innerHTML = '<option value="">Todos os funcionários</option>';
