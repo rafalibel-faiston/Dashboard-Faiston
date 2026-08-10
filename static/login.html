@@ -282,7 +282,7 @@
             <div class="logo-text">FAISTON</div>
         </div>
         <h2>Esqueci minha senha</h2>
-        <p class="sub">Informe seu usuário — se ele existir, mandamos um link de redefinição pro e-mail cadastrado.</p>
+        <p class="sub">Informe seu e-mail cadastrado — se ele existir, mandamos um link de redefinição pra ele.</p>
 
         <div class="error" id="error-esqueci">
             <i class="ph ph-warning-circle" style="font-size:16px"></i>
@@ -290,14 +290,14 @@
         </div>
         <div class="error" id="ok-esqueci" style="background:#EAF7EE;border-color:#BFE6CC;color:#1F7A3D">
             <i class="ph ph-check-circle" style="font-size:16px"></i>
-            <span>Se o usuário existir, um e-mail com o link foi enviado. Confira sua caixa de entrada.</span>
+            <span>Se o e-mail existir, um link de redefinição foi enviado. Confira sua caixa de entrada.</span>
         </div>
 
         <div>
-            <label>Usuário</label>
+            <label>Email</label>
             <div class="input-wrap">
-                <i class="ph ph-user ico-left"></i>
-                <input type="text" id="esqueci-usuario" placeholder="seu.usuario" autocomplete="username">
+                <i class="ph ph-envelope-simple ico-left"></i>
+                <input type="email" id="esqueci-email" placeholder="seu@email.com" autocomplete="email">
             </div>
         </div>
 
@@ -335,20 +335,20 @@ function mostrarEsqueciSenha() {
     document.getElementById('card-esqueci').style.display = '';
     document.getElementById('error-esqueci').classList.remove('show');
     document.getElementById('ok-esqueci').classList.remove('show');
-    document.getElementById('esqueci-usuario').value = '';
-    document.getElementById('esqueci-usuario').focus();
+    document.getElementById('esqueci-email').value = '';
+    document.getElementById('esqueci-email').focus();
 }
 function voltarAoLogin() {
     document.getElementById('card-esqueci').style.display = 'none';
     document.getElementById('card-login').style.display = '';
 }
 async function enviarEsqueciSenha() {
-    const usuario = document.getElementById('esqueci-usuario').value.trim();
+    const email = document.getElementById('esqueci-email').value.trim();
     const errDiv = document.getElementById('error-esqueci');
     const okDiv = document.getElementById('ok-esqueci');
     errDiv.classList.remove('show'); okDiv.classList.remove('show');
-    if (!usuario) {
-        document.getElementById('error-esqueci-text').textContent = 'Informe o usuário.';
+    if (!email) {
+        document.getElementById('error-esqueci-text').textContent = 'Informe o email.';
         errDiv.classList.add('show'); return;
     }
     const btn = document.getElementById('btn-esqueci');
@@ -357,7 +357,7 @@ async function enviarEsqueciSenha() {
     try {
         await fetch('/api/esqueci-senha', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ usuario })
+            body: JSON.stringify({ email })
         });
         // Resposta é sempre genérica (não revela se o usuário existe) --
         // mostra sucesso independente do que o servidor retornar.

@@ -840,10 +840,9 @@ def _eh_backoffice(sess: dict) -> bool:
 
 class NovoUsuario(BaseModel):
     usuario: str
-    senha: str
     nome: str
     perfil: str
-    email: str = ""
+    email: str  # obrigatório (2026-08-10): é por ele que o acesso é enviado, não tem mais senha definida pelo admin
     time: str = "Projetos"
     cargo: str = ""  # só se aplica quando perfil == 'funcionario'
 
@@ -1077,6 +1076,24 @@ def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bo
     except Exception as e:
         print(f"[email-acesso] Falha ao enviar para {destinatario}: {e}")
         return False
+
+
+def enviar_email_boas_vindas(destinatario: str, nome: str, link: str) -> bool:
+    """Email de conta nova (2026-08-10): sem senha temporária -- a pessoa define
+    a própria senha pelo link de token (mesmo mecanismo do "esqueci minha senha").
+    Reaproveitado também por reenviar_email_acesso quando a conta ainda não
+    completou o primeiro acesso."""
+    corpo = f"""
+        <p style="color:#3D4152;font-size:14.5px;margin:0 0 18px;line-height:1.6">Olá, {nome}. Seu acesso ao Faiston OPS foi criado — falta só você definir sua senha pra começar a usar.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <a href="{link}" style="display:block;color:#ffffff;text-decoration:none;padding:15px 24px;font-weight:700;font-size:15px;border-radius:12px">Definir minha senha &nbsp;&rarr;</a>
+          </td></tr>
+        </table>
+        <p style="color:#8A8FA3;font-size:12.5px;margin:0;line-height:1.6">Esse link expira em <strong>30 minutos</strong> e só funciona uma vez. Se expirar antes de você usar, use "Esqueci minha senha" na tela de login com seu email pra receber um novo.</p>
+    """
+    return _brevo_send(destinatario, "Bem-vindo ao Faiston OPS — defina sua senha",
+                        _shell_email("Bem-vindo!", "Defina sua senha de acesso", corpo))
 
 
 def _brevo_send(destinatario, subject: str, html: str, anexos: list = None) -> bool:
@@ -1644,7 +1661,7 @@ _RESET_MAX_PEDIDOS = 3         # pedidos por janela antes de segurar
 _RESET_PEDIDOS: dict = {}
 
 class EsqueciSenhaModel(BaseModel):
-    usuario: str
+    email: str
 
 class RedefinirSenhaModel(BaseModel):
     token: str
@@ -1660,33 +1677,40 @@ def _reset_bloqueado(chave) -> bool:
 def _reset_registrar_pedido(chave):
     _RESET_PEDIDOS.setdefault(chave, _deque()).append(_time.time())
 
+def _gerar_token_redefinicao(cur, uid: int) -> str:
+    """Token de definição/redefinição de senha, uso único, expira em 30min.
+    Substitui qualquer token anterior ainda ativo pra esse usuário. Reaproveitado
+    pelo "esqueci minha senha" e pelo email de boas-vindas de conta nova (sem
+    commit -- quem chama decide quando commitar)."""
+    cur.execute("DELETE FROM senha_reset_tokens WHERE usuario_id=%s", (uid,))
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    cur.execute("""
+        INSERT INTO senha_reset_tokens (usuario_id, token_hash, expira_em)
+        VALUES (%s, %s, NOW() + INTERVAL '30 minutes')
+    """, (uid, token_hash))
+    return token
+
 @app.post("/api/esqueci-senha")
 def esqueci_senha(body: EsqueciSenhaModel, request: Request):
-    resposta_generica = {"sucesso": True, "mensagem": "Se o usuário existir, um e-mail com instruções foi enviado."}
+    resposta_generica = {"sucesso": True, "mensagem": "Se o email existir, um e-mail com instruções foi enviado."}
     chave_ip = f"reset:ip:{_login_ip(request)}"
-    chave_user = f"reset:user:{(body.usuario or '').strip().lower()}"
-    if _reset_bloqueado(chave_ip) or _reset_bloqueado(chave_user):
+    chave_email = f"reset:email:{(body.email or '').strip().lower()}"
+    if _reset_bloqueado(chave_ip) or _reset_bloqueado(chave_email):
         # Mesma resposta genérica de sucesso -- não revela rate limit pra
         # quem está tentando enumerar/abusar, só não manda o e-mail de novo.
         return resposta_generica
     _reset_registrar_pedido(chave_ip)
-    _reset_registrar_pedido(chave_user)
+    _reset_registrar_pedido(chave_email)
     conn = get_db()
     if not conn: return resposta_generica
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, email FROM usuarios WHERE usuario=%s AND ativo=TRUE", (body.usuario,))
+        cur.execute("SELECT id, nome, email FROM usuarios WHERE LOWER(email)=LOWER(%s) AND ativo=TRUE", ((body.email or "").strip(),))
         row = cur.fetchone()
         if row and row[2]:
             uid, nome, email = row
-            # Só um token ativo por vez -- os antigos (usados ou não) somem.
-            cur.execute("DELETE FROM senha_reset_tokens WHERE usuario_id=%s", (uid,))
-            token = secrets.token_urlsafe(32)
-            token_hash = hashlib.sha256(token.encode()).hexdigest()
-            cur.execute("""
-                INSERT INTO senha_reset_tokens (usuario_id, token_hash, expira_em)
-                VALUES (%s, %s, NOW() + INTERVAL '30 minutes')
-            """, (uid, token_hash))
+            token = _gerar_token_redefinicao(cur, uid)
             conn.commit()
             system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
             link = f"{system_url}/redefinir-senha?token={token}"
@@ -1819,22 +1843,27 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
     if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
-    erro = _senha_fraca(u.senha, u.usuario)
-    if erro: raise HTTPException(status_code=400, detail=erro)
+    if not (u.email or "").strip(): raise HTTPException(status_code=400, detail="Email é obrigatório — é por ele que a pessoa recebe o acesso.")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        # Sem senha definida pelo admin (2026-08-10): a coluna senha_hash ainda
+        # não aceita NULL, então preenche com uma senha aleatória que nunca é
+        # exibida nem enviada -- a pessoa define a própria senha pelo link de
+        # "definir senha" abaixo, reaproveitando o token do "esqueci minha senha".
+        senha_temp = secrets.token_urlsafe(24)
         cur.execute("INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso, time, cargo) VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s) RETURNING id",
-                    (u.usuario, hash_senha(u.senha), u.nome, u.perfil, u.email, time_val, cargo_val))
+                    (u.usuario, hash_senha(senha_temp), u.nome, u.perfil, u.email, time_val, cargo_val))
         new_id = cur.fetchone()[0]
+        token = _gerar_token_redefinicao(cur, new_id)
         conn.commit(); cur.close(); conn.close()
-        tem_email = bool(u.email)
-        if tem_email:
-            bg.add_task(enviar_email_acesso, u.email, u.nome, u.usuario, u.senha)
-        return {"sucesso": True, "id": new_id, "email_enviado": tem_email}
+        system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
+        link = f"{system_url}/redefinir-senha?token={token}"
+        bg.add_task(enviar_email_boas_vindas, u.email, u.nome, link)
+        return {"sucesso": True, "id": new_id, "email_enviado": True}
     except psycopg2.errors.UniqueViolation: raise HTTPException(status_code=400, detail="Usuário já existe")
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -1882,12 +1911,22 @@ def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT nome, usuario, email FROM usuarios WHERE id=%s AND ativo=TRUE", (uid,))
-        row = cur.fetchone(); cur.close(); conn.close()
-        if not row: raise HTTPException(status_code=404, detail="Usuário não encontrado")
-        nome, usuario, email = row
-        if not email: raise HTTPException(status_code=400, detail="Este usuário não tem email cadastrado")
-        enviado = enviar_email_acesso(email, nome, usuario, None)
+        cur.execute("SELECT nome, usuario, email, primeiro_acesso FROM usuarios WHERE id=%s AND ativo=TRUE", (uid,))
+        row = cur.fetchone()
+        if not row: cur.close(); conn.close(); raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        nome, usuario, email, primeiro_acesso = row
+        if not email: cur.close(); conn.close(); raise HTTPException(status_code=400, detail="Este usuário não tem email cadastrado")
+        if primeiro_acesso:
+            # Nunca definiu a própria senha ainda -- reenvia o link de definição
+            # (token novo), não o email antigo de "use a senha que já tem".
+            token = _gerar_token_redefinicao(cur, uid)
+            conn.commit(); cur.close(); conn.close()
+            system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
+            link = f"{system_url}/redefinir-senha?token={token}"
+            enviado = enviar_email_boas_vindas(email, nome, link)
+        else:
+            cur.close(); conn.close()
+            enviado = enviar_email_acesso(email, nome, usuario, None)
         if not enviado: raise HTTPException(status_code=500, detail="Falha ao enviar email — verifique as variáveis EMAIL_USER e EMAIL_APP_PASSWORD no servidor")
         return {"sucesso": True}
     except HTTPException: raise
