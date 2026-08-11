@@ -767,28 +767,36 @@ async function toggleDadosTecnico(atividadeId, tecnicoId) {
     const abrindo = box.classList.contains('hidden');
     if (!abrindo) { box.classList.add('hidden'); return; }
     box.classList.remove('hidden');
-    if (_tecDadosCache[tecnicoId]) { renderDadosTecnico(box, _tecDadosCache[tecnicoId]); return; }
+    if (_tecDadosCache[tecnicoId]) { renderDadosTecnico(box, tecnicoId, _tecDadosCache[tecnicoId]); return; }
     box.innerHTML = '<span class="text-faiston-faint">Carregando...</span>';
     try {
         const res = await fetch(`/api/tecnicos/${tecnicoId}`);
         if (!res.ok) { box.innerHTML = '<span class="text-red-400">Erro ao carregar dados do técnico.</span>'; return; }
         const t = await res.json();
         _tecDadosCache[tecnicoId] = t;
-        renderDadosTecnico(box, t);
+        renderDadosTecnico(box, tecnicoId, t);
     } catch (e) { box.innerHTML = '<span class="text-red-400">Erro ao carregar dados do técnico.</span>'; }
 }
-function renderDadosTecnico(box, t) {
+function renderDadosTecnico(box, tecnicoId, t) {
+    // tecnicoId só (não nome/rg/cpf) no onclick -- embutir o JSON.stringify
+    // desses valores direto no atributo onclick="..." quebrava o HTML na
+    // primeira aspa dupla do próprio JSON, cortando o handler no meio
+    // ("Uncaught SyntaxError: Unexpected end of input" em produção). A
+    // função de copiar busca os dados do cache pelo id em vez de recebê-los
+    // como argumento.
     box.innerHTML = `
         <div class="grid grid-cols-1 gap-0.5">
             <span><strong>Nome:</strong> ${esc(t.nome)}</span>
             <span><strong>RG:</strong> ${esc(t.rg || 'N/A')}</span>
             <span><strong>CPF/CNPJ:</strong> ${esc(t.cpf_cnpj || 'N/A')}</span>
         </div>
-        <button onclick="copiarDadosTecnico(this, ${JSON.stringify(t.nome)}, ${JSON.stringify(t.rg || '')}, ${JSON.stringify(t.cpf_cnpj || '')})" class="mt-1.5 text-xs font-semibold text-faiston-cyan hover:underline flex items-center gap-1"><i class="ph ph-copy"></i> Copiar dados</button>
+        <button onclick="copiarDadosTecnico(this, ${tecnicoId})" class="mt-1.5 text-xs font-semibold text-faiston-cyan hover:underline flex items-center gap-1"><i class="ph ph-copy"></i> Copiar dados</button>
     `;
 }
-async function copiarDadosTecnico(btn, nome, rg, cpf) {
-    const texto = `Nome: ${nome}\nRG: ${rg || 'N/A'}\nCPF/CNPJ: ${cpf || 'N/A'}`;
+async function copiarDadosTecnico(btn, tecnicoId) {
+    const t = _tecDadosCache[tecnicoId];
+    if (!t) return;
+    const texto = `Nome: ${t.nome}\nRG: ${t.rg || 'N/A'}\nCPF/CNPJ: ${t.cpf_cnpj || 'N/A'}`;
     try {
         await navigator.clipboard.writeText(texto);
         const original = btn.innerHTML;
