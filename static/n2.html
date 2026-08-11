@@ -278,8 +278,9 @@
                     <input type="time" id="m-horario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico</label>
-                    <input type="text" id="m-tecnico" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico <span class="normal-case font-normal text-faiston-faint">(preencha o UF pra ver sugestões)</span></label>
+                    <input type="text" id="m-tecnico" list="m-tecnico-list" placeholder="Digite ou selecione" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <datalist id="m-tecnico-list"></datalist>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5" id="m-sigla-label">Sigla do site</label>
@@ -300,7 +301,7 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">UF</label>
-                    <input type="text" id="m-uf" maxlength="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <input type="text" id="m-uf" maxlength="2" onchange="carregarTecnicosPorUf(this.value)" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
@@ -751,9 +752,49 @@ function renderCardAtividade(r) {
             ${!STATUS_FINALIZADOS.includes(r.status) && r.n2_usuario_id === meId ? `<button onclick="abrirModalReatribuir(${r.id})" class="text-xs font-semibold text-faiston-cyan hover:underline">Passar pra outro N2</button>` : ''}
             <button onclick="verHistoricoAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-muted hover:underline">Ver histórico</button>
             ${STATUS_FINALIZADOS.includes(r.status) ? `<button onclick="abrirCarimboDeAtividade(${r.id})" class="text-xs font-semibold text-fuchsia-700 hover:underline">Ver carimbo</button>` : ''}
+            ${r.tecnico_id ? `<button onclick="toggleDadosTecnico(${r.id}, ${r.tecnico_id})" class="text-xs font-semibold text-faiston-cyan hover:underline">Ver dados do técnico</button>` : ''}
             <button onclick="excluir(${r.id})" class="text-xs font-semibold text-faiston-pink hover:underline">Excluir</button>
         </div>
+        ${r.tecnico_id ? `<div id="tec-dados-${r.id}" class="hidden mt-2 p-3 bg-faiston-cyan/5 border border-faiston-cyan/20 rounded-lg text-xs"></div>` : ''}
     </div>`;
+}
+// Dados do técnico (nome/RG/CPF) só são buscados quando a pessoa clica --
+// não vem junto da listagem de atividades, é dado sensível (2026-08-11).
+const _tecDadosCache = {};
+async function toggleDadosTecnico(atividadeId, tecnicoId) {
+    const box = document.getElementById(`tec-dados-${atividadeId}`);
+    if (!box) return;
+    const abrindo = box.classList.contains('hidden');
+    if (!abrindo) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    if (_tecDadosCache[tecnicoId]) { renderDadosTecnico(box, _tecDadosCache[tecnicoId]); return; }
+    box.innerHTML = '<span class="text-faiston-faint">Carregando...</span>';
+    try {
+        const res = await fetch(`/api/tecnicos/${tecnicoId}`);
+        if (!res.ok) { box.innerHTML = '<span class="text-red-400">Erro ao carregar dados do técnico.</span>'; return; }
+        const t = await res.json();
+        _tecDadosCache[tecnicoId] = t;
+        renderDadosTecnico(box, t);
+    } catch (e) { box.innerHTML = '<span class="text-red-400">Erro ao carregar dados do técnico.</span>'; }
+}
+function renderDadosTecnico(box, t) {
+    box.innerHTML = `
+        <div class="grid grid-cols-1 gap-0.5">
+            <span><strong>Nome:</strong> ${esc(t.nome)}</span>
+            <span><strong>RG:</strong> ${esc(t.rg || 'N/A')}</span>
+            <span><strong>CPF/CNPJ:</strong> ${esc(t.cpf_cnpj || 'N/A')}</span>
+        </div>
+        <button onclick="copiarDadosTecnico(this, ${JSON.stringify(t.nome)}, ${JSON.stringify(t.rg || '')}, ${JSON.stringify(t.cpf_cnpj || '')})" class="mt-1.5 text-xs font-semibold text-faiston-cyan hover:underline flex items-center gap-1"><i class="ph ph-copy"></i> Copiar dados</button>
+    `;
+}
+async function copiarDadosTecnico(btn, nome, rg, cpf) {
+    const texto = `Nome: ${nome}\nRG: ${rg || 'N/A'}\nCPF/CNPJ: ${cpf || 'N/A'}`;
+    try {
+        await navigator.clipboard.writeText(texto);
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="ph ph-check"></i> Copiado!';
+        setTimeout(() => { btn.innerHTML = original; }, 2000);
+    } catch (e) { alert('Não foi possível copiar — selecione o texto manualmente.'); }
 }
 // "Limpar lista": esconde as atividades já finalizadas da visão de
 // trabalho do N2, sem apagar nada -- mesmo espírito do "Limpar cronograma"
@@ -946,6 +987,29 @@ async function gerarPrintLista() {
 // o mesmo padrão já usado no Painel (ver scCamposN2Preservados).
 let camposN2Preservados = {};
 
+// Busca de técnico por UF (2026-08-11) -- mesmo mecanismo do painel Admin,
+// ver comentário equivalente em index.html.
+let tecnicosPorUf = [];
+async function carregarTecnicosPorUf(uf) {
+    tecnicosPorUf = [];
+    const dl = document.getElementById('m-tecnico-list');
+    dl.innerHTML = '';
+    uf = (uf || '').trim().toUpperCase();
+    if (uf.length !== 2) return;
+    try {
+        const res = await fetch(`/api/tecnicos?estado=${encodeURIComponent(uf)}`);
+        if (!res.ok) return;
+        tecnicosPorUf = await res.json();
+        dl.innerHTML = tecnicosPorUf.map(t => `<option value="${esc(t.nome)}">`).join('');
+    } catch (e) { /* segue sem sugestões se falhar */ }
+}
+function resolverTecnicoId(nomeDigitado) {
+    const nome = (nomeDigitado || '').trim().toLowerCase();
+    if (!nome) return null;
+    const achado = tecnicosPorUf.find(t => t.nome.trim().toLowerCase() === nome);
+    return achado ? achado.id : null;
+}
+
 function abrirModalNovo() {
     editandoId = null;
     camposN2Preservados = {};
@@ -953,6 +1017,7 @@ function abrirModalNovo() {
     ['m-horario','m-tecnico','m-sigla','m-nomesite','m-cidade','m-uf',
      'm-endereco','m-detalhamento','m-ticket','m-subprojeto']
         .forEach(id => document.getElementById(id).value = '');
+    carregarTecnicosPorUf('');
     document.getElementById('m-status').value = 'agendado';
     document.getElementById('m-status').disabled = true;
     // en-CA dá YYYY-MM-DD no fuso local -- toISOString() dá UTC, que já é
@@ -986,6 +1051,7 @@ async function abrirModalEditar(id) {
         document.getElementById('m-nomesite').value = r.site_nome || '';
         document.getElementById('m-cidade').value = r.cidade || '';
         document.getElementById('m-uf').value = r.uf || '';
+        carregarTecnicosPorUf(r.uf || '');
         document.getElementById('m-status').value = r.status || 'agendado';
         document.getElementById('m-endereco').value = r.endereco || '';
         document.getElementById('m-detalhamento').value = r.detalhamento_tecnico || '';
@@ -1010,6 +1076,7 @@ async function salvar() {
         data,
         horario_agendado: document.getElementById('m-horario').value || null,
         tecnico: document.getElementById('m-tecnico').value.trim(),
+        tecnico_id: resolverTecnicoId(document.getElementById('m-tecnico').value),
         site_sigla: document.getElementById('m-sigla').value.trim(),
         site_nome: document.getElementById('m-nomesite').value.trim(),
         endereco: document.getElementById('m-endereco').value.trim(),

@@ -492,6 +492,33 @@ def setup_banco():
         # exibição do nome (mesmo padrão de comentarios_projeto.usuario_nome).
         cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS n2_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_ativ_n2 ON status_atividades(n2_usuario_id)")
+        # Cadastro real de técnicos terceirizados (2026-08-11, importado de
+        # planilha externa -- ~6300 registros). codigo_origem é o ID do
+        # sistema de origem, UNIQUE pra permitir reimportar sem duplicar.
+        # RG/CPF são dado sensível: nunca vão na listagem geral, só no
+        # endpoint de detalhe (GET /api/tecnicos/{id}), gated por perfil.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tecnicos (
+                id SERIAL PRIMARY KEY,
+                codigo_origem VARCHAR(20) UNIQUE,
+                nome VARCHAR(200) NOT NULL,
+                rg VARCHAR(30) DEFAULT '',
+                cpf_cnpj VARCHAR(20) DEFAULT '',
+                estado VARCHAR(2) DEFAULT '',
+                cidade VARCHAR(100) DEFAULT '',
+                telefone VARCHAR(30) DEFAULT '',
+                email VARCHAR(200) DEFAULT '',
+                especialidade VARCHAR(200) DEFAULT '',
+                ativo BOOLEAN DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tecnicos_estado ON tecnicos(estado)")
+        # tecnico_id referencia o cadastro real (quando o nome digitado bate
+        # com um técnico conhecido); tecnico (texto) continua existindo como
+        # cache de exibição -- mesmo padrão de n2_usuario_id/n2_responsavel
+        # acima. Fica NULL pra atividades antigas ou técnico não cadastrado.
+        cur.execute("ALTER TABLE status_atividades ADD COLUMN IF NOT EXISTS tecnico_id INTEGER REFERENCES tecnicos(id) ON DELETE SET NULL")
         # Particularidades (ex.: Reversa, Equipamento em posse do cliente) --
         # lista aberta em vez de booleans fixos, pra não exigir migração toda
         # vez que surgir uma nova. Material: se foi usado + detalhe em texto,
@@ -6344,7 +6371,7 @@ MATERIAL_UNIDADE_VALIDOS = ('unidade', 'metro', 'caixa', 'rolo', 'par', 'pacote'
 # Lista única de colunas usada tanto em listar_status_campo quanto em
 # obter_status_campo, pra não desalinhar SELECT/cols de novo (já causou
 # bug em produção quando as colunas de material foram adicionadas).
-STATUS_CAMPO_SELECT_SQL = """a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico,
+STATUS_CAMPO_SELECT_SQL = """a.id, a.cliente_id, c.nome, a.data, a.horario_agendado, a.tecnico, a.tecnico_id,
                    a.n2_usuario_id, a.n2_responsavel,
                    a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf, a.hora_chegada, a.hora_termino,
                    a.detalhamento_tecnico, a.status, a.observacoes, a.criado_em, a.atualizado_em,
@@ -6354,7 +6381,7 @@ STATUS_CAMPO_SELECT_SQL = """a.id, a.cliente_id, c.nome, a.data, a.horario_agend
                    a.equipamento_instalado_serial, a.equipamento_removido_partnumber,
                    a.equipamento_removido_serial, a.contato_local_nome, a.contato_local_matricula,
                    a.hora_inicio_atividade, a.andamento_tipo, a.andamento_equipamento"""
-STATUS_CAMPO_COLS = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico",
+STATUS_CAMPO_COLS = ["id", "cliente_id", "cliente_nome", "data", "horario_agendado", "tecnico", "tecnico_id",
         "n2_usuario_id", "n2_responsavel",
         "site_sigla", "site_nome", "endereco", "cidade", "uf", "hora_chegada", "hora_termino",
         "detalhamento_tecnico", "status", "observacoes", "criado_em", "atualizado_em",
@@ -6381,6 +6408,7 @@ class StatusAtividadeModel(BaseModel):
     data: str
     horario_agendado: Optional[str] = None
     tecnico: str = ""
+    tecnico_id: Optional[int] = None  # resolvido no front via nome digitado batendo com o cadastro de tecnicos
     n2_usuario_id: Optional[int] = None
     n2_responsavel: str = ""
     site_sigla: str = ""
@@ -6652,15 +6680,15 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
         if reconfigurados and 'equipamento_reconfigurado' not in particularidades:
             particularidades.append('equipamento_reconfigurado')
         cur.execute("""
-            INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico,
+            INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico, tecnico_id,
                 n2_usuario_id, n2_responsavel,
                 site_sigla, site_nome, endereco, cidade, uf, hora_chegada, hora_termino,
                 detalhamento_tecnico, status, observacoes, criado_por,
                 particularidades, material_utilizado, material_detalhe,
                 material_quantidade, material_valor, ticket, andamento_descricao,
                 localizacao, acesso, subprojeto, equipamento_removido_detalhe)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
-        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, a.tecnico_id, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
               a.detalhamento_tecnico, status, a.observacoes, sess["id"],
@@ -6703,7 +6731,7 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
         acesso = a.acesso if a.acesso in ACESSO_VALIDOS else None
         cur.execute("""
             UPDATE status_atividades SET
-                cliente_id=%s, data=%s, horario_agendado=%s, tecnico=%s,
+                cliente_id=%s, data=%s, horario_agendado=%s, tecnico=%s, tecnico_id=%s,
                 n2_usuario_id=%s, n2_responsavel=%s,
                 site_sigla=%s, site_nome=%s, endereco=%s, cidade=%s, uf=%s,
                 hora_chegada=%s, hora_termino=%s, detalhamento_tecnico=%s, status=%s, observacoes=%s,
@@ -6712,7 +6740,7 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
                 localizacao=%s, acesso=%s, subprojeto=%s, equipamento_removido_detalhe=%s,
                 atualizado_em=NOW()
             WHERE id=%s
-        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, n2_uid, n2_nome,
+        """, (a.cliente_id, a.data, a.horario_agendado or None, a.tecnico, a.tecnico_id, n2_uid, n2_nome,
               a.site_sigla, a.site_nome, a.endereco, a.cidade, a.uf.upper()[:2],
               a.hora_chegada or None, a.hora_termino or None,
               a.detalhamento_tecnico, status, a.observacoes,
@@ -6723,6 +6751,50 @@ def atualizar_status_campo(aid: int, a: StatusAtividadeModel, faiston_token: str
               a.equipamento_removido_detalhe if 'equipamento_removido' in particularidades else "", aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+def _pode_ver_tecnicos(sess):
+    """Mesmo grupo que já pode mexer em atividade de campo -- ver
+    _pode_gerenciar_status_campo/atualizar_status_campo_status. Endpoint de
+    detalhe devolve RG/CPF de gente real, não abre pra qualquer perfil."""
+    return bool(sess) and (sess["perfil"] in ("admin", "gestor", "demo", "diretor") or _eh_n2(sess) or _eh_backoffice(sess))
+
+@app.get("/api/tecnicos")
+def listar_tecnicos(estado: str = "", faiston_token: str = Cookie(None)):
+    """Lista leve (id+nome, sem PII) pra alimentar a busca de técnico por UF
+    na tela de atividade. RG/CPF só saem em GET /api/tecnicos/{id}."""
+    sess = get_session(faiston_token)
+    if not _pode_ver_tecnicos(sess): raise HTTPException(status_code=403, detail="Acesso negado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        if estado.strip():
+            cur.execute("SELECT id, nome FROM tecnicos WHERE ativo=TRUE AND UPPER(estado)=%s ORDER BY nome",
+                        (estado.strip().upper()[:2],))
+        else:
+            cur.execute("SELECT id, nome FROM tecnicos WHERE ativo=TRUE ORDER BY nome LIMIT 500")
+        out = [{"id": r[0], "nome": r[1]} for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/tecnicos/{tid}")
+def obter_tecnico(tid: int, faiston_token: str = Cookie(None)):
+    """Dado sensível (RG/CPF) -- buscado só quando a pessoa clica em 'Ver
+    dados do técnico', não vai em nenhuma listagem/relatório."""
+    sess = get_session(faiston_token)
+    if not _pode_ver_tecnicos(sess): raise HTTPException(status_code=403, detail="Acesso negado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome, rg, cpf_cnpj, telefone, especialidade FROM tecnicos WHERE id=%s", (tid,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row: raise HTTPException(status_code=404, detail="Técnico não encontrado")
+        return {"nome": row[0], "rg": row[1], "cpf_cnpj": row[2], "telefone": row[3], "especialidade": row[4]}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 

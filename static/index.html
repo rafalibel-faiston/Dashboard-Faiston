@@ -2058,8 +2058,9 @@
                     <input type="time" id="sc-m-horario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico</label>
-                    <input type="text" id="sc-m-tecnico" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico <span class="normal-case font-normal text-faiston-faint">(preencha o UF pra ver sugestões)</span></label>
+                    <input type="text" id="sc-m-tecnico" list="sc-m-tecnico-list" placeholder="Digite ou selecione" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <datalist id="sc-m-tecnico-list"></datalist>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">N2 responsável</label>
@@ -2086,7 +2087,7 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">UF</label>
-                    <input type="text" id="sc-m-uf" maxlength="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <input type="text" id="sc-m-uf" maxlength="2" onchange="scCarregarTecnicosPorUf(this.value)" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
@@ -10563,6 +10564,33 @@ function scNvResetEquipamento() {
     scNvToggleEquipamento();
 }
 
+// Busca de técnico por UF (2026-08-11) -- cadastro real importado da
+// planilha de agentes (~6300 técnicos). scTecnicosPorUf guarda id+nome do
+// UF atual, alimenta o <datalist> (permite digitar livre, não trava numa
+// lista fechada) e resolve o tecnico_id na hora de salvar por match exato
+// de nome -- se não bater com nada da lista, salva só o texto (tecnico_id
+// fica null), igual já era antes desta feature.
+let scTecnicosPorUf = [];
+async function scCarregarTecnicosPorUf(uf) {
+    scTecnicosPorUf = [];
+    const dl = document.getElementById('sc-m-tecnico-list');
+    dl.innerHTML = '';
+    uf = (uf || '').trim().toUpperCase();
+    if (uf.length !== 2) return;
+    try {
+        const res = await fetch(`/api/tecnicos?estado=${encodeURIComponent(uf)}`);
+        if (!res.ok) return;
+        scTecnicosPorUf = await res.json();
+        dl.innerHTML = scTecnicosPorUf.map(t => `<option value="${scEsc(t.nome)}">`).join('');
+    } catch (e) { /* segue sem sugestões se falhar */ }
+}
+function scResolverTecnicoId(nomeDigitado) {
+    const nome = (nomeDigitado || '').trim().toLowerCase();
+    if (!nome) return null;
+    const achado = scTecnicosPorUf.find(t => t.nome.trim().toLowerCase() === nome);
+    return achado ? achado.id : null;
+}
+
 function scAbrirModalNovo() {
     if (!scPodeEditar()) return;
     scEditandoId = null;
@@ -10571,6 +10599,7 @@ function scAbrirModalNovo() {
     ['sc-m-cliente','sc-m-horario','sc-m-tecnico','sc-m-n2','sc-m-sigla','sc-m-nomesite',
      'sc-m-cidade','sc-m-uf','sc-m-endereco','sc-m-detalhamento','sc-m-ticket','sc-m-subprojeto']
         .forEach(id => document.getElementById(id).value = '');
+    scCarregarTecnicosPorUf('');
     document.getElementById('sc-m-status').value = 'agendado';
     document.getElementById('sc-m-status').disabled = true;
     document.getElementById('sc-m-data').value = document.getElementById('sc-report-data').value || new Date().toLocaleDateString('en-CA');
@@ -10606,6 +10635,7 @@ async function scAbrirModalEditar(id) {
         document.getElementById('sc-m-nomesite').value = r.site_nome || '';
         document.getElementById('sc-m-cidade').value = r.cidade || '';
         document.getElementById('sc-m-uf').value = r.uf || '';
+        scCarregarTecnicosPorUf(r.uf || '');
         document.getElementById('sc-m-status').value = r.status || 'agendado';
         document.getElementById('sc-m-endereco').value = r.endereco || '';
         document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
@@ -10634,6 +10664,7 @@ async function scSalvar() {
         data,
         horario_agendado: document.getElementById('sc-m-horario').value || null,
         tecnico: document.getElementById('sc-m-tecnico').value.trim(),
+        tecnico_id: scResolverTecnicoId(document.getElementById('sc-m-tecnico').value),
         n2_usuario_id: document.getElementById('sc-m-n2').value ? parseInt(document.getElementById('sc-m-n2').value, 10) : null,
         site_sigla: document.getElementById('sc-m-sigla').value.trim(),
         site_nome: document.getElementById('sc-m-nomesite').value.trim(),
