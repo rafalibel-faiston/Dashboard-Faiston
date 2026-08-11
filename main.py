@@ -561,6 +561,11 @@ def setup_banco():
                 criado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Posse (técnico/cliente) por item removido (2026-08-11) -- antes era
+        # uma decisão única pra atividade inteira (particularidade
+        # 'equipamento_em_posse_do_cliente'), mas cada equipamento removido
+        # pode ter destino diferente. Só é lida/usada quando tipo='removido'.
+        cur.execute("ALTER TABLE status_atividade_equipamentos ADD COLUMN IF NOT EXISTS posse VARCHAR(20) DEFAULT NULL")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_status_equip_ativ ON status_atividade_equipamentos(atividade_id)")
         # Materiais utilizados ao finalizar -- lista (não mais um campo
         # único), porque uma visita pode usar mais de um material (ex.:
@@ -6358,6 +6363,7 @@ STATUS_CAMPO_COLS = ["id", "cliente_id", "cliente_nome", "data", "horario_agenda
 class EquipamentoItem(BaseModel):
     partnumber: str = ""
     serial: str = ""
+    posse: Optional[str] = None  # 'tecnico' | 'cliente' -- só relevante quando o item é do tipo 'removido'
 
 class MaterialItem(BaseModel):
     descricao: str = ""
@@ -6594,8 +6600,8 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
         for k in ("criado_em", "atualizado_em"):
             item[k] = str(item[k])[:16] if item[k] else None
         item["particularidades"] = item["particularidades"] or []
-        cur.execute("SELECT tipo, partnumber, serial FROM status_atividade_equipamentos WHERE atividade_id=%s ORDER BY id", (aid,))
-        item["equipamentos"] = [{"tipo": e[0], "partnumber": e[1], "serial": e[2]} for e in cur.fetchall()]
+        cur.execute("SELECT tipo, partnumber, serial, posse FROM status_atividade_equipamentos WHERE atividade_id=%s ORDER BY id", (aid,))
+        item["equipamentos"] = [{"tipo": e[0], "partnumber": e[1], "serial": e[2], "posse": e[3]} for e in cur.fetchall()]
         cur.execute("SELECT descricao, quantidade, unidade, valor FROM status_atividade_materiais WHERE atividade_id=%s ORDER BY id", (aid,))
         item["materiais"] = [{"descricao": m[0], "quantidade": float(m[1]) if m[1] is not None else None,
                                "unidade": m[2], "valor": float(m[3]) if m[3] is not None else None} for m in cur.fetchall()]
@@ -6784,9 +6790,17 @@ class StatusCampoStatusModel(BaseModel):
     equipamentos_instalados: List[EquipamentoItem] = []
     equipamentos_removidos: List[EquipamentoItem] = []
     equipamentos_reconfigurados: List[EquipamentoItem] = []
-    equipamento_removido_posse: Optional[str] = None  # 'tecnico' | 'cliente'
+    # Posse agora é por item (EquipamentoItem.posse) -- ver seção "Posse" na
+    # migração da tabela status_atividade_equipamentos.
     contato_local_nome: Optional[str] = None
     contato_local_matricula: Optional[str] = None
+    # Preenchimento incremental de serial durante o "Atualizar andamento"
+    # (2026-08-11), em vez de só na finalização -- opcional, só grava se vier
+    # com partnumber/serial preenchido. andamento_equip_tipo escolhe em qual
+    # lista entra ('instalado'/'removido'/'reconfigurado'); não é derivado
+    # automaticamente de andamento_tipo porque 'trocando' pode ser os dois.
+    andamento_equip_tipo: Optional[str] = None
+    andamento_equip_item: Optional[EquipamentoItem] = None
     observacoes: Optional[str] = None
 
 def _registrar_andamento(cur, aid, localizacao, acesso, descricao, sess,
@@ -6938,7 +6952,12 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
             outras = [p for p in atuais if p not in
                       ('equipamento_instalado', 'equipamento_removido', 'equipamento_reconfigurado', 'equipamento_em_posse_do_cliente')]
             novas_particularidades = outras + equip_tags
-            if removido and body.equipamento_removido_posse == 'cliente':
+            # Posse é por item agora (EquipamentoItem.posse) -- a particularidade
+            # 'equipamento_em_posse_do_cliente' continua existindo como resumo
+            # (pelo menos um item removido ficou com o cliente), pra quem ainda
+            # lê essa tag pra exibir um badge, mas não é mais a fonte da verdade.
+            if removido and any(it.posse == 'cliente' for it in body.equipamentos_removidos
+                                 if it.partnumber.strip() or it.serial.strip()):
                 novas_particularidades.append('equipamento_em_posse_do_cliente')
             sets += ["particularidades=%s", "contato_local_nome=%s", "contato_local_matricula=%s", "observacoes=%s"]
             params += [novas_particularidades,
@@ -6953,17 +6972,18 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
             cur.execute("DELETE FROM status_atividade_equipamentos WHERE atividade_id=%s", (aid,))
             itens = []
             if instalado:
-                itens += [(aid, 'instalado', it.partnumber.strip(), it.serial.strip())
+                itens += [(aid, 'instalado', it.partnumber.strip(), it.serial.strip(), None)
                           for it in body.equipamentos_instalados if it.partnumber.strip() or it.serial.strip()]
             if removido:
-                itens += [(aid, 'removido', it.partnumber.strip(), it.serial.strip())
+                itens += [(aid, 'removido', it.partnumber.strip(), it.serial.strip(),
+                           it.posse if it.posse in ('tecnico', 'cliente') else 'tecnico')
                           for it in body.equipamentos_removidos if it.partnumber.strip() or it.serial.strip()]
             if reconfigurado:
-                itens += [(aid, 'reconfigurado', it.partnumber.strip(), it.serial.strip())
+                itens += [(aid, 'reconfigurado', it.partnumber.strip(), it.serial.strip(), None)
                           for it in body.equipamentos_reconfigurados if it.partnumber.strip() or it.serial.strip()]
             if itens:
                 cur.executemany(
-                    "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
+                    "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial, posse) VALUES (%s,%s,%s,%s,%s)",
                     itens)
             # Lista de materiais também é sempre substituída por completo,
             # mesmo padrão dos equipamentos acima -- reflete exatamente o
@@ -6984,6 +7004,18 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
             _registrar_andamento(cur, aid, body.localizacao, body.acesso, body.andamento_descricao or "", sess,
                                  body.hora_chegada, body.hora_inicio_atividade, body.andamento_tipo,
                                  body.andamento_equipamento)
+            # Preenchimento incremental de serial (2026-08-11): junto de uma
+            # atualização de andamento, opcionalmente já grava um equipamento
+            # (append, não substitui os que já existem -- diferente da
+            # finalização, aqui não existe "lista completa" ainda). O que já
+            # foi gravado aqui aparece pré-preenchido na tela de finalizar.
+            item = body.andamento_equip_item
+            if body.andamento_equip_tipo in ('instalado', 'removido', 'reconfigurado') and item and \
+               (item.partnumber.strip() or item.serial.strip()):
+                posse = item.posse if (body.andamento_equip_tipo == 'removido' and item.posse in ('tecnico', 'cliente')) else None
+                cur.execute(
+                    "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial, posse) VALUES (%s,%s,%s,%s,%s)",
+                    (aid, body.andamento_equip_tipo, item.partnumber.strip(), item.serial.strip(), posse))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except HTTPException: raise

@@ -2252,14 +2252,7 @@
                     <button type="button" onclick="scFzAdicionarItem('instalado')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento instalado</button>
                 </div>
                 <div id="sc-fz-removido-campos" class="hidden mt-2 flex-col gap-2">
-                    <div class="flex gap-4">
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="sc-fz-removido-posse" id="sc-fz-removido-posse-tecnico" checked> Ficou com o técnico
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="sc-fz-removido-posse" id="sc-fz-removido-posse-cliente"> Ficou com o cliente
-                        </label>
-                    </div>
+                    <p class="text-[11px] text-faiston-faint">Cada equipamento removido tem sua própria posse (ficou com o técnico ou com o cliente).</p>
                     <div id="sc-fz-removido-lista" class="flex flex-col gap-2"></div>
                     <button type="button" onclick="scFzAdicionarItem('removido')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento removido</button>
                 </div>
@@ -4875,7 +4868,12 @@ function renderCharts(data) {
                 if (status) filtrarStatus(status);
             }}
         },
-        colors: ['#06D7E6', '#5B2EE0', '#CBD5E1'],
+        // Ciano=bom/concluído, rosa=precisa atenção -- mesma convenção já usada
+        // no relatório mensal por e-mail (SLA >=92% ciano, abaixo rosa). Antes
+        // "Aberto" (o status que mais precisa de atenção) usava um cinza
+        // apagado, menos destacado que qualquer outra fatia -- trocado por
+        // rosa, consistente com "Alta" no gráfico de Prioridade (2026-08-11).
+        colors: ['#06D7E6', '#5B2EE0', '#EC4899'],
         plotOptions: { pie: { donut: { size: '75%',
             labels: { show: true,
                 value: { fontSize: '28px', fontWeight: 900, color: valC },
@@ -4916,7 +4914,11 @@ function renderCharts(data) {
             { name: 'Baixa', data: baixa }
         ],
         chart: { ...chartDefaults, type: 'bar', height: 220, stacked: true, stackType: '100%' },
-        colors: ['#EC4899', '#5B2EE0', '#06D7E6'],
+        // "Baixa" usava o mesmo ciano de "Concluído" no donut de Status --
+        // mesma cor com dois significados diferentes na mesma tela. Trocado
+        // por cinza neutro (baixa prioridade não é "sucesso", é só baixa
+        // urgência); ciano fica reservado pra "bom/concluído" (2026-08-11).
+        colors: ['#EC4899', '#5B2EE0', '#CBD5E1'],
         plotOptions: { bar: { borderRadius: 6, columnWidth: '50%', borderRadiusApplication: 'end' } },
         dataLabels: { enabled: false },
         xaxis: { categories: clientes_uniq, axisBorder:{show:false}, axisTicks:{show:false},
@@ -9450,14 +9452,19 @@ function scFzRenderLista(tipo) {
     const itens = scFzItens(tipo);
     const container = document.getElementById(`sc-fz-${tipo}-lista`);
     container.innerHTML = itens.length ? itens.map((it, i) => `
-        <div class="flex gap-2 items-center">
-            <input type="text" value="${scEsc(it.partnumber)}" placeholder="Partnumber" oninput="scFzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
-            <input type="text" value="${scEsc(it.serial)}" placeholder="Serial" oninput="scFzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+        <div class="flex gap-2 items-center flex-wrap">
+            <input type="text" value="${scEsc(it.partnumber)}" placeholder="Partnumber" oninput="scFzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="text" value="${scEsc(it.serial)}" placeholder="Serial" oninput="scFzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            ${tipo === 'removido' ? `
+            <select onchange="scFzAtualizarItem('${tipo}', ${i}, 'posse', this.value)" class="border border-faiston-border rounded-lg px-2 py-2 text-xs bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="tecnico" ${it.posse !== 'cliente' ? 'selected' : ''}>Com o técnico</option>
+                <option value="cliente" ${it.posse === 'cliente' ? 'selected' : ''}>Com o cliente</option>
+            </select>` : ''}
             <button type="button" onclick="scFzRemoverItem('${tipo}', ${i})" class="w-8 h-8 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
         </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
 }
 function scFzAdicionarItem(tipo) {
-    scFzItens(tipo).push({ partnumber: '', serial: '' });
+    scFzItens(tipo).push({ partnumber: '', serial: '', posse: tipo === 'removido' ? 'tecnico' : null });
     scFzRenderLista(tipo);
 }
 function scFzRemoverItem(tipo, i) {
@@ -9484,8 +9491,6 @@ async function scAbrirModalFinalizar(id, novoStatus, row) {
     document.getElementById('sc-fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
     document.getElementById('sc-fz-equip-removido').checked = particularidades.includes('equipamento_removido');
     document.getElementById('sc-fz-equip-reconfigurado').checked = particularidades.includes('equipamento_reconfigurado');
-    document.getElementById('sc-fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
-    document.getElementById('sc-fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
     document.getElementById('sc-fz-contato-nome').value = (row && row.contato_local_nome) || '';
     document.getElementById('sc-fz-contato-matricula').value = (row && row.contato_local_matricula) || '';
     document.getElementById('sc-fz-obs').value = (row && row.observacoes) || '';
@@ -9496,9 +9501,9 @@ async function scAbrirModalFinalizar(id, novoStatus, row) {
         if (res.ok) {
             const full = await res.json();
             (full.equipamentos || []).forEach(e => {
-                if (e.tipo === 'instalado') scFzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
-                if (e.tipo === 'removido') scFzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
-                if (e.tipo === 'reconfigurado') scFzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+                if (e.tipo === 'instalado') scFzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: null });
+                if (e.tipo === 'removido') scFzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: e.posse === 'cliente' ? 'cliente' : 'tecnico' });
+                if (e.tipo === 'reconfigurado') scFzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: null });
             });
         }
     } catch (e) { /* segue com listas vazias se falhar */ }
@@ -9526,6 +9531,12 @@ function scFzLinhasItens(itens) {
     if (!itens.length) return ['N/A'];
     return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'}`);
 }
+function scFzLinhasRemovidos(itens) {
+    // Posse (técnico/cliente) é por item (2026-08-11) -- cada equipamento
+    // removido pode ter destino diferente.
+    if (!itens.length) return ['N/A'];
+    return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'} — ${it.posse === 'cliente' ? 'Cliente' : 'Técnico'}`);
+}
 function scFzLinhasMateriais(itens) {
     if (!itens.length) return ['N/A'];
     return itens.map(m => {
@@ -9546,8 +9557,8 @@ function scGerarCarimboFinalizacao(row, extras) {
         '',
         extras.instalado ? 'Instalado:' : 'Instalado: N/A',
         ...(extras.instalado ? scFzLinhasItens(extras.instaladoItens).map(l => `  ${l}`) : []),
-        extras.removido ? `Removido (${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}):` : 'Removido: N/A',
-        ...(extras.removido ? scFzLinhasItens(extras.removidoItens).map(l => `  ${l}`) : []),
+        extras.removido ? 'Removido:' : 'Removido: N/A',
+        ...(extras.removido ? scFzLinhasRemovidos(extras.removidoItens).map(l => `  ${l}`) : []),
         extras.reconfigurado ? 'Reconfigurado:' : 'Reconfigurado: N/A',
         ...(extras.reconfigurado ? scFzLinhasItens(extras.reconfiguradoItens).map(l => `  ${l}`) : []),
         '',
@@ -9579,9 +9590,8 @@ async function scAbrirCarimboDeAtividade(id) {
         const instaladoItens = (full.equipamentos || []).filter(e => e.tipo === 'instalado');
         const removidoItens = (full.equipamentos || []).filter(e => e.tipo === 'removido');
         const reconfiguradoItens = (full.equipamentos || []).filter(e => e.tipo === 'reconfigurado');
-        const removidoPosse = particularidades.includes('equipamento_em_posse_do_cliente') ? 'cliente' : 'tecnico';
         const texto = scGerarCarimboFinalizacao(full, {
-            status: full.status, instalado, removido, reconfigurado, instaladoItens, removidoItens, reconfiguradoItens, removidoPosse,
+            status: full.status, instalado, removido, reconfigurado, instaladoItens, removidoItens, reconfiguradoItens,
             horaSaida: full.hora_termino || 'N/A',
             contatoNome: full.contato_local_nome, contatoMatricula: full.contato_local_matricula,
             observacoes: full.observacoes, materialUtilizado: full.material_utilizado, materiais: full.materiais,
@@ -9618,7 +9628,6 @@ async function scConfirmarFinalizar() {
     if (instalado) equipamentoStatus.push('equipamento_instalado');
     if (removido) equipamentoStatus.push('equipamento_removido');
     if (reconfigurado) equipamentoStatus.push('equipamento_reconfigurado');
-    const removidoPosse = document.getElementById('sc-fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
     const instaladoItens = instalado ? scFzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
     const removidoItens = removido ? scFzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
     const reconfiguradoItens = reconfigurado ? scFzReconfiguradoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
@@ -9636,7 +9645,6 @@ async function scConfirmarFinalizar() {
         equipamentos_instalados: instaladoItens,
         equipamentos_removidos: removidoItens,
         equipamentos_reconfigurados: reconfiguradoItens,
-        equipamento_removido_posse: removidoPosse,
         contato_local_nome: document.getElementById('sc-fz-contato-nome').value.trim(),
         contato_local_matricula: document.getElementById('sc-fz-contato-matricula').value.trim(),
         observacoes: document.getElementById('sc-fz-obs').value.trim(),
@@ -9648,7 +9656,6 @@ async function scConfirmarFinalizar() {
         const texto = scGerarCarimboFinalizacao(row, {
             status, instalado, removido, reconfigurado,
             instaladoItens, removidoItens, reconfiguradoItens,
-            removidoPosse,
             horaSaida: saida,
             contatoNome: body.contato_local_nome,
             contatoMatricula: body.contato_local_matricula,
@@ -10196,6 +10203,16 @@ async function scGerarPrint() {
 
     const card = document.createElement('div');
     card.style.cssText = 'position:fixed;left:-9999px;top:0;width:480px;background:#ffffff;padding:24px;font-family:Inter,sans-serif;';
+    // Andamento (o que está acontecendo agora) no print (2026-08-11) -- antes
+    // só mostrava o status geral, não dava pra saber sem abrir a atividade
+    // se estava "no local instalando X" ou só "agendado" mesmo.
+    const scAndamentoLinha = a => {
+        const partes = [];
+        if (a.localizacao) partes.push(SC_LOCALIZACAO_LABEL[a.localizacao] || a.localizacao);
+        if (a.acesso) partes.push(SC_ACESSO_LABEL[a.acesso] || a.acesso);
+        if (a.andamento_tipo) partes.push(`${SC_ANDAMENTO_TIPO_LABEL[a.andamento_tipo] || a.andamento_tipo}${a.andamento_equipamento ? ': ' + a.andamento_equipamento : ''}`);
+        return partes.length ? `<div style="font-size:11px;color:#B826C9;font-weight:600;margin-top:3px;">${scEsc(partes.join(' · '))}</div>` : '';
+    };
     const linhas = lista.map(a => `
         <div style="padding:10px 0;border-bottom:1px solid #E5E8F0;">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
@@ -10205,6 +10222,7 @@ async function scGerarPrint() {
             <div style="font-size:11px;color:#5E647A;margin-top:3px;">
                 ${a.subprojeto ? scEsc(a.subprojeto) + ' · ' : ''}${a.tecnico ? scEsc(a.tecnico) : ''}${a.horario_agendado ? ' · ' + scEsc(a.horario_agendado) : ''}${a.cidade ? ' · ' + scEsc(a.cidade) + (a.uf ? '/' + scEsc(a.uf) : '') : ''}
             </div>
+            ${scAndamentoLinha(a)}
             ${a.observacoes ? `<div style="font-size:11px;color:#9097AC;margin-top:3px;font-style:italic;">${scEsc(a.observacoes)}</div>` : ''}
         </div>`).join('');
     card.innerHTML = `

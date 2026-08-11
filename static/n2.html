@@ -375,7 +375,7 @@
                     </div>
                     <div>
                         <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">O que está fazendo?</label>
-                        <select id="ad-tipo" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                        <select id="ad-tipo" onchange="adAtualizarEquipSerial()" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
                             <option value="">Selecionar...</option>
                             <option value="instalando">Instalando</option>
                             <option value="trocando">Trocando</option>
@@ -386,6 +386,27 @@
                     <div>
                         <label class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">O que está instalando/trocando/removendo/validando?</label>
                         <input type="text" id="ad-equipamento" placeholder="Ex.: Switch Catalyst 9300" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                    </div>
+                    <div id="ad-equip-serial-bloco" class="hidden flex-col gap-2 p-3 bg-slate-50 rounded-lg border border-faiston-border">
+                        <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Já sabe o serial? Preenche agora (opcional -- também dá pra deixar só pra hora de finalizar)</p>
+                        <div id="ad-equip-tipo-wrap" class="hidden">
+                            <select id="ad-equip-tipo" onchange="adAtualizarEquipSerial()" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                                <option value="instalado">É o equipamento instalado</option>
+                                <option value="removido">É o equipamento removido</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <input type="text" id="ad-equip-partnumber" placeholder="Partnumber" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                            <input type="text" id="ad-equip-serial" placeholder="Serial" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+                        </div>
+                        <div id="ad-equip-posse-wrap" class="hidden flex gap-4">
+                            <label class="flex items-center gap-2 text-sm text-slate-600">
+                                <input type="radio" name="ad-equip-posse" id="ad-equip-posse-tecnico" checked> Ficou com o técnico
+                            </label>
+                            <label class="flex items-center gap-2 text-sm text-slate-600">
+                                <input type="radio" name="ad-equip-posse" id="ad-equip-posse-cliente"> Ficou com o cliente
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -445,14 +466,7 @@
                     <button type="button" onclick="fzAdicionarItem('instalado')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento instalado</button>
                 </div>
                 <div id="fz-removido-campos" class="hidden mt-2 flex-col gap-2">
-                    <div class="flex gap-4">
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="fz-removido-posse" id="fz-removido-posse-tecnico" checked> Ficou com o técnico
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="fz-removido-posse" id="fz-removido-posse-cliente"> Ficou com o cliente
-                        </label>
-                    </div>
+                    <p class="text-[11px] text-faiston-faint">Cada equipamento removido tem sua própria posse (ficou com o técnico ou com o cliente) -- particularidades diferentes por item.</p>
                     <div id="fz-removido-lista" class="flex flex-col gap-2"></div>
                     <button type="button" onclick="fzAdicionarItem('removido')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento removido</button>
                 </div>
@@ -736,6 +750,7 @@ function renderCardAtividade(r) {
             ${r.status === 'em_andamento' ? `<button onclick="abrirModalAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-purple hover:underline">Atualizar</button>` : ''}
             ${!STATUS_FINALIZADOS.includes(r.status) && r.n2_usuario_id === meId ? `<button onclick="abrirModalReatribuir(${r.id})" class="text-xs font-semibold text-faiston-cyan hover:underline">Passar pra outro N2</button>` : ''}
             <button onclick="verHistoricoAndamento(${r.id}, ultimaLista.find(x => x.id === ${r.id}))" class="text-xs font-semibold text-faiston-muted hover:underline">Ver histórico</button>
+            ${STATUS_FINALIZADOS.includes(r.status) ? `<button onclick="abrirCarimboDeAtividade(${r.id})" class="text-xs font-semibold text-fuchsia-700 hover:underline">Ver carimbo</button>` : ''}
             <button onclick="excluir(${r.id})" class="text-xs font-semibold text-faiston-pink hover:underline">Excluir</button>
         </div>
     </div>`;
@@ -873,14 +888,24 @@ async function gerarPrintLista() {
 
     const card = document.createElement('div');
     card.style.cssText = 'position:fixed;left:-9999px;top:0;width:640px;background:#ffffff;padding:24px;font-family:Inter,sans-serif;';
+    // Andamento (o que está acontecendo agora) na hora do print (2026-08-11)
+    // -- antes só mostrava o status geral, não dava pra saber sem abrir a
+    // atividade se estava "no local instalando X" ou só "agendado" mesmo.
+    const andamentoLinha = r => {
+        const partes = [];
+        if (r.localizacao) partes.push(LOCALIZACAO_LABEL[r.localizacao] || r.localizacao);
+        if (r.acesso) partes.push(ACESSO_LABEL[r.acesso] || r.acesso);
+        if (r.andamento_tipo) partes.push(`${ANDAMENTO_TIPO_LABEL[r.andamento_tipo] || r.andamento_tipo}${r.andamento_equipamento ? ': ' + r.andamento_equipamento : ''}`);
+        return partes.length ? `<tr><td colspan="5" style="padding:0 6px 8px;border-bottom:1px solid #E5E8F0;font-size:10px;color:#B826C9;font-weight:600;">${esc(partes.join(' · '))}</td></tr>` : '';
+    };
     const linhas = rows.map(r => `
         <tr>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:12px;font-weight:600;color:#0B0D1F;">${esc(r.site_sigla || r.site_nome || '—')}</td>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.subprojeto || '—')}</td>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.tecnico || '—')}</td>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:11px;color:#5E647A;">${esc(r.n2_responsavel || '—')}</td>
-            <td style="padding:8px 6px;border-bottom:1px solid #E5E8F0;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${esc(statusLabel(r.status, r.cliente_nome))}</td>
-        </tr>`).join('');
+            <td style="padding:8px 6px 2px;font-size:12px;font-weight:600;color:#0B0D1F;">${esc(r.site_sigla || r.site_nome || '—')}</td>
+            <td style="padding:8px 6px 2px;font-size:11px;color:#5E647A;">${esc(r.subprojeto || '—')}</td>
+            <td style="padding:8px 6px 2px;font-size:11px;color:#5E647A;">${esc(r.tecnico || '—')}</td>
+            <td style="padding:8px 6px 2px;font-size:11px;color:#5E647A;">${esc(r.n2_responsavel || '—')}</td>
+            <td style="padding:8px 6px 2px;font-size:10px;font-weight:700;text-align:right;white-space:nowrap;color:#5B2EE0;">${esc(statusLabel(r.status, r.cliente_nome))}</td>
+        </tr>${andamentoLinha(r) || '<tr><td colspan="5" style="padding:0 6px 8px;border-bottom:1px solid #E5E8F0;font-size:1px;">&nbsp;</td></tr>'}`).join('');
     card.innerHTML = `
         <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#5B2EE0;margin-bottom:2px;">Status Report</div>
         <div style="font-size:18px;font-weight:800;color:#0B0D1F;margin-bottom:2px;">${esc(clienteNome)}</div>
@@ -1100,6 +1125,29 @@ function adAtualizarEstagios() {
     estagioAcesso.classList.toggle('flex', comAcesso);
 }
 
+// Preenchimento incremental de serial (2026-08-11): opcional, aparece só
+// quando o tipo de andamento envolve equipamento de verdade (instalando/
+// trocando/removendo -- não faz sentido em "validando"). Em "trocando" a
+// pessoa escolhe se esse serial específico é o que entrou ou o que saiu,
+// já que uma troca envolve os dois, mas cada andamento registra um de cada vez.
+function adAtualizarEquipSerial() {
+    const tipoAndamento = document.getElementById('ad-tipo').value;
+    const bloco = document.getElementById('ad-equip-serial-bloco');
+    const mostra = ['instalando', 'trocando', 'removendo'].includes(tipoAndamento);
+    bloco.classList.toggle('hidden', !mostra);
+    bloco.classList.toggle('flex', mostra);
+    if (!mostra) return;
+    const tipoWrap = document.getElementById('ad-equip-tipo-wrap');
+    const ambiguo = tipoAndamento === 'trocando';
+    tipoWrap.classList.toggle('hidden', !ambiguo);
+    const tipoEquip = ambiguo ? document.getElementById('ad-equip-tipo').value
+        : (tipoAndamento === 'instalando' ? 'instalado' : 'removido');
+    const posseWrap = document.getElementById('ad-equip-posse-wrap');
+    const mostraPosse = tipoEquip === 'removido';
+    posseWrap.classList.toggle('hidden', !mostraPosse);
+    posseWrap.classList.toggle('flex', mostraPosse);
+}
+
 // Um só botão/modal ("Atualizar") cobre tanto a transição inicial pra
 // "em_andamento" quanto as atualizações seguintes -- situação (onde o
 // técnico está) e andamento (o que ele está fazendo) eram dois botões
@@ -1116,7 +1164,14 @@ function abrirModalAndamento(id, row) {
     document.getElementById('ad-hora-inicio').value = (row && row.hora_inicio_atividade) || '';
     document.getElementById('ad-tipo').value = (row && row.andamento_tipo) || '';
     document.getElementById('ad-equipamento').value = (row && row.andamento_equipamento) || '';
+    // Serial é sempre um lançamento novo (não vem de row) -- cada andamento
+    // é um evento próprio, não edita o que já foi salvo antes.
+    document.getElementById('ad-equip-partnumber').value = '';
+    document.getElementById('ad-equip-serial').value = '';
+    document.getElementById('ad-equip-tipo').value = 'instalado';
+    document.getElementById('ad-equip-posse-tecnico').checked = true;
     adAtualizarEstagios();
+    adAtualizarEquipSerial();
     document.getElementById('modal-andamento').classList.remove('hidden');
 }
 function fecharModalAndamento() {
@@ -1134,6 +1189,20 @@ async function confirmarAndamento() {
     const tipo = document.getElementById('ad-tipo').value || null;
     const equipamento = document.getElementById('ad-equipamento').value.trim();
     if (tipo && !equipamento) { alert('Diga o que está sendo instalado/trocado/removido/validando.'); return; }
+    // Serial opcional (ver adAtualizarEquipSerial) -- só manda se preencheu
+    // partnumber ou serial; tipo vem do próprio select quando 'trocando' é
+    // ambíguo, senão é derivado direto do andamento_tipo.
+    const equipPartnumber = document.getElementById('ad-equip-partnumber').value.trim();
+    const equipSerial = document.getElementById('ad-equip-serial').value.trim();
+    let andamentoEquipTipo = null, andamentoEquipItem = null;
+    if ((equipPartnumber || equipSerial) && ['instalando', 'trocando', 'removendo'].includes(tipo)) {
+        andamentoEquipTipo = tipo === 'trocando' ? document.getElementById('ad-equip-tipo').value
+            : (tipo === 'instalando' ? 'instalado' : 'removido');
+        andamentoEquipItem = { partnumber: equipPartnumber, serial: equipSerial };
+        if (andamentoEquipTipo === 'removido') {
+            andamentoEquipItem.posse = document.getElementById('ad-equip-posse-cliente').checked ? 'cliente' : 'tecnico';
+        }
+    }
     const id = statusAlvoId;
     document.getElementById('modal-andamento').classList.add('hidden');
     statusAlvoId = null;
@@ -1141,6 +1210,7 @@ async function confirmarAndamento() {
         status: 'em_andamento', andamento_descricao: descricao, localizacao, acesso,
         hora_chegada: horaChegada, hora_inicio_atividade: horaInicio, andamento_tipo: tipo,
         andamento_equipamento: equipamento,
+        andamento_equip_tipo: andamentoEquipTipo, andamento_equip_item: andamentoEquipItem,
     });
 }
 
@@ -1266,6 +1336,11 @@ function fzRenderLista(tipo) {
         <div class="flex gap-2 items-center flex-wrap">
             <input type="text" value="${esc(it.partnumber)}" placeholder="Partnumber" oninput="fzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
             <input type="text" value="${esc(it.serial)}" placeholder="Serial" oninput="fzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            ${tipo === 'removido' ? `
+            <select onchange="fzAtualizarItem('${tipo}', ${i}, 'posse', this.value)" class="border border-faiston-border rounded-lg px-2 py-2 text-xs bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="tecnico" ${it.posse !== 'cliente' ? 'selected' : ''}>Com o técnico</option>
+                <option value="cliente" ${it.posse === 'cliente' ? 'selected' : ''}>Com o cliente</option>
+            </select>` : ''}
             ${it.fotoUrl ? `<img src="${it.fotoUrl}" class="w-9 h-9 rounded-md object-cover border border-faiston-border flex-shrink-0">` : ''}
             <label class="w-9 h-9 rounded-md hover:bg-slate-100 flex items-center justify-center flex-shrink-0 cursor-pointer" title="Foto de referência (fica só nesta tela, não é enviada nem salva)">
                 <input type="file" accept="image/*" capture="environment" class="hidden" onchange="fzAnexarFoto('${tipo}', ${i}, this.files[0])">
@@ -1275,7 +1350,7 @@ function fzRenderLista(tipo) {
         </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
 }
 function fzAdicionarItem(tipo) {
-    fzItens(tipo).push({ partnumber: '', serial: '', fotoUrl: null });
+    fzItens(tipo).push({ partnumber: '', serial: '', fotoUrl: null, posse: tipo === 'removido' ? 'tecnico' : null });
     fzRenderLista(tipo);
 }
 function fzRemoverItem(tipo, i) {
@@ -1313,8 +1388,6 @@ async function abrirModalFinalizar(id, novoStatus, row) {
     document.getElementById('fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
     document.getElementById('fz-equip-removido').checked = particularidades.includes('equipamento_removido');
     document.getElementById('fz-equip-reconfigurado').checked = particularidades.includes('equipamento_reconfigurado');
-    document.getElementById('fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
-    document.getElementById('fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
     document.getElementById('fz-contato-nome').value = (row && row.contato_local_nome) || '';
     document.getElementById('fz-contato-matricula').value = (row && row.contato_local_matricula) || '';
     document.getElementById('fz-obs').value = (row && row.observacoes) || '';
@@ -1327,9 +1400,9 @@ async function abrirModalFinalizar(id, novoStatus, row) {
         if (res.ok) {
             const full = await res.json();
             (full.equipamentos || []).forEach(e => {
-                if (e.tipo === 'instalado') fzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
-                if (e.tipo === 'removido') fzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
-                if (e.tipo === 'reconfigurado') fzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+                if (e.tipo === 'instalado') fzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', fotoUrl: null, posse: null });
+                if (e.tipo === 'removido') fzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', fotoUrl: null, posse: e.posse === 'cliente' ? 'cliente' : 'tecnico' });
+                if (e.tipo === 'reconfigurado') fzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', fotoUrl: null, posse: null });
             });
         }
     } catch (e) { /* segue com listas vazias se falhar */ }
@@ -1360,6 +1433,13 @@ function fzLinhasItens(itens) {
     if (!itens.length) return ['N/A'];
     return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'}`);
 }
+function fzLinhasRemovidos(itens) {
+    // Posse (técnico/cliente) é por item (2026-08-11) -- cada equipamento
+    // removido pode ter destino diferente, por isso aparece na própria linha
+    // em vez de um rótulo único pra lista inteira.
+    if (!itens.length) return ['N/A'];
+    return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'} — ${it.posse === 'cliente' ? 'Cliente' : 'Técnico'}`);
+}
 function fzLinhasMateriais(itens) {
     // Idem -- uma visita pode usar mais de um material (ex.: cabo de rede
     // + conectores), cada um com sua própria quantidade/unidade/valor.
@@ -1382,8 +1462,8 @@ function gerarCarimboFinalizacao(row, extras) {
         '',
         extras.instalado ? 'Instalado:' : 'Instalado: N/A',
         ...(extras.instalado ? fzLinhasItens(extras.instaladoItens).map(l => `  ${l}`) : []),
-        extras.removido ? `Removido (${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}):` : 'Removido: N/A',
-        ...(extras.removido ? fzLinhasItens(extras.removidoItens).map(l => `  ${l}`) : []),
+        extras.removido ? 'Removido:' : 'Removido: N/A',
+        ...(extras.removido ? fzLinhasRemovidos(extras.removidoItens).map(l => `  ${l}`) : []),
         extras.reconfigurado ? 'Reconfigurado:' : 'Reconfigurado: N/A',
         ...(extras.reconfigurado ? fzLinhasItens(extras.reconfiguradoItens).map(l => `  ${l}`) : []),
         '',
@@ -1398,6 +1478,31 @@ function gerarCarimboFinalizacao(row, extras) {
         ...(extras.materialUtilizado ? fzLinhasMateriais(extras.materiais || []).map(l => `  ${l}`) : []),
     ];
     return linhas.filter(l => l !== null).join('\n');
+}
+// Ver o carimbo de uma atividade já finalizada -- o carimbo não fica salvo
+// em lugar nenhum, é regenerado a partir dos dados já persistidos
+// (equipamentos/materiais/contato/horários), mesmo formato exibido logo
+// após confirmar a finalização (2026-08-11, mesmo padrão do painel Admin).
+async function abrirCarimboDeAtividade(id) {
+    try {
+        const res = await fetch(`/api/status-campo/${id}`);
+        if (!res.ok) { alert('Atividade não encontrada.'); return; }
+        const full = await res.json();
+        const particularidades = full.particularidades || [];
+        const instalado = particularidades.includes('equipamento_instalado');
+        const removido = particularidades.includes('equipamento_removido');
+        const reconfigurado = particularidades.includes('equipamento_reconfigurado');
+        const instaladoItens = (full.equipamentos || []).filter(e => e.tipo === 'instalado');
+        const removidoItens = (full.equipamentos || []).filter(e => e.tipo === 'removido');
+        const reconfiguradoItens = (full.equipamentos || []).filter(e => e.tipo === 'reconfigurado');
+        const texto = gerarCarimboFinalizacao(full, {
+            status: full.status, instalado, removido, reconfigurado, instaladoItens, removidoItens, reconfiguradoItens,
+            horaSaida: full.hora_termino || 'N/A',
+            contatoNome: full.contato_local_nome, contatoMatricula: full.contato_local_matricula,
+            observacoes: full.observacoes, materialUtilizado: full.material_utilizado, materiais: full.materiais,
+        });
+        abrirModalCarimboFinalizacao(texto);
+    } catch (e) { alert('Erro ao carregar carimbo da atividade.'); }
 }
 function abrirModalCarimboFinalizacao(texto) {
     document.getElementById('fz-carimbo-texto').value = texto;
@@ -1428,9 +1533,10 @@ async function confirmarFinalizar() {
     if (instalado) equipamentoStatus.push('equipamento_instalado');
     if (removido) equipamentoStatus.push('equipamento_removido');
     if (reconfigurado) equipamentoStatus.push('equipamento_reconfigurado');
-    const removidoPosse = document.getElementById('fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
     // Foto é só apoio visual local -- nunca vai no payload pro backend.
-    const semFoto = it => ({ partnumber: it.partnumber, serial: it.serial });
+    // posse só é usada de fato pelo backend pra itens tipo 'removido', mas
+    // não custa nada mandar sempre.
+    const semFoto = it => ({ partnumber: it.partnumber, serial: it.serial, posse: it.posse });
     const instaladoItens = instalado ? fzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
     const removidoItens = removido ? fzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
     const reconfiguradoItens = reconfigurado ? fzReconfiguradoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
@@ -1449,7 +1555,6 @@ async function confirmarFinalizar() {
         equipamentos_instalados: instaladoItens,
         equipamentos_removidos: removidoItens,
         equipamentos_reconfigurados: reconfiguradoItens,
-        equipamento_removido_posse: removidoPosse,
         contato_local_nome: document.getElementById('fz-contato-nome').value.trim(),
         contato_local_matricula: document.getElementById('fz-contato-matricula').value.trim(),
         observacoes: document.getElementById('fz-obs').value.trim(),
@@ -1461,7 +1566,6 @@ async function confirmarFinalizar() {
         const texto = gerarCarimboFinalizacao(row, {
             status, instalado, removido, reconfigurado,
             instaladoItens, removidoItens, reconfiguradoItens,
-            removidoPosse,
             horaSaida: saida,
             contatoNome: body.contato_local_nome,
             contatoMatricula: body.contato_local_matricula,
