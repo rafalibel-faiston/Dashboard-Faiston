@@ -745,6 +745,21 @@ def setup_banco():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_reset_token_hash ON senha_reset_tokens(token_hash)")
+        # Integração Microsoft Loop (2026-08-04, pedido do Jeff) -- snapshot
+        # periódico de página(s) do Loop, exportadas como HTML via Graph API
+        # e cacheadas aqui. Só-leitura (não escreve de volta no Loop). Uma
+        # linha por "chave" configurada (ver LOOP_ITENS/_loop_sync_job mais
+        # abaixo) -- hoje area_dev e gestao_projetos. Ver
+        # wiki/entities/dashboard-faiston-integracao-microsoft-loop.md pro
+        # desenho completo e o que falta (Entra ID App Registration).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS loop_snapshots (
+                chave VARCHAR(50) PRIMARY KEY,
+                html_conteudo TEXT NOT NULL DEFAULT '',
+                atualizado_em TIMESTAMP,
+                erro TEXT
+            )
+        """)
                 # --- CATÁLOGO DE COMPLEXIDADE ---
         # Peso de esforço por tipo de atividade, por frente (N2, Backoffice...)
         # dentro da área (Projetos, Logística, Rede Credenciada). Cadastro em
@@ -846,6 +861,12 @@ def _perfil_guia(perfil: str, cargo: str = "", perfil_real: str = "") -> str:
     if perfil_real == "dev":
         return "dev"
     return perfil or ""
+
+def _eh_backoffice(sess: dict) -> bool:
+    """Backoffice (cargo dentro de perfil='funcionario') só arrasta card pra
+    mudar status no Kanban de Cronograma reaproveitado do admin -- não cria,
+    não edita campo, não exclui (2026-08-03)."""
+    return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "backoffice"
 
 class NovoUsuario(BaseModel):
     usuario: str
@@ -2973,14 +2994,17 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
 
 @app.get("/api/tarefas-por-peso")
 def tarefas_por_peso(usuario_id: Optional[int] = None, peso: Optional[int] = None, cliente: str = "",
-                      data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
+                      prazo: str = "", data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
     """Drill-down dos gráficos do Dashboard que envolvem peso: lista as
     tarefas no mesmo período filtrado, escopadas por funcionário+peso (rosca
     "Horas por Funcionário") ou só por cliente (barra "Esforço por Cliente" --
     aí sem filtrar peso, cada tarefa mostra o próprio peso na lista, decisão
     de 2026-07-28 de mostrar a visão geral primeiro). Mesma regra de escopo
     do /api/metricas -- admin/diretor veem qualquer um, resto só quem é do
-    mesmo time."""
+    mesmo time.
+    `prazo` filtra pelo prazo_status carimbado na conclusão ('dentro'/'fora')
+    -- usado pelo clique no segmento "Fora do prazo" do gráfico de Aderência,
+    pra listar as justificativas de atraso daquela pessoa."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     if not usuario_id and not cliente:
@@ -3006,20 +3030,24 @@ def tarefas_por_peso(usuario_id: Optional[int] = None, peso: Optional[int] = Non
             cond.append("t.cliente = %s"); qparams.append(cliente)
             if sess["perfil"] not in ("admin", "diretor"):
                 cond.append("COALESCE(u.time,'Projetos') = %s"); qparams.append(sess.get("time", "Projetos"))
+        if prazo in ("dentro", "fora"):
+            cond.append("t.prazo_status = %s"); qparams.append(prazo)
         if data_inicio:
             cond.append("t.criado_em >= %s"); qparams.append(data_inicio + " 00:00:00")
         if data_fim:
             cond.append("t.criado_em <= %s"); qparams.append(data_fim + " 23:59:59")
         cur.execute(f"""
             SELECT t.id, t.descricao, t.cliente, t.status, t.segundos, t.criado_em, COALESCE(ta.nome, ''),
-                   COALESCE(t.peso, 0), u.nome
+                   COALESCE(t.peso, 0), u.nome, t.concluido_em, t.justificativa_atraso
             FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
             LEFT JOIN tipos_atividade ta ON ta.id = t.tipo_atividade_id
             WHERE {' AND '.join(cond)} ORDER BY t.criado_em DESC
         """, tuple(qparams))
         out = [{"id": r[0], "descricao": r[1], "cliente": r[2], "status": r[3],
                 "horas": round(r[4]/3600, 1), "criado_em": str(r[5])[:16], "tipo": r[6],
-                "peso": r[7], "funcionario": r[8]} for r in cur.fetchall()]
+                "peso": r[7], "funcionario": r[8],
+                "concluido_em": str(r[9])[:16] if r[9] else None,
+                "justificativa_atraso": r[10] or ""} for r in cur.fetchall()]
         cur.close(); conn.close()
         return out
     except HTTPException: raise
@@ -3345,7 +3373,11 @@ def redefinir_senha_page(): return FileResponse("static/redefinir-senha.html")
 @app.get("/dashboard")
 def dashboard(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"):
+    # Backoffice (cargo dentro de funcionario) entra aqui só pra ver o Kanban
+    # de Cronograma do Status Report -- o próprio index.html restringe a
+    # visão a essa única seção pra esse cargo (ver init() em index.html).
+    eh_backoffice = sess and sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice"
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice):
         return _redirect_login_ou_home(sess)
     return FileResponse("static/index.html")
 
@@ -5688,6 +5720,116 @@ def _job_relatorio_mensal():
         print(f"Erro ao enviar relatório: {e}")
 
 
+# ─── Integração Microsoft Loop (esqueleto, 2026-08-04) ───────────────────────
+# Snapshot periódico de página(s) do Loop via Microsoft Graph API + SharePoint
+# Embedded (não é o Graph API de conteúdo do Loop propriamente dito, que segue
+# limitado -- é o caminho documentado por baixo, via os arquivos .loop/.fluid
+# guardados em SharePoint Embedded). Deliberadamente só-leitura: não existe
+# hoje um caminho maduro pra escrever de volta no Loop a partir daqui.
+#
+# Tudo abaixo é inerte sem configuração -- só ativa quando as env vars
+# existirem (mesmo padrão defensivo de _brevo_send/RESUMO_DIARIO_ENABLED).
+# Pendente antes de funcionar de verdade (ver wiki
+# entities/dashboard-faiston-integracao-microsoft-loop.md):
+#   - Entra ID App Registration (Files.Read.All + Sites.Read.All +
+#     FileStorageContainer.Selected, consentimento admin) + o passo único
+#     `Set-SPOApplicationPermission` via Global Admin.
+#   - Descobrir manualmente (uma vez, por página) o drive_id/item_id de cada
+#     página-fonte do Loop -- não é redescoberto a cada sync.
+#
+# Variáveis de ambiente esperadas:
+#   LOOP_TENANT_ID, LOOP_CLIENT_ID, LOOP_CLIENT_SECRET  — credenciais do app
+#   LOOP_DRIVE_ID                                        — container SPE do Loop
+#   LOOP_ITEM_ID_AREA_DEV, LOOP_ITEM_ID_GESTAO_PROJETOS  — item_id por página
+#   LOOP_SYNC_ENABLED (default "0"), LOOP_SYNC_MINUTOS (default "20")
+LOOP_CHAVES_VALIDAS = ("area_dev", "gestao_projetos")
+
+def _loop_token() -> str:
+    """Client-credentials OAuth2 contra o Entra ID -- app-only, não depende
+    de login individual de ninguém. Deixa a exceção subir; quem chama
+    (_loop_sync_job) já trata e loga."""
+    import urllib.request, urllib.parse, json as _json
+    tenant_id = os.environ["LOOP_TENANT_ID"]
+    body = urllib.parse.urlencode({
+        "client_id": os.environ["LOOP_CLIENT_ID"],
+        "client_secret": os.environ["LOOP_CLIENT_SECRET"],
+        "scope": "https://graph.microsoft.com/.default",
+        "grant_type": "client_credentials",
+    }).encode()
+    req = urllib.request.Request(
+        f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+        data=body, method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return _json.loads(resp.read())["access_token"]
+
+
+def _loop_exportar_item(token: str, drive_id: str, item_id: str) -> str:
+    """Baixa o HTML já convertido pelo próprio Graph (?format=html) -- não
+    precisamos parsear o formato .loop/.fluid na mão. drive_id contém '!'
+    que precisa ir URL-encoded como %21."""
+    import urllib.request
+    drive_id_enc = drive_id.replace("!", "%21")
+    url = f"https://graph.microsoft.com/v1.0/drives/{drive_id_enc}/items/{item_id}/content?format=html"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return resp.read().decode("utf-8", errors="replace")
+
+
+def _loop_sync_job():
+    """Job agendado -- busca o snapshot de cada página configurada e grava
+    em loop_snapshots. Cada chave é independente: uma falhar não impede as
+    outras (commit/rollback por item, não por job inteiro)."""
+    if not (os.environ.get("LOOP_TENANT_ID") and os.environ.get("LOOP_CLIENT_ID")
+            and os.environ.get("LOOP_CLIENT_SECRET")):
+        return  # credenciais ainda não existem -- inerte de propósito
+    drive_id = os.environ.get("LOOP_DRIVE_ID", "")
+    itens = {
+        "area_dev": os.environ.get("LOOP_ITEM_ID_AREA_DEV", ""),
+        "gestao_projetos": os.environ.get("LOOP_ITEM_ID_GESTAO_PROJETOS", ""),
+    }
+    itens = {k: v for k, v in itens.items() if v}
+    if not drive_id or not itens:
+        print("[loop] LOOP_DRIVE_ID/LOOP_ITEM_ID_* não configurados -- nada para sincronizar")
+        return
+    try:
+        token = _loop_token()
+    except Exception as e:
+        print(f"[loop] Falha ao autenticar no Graph: {e}")
+        return
+    conn = get_db()
+    if not conn:
+        print("[loop] Banco offline -- sync adiado pro próximo ciclo")
+        return
+    try:
+        cur = conn.cursor()
+        for chave, item_id in itens.items():
+            try:
+                html = _loop_exportar_item(token, drive_id, item_id)
+                cur.execute("""
+                    INSERT INTO loop_snapshots (chave, html_conteudo, atualizado_em, erro)
+                    VALUES (%s, %s, NOW(), NULL)
+                    ON CONFLICT (chave) DO UPDATE
+                    SET html_conteudo = EXCLUDED.html_conteudo,
+                        atualizado_em = EXCLUDED.atualizado_em, erro = NULL
+                """, (chave, html))
+                conn.commit()
+                print(f"[loop] Snapshot atualizado: {chave}")
+            except Exception as e:
+                conn.rollback()
+                cur.execute("""
+                    INSERT INTO loop_snapshots (chave, atualizado_em, erro)
+                    VALUES (%s, NOW(), %s)
+                    ON CONFLICT (chave) DO UPDATE SET erro = EXCLUDED.erro, atualizado_em = EXCLUDED.atualizado_em
+                """, (chave, str(e)))
+                conn.commit()
+                print(f"[loop] Falha ao exportar '{chave}': {e}")
+        cur.close(); conn.close()
+    except Exception as e:
+        print(f"[loop] Erro no job de sync: {e}")
+        conn.close()
+
+
 # Inicia agendador
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -5701,6 +5843,13 @@ try:
                            day_of_week="mon-fri", hour=_resumo_hora, minute=0,
                            id="resumo_diario", replace_existing=True)
         print(f"APScheduler — resumo diário agendado seg-sex às {_resumo_hora}h")
+    # Sync do Microsoft Loop -- desativado por padrão (LOOP_SYNC_ENABLED="0")
+    # até o Entra ID App Registration existir de verdade. Ver bloco acima.
+    if os.environ.get("LOOP_SYNC_ENABLED", "0") == "1":
+        _loop_minutos = int(os.environ.get("LOOP_SYNC_MINUTOS", "20"))
+        _scheduler.add_job(_loop_sync_job, "interval", minutes=_loop_minutos,
+                           id="loop_sync", replace_existing=True)
+        print(f"APScheduler — sync do Microsoft Loop a cada {_loop_minutos}min")
     _scheduler.start()
     print("APScheduler iniciado — relatório agendado para dia 1 de cada mês às 08h")
 except ImportError:
@@ -6054,7 +6203,7 @@ def gestao_listar_usuarios(faiston_token: str = Cookie(None)):
 STATUS_CAMPO_VALIDOS = ('agendado', 'em_andamento', 'concluido', 'parcial',
                          'improdutiva_cliente', 'improdutiva_faiston', 'cancelado')
 STATUS_CAMPO_TERMINAIS = ('concluido', 'parcial', 'improdutiva_cliente', 'improdutiva_faiston')
-PARTICULARIDADES_VALIDAS = ('reversa', 'equipamento_em_posse_do_cliente', 'equipamento_removido', 'equipamento_instalado')
+PARTICULARIDADES_VALIDAS = ('reversa', 'equipamento_em_posse_do_cliente', 'equipamento_removido', 'equipamento_instalado', 'equipamento_reconfigurado')
 LOCALIZACAO_VALIDOS = ('deslocamento', 'no_local')
 ACESSO_VALIDOS = ('com_acesso', 'verificando_acesso', 'sem_acesso')
 ANDAMENTO_TIPO_VALIDOS = ('instalando', 'trocando', 'removendo', 'validando')
@@ -6127,6 +6276,7 @@ class StatusAtividadeModel(BaseModel):
     # mesma tabela/formato usado na finalização (ver EquipamentoItem acima).
     equipamentos_instalados: List[EquipamentoItem] = []
     equipamentos_removidos: List[EquipamentoItem] = []
+    equipamentos_reconfigurados: List[EquipamentoItem] = []
 
 def _resolver_n2(cur, n2_usuario_id, n2_responsavel_texto):
     """Se veio n2_usuario_id, busca o nome pra cachear em n2_responsavel
@@ -6361,10 +6511,14 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
                       if it.partnumber.strip() or it.serial.strip()]
         removidos = [(it.partnumber.strip(), it.serial.strip()) for it in a.equipamentos_removidos
                      if it.partnumber.strip() or it.serial.strip()]
+        reconfigurados = [(it.partnumber.strip(), it.serial.strip()) for it in a.equipamentos_reconfigurados
+                           if it.partnumber.strip() or it.serial.strip()]
         if instalados and 'equipamento_instalado' not in particularidades:
             particularidades.append('equipamento_instalado')
         if removidos and 'equipamento_removido' not in particularidades:
             particularidades.append('equipamento_removido')
+        if reconfigurados and 'equipamento_reconfigurado' not in particularidades:
+            particularidades.append('equipamento_reconfigurado')
         cur.execute("""
             INSERT INTO status_atividades (cliente_id, data, horario_agendado, tecnico,
                 n2_usuario_id, n2_responsavel,
@@ -6385,7 +6539,8 @@ def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None
               a.equipamento_removido_detalhe if 'equipamento_removido' in particularidades else ""))
         new_id = cur.fetchone()[0]
         itens = [(new_id, 'instalado', pn, sn) for pn, sn in instalados] + \
-                [(new_id, 'removido', pn, sn) for pn, sn in removidos]
+                [(new_id, 'removido', pn, sn) for pn, sn in removidos] + \
+                [(new_id, 'reconfigurado', pn, sn) for pn, sn in reconfigurados]
         if itens:
             cur.executemany(
                 "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
@@ -6505,9 +6660,10 @@ class StatusCampoStatusModel(BaseModel):
     # Instalado/removido não são mais mutuamente exclusivos (uma atividade
     # pode envolver os dois ao mesmo tempo) e cada um vira uma lista, já
     # que pode ter mais de uma unidade instalada/removida na mesma visita.
-    equipamento_status: List[str] = []  # 'equipamento_instalado' e/ou 'equipamento_removido'
+    equipamento_status: List[str] = []  # 'equipamento_instalado' e/ou 'equipamento_removido' e/ou 'equipamento_reconfigurado'
     equipamentos_instalados: List[EquipamentoItem] = []
     equipamentos_removidos: List[EquipamentoItem] = []
+    equipamentos_reconfigurados: List[EquipamentoItem] = []
     equipamento_removido_posse: Optional[str] = None  # 'tecnico' | 'cliente'
     contato_local_nome: Optional[str] = None
     contato_local_matricula: Optional[str] = None
@@ -6607,7 +6763,7 @@ def _gerar_ou_atualizar_tarefa_campo(cur, aid):
 @app.patch("/api/status-campo/{aid}/status")
 def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess) and not _eh_backoffice(sess)): raise HTTPException(status_code=403)
     if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     if body.status not in STATUS_CAMPO_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
     # "em_andamento" exige localização (primeiro passo do fluxo escalonado do
@@ -6635,7 +6791,12 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
-        if not _pode_gerenciar_status_campo(sess, conn, aid):
+        # Backoffice não é "responsável" de nenhum despacho (não é N2) --
+        # mudar status é liberado pra qualquer atividade, igual admin/gestor,
+        # mas só aqui (não passa por _pode_gerenciar_status_campo, que também
+        # governa reatribuir/editar/excluir -- esses continuam bloqueados
+        # pelo check de perfil logo acima).
+        if not (_pode_gerenciar_status_campo(sess, conn, aid) or _eh_backoffice(sess)):
             raise HTTPException(status_code=403, detail="Você só pode editar atividades onde é o N2 responsável")
         cur = conn.cursor()
         sets = ["status=%s", "atualizado_em=NOW()"]
@@ -6645,15 +6806,18 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
             sets += ["hora_termino=%s", "material_utilizado=%s"]
             params += [body.hora_termino, material_ok]
             # Merge das particularidades ligadas ao equipamento (instalado/
-            # removido/posse) -- preserva 'reversa' e qualquer outra tag que
-            # não seja dessas 3, só substitui o que veio do modal de finalizar.
-            equip_tags = [t for t in body.equipamento_status if t in ('equipamento_instalado', 'equipamento_removido')]
+            # removido/reconfigurado/posse) -- preserva 'reversa' e qualquer
+            # outra tag que não seja dessas 4, só substitui o que veio do
+            # modal de finalizar.
+            equip_tags = [t for t in body.equipamento_status if t in
+                          ('equipamento_instalado', 'equipamento_removido', 'equipamento_reconfigurado')]
             instalado = 'equipamento_instalado' in equip_tags
             removido = 'equipamento_removido' in equip_tags
+            reconfigurado = 'equipamento_reconfigurado' in equip_tags
             cur.execute("SELECT particularidades FROM status_atividades WHERE id=%s", (aid,))
             atuais = (cur.fetchone() or [[]])[0] or []
             outras = [p for p in atuais if p not in
-                      ('equipamento_instalado', 'equipamento_removido', 'equipamento_em_posse_do_cliente')]
+                      ('equipamento_instalado', 'equipamento_removido', 'equipamento_reconfigurado', 'equipamento_em_posse_do_cliente')]
             novas_particularidades = outras + equip_tags
             if removido and body.equipamento_removido_posse == 'cliente':
                 novas_particularidades.append('equipamento_em_posse_do_cliente')
@@ -6675,6 +6839,9 @@ def atualizar_status_campo_status(aid: int, body: StatusCampoStatusModel, faisto
             if removido:
                 itens += [(aid, 'removido', it.partnumber.strip(), it.serial.strip())
                           for it in body.equipamentos_removidos if it.partnumber.strip() or it.serial.strip()]
+            if reconfigurado:
+                itens += [(aid, 'reconfigurado', it.partnumber.strip(), it.serial.strip())
+                          for it in body.equipamentos_reconfigurados if it.partnumber.strip() or it.serial.strip()]
             if itens:
                 cur.executemany(
                     "INSERT INTO status_atividade_equipamentos (atividade_id, tipo, partnumber, serial) VALUES (%s,%s,%s,%s)",
@@ -7644,6 +7811,35 @@ def dev_deletar_diario(did: int, faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+# --- INTEGRAÇÃO MICROSOFT LOOP (esqueleto, 2026-08-04 — ver _loop_sync_job) ---
+# Leitura liberada a qualquer sessão válida, sem restrição de perfil --
+# decisão do usuário ("a ideia é todo mundo ver"). Pendente: decidir em qual
+# tela/aba exata cada chave aparece pra quem não é admin/dev (Área de Dev
+# hoje só é alcançável por esse perfil -- ver nota na wiki).
+@app.get("/api/loop-snapshot/{chave}")
+def loop_obter_snapshot(chave: str, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if chave not in LOOP_CHAVES_VALIDAS:
+        raise HTTPException(status_code=404, detail="Chave desconhecida")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT html_conteudo, atualizado_em, erro FROM loop_snapshots WHERE chave = %s", (chave,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        if not row:
+            return {"configurado": False, "html": "", "atualizado_em": None, "erro": None}
+        html, atualizado_em, erro = row
+        return {
+            "configurado": True,
+            "html": html or "",
+            "atualizado_em": atualizado_em.strftime("%d/%m/%Y %H:%M") if atualizado_em else None,
+            "erro": erro,
+        }
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 # ══════════════════════════════════════════════════════════════════
 # SUPORTE: qualquer usuário logado abre uma solicitação (bug, dúvida,
 # pedido de melhoria); só a equipe dev vê/gerencia. Canal de envio --
@@ -7783,3 +7979,4 @@ def dev_deletar_suporte(sid: int, faiston_token: str = Cookie(None)):
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
