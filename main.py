@@ -733,6 +733,11 @@ def setup_banco():
                 atualizado_em TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Resposta do dev pra quem abriu a solicitação (2026-08-11) -- antes
+        # era só um canal de envio sem volta nenhuma pra quem pediu.
+        cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta TEXT")
+        cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta_por_nome VARCHAR(150)")
+        cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta_em TIMESTAMP")
         # Reset de senha por e-mail (2026-07-30). Guarda o HASH do token, não
         # o token em si -- mesmo princípio de senha_hash: se o banco vazar, o
         # hash sozinho não deixa ninguém reutilizar o link. sha256 (sem salt)
@@ -8070,13 +8075,61 @@ def dev_listar_suporte(faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         cur.execute("""
             SELECT id, titulo, descricao, categoria, status, criado_por_nome, criado_em,
-                   (anexo_base64 IS NOT NULL) AS tem_anexo
+                   (anexo_base64 IS NOT NULL) AS tem_anexo, resposta, resposta_por_nome, resposta_em
             FROM suporte_solicitacoes ORDER BY criado_em DESC
         """)
         out = [{
             "id": r[0], "titulo": r[1], "descricao": r[2], "categoria": r[3], "status": r[4],
             "criado_por_nome": r[5], "criado_em": r[6].strftime("%d/%m/%Y %H:%M") if r[6] else "",
-            "tem_anexo": r[7],
+            "tem_anexo": r[7], "resposta": r[8], "resposta_por_nome": r[9],
+            "resposta_em": r[10].strftime("%d/%m/%Y %H:%M") if r[10] else None,
+        } for r in cur.fetchall()]
+        cur.close(); conn.close()
+        return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class SuporteRespostaModel(BaseModel):
+    resposta: str
+
+@app.put("/api/dev-suporte/{sid}/resposta")
+def dev_responder_suporte(sid: int, s: SuporteRespostaModel, faiston_token: str = Cookie(None)):
+    """Resposta pra quem abriu a solicitação (2026-08-11) -- antes era só um
+    canal de envio, sem volta nenhuma pro usuário. Não muda o status
+    sozinha -- quem responde ainda decide separadamente se marca
+    em_andamento/resolvido."""
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if not s.resposta.strip(): raise HTTPException(status_code=400, detail="Resposta vazia")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE suporte_solicitacoes SET resposta=%s, resposta_por_nome=%s, resposta_em=NOW(), atualizado_em=NOW() WHERE id=%s",
+            (s.resposta.strip(), sess["nome"], sid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/suporte/minhas")
+def listar_minhas_suporte(faiston_token: str = Cookie(None)):
+    """Solicitações que EU abri, com a resposta do dev se já tiver vindo --
+    complemento do POST /api/suporte, que antes era só de ida (2026-08-11)."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, titulo, descricao, categoria, status, criado_em, resposta, resposta_por_nome, resposta_em
+            FROM suporte_solicitacoes WHERE criado_por=%s ORDER BY criado_em DESC
+        """, (sess["id"],))
+        out = [{
+            "id": r[0], "titulo": r[1], "descricao": r[2], "categoria": r[3], "status": r[4],
+            "criado_em": r[5].strftime("%d/%m/%Y %H:%M") if r[5] else "",
+            "resposta": r[6], "resposta_por_nome": r[7],
+            "resposta_em": r[8].strftime("%d/%m/%Y %H:%M") if r[8] else None,
         } for r in cur.fetchall()]
         cur.close(); conn.close()
         return out

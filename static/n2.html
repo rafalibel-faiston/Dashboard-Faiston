@@ -1341,35 +1341,19 @@ function fzRenderLista(tipo) {
                 <option value="tecnico" ${it.posse !== 'cliente' ? 'selected' : ''}>Com o técnico</option>
                 <option value="cliente" ${it.posse === 'cliente' ? 'selected' : ''}>Com o cliente</option>
             </select>` : ''}
-            ${it.fotoUrl ? `<img src="${it.fotoUrl}" class="w-9 h-9 rounded-md object-cover border border-faiston-border flex-shrink-0">` : ''}
-            <label class="w-9 h-9 rounded-md hover:bg-slate-100 flex items-center justify-center flex-shrink-0 cursor-pointer" title="Foto de referência (fica só nesta tela, não é enviada nem salva)">
-                <input type="file" accept="image/*" capture="environment" class="hidden" onchange="fzAnexarFoto('${tipo}', ${i}, this.files[0])">
-                <i class="ph ph-camera text-slate-400 text-sm"></i>
-            </label>
             <button type="button" onclick="fzRemoverItem('${tipo}', ${i})" class="w-9 h-9 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
         </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
 }
 function fzAdicionarItem(tipo) {
-    fzItens(tipo).push({ partnumber: '', serial: '', fotoUrl: null, posse: tipo === 'removido' ? 'tecnico' : null });
+    fzItens(tipo).push({ partnumber: '', serial: '', posse: tipo === 'removido' ? 'tecnico' : null });
     fzRenderLista(tipo);
 }
 function fzRemoverItem(tipo, i) {
-    const itens = fzItens(tipo);
-    if (itens[i] && itens[i].fotoUrl) URL.revokeObjectURL(itens[i].fotoUrl);
-    itens.splice(i, 1);
+    fzItens(tipo).splice(i, 1);
     fzRenderLista(tipo);
 }
 function fzAtualizarItem(tipo, i, campo, valor) {
     fzItens(tipo)[i][campo] = valor;
-}
-function fzAnexarFoto(tipo, i, file) {
-    // Foto é só apoio visual pra digitar o serial/partnumber -- nunca sai
-    // do navegador (não é enviada nem salva), por isso um object URL local.
-    if (!file) return;
-    const itens = fzItens(tipo);
-    if (itens[i].fotoUrl) URL.revokeObjectURL(itens[i].fotoUrl);
-    itens[i].fotoUrl = URL.createObjectURL(file);
-    fzRenderLista(tipo);
 }
 
 async function abrirModalFinalizar(id, novoStatus, row) {
@@ -1400,9 +1384,9 @@ async function abrirModalFinalizar(id, novoStatus, row) {
         if (res.ok) {
             const full = await res.json();
             (full.equipamentos || []).forEach(e => {
-                if (e.tipo === 'instalado') fzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', fotoUrl: null, posse: null });
-                if (e.tipo === 'removido') fzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', fotoUrl: null, posse: e.posse === 'cliente' ? 'cliente' : 'tecnico' });
-                if (e.tipo === 'reconfigurado') fzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', fotoUrl: null, posse: null });
+                if (e.tipo === 'instalado') fzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: null });
+                if (e.tipo === 'removido') fzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: e.posse === 'cliente' ? 'cliente' : 'tecnico' });
+                if (e.tipo === 'reconfigurado') fzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: null });
             });
         }
     } catch (e) { /* segue com listas vazias se falhar */ }
@@ -1415,7 +1399,6 @@ async function abrirModalFinalizar(id, novoStatus, row) {
 function fecharModalFinalizar() {
     document.getElementById('modal-finalizar').classList.add('hidden');
     statusAlvoId = null; statusAlvoNovo = null;
-    [...fzInstaladoItems, ...fzRemovidoItems, ...fzReconfiguradoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
     buscar();
 }
 
@@ -1533,14 +1516,9 @@ async function confirmarFinalizar() {
     if (instalado) equipamentoStatus.push('equipamento_instalado');
     if (removido) equipamentoStatus.push('equipamento_removido');
     if (reconfigurado) equipamentoStatus.push('equipamento_reconfigurado');
-    // Foto é só apoio visual local -- nunca vai no payload pro backend.
-    // posse só é usada de fato pelo backend pra itens tipo 'removido', mas
-    // não custa nada mandar sempre.
-    const semFoto = it => ({ partnumber: it.partnumber, serial: it.serial, posse: it.posse });
-    const instaladoItens = instalado ? fzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
-    const removidoItens = removido ? fzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
-    const reconfiguradoItens = reconfigurado ? fzReconfiguradoItems.filter(it => it.partnumber.trim() || it.serial.trim()).map(semFoto) : [];
-    [...fzInstaladoItems, ...fzRemovidoItems, ...fzReconfiguradoItems].forEach(it => { if (it.fotoUrl) URL.revokeObjectURL(it.fotoUrl); });
+    const instaladoItens = instalado ? fzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
+    const removidoItens = removido ? fzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
+    const reconfiguradoItens = reconfigurado ? fzReconfiguradoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
     const materiaisItens = materialSim ? fzMaterialItems.filter(m => m.descricao.trim()) : [];
     if (materialSim && !materiaisItens.length) { alert('Informe ao menos um material utilizado.'); return; }
     const id = statusAlvoId;
@@ -1735,7 +1713,11 @@ init();
             </div>
             <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
-        <div class="p-6 flex flex-col gap-3">
+        <div class="px-6 pt-3 flex gap-2 border-b border-faiston-border">
+            <button id="suporte-tab-nova" onclick="suporteTrocarAba('nova')" class="text-xs font-semibold px-3 py-2 border-b-2 border-faiston-purple text-faiston-purple">Nova solicitação</button>
+            <button id="suporte-tab-minhas" onclick="suporteTrocarAba('minhas')" class="text-xs font-semibold px-3 py-2 border-b-2 border-transparent text-faiston-muted hover:text-faiston-dark">Minhas solicitações</button>
+        </div>
+        <div id="suporte-aba-nova" class="p-6 flex flex-col gap-3">
             <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
                 <option value="duvida">Dúvida</option>
                 <option value="bug">Bug / algo não funciona</option>
@@ -1757,10 +1739,52 @@ init();
             <p id="suporte-msg" class="text-xs"></p>
             <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
         </div>
+        <div id="suporte-aba-minhas" class="hidden p-6 flex flex-col gap-3" style="max-height:60vh;overflow-y:auto">
+            <div id="suporte-minhas-lista"></div>
+        </div>
     </div>
 </div>
 <script>
 let suporteAnexoBase64 = null, suporteAnexoNome = null;
+
+const SUPORTE_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', resolvido: 'Resolvido' };
+const SUPORTE_STATUS_COR = { aberto: 'bg-slate-100 text-slate-600', em_andamento: 'bg-faiston-purple/10 text-faiston-purple', resolvido: 'bg-faiston-cyan/10 text-faiston-cyan' };
+
+function suporteTrocarAba(aba) {
+    const ehNova = aba === 'nova';
+    document.getElementById('suporte-aba-nova').classList.toggle('hidden', !ehNova);
+    document.getElementById('suporte-aba-minhas').classList.toggle('hidden', ehNova);
+    document.getElementById('suporte-tab-nova').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    document.getElementById('suporte-tab-minhas').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (!ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    if (!ehNova) suporteCarregarMinhas();
+}
+async function suporteCarregarMinhas() {
+    const box = document.getElementById('suporte-minhas-lista');
+    box.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Carregando...</p>';
+    try {
+        const res = await fetch('/api/suporte/minhas');
+        if (!res.ok) throw new Error();
+        const itens = await res.json();
+        if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
+        box.innerHTML = itens.map(s => `
+            <div class="bg-slate-50 rounded-xl border border-faiston-border p-3 mb-2">
+                <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <p class="text-sm font-bold text-faiston-dark">${esc(s.titulo)}</p>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
+                </div>
+                <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
+                <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${esc(s.descricao)}</p>
+                ${s.resposta ? `
+                <div class="mt-2 p-2.5 bg-white border border-faiston-purple/20 rounded-lg">
+                    <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${esc(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
+                    <p class="text-xs text-slate-600 whitespace-pre-line">${esc(s.resposta)}</p>
+                </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
+            </div>
+        `).join('');
+    } catch (e) {
+        box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
+}
 
 function suporteAbrirModal() {
     document.getElementById('suporte-categoria').value = 'duvida';
@@ -1769,6 +1793,7 @@ function suporteAbrirModal() {
     document.getElementById('suporte-arquivo').value = '';
     document.getElementById('suporte-msg').textContent = '';
     suporteRemoverAnexo();
+    suporteTrocarAba('nova');
     document.getElementById('modal-suporte-criar').classList.remove('hidden');
 }
 function suporteFecharModal() {

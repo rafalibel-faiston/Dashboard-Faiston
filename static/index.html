@@ -2906,7 +2906,11 @@
             </div>
             <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
-        <div class="p-6 flex flex-col gap-3">
+        <div class="px-6 pt-3 flex gap-2 border-b border-faiston-border">
+            <button id="suporte-tab-nova" onclick="suporteTrocarAba('nova')" class="text-xs font-semibold px-3 py-2 border-b-2 border-faiston-purple text-faiston-purple">Nova solicitação</button>
+            <button id="suporte-tab-minhas" onclick="suporteTrocarAba('minhas')" class="text-xs font-semibold px-3 py-2 border-b-2 border-transparent text-faiston-muted hover:text-faiston-dark">Minhas solicitações</button>
+        </div>
+        <div id="suporte-aba-nova" class="p-6 flex flex-col gap-3">
             <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
                 <option value="duvida">Dúvida</option>
                 <option value="bug">Bug / algo não funciona</option>
@@ -2928,6 +2932,9 @@
             <p id="suporte-msg" class="text-xs"></p>
             <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
         </div>
+        <div id="suporte-aba-minhas" class="hidden p-6 flex flex-col gap-3" style="max-height:60vh;overflow-y:auto">
+            <div id="suporte-minhas-lista"></div>
+        </div>
     </div>
 </div>
 
@@ -2941,10 +2948,50 @@ function suporteAbrirModal() {
     document.getElementById('suporte-arquivo').value = '';
     document.getElementById('suporte-msg').textContent = '';
     suporteRemoverAnexo();
+    suporteTrocarAba('nova');
     document.getElementById('modal-suporte-criar').classList.remove('hidden');
 }
 function suporteFecharModal() {
     document.getElementById('modal-suporte-criar').classList.add('hidden');
+}
+
+const SUPORTE_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', resolvido: 'Resolvido' };
+const SUPORTE_STATUS_COR = { aberto: 'bg-slate-100 text-slate-600', em_andamento: 'bg-faiston-purple/10 text-faiston-purple', resolvido: 'bg-faiston-cyan/10 text-faiston-cyan' };
+
+function suporteTrocarAba(aba) {
+    const ehNova = aba === 'nova';
+    document.getElementById('suporte-aba-nova').classList.toggle('hidden', !ehNova);
+    document.getElementById('suporte-aba-minhas').classList.toggle('hidden', ehNova);
+    document.getElementById('suporte-tab-nova').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    document.getElementById('suporte-tab-minhas').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (!ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    if (!ehNova) suporteCarregarMinhas();
+}
+async function suporteCarregarMinhas() {
+    const box = document.getElementById('suporte-minhas-lista');
+    box.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Carregando...</p>';
+    try {
+        const res = await fetch('/api/suporte/minhas');
+        if (!res.ok) throw new Error();
+        const itens = await res.json();
+        if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
+        box.innerHTML = itens.map(s => `
+            <div class="bg-slate-50 rounded-xl border border-faiston-border p-3 mb-2">
+                <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <p class="text-sm font-bold text-faiston-dark">${escHtml(s.titulo)}</p>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
+                </div>
+                <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
+                <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${escHtml(s.descricao)}</p>
+                ${s.resposta ? `
+                <div class="mt-2 p-2.5 bg-white border border-faiston-purple/20 rounded-lg">
+                    <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${escHtml(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
+                    <p class="text-xs text-slate-600 whitespace-pre-line">${escHtml(s.resposta)}</p>
+                </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
+            </div>
+        `).join('');
+    } catch (e) {
+        box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
 }
 function suporteSelecionarArquivo(input) {
     const file = input.files[0];
@@ -5912,6 +5959,15 @@ function devSuporteRender(itens) {
                 </select>
                 ${s.tem_anexo ? `<button onclick="devSuporteVerAnexo(${s.id})" class="text-xs font-semibold text-faiston-purple hover:underline flex items-center gap-1"><i class="ph ph-paperclip"></i> Ver anexo</button>` : ''}
             </div>
+            ${s.resposta ? `
+            <div class="mt-3 p-3 bg-faiston-purple/5 border border-faiston-purple/20 rounded-lg">
+                <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${escHtml(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
+                <p class="text-xs text-slate-600 whitespace-pre-line">${escHtml(s.resposta)}</p>
+            </div>` : ''}
+            <div class="flex gap-2 mt-2">
+                <textarea id="dev-suporte-resposta-${s.id}" rows="2" placeholder="${s.resposta ? 'Editar resposta...' : 'Responder pra quem abriu...'}" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-faiston-purple resize-none">${escHtml(s.resposta || '')}</textarea>
+                <button onclick="devSuporteResponder(${s.id})" class="text-xs font-semibold text-white btn-grad rounded-lg px-3 self-stretch flex items-center">Enviar</button>
+            </div>
         </div>
     `).join('');
 }
@@ -5921,6 +5977,18 @@ async function devSuporteAtualizarStatus(id, status) {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
     });
+}
+
+async function devSuporteResponder(id) {
+    const campo = document.getElementById(`dev-suporte-resposta-${id}`);
+    const resposta = campo.value.trim();
+    if (!resposta) { alert('Escreva uma resposta antes de enviar.'); return; }
+    const res = await fetch(`/api/dev-suporte/${id}/resposta`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resposta })
+    });
+    if (!res.ok) { alert('Erro ao enviar resposta.'); return; }
+    devSuporteCarregar();
 }
 
 async function devSuporteExcluir(id) {
