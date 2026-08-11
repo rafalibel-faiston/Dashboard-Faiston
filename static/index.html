@@ -4615,7 +4615,14 @@ function renderAderencia(data) {
         chart: { ...chartDefaults, type: 'bar', height: 260, stacked: true,
             events: { dataPointSelection: (e, ctx, config) => {
                 const item = linhas[config.dataPointIndex];
-                if (item) _abrirDrillDown(item.nome, new URLSearchParams({ usuario_id: item.id }));
+                if (!item) return;
+                // Série 1 = "Fora do prazo": mostra as justificativas de atraso
+                // dessa pessoa, em vez do drill-down genérico de tarefas.
+                if (config.seriesIndex === 1) {
+                    _abrirDrillDownAtrasadas(item.nome, item.id);
+                } else {
+                    _abrirDrillDown(item.nome, new URLSearchParams({ usuario_id: item.id }));
+                }
             }}
         },
         plotOptions: { bar: { horizontal: true, borderRadius: 4, borderRadiusApplication: 'end', barHeight: '58%' } },
@@ -4787,6 +4794,39 @@ async function _abrirDrillDown(titulo, params) {
                 ${t.descricao ? `<p class="text-xs text-slate-500 mt-1">${escHtml(t.descricao)}</p>` : ''}
             </div>`;
         }).join('') : '<p class="text-sm text-faiston-muted text-center py-8">Nenhuma tarefa no período.</p>';
+    } catch (e) {
+        document.getElementById('pd-subtitulo').textContent = 'Erro ao carregar';
+    }
+}
+
+// Drill-down das tarefas "Fora do prazo": além da tarefa, mostra a
+// justificativa de atraso registrada na conclusão -- é o controle que o
+// gestor pede pra entender os atrasos da área sem caçar tarefa por tarefa.
+async function _abrirDrillDownAtrasadas(nome, usuarioId) {
+    document.getElementById('pd-titulo').textContent = `${nome} — Tarefas atrasadas`;
+    document.getElementById('pd-subtitulo').textContent = 'Carregando...';
+    document.getElementById('pd-lista').innerHTML = '';
+    document.getElementById('modal-peso-drilldown').classList.remove('hidden');
+    const params = new URLSearchParams({ usuario_id: usuarioId, prazo: 'fora' });
+    if (_hpfPeriodo.data_inicio) params.set('data_inicio', _hpfPeriodo.data_inicio);
+    if (_hpfPeriodo.data_fim) params.set('data_fim', _hpfPeriodo.data_fim);
+    try {
+        const res = await fetch('/api/tarefas-por-peso?' + params.toString());
+        if (!res.ok) throw new Error();
+        const tarefas = await res.json();
+        document.getElementById('pd-subtitulo').textContent = `${tarefas.length} tarefa(s) atrasada(s) no período`;
+        document.getElementById('pd-lista').innerHTML = tarefas.length ? tarefas.map(t => `
+            <div class="border border-faiston-pink/30 bg-faiston-pink/5 rounded-lg p-3">
+                <div class="flex items-center justify-between gap-2">
+                    <p class="text-sm font-semibold text-faiston-dark truncate">${escHtml(t.tipo || t.descricao || 'Tarefa')}</p>
+                    <span class="text-[10px] font-semibold text-faiston-muted shrink-0">${t.concluido_em || t.criado_em}</span>
+                </div>
+                <p class="text-xs text-faiston-muted mt-0.5">${escHtml(t.cliente || '')}</p>
+                <div class="mt-2 text-xs bg-white border border-faiston-pink/20 rounded-md p-2">
+                    <p class="text-[10px] font-bold uppercase tracking-wide text-faiston-pink mb-0.5">Justificativa</p>
+                    <p class="text-slate-600">${t.justificativa_atraso ? escHtml(t.justificativa_atraso) : '<span class="italic text-slate-400">Sem justificativa registrada</span>'}</p>
+                </div>
+            </div>`).join('') : '<p class="text-sm text-faiston-muted text-center py-8">Nenhuma tarefa atrasada no período.</p>';
     } catch (e) {
         document.getElementById('pd-subtitulo').textContent = 'Erro ao carregar';
     }

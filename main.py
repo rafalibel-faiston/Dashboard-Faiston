@@ -3085,14 +3085,17 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
 
 @app.get("/api/tarefas-por-peso")
 def tarefas_por_peso(usuario_id: Optional[int] = None, peso: Optional[int] = None, cliente: str = "",
-                      data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
+                      prazo: str = "", data_inicio: str = "", data_fim: str = "", faiston_token: str = Cookie(None)):
     """Drill-down dos gráficos do Dashboard que envolvem peso: lista as
     tarefas no mesmo período filtrado, escopadas por funcionário+peso (rosca
     "Horas por Funcionário") ou só por cliente (barra "Esforço por Cliente" --
     aí sem filtrar peso, cada tarefa mostra o próprio peso na lista, decisão
     de 2026-07-28 de mostrar a visão geral primeiro). Mesma regra de escopo
     do /api/metricas -- admin/diretor veem qualquer um, resto só quem é do
-    mesmo time."""
+    mesmo time.
+    `prazo` filtra pelo prazo_status carimbado na conclusão ('dentro'/'fora')
+    -- usado pelo clique no segmento "Fora do prazo" do gráfico de Aderência,
+    pra listar as justificativas de atraso daquela pessoa."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     if not usuario_id and not cliente:
@@ -3118,20 +3121,24 @@ def tarefas_por_peso(usuario_id: Optional[int] = None, peso: Optional[int] = Non
             cond.append("t.cliente = %s"); qparams.append(cliente)
             if sess["perfil"] not in ("admin", "diretor"):
                 cond.append("COALESCE(u.time,'Projetos') = %s"); qparams.append(sess.get("time", "Projetos"))
+        if prazo in ("dentro", "fora"):
+            cond.append("t.prazo_status = %s"); qparams.append(prazo)
         if data_inicio:
             cond.append("t.criado_em >= %s"); qparams.append(data_inicio + " 00:00:00")
         if data_fim:
             cond.append("t.criado_em <= %s"); qparams.append(data_fim + " 23:59:59")
         cur.execute(f"""
             SELECT t.id, t.descricao, t.cliente, t.status, t.segundos, t.criado_em, COALESCE(ta.nome, ''),
-                   COALESCE(t.peso, 0), u.nome
+                   COALESCE(t.peso, 0), u.nome, t.concluido_em, t.justificativa_atraso
             FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
             LEFT JOIN tipos_atividade ta ON ta.id = t.tipo_atividade_id
             WHERE {' AND '.join(cond)} ORDER BY t.criado_em DESC
         """, tuple(qparams))
         out = [{"id": r[0], "descricao": r[1], "cliente": r[2], "status": r[3],
                 "horas": round(r[4]/3600, 1), "criado_em": str(r[5])[:16], "tipo": r[6],
-                "peso": r[7], "funcionario": r[8]} for r in cur.fetchall()]
+                "peso": r[7], "funcionario": r[8],
+                "concluido_em": str(r[9])[:16] if r[9] else None,
+                "justificativa_atraso": r[10] or ""} for r in cur.fetchall()]
         cur.close(); conn.close()
         return out
     except HTTPException: raise
