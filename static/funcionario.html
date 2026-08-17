@@ -584,6 +584,12 @@
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição <span class="text-faiston-pink">*</span></label>
                 <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/20 transition-all">
             </div>
+            <div id="responsavel-wrap" class="hidden">
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Responsável</label>
+                <select id="input-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                </select>
+                <p class="text-[10px] text-faiston-faint mt-1">Atribua a você mesmo ou a um assistente de Backoffice.</p>
+            </div>
             <div>
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
                 <select id="input-projeto" onchange="selecionarProjeto(this.value)"
@@ -822,6 +828,8 @@ let _todosProjetos = [];
 let _funcionarios = [];      // lista para atribuir ajudantes
 let _colabSelecionados = []; // ids dos ajudantes no modal atual
 let MEU_ID = null;
+let MEU_NOME = '';
+let MEU_CARGO = '';
 let activeTaskId = null;
 let timerInterval = null;
 let timerSeconds = 0;
@@ -912,6 +920,8 @@ async function init() {
             if (me.perfil === 'gestor') { window.location.href = '/dashboard'; return; }
         }
         MEU_ID = me.id;
+        MEU_NOME = me.nome;
+        MEU_CARGO = me.cargo || '';
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'demo' && !_EMBED) document.getElementById('demo-back-bar').classList.remove('hidden');
@@ -951,6 +961,17 @@ async function init() {
         const res = await fetch('/api/funcionarios');
         if (res.ok) _funcionarios = await res.json();
     } catch(e) {}
+
+    // Analista pode atribuir a tarefa a um assistente de Backoffice do time
+    // (2026-08-17) -- os demais cargos continuam criando só pra si mesmos.
+    if (MEU_CARGO === 'analista') {
+        const wrap = document.getElementById('responsavel-wrap');
+        const sel = document.getElementById('input-responsavel');
+        const assistentes = _funcionarios.filter(f => f.cargo === 'backoffice');
+        sel.innerHTML = `<option value="${MEU_ID}">${MEU_NOME} (Eu)</option>` +
+            assistentes.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+        wrap.classList.remove('hidden');
+    }
 
     await carregarNotificacoes();
     setInterval(atualizarBadgeNotif, 30000);
@@ -1527,6 +1548,7 @@ function editTask(taskId) {
     document.getElementById('modal-title').textContent = 'Editar Tarefa';
     document.getElementById('edit-id').value = taskId;
     document.getElementById('input-descricao').value = task.descricao;
+    if (MEU_CARGO === 'analista') document.getElementById('input-responsavel').value = task.usuario_id || MEU_ID;
     popularDemandas();
     _colabSelecionados = (task.colaboradores || []).map(c => c.id);
     renderAjudantes();
@@ -1603,6 +1625,7 @@ function openModal() {
     document.getElementById('modal-title').textContent = 'Nova Tarefa';
     document.getElementById('edit-id').value = '';
     document.getElementById('input-descricao').value = '';
+    if (MEU_CARGO === 'analista') document.getElementById('input-responsavel').value = MEU_ID;
     popularDemandas();
     _colabSelecionados = [];
     renderAjudantes();
@@ -1726,6 +1749,9 @@ async function saveTask() {
         justificativa_atraso: justificativa,
         colaboradores: _colabSelecionados.slice()
     };
+    if (MEU_CARGO === 'analista') {
+        body.funcionario_id = parseInt(document.getElementById('input-responsavel').value) || MEU_ID;
+    }
 
     if (editId) {
         const task = tasks.find(t=>t.id==editId);
@@ -1748,9 +1774,19 @@ async function saveTask() {
         }
     } else {
         const res  = await fetch('/api/tarefas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            alert(json.detail || 'Erro ao criar tarefa');
+            return;
+        }
         const data = await res.json();
-        tasks.unshift({id:data.id,...body,projeto_nome,_running:false,funcionario:''});
-        if (body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(data.id); return; }
+        // Se a tarefa foi atribuída a um assistente de Backoffice, ela passa a
+        // pertencer a ele -- não entra no meu próprio quadro (view=func).
+        const paraOutraPessoa = body.funcionario_id && body.funcionario_id !== MEU_ID;
+        if (!paraOutraPessoa) {
+            tasks.unshift({id:data.id,...body,projeto_nome,_running:false,funcionario:''});
+            if (body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(data.id); return; }
+        }
     }
     closeModal(); renderTasks(); updateSummary();
     if (tabAtiva === 'agenda') renderAgenda();

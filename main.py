@@ -1865,11 +1865,11 @@ def listar_funcionarios(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         if sess["perfil"] == "admin":
-            cur.execute("SELECT id, nome FROM usuarios WHERE perfil='funcionario' AND ativo=TRUE ORDER BY nome")
+            cur.execute("SELECT id, nome, COALESCE(cargo,'') FROM usuarios WHERE perfil='funcionario' AND ativo=TRUE ORDER BY nome")
         else:
-            cur.execute("SELECT id, nome FROM usuarios WHERE perfil='funcionario' AND ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY nome", (sess.get("time","Projetos"),))
+            cur.execute("SELECT id, nome, COALESCE(cargo,'') FROM usuarios WHERE perfil='funcionario' AND ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY nome", (sess.get("time","Projetos"),))
         rows = cur.fetchall(); cur.close(); conn.close()
-        return [{"id": r[0], "nome": r[1]} for r in rows]
+        return [{"id": r[0], "nome": r[1], "cargo": r[2]} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/usuarios")
@@ -2444,6 +2444,16 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
         uid = sess["id"]
         if t.funcionario_id and sess["perfil"] in ("admin", "gestor", "demo"):
             cur.execute("SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE", (t.funcionario_id,))
+            if cur.fetchone():
+                uid = t.funcionario_id
+        # Analista pode atribuir tarefa a um assistente de Backoffice do mesmo
+        # time (2026-08-17) -- só nessa direção, não pra qualquer funcionário.
+        elif (t.funcionario_id and t.funcionario_id != sess["id"]
+              and sess["perfil"] == "funcionario" and sess.get("cargo") == "analista"):
+            cur.execute("""
+                SELECT id FROM usuarios WHERE id=%s AND ativo=TRUE AND perfil='funcionario'
+                  AND cargo='backoffice' AND COALESCE(time,'Projetos')=%s
+            """, (t.funcionario_id, sess.get("time", "Projetos")))
             if cur.fetchone():
                 uid = t.funcionario_id
         data_checar = t.data_agendamento or t.data_prazo
