@@ -597,6 +597,12 @@
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Descrição <span class="text-faiston-pink">*</span></label>
                 <input type="text" id="input-descricao" placeholder="Descreva a tarefa..." class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple focus:ring-2 focus:ring-faiston-purple/20 transition-all">
             </div>
+            <div id="responsavel-wrap" class="hidden">
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Responsável</label>
+                <select id="input-responsavel" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
+                </select>
+                <p class="text-[10px] text-faiston-faint mt-1">Atribua a você mesmo ou a um assistente de Backoffice.</p>
+            </div>
             <div>
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
                 <select id="input-projeto" onchange="selecionarProjeto(this.value)"
@@ -846,6 +852,8 @@ let _todosProjetos = [];
 let _funcionarios = [];      // lista para atribuir ajudantes
 let _colabSelecionados = []; // ids dos ajudantes no modal atual
 let MEU_ID = null;
+let MEU_NOME = '';
+let MEU_CARGO = '';
 let activeTaskId = null;
 let timerInterval = null;
 let timerSeconds = 0;
@@ -943,6 +951,8 @@ async function init() {
             if (me.perfil === 'gestor') { window.location.href = '/dashboard'; return; }
         }
         MEU_ID = me.id;
+        MEU_NOME = me.nome;
+        MEU_CARGO = me.cargo || '';
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'demo' && !_EMBED) document.getElementById('demo-back-bar').classList.remove('hidden');
@@ -989,6 +999,17 @@ async function init() {
         const res = await fetch('/api/funcionarios');
         if (res.ok) _funcionarios = await res.json();
     } catch(e) {}
+
+    // Analista pode atribuir a tarefa a um assistente de Backoffice do time
+    // (2026-08-17) -- os demais cargos continuam criando só pra si mesmos.
+    if (MEU_CARGO === 'analista') {
+        const wrap = document.getElementById('responsavel-wrap');
+        const sel = document.getElementById('input-responsavel');
+        const assistentes = _funcionarios.filter(f => f.cargo === 'backoffice');
+        sel.innerHTML = `<option value="${MEU_ID}">${MEU_NOME} (Eu)</option>` +
+            assistentes.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+        wrap.classList.remove('hidden');
+    }
 
     await carregarNotificacoes();
     setInterval(atualizarBadgeNotif, 30000);
@@ -1565,6 +1586,7 @@ function editTask(taskId) {
     document.getElementById('modal-title').textContent = 'Editar Tarefa';
     document.getElementById('edit-id').value = taskId;
     document.getElementById('input-descricao').value = task.descricao;
+    if (MEU_CARGO === 'analista') document.getElementById('input-responsavel').value = task.usuario_id || MEU_ID;
     popularDemandas();
     _colabSelecionados = (task.colaboradores || []).map(c => c.id);
     renderAjudantes();
@@ -1640,6 +1662,7 @@ function openModal() {
     document.getElementById('modal-title').textContent = 'Nova Tarefa';
     document.getElementById('edit-id').value = '';
     document.getElementById('input-descricao').value = '';
+    if (MEU_CARGO === 'analista') document.getElementById('input-responsavel').value = MEU_ID;
     popularDemandas();
     _colabSelecionados = [];
     renderAjudantes();
@@ -1763,6 +1786,9 @@ async function saveTask() {
         justificativa_atraso: justificativa,
         colaboradores: _colabSelecionados.slice()
     };
+    if (MEU_CARGO === 'analista') {
+        body.funcionario_id = parseInt(document.getElementById('input-responsavel').value) || MEU_ID;
+    }
 
     if (editId) {
         const task = tasks.find(t=>t.id==editId);
@@ -1785,9 +1811,19 @@ async function saveTask() {
         }
     } else {
         const res  = await fetch('/api/tarefas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            alert(json.detail || 'Erro ao criar tarefa');
+            return;
+        }
         const data = await res.json();
-        tasks.unshift({id:data.id,...body,projeto_nome,_running:false,funcionario:''});
-        if (body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(data.id); return; }
+        // Se a tarefa foi atribuída a um assistente de Backoffice, ela passa a
+        // pertencer a ele -- não entra no meu próprio quadro (view=func).
+        const paraOutraPessoa = body.funcionario_id && body.funcionario_id !== MEU_ID;
+        if (!paraOutraPessoa) {
+            tasks.unshift({id:data.id,...body,projeto_nome,_running:false,funcionario:''});
+            if (body.status==='em_andamento') { closeModal(); renderTasks(); updateSummary(); if(tabAtiva==='agenda') renderAgenda(); startTimer(data.id); return; }
+        }
     }
     closeModal(); renderTasks(); updateSummary();
     if (tabAtiva === 'agenda') renderAgenda();
@@ -2682,7 +2718,11 @@ setInterval(() => fetch('/api/admin/ping?page=funcionario', { method: 'POST' }),
             </div>
             <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
-        <div class="p-6 flex flex-col gap-3">
+        <div class="px-6 pt-3 flex gap-2 border-b border-faiston-border">
+            <button id="suporte-tab-nova" onclick="suporteTrocarAba('nova')" class="text-xs font-semibold px-3 py-2 border-b-2 border-faiston-purple text-faiston-purple">Nova solicitação</button>
+            <button id="suporte-tab-minhas" onclick="suporteTrocarAba('minhas')" class="text-xs font-semibold px-3 py-2 border-b-2 border-transparent text-faiston-muted hover:text-faiston-dark">Minhas solicitações</button>
+        </div>
+        <div id="suporte-aba-nova" class="p-6 flex flex-col gap-3">
             <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
                 <option value="duvida">Dúvida</option>
                 <option value="bug">Bug / algo não funciona</option>
@@ -2704,10 +2744,52 @@ setInterval(() => fetch('/api/admin/ping?page=funcionario', { method: 'POST' }),
             <p id="suporte-msg" class="text-xs"></p>
             <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
         </div>
+        <div id="suporte-aba-minhas" class="hidden p-6 flex flex-col gap-3" style="max-height:60vh;overflow-y:auto">
+            <div id="suporte-minhas-lista"></div>
+        </div>
     </div>
 </div>
 <script>
 let suporteAnexoBase64 = null, suporteAnexoNome = null;
+
+const SUPORTE_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', resolvido: 'Resolvido' };
+const SUPORTE_STATUS_COR = { aberto: 'bg-slate-100 text-slate-600', em_andamento: 'bg-faiston-purple/10 text-faiston-purple', resolvido: 'bg-faiston-cyan/10 text-faiston-cyan' };
+
+function suporteTrocarAba(aba) {
+    const ehNova = aba === 'nova';
+    document.getElementById('suporte-aba-nova').classList.toggle('hidden', !ehNova);
+    document.getElementById('suporte-aba-minhas').classList.toggle('hidden', ehNova);
+    document.getElementById('suporte-tab-nova').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    document.getElementById('suporte-tab-minhas').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (!ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    if (!ehNova) suporteCarregarMinhas();
+}
+async function suporteCarregarMinhas() {
+    const box = document.getElementById('suporte-minhas-lista');
+    box.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Carregando...</p>';
+    try {
+        const res = await fetch('/api/suporte/minhas');
+        if (!res.ok) throw new Error();
+        const itens = await res.json();
+        if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
+        box.innerHTML = itens.map(s => `
+            <div class="bg-slate-50 rounded-xl border border-faiston-border p-3 mb-2">
+                <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <p class="text-sm font-bold text-faiston-dark">${escHtmlC(s.titulo)}</p>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
+                </div>
+                <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
+                <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${escHtmlC(s.descricao)}</p>
+                ${s.resposta ? `
+                <div class="mt-2 p-2.5 bg-white border border-faiston-purple/20 rounded-lg">
+                    <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${escHtmlC(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
+                    <p class="text-xs text-slate-600 whitespace-pre-line">${escHtmlC(s.resposta)}</p>
+                </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
+            </div>
+        `).join('');
+    } catch (e) {
+        box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
+}
 
 function suporteAbrirModal() {
     document.getElementById('suporte-categoria').value = 'duvida';
@@ -2716,6 +2798,7 @@ function suporteAbrirModal() {
     document.getElementById('suporte-arquivo').value = '';
     document.getElementById('suporte-msg').textContent = '';
     suporteRemoverAnexo();
+    suporteTrocarAba('nova');
     document.getElementById('modal-suporte-criar').classList.remove('hidden');
 }
 function suporteFecharModal() {

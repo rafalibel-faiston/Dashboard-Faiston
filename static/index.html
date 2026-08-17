@@ -1539,6 +1539,9 @@
 
 </div><!-- /mod-gestao -->
 
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- MODULE: FINANCEIRO                                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 <div id="mod-financeiro" class="hidden flex-1 overflow-y-auto custom-scrollbar">
     <div class="px-8 py-6">
         <!-- BANNER EM DESENVOLVIMENTO -->
@@ -1895,8 +1898,9 @@
                     <input type="time" id="sc-m-horario" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico</label>
-                    <input type="text" id="sc-m-tecnico" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Técnico <span class="normal-case font-normal text-faiston-faint">(preencha o UF pra ver sugestões)</span></label>
+                    <input type="text" id="sc-m-tecnico" list="sc-m-tecnico-list" placeholder="Digite ou selecione" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <datalist id="sc-m-tecnico-list"></datalist>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">N2 responsável</label>
@@ -1923,7 +1927,7 @@
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">UF</label>
-                    <input type="text" id="sc-m-uf" maxlength="2" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+                    <input type="text" id="sc-m-uf" maxlength="2" onchange="scCarregarTecnicosPorUf(this.value)" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
@@ -2089,14 +2093,7 @@
                     <button type="button" onclick="scFzAdicionarItem('instalado')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento instalado</button>
                 </div>
                 <div id="sc-fz-removido-campos" class="hidden mt-2 flex-col gap-2">
-                    <div class="flex gap-4">
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="sc-fz-removido-posse" id="sc-fz-removido-posse-tecnico" checked> Ficou com o técnico
-                        </label>
-                        <label class="flex items-center gap-2 text-sm text-slate-600">
-                            <input type="radio" name="sc-fz-removido-posse" id="sc-fz-removido-posse-cliente"> Ficou com o cliente
-                        </label>
-                    </div>
+                    <p class="text-[11px] text-faiston-faint">Cada equipamento removido tem sua própria posse (ficou com o técnico ou com o cliente).</p>
                     <div id="sc-fz-removido-lista" class="flex flex-col gap-2"></div>
                     <button type="button" onclick="scFzAdicionarItem('removido')" class="text-xs font-semibold text-faiston-purple hover:underline self-start">+ Adicionar equipamento removido</button>
                 </div>
@@ -2554,7 +2551,7 @@
                 <input type="text" id="u-nome" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
             </div>
             <div id="wrap-email">
-                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Email <span id="email-hint" class="normal-case font-normal text-faiston-faint">(para enviar o acesso)</span></label>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Email <span id="email-hint" class="normal-case font-normal text-faiston-faint">(obrigatório — é por ele que a pessoa recebe o acesso e define a senha)</span></label>
                 <input type="email" id="u-email" placeholder="nome@empresa.com" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
             </div>
             <div class="grid grid-cols-2 gap-4">
@@ -2590,7 +2587,7 @@
                     <option value="Rede Credenciada">Rede Credenciada</option>
                 </select>
             </div>
-            <div>
+            <div id="wrap-senha">
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha <span id="senha-hint" class="normal-case font-normal text-faiston-faint">(deixe em branco para não alterar)</span></label>
                 <input type="password" id="u-senha" placeholder="••••••••" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan transition-all">
             </div>
@@ -2750,7 +2747,11 @@
             </div>
             <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
-        <div class="p-6 flex flex-col gap-3">
+        <div class="px-6 pt-3 flex gap-2 border-b border-faiston-border">
+            <button id="suporte-tab-nova" onclick="suporteTrocarAba('nova')" class="text-xs font-semibold px-3 py-2 border-b-2 border-faiston-purple text-faiston-purple">Nova solicitação</button>
+            <button id="suporte-tab-minhas" onclick="suporteTrocarAba('minhas')" class="text-xs font-semibold px-3 py-2 border-b-2 border-transparent text-faiston-muted hover:text-faiston-dark">Minhas solicitações</button>
+        </div>
+        <div id="suporte-aba-nova" class="p-6 flex flex-col gap-3">
             <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
                 <option value="duvida">Dúvida</option>
                 <option value="bug">Bug / algo não funciona</option>
@@ -2772,6 +2773,9 @@
             <p id="suporte-msg" class="text-xs"></p>
             <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
         </div>
+        <div id="suporte-aba-minhas" class="hidden p-6 flex flex-col gap-3" style="max-height:60vh;overflow-y:auto">
+            <div id="suporte-minhas-lista"></div>
+        </div>
     </div>
 </div>
 
@@ -2785,10 +2789,50 @@ function suporteAbrirModal() {
     document.getElementById('suporte-arquivo').value = '';
     document.getElementById('suporte-msg').textContent = '';
     suporteRemoverAnexo();
+    suporteTrocarAba('nova');
     document.getElementById('modal-suporte-criar').classList.remove('hidden');
 }
 function suporteFecharModal() {
     document.getElementById('modal-suporte-criar').classList.add('hidden');
+}
+
+const SUPORTE_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', resolvido: 'Resolvido' };
+const SUPORTE_STATUS_COR = { aberto: 'bg-slate-100 text-slate-600', em_andamento: 'bg-faiston-purple/10 text-faiston-purple', resolvido: 'bg-faiston-cyan/10 text-faiston-cyan' };
+
+function suporteTrocarAba(aba) {
+    const ehNova = aba === 'nova';
+    document.getElementById('suporte-aba-nova').classList.toggle('hidden', !ehNova);
+    document.getElementById('suporte-aba-minhas').classList.toggle('hidden', ehNova);
+    document.getElementById('suporte-tab-nova').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    document.getElementById('suporte-tab-minhas').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (!ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    if (!ehNova) suporteCarregarMinhas();
+}
+async function suporteCarregarMinhas() {
+    const box = document.getElementById('suporte-minhas-lista');
+    box.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Carregando...</p>';
+    try {
+        const res = await fetch('/api/suporte/minhas');
+        if (!res.ok) throw new Error();
+        const itens = await res.json();
+        if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
+        box.innerHTML = itens.map(s => `
+            <div class="bg-slate-50 rounded-xl border border-faiston-border p-3 mb-2">
+                <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <p class="text-sm font-bold text-faiston-dark">${escHtml(s.titulo)}</p>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
+                </div>
+                <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
+                <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${escHtml(s.descricao)}</p>
+                ${s.resposta ? `
+                <div class="mt-2 p-2.5 bg-white border border-faiston-purple/20 rounded-lg">
+                    <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${escHtml(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
+                    <p class="text-xs text-slate-600 whitespace-pre-line">${escHtml(s.resposta)}</p>
+                </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
+            </div>
+        `).join('');
+    } catch (e) {
+        box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
 }
 function suporteSelecionarArquivo(input) {
     const file = input.files[0];
@@ -4726,7 +4770,12 @@ function renderCharts(data) {
                 if (status) filtrarStatus(status);
             }}
         },
-        colors: ['#06D7E6', '#5B2EE0', '#CBD5E1'],
+        // Ciano=bom/concluído, rosa=precisa atenção -- mesma convenção já usada
+        // no relatório mensal por e-mail (SLA >=92% ciano, abaixo rosa). Antes
+        // "Aberto" (o status que mais precisa de atenção) usava um cinza
+        // apagado, menos destacado que qualquer outra fatia -- trocado por
+        // rosa, consistente com "Alta" no gráfico de Prioridade (2026-08-11).
+        colors: ['#06D7E6', '#5B2EE0', '#EC4899'],
         plotOptions: { pie: { donut: { size: '75%',
             labels: { show: true,
                 value: { fontSize: '28px', fontWeight: 900, color: valC },
@@ -4767,7 +4816,11 @@ function renderCharts(data) {
             { name: 'Baixa', data: baixa }
         ],
         chart: { ...chartDefaults, type: 'bar', height: 220, stacked: true, stackType: '100%' },
-        colors: ['#EC4899', '#5B2EE0', '#06D7E6'],
+        // "Baixa" usava o mesmo ciano de "Concluído" no donut de Status --
+        // mesma cor com dois significados diferentes na mesma tela. Trocado
+        // por cinza neutro (baixa prioridade não é "sucesso", é só baixa
+        // urgência); ciano fica reservado pra "bom/concluído" (2026-08-11).
+        colors: ['#EC4899', '#5B2EE0', '#CBD5E1'],
         plotOptions: { bar: { borderRadius: 6, columnWidth: '50%', borderRadiusApplication: 'end' } },
         dataLabels: { enabled: false },
         xaxis: { categories: clientes_uniq, axisBorder:{show:false}, axisTicks:{show:false},
@@ -5757,6 +5810,15 @@ function devSuporteRender(itens) {
                 </select>
                 ${s.tem_anexo ? `<button onclick="devSuporteVerAnexo(${s.id})" class="text-xs font-semibold text-faiston-purple hover:underline flex items-center gap-1"><i class="ph ph-paperclip"></i> Ver anexo</button>` : ''}
             </div>
+            ${s.resposta ? `
+            <div class="mt-3 p-3 bg-faiston-purple/5 border border-faiston-purple/20 rounded-lg">
+                <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${escHtml(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
+                <p class="text-xs text-slate-600 whitespace-pre-line">${escHtml(s.resposta)}</p>
+            </div>` : ''}
+            <div class="flex gap-2 mt-2">
+                <textarea id="dev-suporte-resposta-${s.id}" rows="2" placeholder="${s.resposta ? 'Editar resposta...' : 'Responder pra quem abriu...'}" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-faiston-purple resize-none">${escHtml(s.resposta || '')}</textarea>
+                <button onclick="devSuporteResponder(${s.id})" class="text-xs font-semibold text-white btn-grad rounded-lg px-3 self-stretch flex items-center">Enviar</button>
+            </div>
         </div>
     `).join('');
 }
@@ -5766,6 +5828,18 @@ async function devSuporteAtualizarStatus(id, status) {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
     });
+}
+
+async function devSuporteResponder(id) {
+    const campo = document.getElementById(`dev-suporte-resposta-${id}`);
+    const resposta = campo.value.trim();
+    if (!resposta) { alert('Escreva uma resposta antes de enviar.'); return; }
+    const res = await fetch(`/api/dev-suporte/${id}/resposta`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resposta })
+    });
+    if (!res.ok) { alert('Erro ao enviar resposta.'); return; }
+    devSuporteCarregar();
 }
 
 async function devSuporteExcluir(id) {
@@ -8508,9 +8582,12 @@ function adminOpenModalUser() {
     document.getElementById('u-email').value = '';
     document.getElementById('u-perfil').value = 'funcionario';
     document.getElementById('u-ativo').checked = true;
-    document.getElementById('senha-hint').textContent = '';
     document.getElementById('wrap-ativo').classList.add('hidden');
     document.getElementById('wrap-email').classList.remove('hidden');
+    document.getElementById('email-hint').textContent = '(obrigatório — é por ele que a pessoa recebe o acesso e define a senha)';
+    // Sem senha na criação (2026-08-10): a pessoa define a própria pelo link
+    // que recebe por email -- ver adminSalvarUsuario/POST /api/usuarios.
+    document.getElementById('wrap-senha').classList.add('hidden');
     document.getElementById('u-usuario').disabled = false;
     document.getElementById('u-cargo').value = 'analista';
     adminAtualizarCargo();
@@ -8532,6 +8609,7 @@ function adminEditarUsuario(id) {
     adminAtualizarCargo();
     document.getElementById('u-time').value = u.time || 'Projetos';
     document.getElementById('u-ativo').checked = u.ativo;
+    document.getElementById('wrap-senha').classList.remove('hidden');
     document.getElementById('senha-hint').textContent = '(deixe em branco para não alterar)';
     document.getElementById('wrap-ativo').classList.remove('hidden');
     document.getElementById('wrap-ativo').classList.add('flex');
@@ -8555,7 +8633,7 @@ async function adminSalvarUsuario() {
     const ativo = document.getElementById('u-ativo').checked;
     const time = document.getElementById('u-time').value;
 
-    if (!nome || (!uid && (!usuario || !senha))) { alert('Preencha todos os campos obrigatórios.'); return; }
+    if (!nome || (!uid && (!usuario || !email))) { alert('Preencha todos os campos obrigatórios.'); return; }
 
     const btnSalvar = document.getElementById('btn-salvar-usuario');
     btnSalvar.disabled = true;
@@ -8570,22 +8648,20 @@ async function adminSalvarUsuario() {
                 body: JSON.stringify({ nome, perfil, senha, ativo, email, time, cargo })
             });
         } else {
+            // Sem senha na criação -- a pessoa define a própria pelo link
+            // que recebe por email (ver POST /api/usuarios no backend).
             res = await fetch('/api/usuarios', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ usuario, senha, nome, perfil, email, time, cargo })
+                body: JSON.stringify({ usuario, nome, perfil, email, time, cargo })
             });
         }
         const data = await res.json();
         if (!res.ok) { alert(data.detail || 'Erro ao salvar'); return; }
         adminCloseModalUser();
         adminCarregarUsuarios();
-        if (!uid && data.email_enviado) {
-            setTimeout(() => alert(`✅ Usuário criado!\n📧 Email de acesso enviado para ${email}.`), 100);
-        } else if (!uid && email) {
-            setTimeout(() => alert(`✅ Usuário criado!\n⚠️ Email não enviado — verifique a configuração de email no servidor.`), 100);
-        } else if (!uid) {
-            setTimeout(() => alert(`✅ Usuário criado!`), 100);
+        if (!uid) {
+            setTimeout(() => alert(`✅ Usuário criado!\n📧 Email enviado para ${email} pra definir a senha de acesso.`), 100);
         } else if (uid && email) {
             setTimeout(() => {
                 if (confirm(`✅ Dados salvos!\n\nDeseja enviar o email de acesso agora para ${email}?`)) {
@@ -8881,14 +8957,19 @@ function scFzRenderLista(tipo) {
     const itens = scFzItens(tipo);
     const container = document.getElementById(`sc-fz-${tipo}-lista`);
     container.innerHTML = itens.length ? itens.map((it, i) => `
-        <div class="flex gap-2 items-center">
-            <input type="text" value="${scEsc(it.partnumber)}" placeholder="Partnumber" oninput="scFzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
-            <input type="text" value="${scEsc(it.serial)}" placeholder="Serial" oninput="scFzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+        <div class="flex gap-2 items-center flex-wrap">
+            <input type="text" value="${scEsc(it.partnumber)}" placeholder="Partnumber" oninput="scFzAtualizarItem('${tipo}', ${i}, 'partnumber', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            <input type="text" value="${scEsc(it.serial)}" placeholder="Serial" oninput="scFzAtualizarItem('${tipo}', ${i}, 'serial', this.value)" class="flex-1 min-w-[100px] border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            ${tipo === 'removido' ? `
+            <select onchange="scFzAtualizarItem('${tipo}', ${i}, 'posse', this.value)" class="border border-faiston-border rounded-lg px-2 py-2 text-xs bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="tecnico" ${it.posse !== 'cliente' ? 'selected' : ''}>Com o técnico</option>
+                <option value="cliente" ${it.posse === 'cliente' ? 'selected' : ''}>Com o cliente</option>
+            </select>` : ''}
             <button type="button" onclick="scFzRemoverItem('${tipo}', ${i})" class="w-8 h-8 rounded-md hover:bg-red-50 flex items-center justify-center flex-shrink-0"><i class="ph ph-trash text-slate-400 hover:text-red-500 text-sm"></i></button>
         </div>`).join('') : '<p class="text-xs text-slate-400">Nenhum item adicionado.</p>';
 }
 function scFzAdicionarItem(tipo) {
-    scFzItens(tipo).push({ partnumber: '', serial: '' });
+    scFzItens(tipo).push({ partnumber: '', serial: '', posse: tipo === 'removido' ? 'tecnico' : null });
     scFzRenderLista(tipo);
 }
 function scFzRemoverItem(tipo, i) {
@@ -8915,8 +8996,6 @@ async function scAbrirModalFinalizar(id, novoStatus, row) {
     document.getElementById('sc-fz-equip-instalado').checked = particularidades.includes('equipamento_instalado');
     document.getElementById('sc-fz-equip-removido').checked = particularidades.includes('equipamento_removido');
     document.getElementById('sc-fz-equip-reconfigurado').checked = particularidades.includes('equipamento_reconfigurado');
-    document.getElementById('sc-fz-removido-posse-cliente').checked = particularidades.includes('equipamento_em_posse_do_cliente');
-    document.getElementById('sc-fz-removido-posse-tecnico').checked = !particularidades.includes('equipamento_em_posse_do_cliente');
     document.getElementById('sc-fz-contato-nome').value = (row && row.contato_local_nome) || '';
     document.getElementById('sc-fz-contato-matricula').value = (row && row.contato_local_matricula) || '';
     document.getElementById('sc-fz-obs').value = (row && row.observacoes) || '';
@@ -8927,9 +9006,9 @@ async function scAbrirModalFinalizar(id, novoStatus, row) {
         if (res.ok) {
             const full = await res.json();
             (full.equipamentos || []).forEach(e => {
-                if (e.tipo === 'instalado') scFzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
-                if (e.tipo === 'removido') scFzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
-                if (e.tipo === 'reconfigurado') scFzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '' });
+                if (e.tipo === 'instalado') scFzInstaladoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: null });
+                if (e.tipo === 'removido') scFzRemovidoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: e.posse === 'cliente' ? 'cliente' : 'tecnico' });
+                if (e.tipo === 'reconfigurado') scFzReconfiguradoItems.push({ partnumber: e.partnumber || '', serial: e.serial || '', posse: null });
             });
         }
     } catch (e) { /* segue com listas vazias se falhar */ }
@@ -8957,6 +9036,12 @@ function scFzLinhasItens(itens) {
     if (!itens.length) return ['N/A'];
     return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'}`);
 }
+function scFzLinhasRemovidos(itens) {
+    // Posse (técnico/cliente) é por item (2026-08-11) -- cada equipamento
+    // removido pode ter destino diferente.
+    if (!itens.length) return ['N/A'];
+    return itens.map(it => `PN: ${it.partnumber || 'N/A'} / Serial: ${it.serial || 'N/A'} — ${it.posse === 'cliente' ? 'Cliente' : 'Técnico'}`);
+}
 function scFzLinhasMateriais(itens) {
     if (!itens.length) return ['N/A'];
     return itens.map(m => {
@@ -8977,8 +9062,8 @@ function scGerarCarimboFinalizacao(row, extras) {
         '',
         extras.instalado ? 'Instalado:' : 'Instalado: N/A',
         ...(extras.instalado ? scFzLinhasItens(extras.instaladoItens).map(l => `  ${l}`) : []),
-        extras.removido ? `Removido (${extras.removidoPosse === 'cliente' ? 'Cliente' : 'Técnico'}):` : 'Removido: N/A',
-        ...(extras.removido ? scFzLinhasItens(extras.removidoItens).map(l => `  ${l}`) : []),
+        extras.removido ? 'Removido:' : 'Removido: N/A',
+        ...(extras.removido ? scFzLinhasRemovidos(extras.removidoItens).map(l => `  ${l}`) : []),
         extras.reconfigurado ? 'Reconfigurado:' : 'Reconfigurado: N/A',
         ...(extras.reconfigurado ? scFzLinhasItens(extras.reconfiguradoItens).map(l => `  ${l}`) : []),
         '',
@@ -9010,9 +9095,8 @@ async function scAbrirCarimboDeAtividade(id) {
         const instaladoItens = (full.equipamentos || []).filter(e => e.tipo === 'instalado');
         const removidoItens = (full.equipamentos || []).filter(e => e.tipo === 'removido');
         const reconfiguradoItens = (full.equipamentos || []).filter(e => e.tipo === 'reconfigurado');
-        const removidoPosse = particularidades.includes('equipamento_em_posse_do_cliente') ? 'cliente' : 'tecnico';
         const texto = scGerarCarimboFinalizacao(full, {
-            status: full.status, instalado, removido, reconfigurado, instaladoItens, removidoItens, reconfiguradoItens, removidoPosse,
+            status: full.status, instalado, removido, reconfigurado, instaladoItens, removidoItens, reconfiguradoItens,
             horaSaida: full.hora_termino || 'N/A',
             contatoNome: full.contato_local_nome, contatoMatricula: full.contato_local_matricula,
             observacoes: full.observacoes, materialUtilizado: full.material_utilizado, materiais: full.materiais,
@@ -9049,7 +9133,6 @@ async function scConfirmarFinalizar() {
     if (instalado) equipamentoStatus.push('equipamento_instalado');
     if (removido) equipamentoStatus.push('equipamento_removido');
     if (reconfigurado) equipamentoStatus.push('equipamento_reconfigurado');
-    const removidoPosse = document.getElementById('sc-fz-removido-posse-cliente').checked ? 'cliente' : 'tecnico';
     const instaladoItens = instalado ? scFzInstaladoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
     const removidoItens = removido ? scFzRemovidoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
     const reconfiguradoItens = reconfigurado ? scFzReconfiguradoItems.filter(it => it.partnumber.trim() || it.serial.trim()) : [];
@@ -9067,7 +9150,6 @@ async function scConfirmarFinalizar() {
         equipamentos_instalados: instaladoItens,
         equipamentos_removidos: removidoItens,
         equipamentos_reconfigurados: reconfiguradoItens,
-        equipamento_removido_posse: removidoPosse,
         contato_local_nome: document.getElementById('sc-fz-contato-nome').value.trim(),
         contato_local_matricula: document.getElementById('sc-fz-contato-matricula').value.trim(),
         observacoes: document.getElementById('sc-fz-obs').value.trim(),
@@ -9079,7 +9161,6 @@ async function scConfirmarFinalizar() {
         const texto = scGerarCarimboFinalizacao(row, {
             status, instalado, removido, reconfigurado,
             instaladoItens, removidoItens, reconfiguradoItens,
-            removidoPosse,
             horaSaida: saida,
             contatoNome: body.contato_local_nome,
             contatoMatricula: body.contato_local_matricula,
@@ -9627,6 +9708,16 @@ async function scGerarPrint() {
 
     const card = document.createElement('div');
     card.style.cssText = 'position:fixed;left:-9999px;top:0;width:480px;background:#ffffff;padding:24px;font-family:Inter,sans-serif;';
+    // Andamento (o que está acontecendo agora) no print (2026-08-11) -- antes
+    // só mostrava o status geral, não dava pra saber sem abrir a atividade
+    // se estava "no local instalando X" ou só "agendado" mesmo.
+    const scAndamentoLinha = a => {
+        const partes = [];
+        if (a.localizacao) partes.push(SC_LOCALIZACAO_LABEL[a.localizacao] || a.localizacao);
+        if (a.acesso) partes.push(SC_ACESSO_LABEL[a.acesso] || a.acesso);
+        if (a.andamento_tipo) partes.push(`${SC_ANDAMENTO_TIPO_LABEL[a.andamento_tipo] || a.andamento_tipo}${a.andamento_equipamento ? ': ' + a.andamento_equipamento : ''}`);
+        return partes.length ? `<div style="font-size:11px;color:#B826C9;font-weight:600;margin-top:3px;">${scEsc(partes.join(' · '))}</div>` : '';
+    };
     const linhas = lista.map(a => `
         <div style="padding:10px 0;border-bottom:1px solid #E5E8F0;">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
@@ -9636,6 +9727,7 @@ async function scGerarPrint() {
             <div style="font-size:11px;color:#5E647A;margin-top:3px;">
                 ${a.subprojeto ? scEsc(a.subprojeto) + ' · ' : ''}${a.tecnico ? scEsc(a.tecnico) : ''}${a.horario_agendado ? ' · ' + scEsc(a.horario_agendado) : ''}${a.cidade ? ' · ' + scEsc(a.cidade) + (a.uf ? '/' + scEsc(a.uf) : '') : ''}
             </div>
+            ${scAndamentoLinha(a)}
             ${a.observacoes ? `<div style="font-size:11px;color:#9097AC;margin-top:3px;font-style:italic;">${scEsc(a.observacoes)}</div>` : ''}
         </div>`).join('');
     card.innerHTML = `
@@ -9908,6 +10000,33 @@ function scNvResetEquipamento() {
     scNvToggleEquipamento();
 }
 
+// Busca de técnico por UF (2026-08-11) -- cadastro real importado da
+// planilha de agentes (~6300 técnicos). scTecnicosPorUf guarda id+nome do
+// UF atual, alimenta o <datalist> (permite digitar livre, não trava numa
+// lista fechada) e resolve o tecnico_id na hora de salvar por match exato
+// de nome -- se não bater com nada da lista, salva só o texto (tecnico_id
+// fica null), igual já era antes desta feature.
+let scTecnicosPorUf = [];
+async function scCarregarTecnicosPorUf(uf) {
+    scTecnicosPorUf = [];
+    const dl = document.getElementById('sc-m-tecnico-list');
+    dl.innerHTML = '';
+    uf = (uf || '').trim().toUpperCase();
+    if (uf.length !== 2) return;
+    try {
+        const res = await fetch(`/api/tecnicos?estado=${encodeURIComponent(uf)}`);
+        if (!res.ok) return;
+        scTecnicosPorUf = await res.json();
+        dl.innerHTML = scTecnicosPorUf.map(t => `<option value="${scEsc(t.nome)}">`).join('');
+    } catch (e) { /* segue sem sugestões se falhar */ }
+}
+function scResolverTecnicoId(nomeDigitado) {
+    const nome = (nomeDigitado || '').trim().toLowerCase();
+    if (!nome) return null;
+    const achado = scTecnicosPorUf.find(t => t.nome.trim().toLowerCase() === nome);
+    return achado ? achado.id : null;
+}
+
 function scAbrirModalNovo() {
     if (!scPodeEditar()) return;
     scEditandoId = null;
@@ -9916,6 +10035,7 @@ function scAbrirModalNovo() {
     ['sc-m-cliente','sc-m-horario','sc-m-tecnico','sc-m-n2','sc-m-sigla','sc-m-nomesite',
      'sc-m-cidade','sc-m-uf','sc-m-endereco','sc-m-detalhamento','sc-m-ticket','sc-m-subprojeto']
         .forEach(id => document.getElementById(id).value = '');
+    scCarregarTecnicosPorUf('');
     document.getElementById('sc-m-status').value = 'agendado';
     document.getElementById('sc-m-status').disabled = true;
     document.getElementById('sc-m-data').value = document.getElementById('sc-report-data').value || new Date().toLocaleDateString('en-CA');
@@ -9951,6 +10071,7 @@ async function scAbrirModalEditar(id) {
         document.getElementById('sc-m-nomesite').value = r.site_nome || '';
         document.getElementById('sc-m-cidade').value = r.cidade || '';
         document.getElementById('sc-m-uf').value = r.uf || '';
+        scCarregarTecnicosPorUf(r.uf || '');
         document.getElementById('sc-m-status').value = r.status || 'agendado';
         document.getElementById('sc-m-endereco').value = r.endereco || '';
         document.getElementById('sc-m-detalhamento').value = r.detalhamento_tecnico || '';
@@ -9979,6 +10100,7 @@ async function scSalvar() {
         data,
         horario_agendado: document.getElementById('sc-m-horario').value || null,
         tecnico: document.getElementById('sc-m-tecnico').value.trim(),
+        tecnico_id: scResolverTecnicoId(document.getElementById('sc-m-tecnico').value),
         n2_usuario_id: document.getElementById('sc-m-n2').value ? parseInt(document.getElementById('sc-m-n2').value, 10) : null,
         site_sigla: document.getElementById('sc-m-sigla').value.trim(),
         site_nome: document.getElementById('sc-m-nomesite').value.trim(),

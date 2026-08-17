@@ -265,8 +265,9 @@ class TestEquipamentosFinalizacao:
             resp = self._finalizar(admin_client, aid,
                 equipamento_status=["equipamento_instalado", "equipamento_removido"],
                 equipamentos_instalados=[{"partnumber": "PN-1", "serial": "SN-1"}, {"partnumber": "PN-2", "serial": "SN-2"}],
-                equipamentos_removidos=[{"partnumber": "PN-OLD", "serial": "SN-OLD"}],
-                equipamento_removido_posse="cliente",
+                # Posse agora é por item (2026-08-11), não mais um campo único
+                # pra atividade inteira -- ver EquipamentoItem.posse.
+                equipamentos_removidos=[{"partnumber": "PN-OLD", "serial": "SN-OLD", "posse": "cliente"}],
             )
             assert resp.status_code == 200, resp.text
             item = admin_client.get(f"/api/status-campo/{aid}").json()
