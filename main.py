@@ -985,8 +985,33 @@ class DevChecklistItemModel(BaseModel):
     concluido: bool = False
 
 # --- EMAIL ---
-def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha) -> bool:
-    system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
+def _resolver_system_url(request: Request = None) -> str:
+    """URL base do sistema pra montar links de e-mail (definir senha, acesso etc.).
+
+    SYSTEM_URL explícita tem prioridade (ex.: fixar um domínio custom em
+    produção). Sem ela, usa o host que respondeu esta requisição -- assim
+    cada ambiente (teste, produção, local) manda o link de si mesmo, em vez
+    de sempre cair no domínio de produção hardcoded por engano. Esse domínio
+    só entra como último recurso, quando nem uma coisa nem outra existe
+    (chamada fora de um request, ex. script avulso).
+    """
+    configurado = (os.environ.get("SYSTEM_URL") or "").strip()
+    if configurado:
+        return configurado.rstrip("/")
+    if request is not None:
+        # Lê os headers do proxy do Railway na mão (mesmo padrão de
+        # _login_ip) em vez de confiar em request.url/base_url: sem
+        # --proxy-headers no uvicorn, esses refletem o scheme/host internos
+        # (http em vez do https externo), não o que o navegador realmente usa.
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+        host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+        if host:
+            return f"{scheme}://{host}".rstrip("/")
+    return "https://dashboard-faiston-production.up.railway.app"
+
+
+def enviar_email_acesso(destinatario: str, nome: str, usuario: str, senha, system_url: str = "") -> bool:
+    system_url = (system_url or _resolver_system_url()).rstrip("/")
     if not destinatario:
         return False
     try:
@@ -1749,7 +1774,7 @@ def esqueci_senha(body: EsqueciSenhaModel, request: Request):
             uid, nome, email = row
             token = _gerar_token_redefinicao(cur, uid)
             conn.commit()
-            system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
+            system_url = _resolver_system_url(request)
             link = f"{system_url}/redefinir-senha?token={token}"
             corpo = f"""
                 <p style="color:#3D4152;font-size:14.5px;margin:0 0 18px;line-height:1.6">Olá, {nome}. Recebemos um pedido pra redefinir sua senha no Faiston OPS.</p>
@@ -1873,7 +1898,7 @@ def listar_funcionarios(faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/usuarios")
-def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
+def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, request: Request, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
     is_gestor = sess["perfil"] in ("gestor", "demo")
@@ -1897,7 +1922,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, faiston_token: str = Cook
         new_id = cur.fetchone()[0]
         token = _gerar_token_redefinicao(cur, new_id)
         conn.commit(); cur.close(); conn.close()
-        system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
+        system_url = _resolver_system_url(request)
         link = f"{system_url}/redefinir-senha?token={token}"
         bg.add_task(enviar_email_boas_vindas, u.email, u.nome, link)
         return {"sucesso": True, "id": new_id, "email_enviado": True}
@@ -1941,7 +1966,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/usuarios/{uid}/reenviar-email")
-def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
+def reenviar_email_acesso(uid: int, request: Request, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
@@ -1958,12 +1983,12 @@ def reenviar_email_acesso(uid: int, faiston_token: str = Cookie(None)):
             # (token novo), não o email antigo de "use a senha que já tem".
             token = _gerar_token_redefinicao(cur, uid)
             conn.commit(); cur.close(); conn.close()
-            system_url = os.environ.get("SYSTEM_URL", "https://dashboard-faiston-production.up.railway.app").rstrip("/")
+            system_url = _resolver_system_url(request)
             link = f"{system_url}/redefinir-senha?token={token}"
             enviado = enviar_email_boas_vindas(email, nome, link)
         else:
             cur.close(); conn.close()
-            enviado = enviar_email_acesso(email, nome, usuario, None)
+            enviado = enviar_email_acesso(email, nome, usuario, None, _resolver_system_url(request))
         if not enviado: raise HTTPException(status_code=500, detail="Falha ao enviar email — verifique as variáveis EMAIL_USER e EMAIL_APP_PASSWORD no servidor")
         return {"sucesso": True}
     except HTTPException: raise
