@@ -7340,6 +7340,11 @@ def _sc_mapear_status(raw):
     if 'CANCELAD' in u: return 'cancelado'
     if 'ANDAMENTO' in u: return 'em_andamento'
     if 'AGENDAD' in u: return 'agendado'
+    # "REAGENDAR" (sem sufixo -O/-A) e "AGUARD. AGENDAMENTO" não batem com
+    # 'AGENDAD' acima -- planilhas como a da VITA/Arcos Dourados usam essas
+    # variações pra dizer a mesma coisa: atividade pendente de agendamento.
+    if 'REAGENDAR' in u: return 'agendado'
+    if 'AGUARD' in u: return 'agendado'
     return None
 
 def _sc_find_sheet_and_header(wb):
