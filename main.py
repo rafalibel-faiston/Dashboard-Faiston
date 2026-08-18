@@ -870,9 +870,11 @@ def _eh_n2(sess: dict) -> bool:
     return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "n2"
 
 def _eh_backoffice(sess: dict) -> bool:
-    """Backoffice (cargo dentro de perfil='funcionario') só arrasta card pra
-    mudar status no Kanban de Cronograma reaproveitado do admin -- não cria,
-    não edita campo, não exclui (2026-08-03)."""
+    """Backoffice (cargo dentro de perfil='funcionario') arrasta card pra
+    mudar status no Kanban de Cronograma reaproveitado do admin, cria
+    atividade nova e importa planilha (2026-08-03, ampliado 2026-08-18) --
+    mas não edita/exclui atividade já existente nem gera escala (isso
+    continua só admin/gestor/demo/diretor)."""
     return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "backoffice"
 
 class NovoUsuario(BaseModel):
@@ -6681,7 +6683,7 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
 @app.post("/api/status-campo")
 def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess) and not _eh_backoffice(sess)): raise HTTPException(status_code=403)
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -7405,7 +7407,7 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
     cadastrados -- o que não bate fica de fora e é reportado, não cria
     cliente novo sozinho nem adivinha."""
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_backoffice(sess)): raise HTTPException(status_code=403)
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
         import subprocess, sys

@@ -8807,6 +8807,13 @@ function scPodeArrastarKanban() {
     return scPodeEditar() || !!(window.ME && window.ME.perfil === 'funcionario' && window.ME.cargo === 'backoffice');
 }
 
+// Backoffice também cria atividade nova e importa planilha (2026-08-18),
+// mas continua sem editar/excluir atividade já existente (scPodeEditar)
+// nem gerar escala -- essa ação não usa esta função.
+function scPodeCriarOuImportar() {
+    return scPodeEditar() || !!(window.ME && window.ME.perfil === 'funcionario' && window.ME.cargo === 'backoffice');
+}
+
 function scStatusLabel(status, clienteNome) {
     if (status === 'improdutiva_cliente' && clienteNome) return `Improdutiva — ${clienteNome}`;
     return STATUS_CAMPO_LABEL[status] || status;
@@ -9189,7 +9196,7 @@ function scFecharModalHistorico() {
 }
 
 async function scInit() {
-    if (scPodeEditar()) {
+    if (scPodeCriarOuImportar()) {
         document.getElementById('sc-btn-novo').classList.remove('hidden');
         document.getElementById('sc-btn-importar').classList.remove('hidden');
     }
@@ -9822,7 +9829,7 @@ async function scAtualizarCamposPorCliente() {
 }
 
 function scAbrirModalImportar() {
-    if (!scPodeEditar()) return;
+    if (!scPodeCriarOuImportar()) return;
     document.getElementById('sc-importar-arquivo').value = '';
     document.getElementById('sc-importar-resultado').innerHTML = '';
     document.getElementById('modal-sc-importar').classList.remove('hidden');
@@ -10010,7 +10017,7 @@ function scResolverTecnicoId(nomeDigitado) {
 }
 
 function scAbrirModalNovo() {
-    if (!scPodeEditar()) return;
+    if (!scPodeCriarOuImportar()) return;
     scEditandoId = null;
     scCamposN2Preservados = {};
     document.getElementById('sc-modal-titulo').textContent = 'Nova atividade';
