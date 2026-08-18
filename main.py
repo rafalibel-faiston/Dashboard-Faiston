@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, Form, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -7351,6 +7351,12 @@ _SC_IMPORT_HEADERS = {
     'ENDERECO': 'endereco', 'CIDADE': 'cidade', 'UF': 'uf',
     'AGENDAMENTO': 'data', 'HORARIO': 'horario_agendado', 'TECNICO': 'tecnico',
     'TICKET ATENDIMENTO': 'ticket', 'STATUS ATIVIDADE': 'status_raw', 'OBSERVACAO': 'observacoes',
+    # Dialeto "cronograma de parceiro" (ex.: VITA/Arcos Dourados) -- é a
+    # planilha que o time já usa no dia a dia, de um único cliente, sem
+    # coluna CLIENTE (o cliente vem do seletor no modal de importar, ver
+    # `cliente_id`) (2026-08-18).
+    'NOME': 'site', 'SIGLA': 'site_sigla', 'DATA': 'data', 'STATUS': 'status_raw',
+    'TICKET': 'ticket', 'ATIVIDADE': 'subprojeto',
 }
 
 def _sc_strip_acentos(s):
@@ -7400,12 +7406,17 @@ def _sc_find_sheet_and_header(wb):
     return melhor
 
 @app.post("/api/status-campo/importar-planilha")
-async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_token: str = Cookie(None)):
+async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_id: Optional[int] = Form(None),
+                                          somente_pendentes: bool = Form(True),
+                                          faiston_token: str = Cookie(None)):
     """Importa atividades de uma planilha externa (ex.: cronograma geral),
-    mapeando só as colunas que já existem no sistema. Cliente/Projeto da
-    planilha são casados por nome aproximado contra os clientes já
-    cadastrados -- o que não bate fica de fora e é reportado, não cria
-    cliente novo sozinho nem adivinha."""
+    mapeando só as colunas que já existem no sistema. Por padrão, Cliente/
+    Projeto da planilha são casados por nome aproximado contra os clientes
+    já cadastrados -- o que não bate fica de fora e é reportado, não cria
+    cliente novo sozinho nem adivinha. Planilhas de um cliente só (ex.:
+    cronograma de parceiro tipo VITA/Arcos Dourados, sem coluna CLIENTE)
+    passam `cliente_id` explícito no upload -- todas as linhas vão pra esse
+    cliente, sem tentar casar nome nenhum (2026-08-18)."""
     sess = get_session(faiston_token)
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_backoffice(sess)): raise HTTPException(status_code=403)
     global _OPENPYXL_OK, openpyxl
@@ -7434,7 +7445,15 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
         cur.execute("SELECT id, nome FROM clientes WHERE ativo = TRUE")
         clientes_norm = [(_sc_norm_nome(nome), cid) for cid, nome in cur.fetchall()]
 
+        cliente_fixo = None
+        if cliente_id is not None:
+            if cliente_id not in {cid for _, cid in clientes_norm}:
+                raise HTTPException(status_code=400, detail="Cliente informado não encontrado ou inativo")
+            cliente_fixo = cliente_id
+
         def buscar_cliente(cliente_raw, projeto_raw):
+            if cliente_fixo is not None:
+                return cliente_fixo
             for cand in (cliente_raw, projeto_raw, f"{cliente_raw} {projeto_raw}".strip()):
                 nn = _sc_norm_nome(cand)
                 if not nn: continue
@@ -7455,11 +7474,16 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
         puladas_sem_cliente = {}
         puladas_sem_status = 0
         puladas_sem_data = 0
+        puladas_ja_concluidas = 0
         puladas_erro = 0
         for r in rows[hi + 1:]:
             cliente_raw = str(get(r, 'cliente') or '').strip()
             projeto_raw = str(get(r, 'projeto') or '').strip()
-            if not cliente_raw and not projeto_raw:
+            site_raw = str(get(r, 'site') or '').strip()
+            # Sem CLIENTE/PROJETO nem SITE a linha está mesmo vazia -- planilhas
+            # de cliente único (cliente_fixo) não têm CLIENTE/PROJETO nunca, então
+            # SITE (NOME/LOCALIDADE) é o único sinal de linha real que sobra.
+            if not cliente_raw and not projeto_raw and not site_raw:
                 continue
             data_raw = get(r, 'data')
             if isinstance(data_raw, datetime): data_val = data_raw.date().isoformat()
@@ -7477,6 +7501,13 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
             if not status_mapeado:
                 puladas_sem_status += 1
                 continue
+            # Planilha de cronograma real vem com o histórico inteiro junto --
+            # sem esse filtro (ligado por padrão), um upload de rotina duplica
+            # no banco milhares de atividades já concluídas/canceladas de novo
+            # (2026-08-18, a pedido do usuário).
+            if somente_pendentes and status_mapeado in ('concluido', 'cancelado'):
+                puladas_ja_concluidas += 1
+                continue
             horario_raw = get(r, 'horario_agendado')
             horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
             # Savepoint por linha -- planilhas reais têm valor fora do
@@ -7487,10 +7518,11 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
                 cur.execute("""
                     INSERT INTO status_atividades
                         (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
-                         site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                         site_sigla, site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (cid, data_val, horario_val, corta(get(r, 'tecnico'), 150),
-                      corta(get(r, 'n2_responsavel'), 150), corta(get(r, 'site'), 150),
+                      corta(get(r, 'n2_responsavel'), 150), corta(get(r, 'site_sigla'), 50),
+                      corta(get(r, 'site'), 150),
                       str(get(r, 'endereco') or '').strip(), corta(get(r, 'cidade'), 100),
                       corta(get(r, 'uf'), 2), corta(get(r, 'subprojeto'), 150),
                       corta(get(r, 'ticket'), 100), status_mapeado,
@@ -7507,6 +7539,7 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
             "puladas_sem_cliente": [{"nome": k, "ocorrencias": v}
                                      for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
             "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
+            "puladas_ja_concluidas": puladas_ja_concluidas,
         }
     except HTTPException: raise
     except Exception as e:

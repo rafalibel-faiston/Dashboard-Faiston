@@ -1850,8 +1850,17 @@
             <h2 class="text-lg font-bold text-faiston-dark">Importar planilha</h2>
             <button onclick="scFecharModalImportar()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
-        <p class="text-xs text-faiston-muted mb-4">Aceita uma planilha de cronograma/atividades (ex.: exportada de outro controle). Só as colunas que já existem no sistema são importadas — Cliente, Subprojeto, Cidade/UF, Técnico, Agendamento/Horário, Status, N2 Responsável, Ticket, Observação. Linhas cujo cliente não bate com nenhum cadastrado ficam de fora e aparecem no resumo.</p>
+        <p class="text-xs text-faiston-muted mb-4">Aceita uma planilha de cronograma/atividades (ex.: exportada de outro controle, ou o modelo de cronograma que o time já usa — SIGLA/NOME/DATA/STATUS/TÉCNICO). Só as colunas que já existem no sistema são importadas. Linhas cujo cliente não bate com nenhum cadastrado ficam de fora e aparecem no resumo.</p>
+        <label class="block text-xs font-semibold text-faiston-dark mb-1">Cliente</label>
+        <select id="sc-importar-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 mb-1 text-sm">
+            <option value="">Detectar pela planilha (coluna Cliente/Projeto)</option>
+        </select>
+        <p class="text-[11px] text-faiston-faint mb-3">Escolha um cliente aqui só se a planilha for de um único cliente e não tiver coluna Cliente/Projeto (ex.: cronograma de parceiro tipo VITA/Arcos Dourados) — todas as linhas vão pra esse cliente.</p>
         <input type="file" id="sc-importar-arquivo" accept=".xlsx" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2.5 mb-3">
+        <label class="flex items-center gap-2 text-xs text-faiston-dark mb-3">
+            <input type="checkbox" id="sc-importar-so-pendentes" checked class="rounded">
+            Só pendentes (não traz atividade já concluída/cancelada)
+        </label>
         <button onclick="scConfirmarImportar()" id="sc-importar-btn" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Importar</button>
         <div id="sc-importar-resultado" class="mt-4"></div>
     </div>
@@ -9832,6 +9841,10 @@ function scAbrirModalImportar() {
     if (!scPodeCriarOuImportar()) return;
     document.getElementById('sc-importar-arquivo').value = '';
     document.getElementById('sc-importar-resultado').innerHTML = '';
+    document.getElementById('sc-importar-so-pendentes').checked = true;
+    const selCliente = document.getElementById('sc-importar-cliente');
+    selCliente.innerHTML = '<option value="">Detectar pela planilha (coluna Cliente/Projeto)</option>'
+        + scClientes.map(c => `<option value="${c.id}">${scEsc(c.nome)}</option>`).join('');
     document.getElementById('modal-sc-importar').classList.remove('hidden');
 }
 function scFecharModalImportar() {
@@ -9847,6 +9860,9 @@ async function scConfirmarImportar() {
     try {
         const formData = new FormData();
         formData.append('file', input.files[0]);
+        const clienteSel = document.getElementById('sc-importar-cliente').value;
+        if (clienteSel) formData.append('cliente_id', clienteSel);
+        formData.append('somente_pendentes', document.getElementById('sc-importar-so-pendentes').checked ? 'true' : 'false');
         const res = await fetch('/api/status-campo/importar-planilha', { method: 'POST', body: formData });
         const data = await res.json();
         if (!res.ok) {
@@ -9858,6 +9874,7 @@ async function scConfirmarImportar() {
             <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 font-semibold mb-2">
                 ${data.importadas} atividade(s) importada(s) da aba "${scEsc(data.aba_usada)}"
             </div>
+            ${data.puladas_ja_concluidas ? `<div class="text-xs text-slate-500 mb-1">${data.puladas_ja_concluidas} linha(s) já concluída(s)/cancelada(s) na planilha — não importadas (filtro "só pendentes").</div>` : ''}
             ${data.puladas_sem_status ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_status} linha(s) puladas — status não reconhecido.</div>` : ''}
             ${data.puladas_sem_data ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_data} linha(s) puladas — sem data válida.</div>` : ''}
             ${data.puladas_erro ? `<div class="text-xs text-red-500 mb-1">${data.puladas_erro} linha(s) puladas — erro ao gravar (valor inválido ou longo demais).</div>` : ''}
