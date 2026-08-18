@@ -9878,6 +9878,7 @@ async function scConfirmarImportar() {
             ${data.puladas_sem_status ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_status} linha(s) puladas — status não reconhecido.</div>` : ''}
             ${data.puladas_sem_data ? `<div class="text-xs text-amber-600 mb-1">${data.puladas_sem_data} linha(s) puladas — sem data válida.</div>` : ''}
             ${data.puladas_erro ? `<div class="text-xs text-red-500 mb-1">${data.puladas_erro} linha(s) puladas — erro ao gravar (valor inválido ou longo demais).</div>` : ''}
+            ${data.tecnicos_nao_encontrados ? `<div class="text-xs text-amber-600 mb-1">${data.tecnicos_nao_encontrados} atividade(s) importada(s) com técnico não encontrado no cadastro — nome ficou salvo como texto, sem vínculo com o cadastro de técnicos.</div>` : ''}
             ${semCliente.length ? `
                 <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-3 mb-1.5">Sem cliente correspondente (${semCliente.length})</div>
                 <div class="border border-faiston-border rounded-lg overflow-hidden max-h-48 overflow-y-auto custom-scrollbar">

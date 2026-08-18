@@ -7462,6 +7462,27 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_i
                         return cid
             return None
 
+        # Cada linha da planilha só traz o nome do técnico digitado por
+        # alguém, igual "Nova atividade" -- sem isso, tecnico_id nunca era
+        # preenchido no import, só o texto solto (2026-08-18, a pedido do
+        # usuário: "colocar o técnico na atividade de acordo com a base").
+        # Nome exato (não substring, ao contrário de cliente) porque nome de
+        # pessoa é fácil de dar falso positivo por trecho em comum.
+        cur.execute("SELECT id, nome, estado FROM tecnicos WHERE ativo = TRUE")
+        tecnicos_norm = [(_sc_norm_nome(nome), (estado or '').strip().upper()[:2], tid)
+                          for tid, nome, estado in cur.fetchall()]
+
+        def buscar_tecnico(nome_raw, uf_raw):
+            nn = _sc_norm_nome(nome_raw)
+            if not nn: return None
+            candidatos = [tid for norm_nome, _uf, tid in tecnicos_norm if norm_nome == nn]
+            if not candidatos: return None
+            uf = (uf_raw or '').strip().upper()[:2]
+            if uf:
+                na_uf = [tid for norm_nome, _uf, tid in tecnicos_norm if norm_nome == nn and _uf == uf]
+                if na_uf: return na_uf[0]
+            return candidatos[0]
+
         def get(r, field):
             idx = col.get(field)
             v = r[idx] if idx is not None and idx < len(r) else None
@@ -7476,6 +7497,7 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_i
         puladas_sem_data = 0
         puladas_ja_concluidas = 0
         puladas_erro = 0
+        tecnicos_nao_encontrados = 0
         for r in rows[hi + 1:]:
             cliente_raw = str(get(r, 'cliente') or '').strip()
             projeto_raw = str(get(r, 'projeto') or '').strip()
@@ -7510,6 +7532,10 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_i
                 continue
             horario_raw = get(r, 'horario_agendado')
             horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
+            tecnico_raw = get(r, 'tecnico')
+            tid = buscar_tecnico(tecnico_raw, get(r, 'uf'))
+            if tecnico_raw and not tid:
+                tecnicos_nao_encontrados += 1
             # Savepoint por linha -- planilhas reais têm valor fora do
             # padrão de vez em quando (campo longo demais etc.); sem isso,
             # uma linha ruim aborta a transação inteira e nada é salvo.
@@ -7517,10 +7543,10 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_i
             try:
                 cur.execute("""
                     INSERT INTO status_atividades
-                        (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
+                        (cliente_id, data, horario_agendado, tecnico, tecnico_id, n2_responsavel,
                          site_sigla, site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (cid, data_val, horario_val, corta(get(r, 'tecnico'), 150),
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (cid, data_val, horario_val, corta(tecnico_raw, 150), tid,
                       corta(get(r, 'n2_responsavel'), 150), corta(get(r, 'site_sigla'), 50),
                       corta(get(r, 'site'), 150),
                       str(get(r, 'endereco') or '').strip(), corta(get(r, 'cidade'), 100),
@@ -7540,6 +7566,7 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_i
                                      for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
             "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
             "puladas_ja_concluidas": puladas_ja_concluidas,
+            "tecnicos_nao_encontrados": tecnicos_nao_encontrados,
         }
     except HTTPException: raise
     except Exception as e:
