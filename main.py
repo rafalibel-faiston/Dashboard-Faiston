@@ -1963,6 +1963,14 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
         else:
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s, cargo=%s WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, u.email, time_val, cargo_val, uid))
+        # sessoes guarda uma cópia de nome/perfil/time/cargo tirada no login
+        # (get_session lê só daqui, não faz JOIN com usuarios). Sem isso, quem
+        # já está logado só vê nome/perfil/time/cargo novos depois de deslogar
+        # e logar de novo -- foi o que aconteceu com o Jefferson (cargo virou
+        # Analista, mas a sessão ativa dele continuou com o valor antigo e o
+        # campo de atribuir tarefa pro Backoffice não aparecia).
+        cur.execute("UPDATE sessoes SET nome=%s, perfil=%s, time_usuario=%s, cargo=%s WHERE usuario_id=%s",
+                    (u.nome, u.perfil, time_val, cargo_val, uid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
