@@ -3499,7 +3499,8 @@ def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "",
             params.append(data_fim + " 23:59:59")
         filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         cur.execute(f"""SELECT u.nome, t.descricao, t.cliente, t.prioridade, t.status,
-            t.segundos, t.criado_em, t.atualizado_em
+            t.segundos, t.criado_em, t.atualizado_em, COALESCE(t.peso,0),
+            t.prazo_status, t.justificativa_atraso
             FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
             {filtro} ORDER BY t.criado_em DESC""", tuple(params))
         rows = cur.fetchall()
@@ -3521,9 +3522,13 @@ def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "",
         border = Border(bottom=Side(style='thin', color='E2E8F0'))
         center = Alignment(horizontal='center', vertical='center')
 
-        # Cabeçalho
-        headers = ["Funcionário", "Tarefa", "Cliente", "Prioridade", "Status", "Horas", "Minutos", "Total (h)", "Criado em", "Atualizado em"]
-        col_widths = [25, 40, 20, 12, 15, 8, 8, 10, 18, 18]
+        # Cabeçalho -- data e hora de criação/atualização em colunas separadas
+        # (em vez de um texto "AAAA-MM-DD HH:MM" só, mais fácil de ler/filtrar
+        # fora do Excel), peso da atividade, e o desfecho do prazo (carimbado
+        # só na conclusão) com o motivo do atraso quando ficou fora do prazo.
+        headers = ["Funcionário", "Tarefa", "Cliente", "Prioridade", "Peso", "Status", "Horas", "Minutos", "Total (h)",
+                   "Criado em", "Hora criação", "Atualizado em", "Hora atualização", "Prazo", "Motivo do atraso"]
+        col_widths = [25, 40, 20, 12, 8, 15, 8, 8, 10, 14, 12, 14, 12, 16, 40]
         for col, (h, w) in enumerate(zip(headers, col_widths), 1):
             cell = ws.cell(row=1, column=col, value=h)
             cell.font = header_font
@@ -3536,24 +3541,37 @@ def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "",
         status_map = {"concluido": "Concluído", "em_andamento": "Em Andamento", "aberto": "Aberto"}
         prio_colors = {"Alta": "FFE4E6", "Media": "FEF3C7", "Baixa": "D1FAE5"}
         status_colors = {"concluido": "D1FAE5", "em_andamento": "CFFAFE", "aberto": "F1F5F9"}
+        prazo_map = {"dentro": "Dentro do prazo", "fora": "Fora do prazo", "sem_prazo": "Sem prazo definido"}
 
+        DATE_COLS = (10, 12)  # Criado em / Atualizado em
+        TIME_COLS = (11, 13)  # Hora criação / Hora atualização
         for i, r in enumerate(rows, 2):
             h = r[5] // 3600
             m = (r[5] % 3600) // 60
             total_h = round(r[5] / 3600, 2)
             status_label = status_map.get(r[4], r[4])
-            row_data = [r[0], r[1], r[2], r[3], status_label, h, m, total_h,
-                str(r[6])[:16] if r[6] else "", str(r[7])[:16] if r[7] else ""]
+            prazo_label = prazo_map.get(r[9], "")
+            row_data = [r[0], r[1], r[2], r[3], r[8], status_label, h, m, total_h,
+                r[6].date() if r[6] else None, r[6].time() if r[6] else None,
+                r[7].date() if r[7] else None, r[7].time() if r[7] else None,
+                prazo_label, r[10] or ""]
             fill = PatternFill("solid", fgColor="FFFFFF") if i % 2 == 0 else alt_fill
             for col, val in enumerate(row_data, 1):
                 cell = ws.cell(row=i, column=col, value=val)
                 cell.border = border
                 cell.alignment = Alignment(vertical='center')
-                # Cor por prioridade e status
+                if col in DATE_COLS:
+                    cell.number_format = "DD/MM/YYYY"
+                elif col in TIME_COLS:
+                    cell.number_format = "HH:MM"
+                # Cor por prioridade, status e prazo
                 if col == 4 and r[3] in prio_colors:
                     cell.fill = PatternFill("solid", fgColor=prio_colors[r[3]])
-                elif col == 5 and r[4] in status_colors:
+                elif col == 6 and r[4] in status_colors:
                     cell.fill = PatternFill("solid", fgColor=status_colors[r[4]])
+                elif col == 14 and r[9] == "fora":
+                    cell.fill = PatternFill("solid", fgColor="FFE4E6")
+                    cell.font = Font(color="C02234", bold=True)
                 else:
                     cell.fill = fill
             ws.row_dimensions[i].height = 22
@@ -3561,8 +3579,8 @@ def exportar_excel(cliente: str = "", data_inicio: str = "", data_fim: str = "",
         # Totais
         total_row = len(rows) + 2
         ws.cell(row=total_row, column=1, value="TOTAL").font = Font(bold=True)
-        ws.cell(row=total_row, column=6, value=sum(r[5]//3600 for r in rows)).font = Font(bold=True)
-        ws.cell(row=total_row, column=8, value=round(sum(r[5] for r in rows)/3600, 2)).font = Font(bold=True)
+        ws.cell(row=total_row, column=7, value=sum(r[5]//3600 for r in rows)).font = Font(bold=True)
+        ws.cell(row=total_row, column=9, value=round(sum(r[5] for r in rows)/3600, 2)).font = Font(bold=True)
 
         output = io.BytesIO()
         wb.save(output)
