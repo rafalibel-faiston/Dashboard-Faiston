@@ -1449,56 +1449,84 @@ def montar_pendencias_funcionario(cur, usuario_id: int, hoje) -> dict:
             "n_abertas": n_abertas, "n_andamento": n_andamento, "n_atrasadas": n_atrasadas}
 
 
-def _corpo_email_pendencias(dados: dict, hoje) -> str:
-    """Corpo do e-mail pessoal de fim de expediente: 3 cards (abertas/andamento/
-    atrasadas, mesmo estilo de montar_kpis) + lista das tarefas pendentes."""
+def _corpo_email_pendencias(dados: dict, hoje, primeiro_nome: str, system_url: str) -> str:
+    """Corpo do e-mail pessoal de fim de expediente: saudação, 3 cards (abertas/
+    andamento/atrasadas, mesmo estilo de montar_kpis), botão pro quadro do
+    funcionário e a lista das tarefas pendentes -- cada uma como um cartão
+    (ícone + descrição + selo), no mesmo padrão visual do painel de detalhe
+    do calendário em static/index.html."""
     import html as _html
+
+    saudacao = (f'<p style="margin:0 0 20px;font-size:14px;color:#5E647A;line-height:1.6">'
+                f'Oi, <strong style="color:#0B0D1F">{_html.escape(primeiro_nome)}</strong> — antes de fechar o dia, '
+                f'dá uma olhada no que ainda está pendente no Faiston OPS:</p>')
 
     def card(emoji, num, rotulo, cor, chip):
         return (f'<td width="32%" valign="top" style="padding:0">'
                 f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
                 f'style="background:#FBFBFE;border:1px solid #ECEEF4;border-top:3px solid {cor};border-radius:13px">'
-                f'<tr><td align="center" style="padding:17px 8px 15px">'
-                f'<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 9px">'
-                f'<tr><td style="width:38px;height:38px;background:{chip};border-radius:11px;text-align:center;'
-                f'vertical-align:middle;font-size:18px;line-height:38px">{emoji}</td></tr></table>'
-                f'<div style="font-size:32px;font-weight:800;color:{cor};line-height:1;letter-spacing:-1.2px">{num}</div>'
-                f'<div style="font-size:10.5px;color:#8A90A2;text-transform:uppercase;letter-spacing:.7px;'
-                f'font-weight:700;margin-top:6px">{rotulo}</div></td></tr></table></td>')
+                f'<tr><td align="center" style="padding:16px 8px 14px">'
+                f'<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 8px">'
+                f'<tr><td style="width:34px;height:34px;background:{chip};border-radius:10px;text-align:center;'
+                f'vertical-align:middle;font-size:16px;line-height:34px">{emoji}</td></tr></table>'
+                f'<div style="font-size:28px;font-weight:800;color:{cor};line-height:1;letter-spacing:-1px">{num}</div>'
+                f'<div style="font-size:10px;color:#8A90A2;text-transform:uppercase;letter-spacing:.6px;'
+                f'font-weight:700;margin-top:5px">{rotulo}</div></td></tr></table></td>')
 
     cor_atraso = "#EF4444" if dados["n_atrasadas"] else "#9AA0AE"
     chip_atraso = "#FDECEC" if dados["n_atrasadas"] else "#F1F2F6"
-    cards = ('<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px"><tr>'
+    cards = ('<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px"><tr>'
              + card("⚪", dados["n_abertas"], "Abertas", "#6B7280", "#F1F2F6")
-             + '<td width="10"></td>'
+             + '<td width="8"></td>'
              + card("🚀", dados["n_andamento"], "Em andamento", "#5B2EE0", "#EEE8FE")
-             + '<td width="10"></td>'
+             + '<td width="8"></td>'
              + card("⚠️", dados["n_atrasadas"], "Atrasadas", cor_atraso, chip_atraso)
              + '</tr></table>')
 
+    botao = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px">'
+             f'<tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">'
+             f'<a href="{system_url}/funcionario" style="display:block;color:#ffffff;text-decoration:none;'
+             f'padding:14px 24px;font-weight:700;font-size:14px;border-radius:12px">Ver minhas tarefas &nbsp;&rarr;</a>'
+             f'</td></tr></table>')
+
+    STATUS_UI = {
+        "aberto": {"label": "Aberta", "cor": "#6B7280", "chip": "#F1F2F6"},
+        "em_andamento": {"label": "Em andamento", "cor": "#5B2EE0", "chip": "#EEE8FE"},
+    }
     linhas = []
     for _tid, desc, cliente, status, prazo in dados["tarefas"][:12]:
         atrasada = bool(prazo and prazo < hoje)
-        status_label = {"aberto": "Aberta", "em_andamento": "Em andamento"}.get(status, status)
-        cor = "#EF4444" if atrasada else "#8A90A2"
-        prazo_txt = prazo.strftime("%d/%m") if prazo else "sem prazo"
+        ui = STATUS_UI.get(status, STATUS_UI["aberto"])
+        selo_cor, selo_chip, selo_txt = (("#EF4444", "#FDECEC", "ATRASADA") if atrasada
+                                          else (ui["cor"], ui["chip"], ui["label"]))
+        icone = "⏰" if atrasada else ("🚀" if status == "em_andamento" else "⚪")
+        prazo_txt = prazo.strftime("prazo %d/%m") if prazo else "sem prazo"
         desc_txt = _html.escape((desc or "")[:80])
         cliente_txt = _html.escape(cliente or "") or "—"
         linhas.append(
-            f'<tr><td style="padding:9px 0;border-bottom:1px solid #F1F2F6">'
-            f'<span style="font-size:13px;color:#0B0D1F;font-weight:600">{desc_txt}</span>'
-            f'<span style="display:block;font-size:11px;color:{cor};margin-top:2px">'
-            f'{status_label} · {cliente_txt} · prazo {prazo_txt}{" · ATRASADA" if atrasada else ""}</span>'
-            f'</td></tr>')
+            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'style="margin:0 0 8px;background:#FBFBFE;border:1px solid #ECEEF4;border-radius:12px">'
+            f'<tr>'
+            f'<td width="46" style="padding:12px 0 12px 12px">'
+            f'<span style="display:inline-block;width:30px;height:30px;background:{selo_chip};border-radius:9px;'
+            f'text-align:center;vertical-align:middle;font-size:14px;line-height:30px">{icone}</span></td>'
+            f'<td style="padding:12px 8px">'
+            f'<p style="margin:0;font-size:13px;font-weight:700;color:#0B0D1F;line-height:1.35">{desc_txt}</p>'
+            f'<p style="margin:3px 0 0;font-size:11px;color:#9097AC">{cliente_txt} · {prazo_txt}</p></td>'
+            f'<td align="right" style="padding:12px 12px 12px 0;white-space:nowrap;vertical-align:top">'
+            f'<span style="display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.3px;'
+            f'padding:4px 9px;border-radius:999px;background:{selo_chip};color:{selo_cor}">{selo_txt}</span></td>'
+            f'</tr></table>')
     resto = dados["total"] - min(len(dados["tarefas"]), 12)
     if resto > 0:
-        linhas.append(f'<tr><td style="padding:9px 0;color:#AEB3C2;font-size:11px">e mais {resto} tarefa(s)…</td></tr>')
+        linhas.append(f'<p style="margin:2px 0 0;color:#AEB3C2;font-size:11px">e mais {resto} tarefa(s)…</p>')
 
-    lista = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">' + "".join(linhas) + '</table>'
-    return cards + lista
+    lista_label = ('<p style="margin:0 0 10px;font-size:11px;font-weight:800;letter-spacing:1px;'
+                    'text-transform:uppercase;color:#A78BFA">Detalhe das pendências</p>')
+    return saudacao + cards + botao + lista_label + "".join(linhas)
 
 
-def enviar_alerta_pendencias(dia=None) -> dict:
+def enviar_alerta_pendencias(dia=None, system_url: str = "") -> dict:
     """Alerta pessoal de fim de expediente: e-mail + notificação in-app pros
     funcionários com tarefa aberta ou em andamento, pra não ficar coisa parada
     de um dia pro outro por esquecimento. Roda seg-sex, antes do resumo diário
@@ -1508,6 +1536,7 @@ def enviar_alerta_pendencias(dia=None) -> dict:
     if not conn:
         return {"sucesso": False, "erro": "Banco offline"}
     try:
+        system_url = (system_url or _resolver_system_url()).rstrip("/")
         cur = conn.cursor()
         hoje = dia or _hoje_sp()
         cur.execute("""SELECT id, nome, COALESCE(email,'') FROM usuarios
@@ -1526,8 +1555,8 @@ def enviar_alerta_pendencias(dia=None) -> dict:
             criar_notificacao(conn, "pendencias_fim_dia", msg, destinatario_id=uid)
             notificados += 1
             if email:
-                corpo = _corpo_email_pendencias(dados, hoje)
                 primeiro_nome = (nome or "").split(" ")[0] or "você"
+                corpo = _corpo_email_pendencias(dados, hoje, primeiro_nome, system_url)
                 html = _shell_email("Antes de fechar o dia",
                                     f"{dados['total']} tarefa(s) pendente(s) — {primeiro_nome}", corpo)
                 assunto = f"⏰ Faiston OPS — {dados['total']} tarefa(s) pendente(s) hoje"
@@ -2686,7 +2715,8 @@ def preview_resumo_diario(enviar: int = 0, dia: str = "", faiston_token: str = C
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/admin/alerta-pendencias")
-def preview_alerta_pendencias(enviar: int = 0, dia: str = "", usuario_id: int = 0, faiston_token: str = Cookie(None)):
+def preview_alerta_pendencias(enviar: int = 0, dia: str = "", usuario_id: int = 0,
+                              request: Request = None, faiston_token: str = Cookie(None)):
     """Pré-visualiza ou dispara manualmente o alerta pessoal de fim de expediente.
     ?enviar=1 dispara de verdade pra todo mundo com pendência (só admin, porque
     é um disparo pra empresa toda, não escopado por time) · ?usuario_id=N mostra
@@ -2703,7 +2733,7 @@ def preview_alerta_pendencias(enviar: int = 0, dia: str = "", usuario_id: int = 
     if enviar == 1:
         if sess["perfil"] != "admin":
             raise HTTPException(status_code=403, detail="Só admin pode disparar o envio pra todo mundo")
-        return enviar_alerta_pendencias(d)
+        return enviar_alerta_pendencias(d, _resolver_system_url(request))
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
@@ -2718,8 +2748,8 @@ def preview_alerta_pendencias(enviar: int = 0, dia: str = "", usuario_id: int = 
                 raise HTTPException(status_code=403, detail="Usuário não pertence ao seu time")
             dados = montar_pendencias_funcionario(cur, usuario_id, d)
             cur.close(); conn.close()
-            corpo = _corpo_email_pendencias(dados, d)
             primeiro_nome = (nome or "").split(" ")[0] or "você"
+            corpo = _corpo_email_pendencias(dados, d, primeiro_nome, _resolver_system_url(request))
             html = _shell_email("Antes de fechar o dia",
                                 f"{dados['total']} tarefa(s) pendente(s) — {primeiro_nome}", corpo)
             return HTMLResponse(content=html)
