@@ -4289,7 +4289,10 @@ function agendaSelDia(key, manterAberto = false) {
         return;
     }
     _agendaDiaSel = key;
-    renderAgendaCalendario();
+    // manterAberto=true é a própria renderAgendaCalendario chamando de volta só
+    // pra atualizar o painel de detalhe -- não redesenha a grade de novo (senão
+    // é recursão infinita: render chama isto, isto chama render, ...).
+    if (!manterAberto) renderAgendaCalendario();
 
     const tarefas = (_agendaTarefasCache || []).filter(t => {
         const raw = t.data_prazo || t.data_agendamento;
