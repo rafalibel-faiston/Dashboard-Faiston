@@ -860,9 +860,9 @@ class LoginRequest(BaseModel):
     usuario: str
     senha: str
 
-TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada']
+TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada', 'Desenvolvimento']
 
-CARGO_VALIDOS = ('analista', 'backoffice', 'n2')
+CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor')
 
 def _eh_n2(sess: dict) -> bool:
     """N2 deixou de ser perfil próprio e virou cargo dentro de
@@ -2191,6 +2191,10 @@ class NovoTipoAtividade(BaseModel):
 class PesoUpdate(BaseModel):
     peso: int
 
+class NovaFrente(BaseModel):
+    area: str
+    nome: str
+
 @app.get("/api/frentes")
 def listar_frentes(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -2203,6 +2207,47 @@ def listar_frentes(faiston_token: str = Cookie(None)):
         rows = cur.fetchall()
         cur.close(); conn.close()
         return [{"id": r[0], "area": r[1], "nome": r[2]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/frentes")
+def criar_frente(f: NovaFrente, faiston_token: str = Cookie(None)):
+    """Cria uma nova frente (agrupador de tipos de atividade) dentro de uma
+    área/time -- cada área tem seu próprio catálogo de peso, independente das
+    outras (ex.: o peso do time de Desenvolvimento não tem nada a ver com o
+    peso do time de Projetos)."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
+    if f.area not in TIMES_VALIDOS: raise HTTPException(status_code=400, detail="Área inválida")
+    if not f.nome.strip(): raise HTTPException(status_code=400, detail="Informe o nome da frente")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO frentes (area, nome) VALUES (%s,%s) ON CONFLICT (area, nome) DO NOTHING RETURNING id",
+            (f.area, f.nome.strip())
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="Já existe uma frente com esse nome nessa área")
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": row[0]}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/frentes/{fid}")
+def desativar_frente(fid: int, faiston_token: str = Cookie(None)):
+    """Desativa em vez de apagar -- mesmo padrão de desativar_tipo_atividade,
+    pra tarefas antigas não perderem a referência."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE frentes SET ativo=FALSE WHERE id=%s", (fid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/tipos-atividade")
@@ -3068,7 +3113,7 @@ def get_metricas(cliente: str = "", data_inicio: str = "", data_fim: str = "", f
         # já entra em "tarefas" via N2-A (visita de campo finalizada gera
         # tarefa automática), então filtrar por cargo='n2' aqui funciona
         # igual às outras frentes.
-        if frente in ("analista", "backoffice", "n2"):
+        if frente in CARGO_VALIDOS:
             conditions.append("u.cargo = %s")
             params.append(frente)
         filtro = ("WHERE " + " AND ".join(conditions)) if conditions else ""
