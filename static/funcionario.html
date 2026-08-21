@@ -830,6 +830,7 @@ let _colabSelecionados = []; // ids dos ajudantes no modal atual
 let MEU_ID = null;
 let MEU_NOME = '';
 let MEU_CARGO = '';
+let MEU_TIME = '';
 let activeTaskId = null;
 let timerInterval = null;
 let timerSeconds = 0;
@@ -922,6 +923,7 @@ async function init() {
         MEU_ID = me.id;
         MEU_NOME = me.nome;
         MEU_CARGO = me.cargo || '';
+        MEU_TIME = me.time || 'Projetos';
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'demo' && !_EMBED) document.getElementById('demo-back-bar').classList.remove('hidden');
@@ -1582,7 +1584,9 @@ let _tiposAtividade = [];
 
 async function carregarTiposAtividade() {
     if (_tiposAtividade.length) return;
-    const res = await fetch('/api/tipos-atividade');
+    // Escopado pelo time do próprio funcionário -- o catálogo de peso é
+    // independente por área (o do Desenvolvimento não é o mesmo do Projetos).
+    const res = await fetch('/api/tipos-atividade?area=' + encodeURIComponent(MEU_TIME));
     if (!res.ok) return;
     _tiposAtividade = await res.json();
     const sel = document.getElementById('input-tipo-atividade');
