@@ -1522,6 +1522,120 @@ def montar_resumo_diario(cur, inicio, fim, time_filter: str = None):
     return corpo, total
 
 
+# ── Alerta pessoal de fim de expediente (pendências) ──────────────────────────
+def montar_pendencias_funcionario(cur, usuario_id: int, hoje) -> dict:
+    """Tarefas pendentes de UM funcionário: abertas, em andamento e atrasadas
+    (prazo já vencido, independente do status). Usado no alerta de fim de
+    expediente -- e-mail + notificação pessoal -- pra quem esquece de
+    atualizar a tarefa antes do dia fechar."""
+    cur.execute("""
+        SELECT id, descricao, cliente, status, data_prazo
+        FROM tarefas
+        WHERE usuario_id = %s AND status <> 'concluido'
+        ORDER BY CASE WHEN data_prazo IS NOT NULL AND data_prazo < %s THEN 0 ELSE 1 END,
+                 data_prazo NULLS LAST, criado_em
+    """, (usuario_id, hoje))
+    tarefas = cur.fetchall()
+    n_abertas = sum(1 for t in tarefas if t[3] == 'aberto')
+    n_andamento = sum(1 for t in tarefas if t[3] == 'em_andamento')
+    n_atrasadas = sum(1 for t in tarefas if t[4] and t[4] < hoje)
+    return {"total": len(tarefas), "tarefas": tarefas,
+            "n_abertas": n_abertas, "n_andamento": n_andamento, "n_atrasadas": n_atrasadas}
+
+
+def _corpo_email_pendencias(dados: dict, hoje) -> str:
+    """Corpo do e-mail pessoal de fim de expediente: 3 cards (abertas/andamento/
+    atrasadas, mesmo estilo de montar_kpis) + lista das tarefas pendentes."""
+    import html as _html
+
+    def card(emoji, num, rotulo, cor, chip):
+        return (f'<td width="32%" valign="top" style="padding:0">'
+                f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                f'style="background:#FBFBFE;border:1px solid #ECEEF4;border-top:3px solid {cor};border-radius:13px">'
+                f'<tr><td align="center" style="padding:17px 8px 15px">'
+                f'<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 9px">'
+                f'<tr><td style="width:38px;height:38px;background:{chip};border-radius:11px;text-align:center;'
+                f'vertical-align:middle;font-size:18px;line-height:38px">{emoji}</td></tr></table>'
+                f'<div style="font-size:32px;font-weight:800;color:{cor};line-height:1;letter-spacing:-1.2px">{num}</div>'
+                f'<div style="font-size:10.5px;color:#8A90A2;text-transform:uppercase;letter-spacing:.7px;'
+                f'font-weight:700;margin-top:6px">{rotulo}</div></td></tr></table></td>')
+
+    cor_atraso = "#EF4444" if dados["n_atrasadas"] else "#9AA0AE"
+    chip_atraso = "#FDECEC" if dados["n_atrasadas"] else "#F1F2F6"
+    cards = ('<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px"><tr>'
+             + card("⚪", dados["n_abertas"], "Abertas", "#6B7280", "#F1F2F6")
+             + '<td width="10"></td>'
+             + card("🚀", dados["n_andamento"], "Em andamento", "#5B2EE0", "#EEE8FE")
+             + '<td width="10"></td>'
+             + card("⚠️", dados["n_atrasadas"], "Atrasadas", cor_atraso, chip_atraso)
+             + '</tr></table>')
+
+    linhas = []
+    for _tid, desc, cliente, status, prazo in dados["tarefas"][:12]:
+        atrasada = bool(prazo and prazo < hoje)
+        status_label = {"aberto": "Aberta", "em_andamento": "Em andamento"}.get(status, status)
+        cor = "#EF4444" if atrasada else "#8A90A2"
+        prazo_txt = prazo.strftime("%d/%m") if prazo else "sem prazo"
+        desc_txt = _html.escape((desc or "")[:80])
+        cliente_txt = _html.escape(cliente or "") or "—"
+        linhas.append(
+            f'<tr><td style="padding:9px 0;border-bottom:1px solid #F1F2F6">'
+            f'<span style="font-size:13px;color:#0B0D1F;font-weight:600">{desc_txt}</span>'
+            f'<span style="display:block;font-size:11px;color:{cor};margin-top:2px">'
+            f'{status_label} · {cliente_txt} · prazo {prazo_txt}{" · ATRASADA" if atrasada else ""}</span>'
+            f'</td></tr>')
+    resto = dados["total"] - min(len(dados["tarefas"]), 12)
+    if resto > 0:
+        linhas.append(f'<tr><td style="padding:9px 0;color:#AEB3C2;font-size:11px">e mais {resto} tarefa(s)…</td></tr>')
+
+    lista = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">' + "".join(linhas) + '</table>'
+    return cards + lista
+
+
+def enviar_alerta_pendencias(dia=None) -> dict:
+    """Alerta pessoal de fim de expediente: e-mail + notificação in-app pros
+    funcionários com tarefa aberta ou em andamento, pra não ficar coisa parada
+    de um dia pro outro por esquecimento. Roda seg-sex, antes do resumo diário
+    dos gestores -- mesmo padrão de gate: quem não tem pendência não recebe
+    nada (nem e-mail, nem notificação)."""
+    conn = get_db()
+    if not conn:
+        return {"sucesso": False, "erro": "Banco offline"}
+    try:
+        cur = conn.cursor()
+        hoje = dia or _hoje_sp()
+        cur.execute("""SELECT id, nome, COALESCE(email,'') FROM usuarios
+                       WHERE ativo=TRUE AND perfil='funcionario'""")
+        funcionarios = cur.fetchall()
+
+        enviados, notificados = 0, 0
+        for uid, nome, email in funcionarios:
+            dados = montar_pendencias_funcionario(cur, uid, hoje)
+            if dados["total"] == 0:
+                continue
+            msg = (f"⏰ Antes de fechar o dia: {dados['n_abertas']} aberta(s), "
+                   f"{dados['n_andamento']} em andamento" +
+                   (f", {dados['n_atrasadas']} atrasada(s)" if dados["n_atrasadas"] else "") +
+                   " — dá uma olhada no Faiston OPS.")
+            criar_notificacao(conn, "pendencias_fim_dia", msg, destinatario_id=uid)
+            notificados += 1
+            if email:
+                corpo = _corpo_email_pendencias(dados, hoje)
+                primeiro_nome = (nome or "").split(" ")[0] or "você"
+                html = _shell_email("Antes de fechar o dia",
+                                    f"{dados['total']} tarefa(s) pendente(s) — {primeiro_nome}", corpo)
+                assunto = f"⏰ Faiston OPS — {dados['total']} tarefa(s) pendente(s) hoje"
+                if _brevo_send(email, assunto, html):
+                    enviados += 1
+        conn.commit()
+        cur.close(); conn.close()
+        print(f"[alerta-pendencias] {hoje}: {notificados} notificado(s), {enviados} e-mail(s)")
+        return {"sucesso": True, "notificados": notificados, "enviados": enviados, "dia": str(hoje)}
+    except Exception as e:
+        print(f"[alerta-pendencias] erro: {e}")
+        return {"sucesso": False, "erro": str(e)}
+
+
 def _shell_email(titulo: str, subtitulo: str, corpo_html: str) -> str:
     """Envelope visual padrão (header da marca + footer) para e-mails do OPS."""
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
@@ -2662,6 +2776,65 @@ def preview_resumo_diario(enviar: int = 0, dia: str = "", faiston_token: str = C
         html = _shell_email("Resumo do dia",
                             f"{d.strftime('%d/%m/%Y')} · {total} alteração(ões) · {escopo}", corpo)
         return HTMLResponse(content=html)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/admin/alerta-pendencias")
+def preview_alerta_pendencias(enviar: int = 0, dia: str = "", usuario_id: int = 0, faiston_token: str = Cookie(None)):
+    """Pré-visualiza ou dispara manualmente o alerta pessoal de fim de expediente.
+    ?enviar=1 dispara de verdade pra todo mundo com pendência (só admin, porque
+    é um disparo pra empresa toda, não escopado por time) · ?usuario_id=N mostra
+    o HTML do e-mail de um funcionário específico · sem parâmetros, lista quem
+    receberia e quantas pendências cada um tem hoje."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "diretor", "demo"):
+        raise HTTPException(status_code=403, detail="Sem permissão")
+    from datetime import datetime
+    try:
+        d = datetime.strptime(dia, "%Y-%m-%d").date() if dia else _hoje_sp()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data inválida (use YYYY-MM-DD)")
+    if enviar == 1:
+        if sess["perfil"] != "admin":
+            raise HTTPException(status_code=403, detail="Só admin pode disparar o envio pra todo mundo")
+        return enviar_alerta_pendencias(d)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        if usuario_id:
+            cur.execute("SELECT nome, COALESCE(time,'Projetos') FROM usuarios WHERE id=%s AND perfil='funcionario'", (usuario_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Funcionário não encontrado")
+            nome, time_u = row
+            if sess["perfil"] == "gestor" and time_u != sess.get("time", "Projetos"):
+                raise HTTPException(status_code=403, detail="Usuário não pertence ao seu time")
+            dados = montar_pendencias_funcionario(cur, usuario_id, d)
+            cur.close(); conn.close()
+            corpo = _corpo_email_pendencias(dados, d)
+            primeiro_nome = (nome or "").split(" ")[0] or "você"
+            html = _shell_email("Antes de fechar o dia",
+                                f"{dados['total']} tarefa(s) pendente(s) — {primeiro_nome}", corpo)
+            return HTMLResponse(content=html)
+        # Sem usuario_id: lista quem receberia e quantas pendências cada um tem.
+        tf = None if sess["perfil"] in ("admin", "diretor") else sess.get("time", "Projetos")
+        q = "SELECT id, nome FROM usuarios WHERE ativo=TRUE AND perfil='funcionario'"
+        params = []
+        if tf:
+            q += " AND COALESCE(time,'Projetos') = %s"
+            params.append(tf)
+        cur.execute(q, params)
+        resultado = []
+        for uid, nome in cur.fetchall():
+            dados = montar_pendencias_funcionario(cur, uid, d)
+            if dados["total"] > 0:
+                resultado.append({"usuario_id": uid, "nome": nome, "total": dados["total"],
+                                   "abertas": dados["n_abertas"], "andamento": dados["n_andamento"],
+                                   "atrasadas": dados["n_atrasadas"]})
+        cur.close(); conn.close()
+        return {"dia": str(d), "qtd_receberiam": len(resultado), "detalhe": resultado}
+    except HTTPException: raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -6047,6 +6220,17 @@ try:
                            day_of_week="mon-fri", hour=_resumo_hora, minute=0,
                            id="resumo_diario", replace_existing=True)
         print(f"APScheduler — resumo diário agendado seg-sex às {_resumo_hora}h")
+    # Alerta pessoal de pendências no fim do expediente (e-mail + notificação),
+    # uma hora antes do resumo diário por padrão, pra dar tempo de atualizar.
+    # Desligado por padrão (feature nova, dispara pra empresa toda): revisar o
+    # preview em GET /api/admin/alerta-pendencias antes de ligar em produção
+    # via ALERTA_PENDENCIAS_ENABLED=1. ALERTA_PENDENCIAS_HORA define o horário (default 17).
+    if os.environ.get("ALERTA_PENDENCIAS_ENABLED", "0") == "1":
+        _pendencias_hora = int(os.environ.get("ALERTA_PENDENCIAS_HORA", "17"))
+        _scheduler.add_job(enviar_alerta_pendencias, "cron",
+                           day_of_week="mon-fri", hour=_pendencias_hora, minute=0,
+                           id="alerta_pendencias", replace_existing=True)
+        print(f"APScheduler — alerta de pendências agendado seg-sex às {_pendencias_hora}h")
     # Sync do Microsoft Loop -- desativado por padrão (LOOP_SYNC_ENABLED="0")
     # até o Entra ID App Registration existir de verdade. Ver bloco acima.
     if os.environ.get("LOOP_SYNC_ENABLED", "0") == "1":
