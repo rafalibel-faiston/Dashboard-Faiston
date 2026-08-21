@@ -417,6 +417,12 @@ def setup_banco():
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_mapeamento JSONB")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_sync_em TIMESTAMP")
         cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS planilha_replace BOOLEAN DEFAULT FALSE")
+        # Projeto "leve" sem cliente/financeiro (2026-08-21) -- pra times como
+        # o Desenvolvimento, que trabalham em iniciativa interna, não em
+        # contrato de cliente. cliente_id vira opcional; quando NULL, o
+        # próprio "time" da linha escopa o projeto (ver POST /api/projetos).
+        cur.execute("ALTER TABLE projetos ALTER COLUMN cliente_id DROP NOT NULL")
+        cur.execute("ALTER TABLE projetos ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS lancamentos (
                 id SERIAL PRIMARY KEY,
@@ -4943,7 +4949,11 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
 
 @app.get("/api/opcoes-tarefa")
 def opcoes_tarefa(faiston_token: str = Cookie(None)):
-    """Retorna todos os clientes ativos (todos os times) + projetos ativos para uso no modal de tarefa."""
+    """Retorna todos os clientes ativos (todos os times) + projetos ativos para
+    uso no modal de tarefa. Projetos vinculados a cliente continuam globais
+    (comportamento de sempre); projetos "leves" sem cliente (ex.: os do time
+    de Desenvolvimento) só aparecem pra quem é do mesmo time -- ou pra
+    admin, que vê tudo."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -4953,16 +4963,46 @@ def opcoes_tarefa(faiston_token: str = Cookie(None)):
         _ensure_financeiro_tables(cur); conn.commit()
         cur.execute("SELECT id, nome FROM clientes WHERE ativo=TRUE ORDER BY nome")
         clientes = [{"id": r[0], "nome": r[1]} for r in cur.fetchall()]
+        tf = None if sess["perfil"] == "admin" else sess.get("time", "Projetos")
         cur.execute("""
-            SELECT p.id, p.nome, c.nome
+            SELECT p.id, p.nome, COALESCE(c.nome, '')
             FROM projetos p
-            JOIN clientes c ON c.id = p.cliente_id
-            WHERE p.ativo = TRUE AND c.ativo = TRUE
-            ORDER BY c.nome, p.nome
-        """)
+            LEFT JOIN clientes c ON c.id = p.cliente_id
+            WHERE p.ativo = TRUE AND (c.id IS NULL OR c.ativo = TRUE)
+              AND (p.cliente_id IS NOT NULL OR %s IS NULL OR COALESCE(p.time,'Projetos') = %s)
+            ORDER BY c.nome NULLS FIRST, p.nome
+        """, (tf, tf))
         projetos = [{"id": r[0], "nome": r[1], "cliente": r[2]} for r in cur.fetchall()]
         cur.close(); conn.close()
         return {"clientes": clientes, "projetos": projetos}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class NovoProjetoSimples(BaseModel):
+    nome: str
+    descricao: str = ""
+    time: str = ""
+
+@app.post("/api/projetos")
+def criar_projeto_simples(p: NovoProjetoSimples, faiston_token: str = Cookie(None)):
+    """Projeto "leve", sem cliente/financeiro vinculado -- pra times que
+    trabalham em iniciativa interna, não em contrato de cliente (ex.:
+    Desenvolvimento). O fluxo completo (POST /api/clientes/{id}/projetos)
+    continua existindo pra quem precisa da estrutura de cliente/orçamento."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not p.nome.strip(): raise HTTPException(status_code=400, detail="Informe o nome do projeto")
+    time_val = p.time if (sess["perfil"] == "admin" and p.time in TIMES_VALIDOS) else sess.get("time", "Projetos")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO projetos (cliente_id, nome, descricao, time) VALUES (NULL,%s,%s,%s) RETURNING id",
+            (p.nome.strip(), p.descricao.strip(), time_val)
+        )
+        new_id = cur.fetchone()[0]
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": new_id}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/todos-projetos")
