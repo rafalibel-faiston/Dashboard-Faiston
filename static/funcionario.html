@@ -596,10 +596,18 @@
                         class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
                     <option value="">— Sem projeto (demanda avulsa) —</option>
                 </select>
-                <!-- Quando HÁ projeto: cliente resolvido automático -->
+                <button type="button" id="novo-projeto-toggle" onclick="toggleNovoProjeto()"
+                        class="hidden text-[11px] text-faiston-purple font-semibold mt-1.5 hover:underline">+ Novo projeto</button>
+                <div id="novo-projeto-wrap" class="hidden mt-2 flex gap-2">
+                    <input id="novo-projeto-nome" placeholder="Nome do projeto"
+                           class="flex-1 border border-faiston-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-faiston-purple">
+                    <button type="button" onclick="criarProjetoRapido()"
+                            class="bg-faiston-purple text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-faiston-purple/90">Criar</button>
+                </div>
+                <!-- Quando HÁ projeto: cliente resolvido automático (ou "Projeto interno" pra projeto sem cliente vinculado) -->
                 <p id="cliente-resolvido" class="hidden text-[11px] text-faiston-muted mt-1.5 flex items-center gap-1">
                     <i class="ph ph-buildings text-xs"></i>
-                    Cliente: <span id="cliente-resolvido-nome" class="font-semibold text-faiston-purple"></span>
+                    <span id="cliente-resolvido-label">Cliente:</span> <span id="cliente-resolvido-nome" class="font-semibold text-faiston-purple"></span>
                 </p>
             </div>
             <!-- Quando NÃO há projeto: campo livre de demanda -->
@@ -831,6 +839,7 @@ let MEU_ID = null;
 let MEU_NOME = '';
 let MEU_CARGO = '';
 let MEU_TIME = '';
+let MEU_PERFIL = '';
 let activeTaskId = null;
 let timerInterval = null;
 let timerSeconds = 0;
@@ -924,6 +933,7 @@ async function init() {
         MEU_NOME = me.nome;
         MEU_CARGO = me.cargo || '';
         MEU_TIME = me.time || 'Projetos';
+        MEU_PERFIL = me.perfil || '';
         document.getElementById('user-nome').textContent = me.nome;
         document.getElementById('user-avatar').textContent = me.nome.charAt(0).toUpperCase();
         if (me.perfil === 'demo' && !_EMBED) document.getElementById('demo-back-bar').classList.remove('hidden');
@@ -944,9 +954,8 @@ async function init() {
     try {
         const res = await fetch('/api/opcoes-tarefa');
         if (res.ok) {
-            const { clientes, projetos } = await res.json();
+            const { clientes } = await res.json();
             const selFiltro  = document.getElementById('filter-cliente');
-            const selProjeto = document.getElementById('input-projeto');
 
             // Filtro do kanban: adiciona "Demandas Gerais" + todos os clientes
             const oDG = document.createElement('option'); oDG.value = 'Demandas Gerais'; oDG.textContent = 'Demandas Gerais';
@@ -955,17 +964,14 @@ async function init() {
                 const o = document.createElement('option'); o.value = c.nome; o.textContent = c.nome;
                 selFiltro.appendChild(o);
             });
-
-            _todosProjetos = projetos;
-            projetos.forEach(p => {
-                const o = document.createElement('option');
-                o.value = p.id;
-                o.textContent = `${p.nome} · ${p.cliente}`;
-                o.dataset.cliente = p.cliente;
-                selProjeto.appendChild(o);
-            });
         }
     } catch(e) {}
+    await carregarProjetoOptions();
+    // "+ Novo projeto" só faz sentido pra quem tem permissão de criar
+    // (mesmo nível de acesso de POST /api/projetos).
+    if (['admin', 'gestor', 'demo'].includes(MEU_PERFIL)) {
+        document.getElementById('novo-projeto-toggle').classList.remove('hidden');
+    }
 
     try {
         const res = await fetch('/api/funcionarios');
@@ -1658,6 +1664,55 @@ function openModal() {
 
 function closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
+async function carregarProjetoOptions(selecionarId) {
+    try {
+        const res = await fetch('/api/opcoes-tarefa');
+        if (!res.ok) return;
+        const { projetos } = await res.json();
+        _todosProjetos = projetos;
+        const selProjeto = document.getElementById('input-projeto');
+        selProjeto.innerHTML = '<option value="">— Sem projeto (demanda avulsa) —</option>';
+        projetos.forEach(p => {
+            const o = document.createElement('option');
+            o.value = p.id;
+            o.textContent = p.cliente ? `${p.nome} · ${p.cliente}` : p.nome;
+            o.dataset.cliente = p.cliente;
+            selProjeto.appendChild(o);
+        });
+        if (selecionarId) {
+            selProjeto.value = selecionarId;
+            selecionarProjeto(selecionarId);
+        }
+    } catch(e) {}
+}
+
+function toggleNovoProjeto() {
+    document.getElementById('novo-projeto-wrap').classList.toggle('hidden');
+    document.getElementById('novo-projeto-nome').focus();
+}
+
+async function criarProjetoRapido() {
+    const input = document.getElementById('novo-projeto-nome');
+    const nome = input.value.trim();
+    if (!nome) { alert('Informe o nome do projeto'); return; }
+    try {
+        const res = await fetch('/api/projetos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nome})
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            alert(err.detail || 'Erro ao criar projeto');
+            return;
+        }
+        const { id } = await res.json();
+        input.value = '';
+        document.getElementById('novo-projeto-wrap').classList.add('hidden');
+        await carregarProjetoOptions(id);
+    } catch(e) { alert('Erro ao criar projeto'); }
+}
+
 function selecionarProjeto(projetoId) {
     const proj = _todosProjetos.find(p => p.id == projetoId);
     const clienteHidden = document.getElementById('input-cliente');
@@ -1665,9 +1720,13 @@ function selecionarProjeto(projetoId) {
     const demandaWrap = document.getElementById('demanda-wrap');
     const demandaInput = document.getElementById('input-demanda');
     if (proj) {
-        // Com projeto: cliente vem do projeto, esconde campo de demanda livre
-        clienteHidden.value = proj.cliente;
-        document.getElementById('cliente-resolvido-nome').textContent = proj.cliente;
+        // Com projeto: cliente vem do projeto, esconde campo de demanda livre.
+        // Projeto "leve" (ex.: Desenvolvimento) não tem cliente vinculado --
+        // usa o próprio nome do projeto como cliente da tarefa.
+        const temCliente = !!proj.cliente;
+        clienteHidden.value = temCliente ? proj.cliente : proj.nome;
+        document.getElementById('cliente-resolvido-label').textContent = temCliente ? 'Cliente:' : 'Projeto interno:';
+        document.getElementById('cliente-resolvido-nome').textContent = temCliente ? proj.cliente : proj.nome;
         resolvido.classList.remove('hidden');
         demandaWrap.classList.add('hidden');
     } else {
