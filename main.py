@@ -5036,10 +5036,18 @@ async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: 
 @app.get("/api/opcoes-tarefa")
 def opcoes_tarefa(faiston_token: str = Cookie(None)):
     """Retorna todos os clientes ativos (todos os times) + projetos ativos para
-    uso no modal de tarefa. Projetos vinculados a cliente continuam globais
-    (comportamento de sempre); projetos "leves" sem cliente (ex.: os do time
-    de Desenvolvimento) só aparecem pra quem é do mesmo time -- ou pra
-    admin, que vê tudo."""
+    uso no modal de tarefa.
+    A lista de clientes continua deliberadamente sem filtro de time: os
+    clientes existentes não têm o campo `time` confiável preenchido (o
+    cadastro de cliente nunca teve tela própria até agora), então filtrar
+    aqui hoje esvaziaria a lista pra Logística/Rede Credenciada. Escopar
+    isso é seguro só depois de uma varredura confirmando o time de cada
+    cliente existente -- registrado como próximo passo, não feito agora.
+    A lista de projetos: com cliente, segue a mesma política do cliente
+    (visível pra todo mundo, mesma ressalva acima); sem cliente (projeto
+    interno, ex.: Desenvolvimento), só aparece pra quem é do mesmo time
+    (ou admin, que vê tudo) -- aí o dado é confiável, porque é criado por
+    criar_projeto_simples() e sempre carrega o próprio time."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -5067,28 +5075,55 @@ class NovoProjetoSimples(BaseModel):
     nome: str
     descricao: str = ""
     time: str = ""
+    cliente_id: Optional[int] = None
+    orcamento: float = 0.0
+    responsavel_id: Optional[int] = None
+    status_gestao: str = "EM ANDAMENTO"
+    data_inicio: Optional[str] = None
+    data_termino: Optional[str] = None
+    escopo: str = ""
 
 @app.post("/api/projetos")
 def criar_projeto_simples(p: NovoProjetoSimples, faiston_token: str = Cookie(None)):
-    """Projeto "leve", sem cliente/financeiro vinculado -- pra times que
-    trabalham em iniciativa interna, não em contrato de cliente (ex.:
-    Desenvolvimento). O fluxo completo (POST /api/clientes/{id}/projetos)
-    continua existindo pra quem precisa da estrutura de cliente/orçamento."""
+    """Cadastro único de projeto -- cliente é opcional. Substitui, na tela de
+    Gestão de Projetos e no quick-add de tarefa, o antigo caminho que exigia
+    escolher um cliente antes de tudo. Com cliente_id: o projeto herda o
+    time daquele cliente (mantém consistência -- nunca um projeto "do outro
+    time" pendurado num cliente). Sem cliente_id: vira projeto interno,
+    usando o time de quem cria (ou o escolhido, se for admin).
+
+    POST /api/clientes/{id}/projetos continua existindo à parte -- é usado
+    por financeiro.html, que já opera sempre dentro do contexto de um
+    cliente específico."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     if not p.nome.strip(): raise HTTPException(status_code=400, detail="Informe o nome do projeto")
-    time_val = p.time if (sess["perfil"] == "admin" and p.time in TIMES_VALIDOS) else sess.get("time", "Projetos")
+    status = p.status_gestao if p.status_gestao in ('EM ANDAMENTO', 'FINALIZAÇÃO', 'EM FREEZING') else 'EM ANDAMENTO'
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO projetos (cliente_id, nome, descricao, time) VALUES (NULL,%s,%s,%s) RETURNING id",
-            (p.nome.strip(), p.descricao.strip(), time_val)
-        )
+        _ensure_financeiro_tables(cur)
+        cliente_id = None
+        if p.cliente_id:
+            cur.execute("SELECT id, COALESCE(time,'Projetos') FROM clientes WHERE id=%s AND ativo=TRUE", (p.cliente_id,))
+            row = cur.fetchone()
+            if not row: raise HTTPException(status_code=400, detail="Cliente não encontrado")
+            cliente_id, time_val = row
+            if sess["perfil"] != "admin" and time_val != sess.get("time", "Projetos"):
+                raise HTTPException(status_code=403, detail="Cliente não pertence ao seu time")
+        else:
+            time_val = p.time if (sess["perfil"] == "admin" and p.time in TIMES_VALIDOS) else sess.get("time", "Projetos")
+        cur.execute("""
+            INSERT INTO projetos (cliente_id, nome, descricao, orcamento, escopo,
+                                  responsavel_id, status_gestao, data_inicio, data_termino, time, ativo)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,TRUE) RETURNING id
+        """, (cliente_id, p.nome.strip(), p.descricao, p.orcamento, p.escopo or p.descricao,
+              p.responsavel_id, status, p.data_inicio or None, p.data_termino or None, time_val))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/todos-projetos")

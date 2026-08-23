@@ -1383,22 +1383,31 @@
     </div>
 </div>
 
-<!-- MODAL NOVO PROJETO (cria vinculando ao cliente existente) -->
+<!-- MODAL NOVO PROJETO (cliente é opcional -- projeto interno usa o time direto) -->
 <div id="modal-novo-proj" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div class="flex items-center justify-between p-6 border-b border-faiston-border">
             <div>
                 <h2 class="text-lg font-bold text-faiston-dark">Novo Projeto</h2>
-                <p class="text-xs text-faiston-muted mt-0.5">Vincule a um cliente existente e configure os detalhes de gestão</p>
+                <p class="text-xs text-faiston-muted mt-0.5">Vincule a um cliente existente, ou deixe em branco pra um projeto interno do time</p>
             </div>
             <button onclick="fecharModalNovoProj()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
         </div>
         <div class="p-6 flex flex-col gap-4">
             <div class="grid grid-cols-2 gap-4">
                 <div class="col-span-2">
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cliente *</label>
-                    <select id="np-cliente" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
-                        <option value="">Selecionar cliente...</option>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Cliente (opcional)</label>
+                    <select id="np-cliente" onchange="npAtualizarTimeWrap()" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="">— Sem cliente (projeto interno) —</option>
+                    </select>
+                </div>
+                <div class="col-span-2 hidden" id="np-time-wrap">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Time</label>
+                    <select id="np-time" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
+                        <option value="Projetos">Projetos</option>
+                        <option value="Logística">Logística</option>
+                        <option value="Rede Credenciada">Rede Credenciada</option>
+                        <option value="Desenvolvimento">Desenvolvimento</option>
                     </select>
                 </div>
                 <div class="col-span-2">
@@ -7091,6 +7100,8 @@ function abrirModalNovoProj() {
     document.getElementById('np-inicio').value = '';
     document.getElementById('np-termino').value = '';
     document.getElementById('np-escopo').value = '';
+    if (window.ME) document.getElementById('np-time').value = window.ME.time || 'Projetos';
+    npAtualizarTimeWrap();
     document.getElementById('modal-novo-proj').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
     setTimeout(() => document.getElementById('np-nome').focus(), 80);
@@ -7101,21 +7112,30 @@ function fecharModalNovoProj() {
     document.body.style.overflow = '';
 }
 
+// Sem cliente: pede o time do projeto (só importa pra admin -- gestor só
+// cria no próprio time de qualquer jeito). Com cliente: o time já vem dele.
+function npAtualizarTimeWrap() {
+    const semCliente = !document.getElementById('np-cliente').value;
+    document.getElementById('np-time-wrap').classList.toggle('hidden', !semCliente);
+}
+
 async function criarProjeto() {
-    const clienteId = parseInt(document.getElementById('np-cliente').value);
+    const clienteId = parseInt(document.getElementById('np-cliente').value) || null;
     const nome = document.getElementById('np-nome').value.trim();
-    if (!clienteId) { alert('Selecione um cliente.'); return; }
     if (!nome) { alert('Informe o nome do projeto.'); return; }
     const btn = document.getElementById('btn-criar-proj');
     btn.disabled = true; btn.textContent = 'Criando...';
     try {
-        // Cria o projeto já completo (status, datas, responsável) numa única chamada
+        // Cria o projeto já completo (status, datas, responsável) numa única chamada.
+        // cliente_id é opcional -- sem ele, vira um projeto interno do time.
         const escopo = document.getElementById('np-escopo').value.trim();
-        const res = await fetch(`/api/clientes/${clienteId}/projetos`, {
+        const res = await fetch(`/api/projetos`, {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({
                 nome,
+                cliente_id: clienteId,
+                time: document.getElementById('np-time').value,
                 orcamento: parseFloat(document.getElementById('np-orcamento').value) || 0,
                 descricao: escopo,
                 escopo,
@@ -7134,7 +7154,7 @@ async function criarProjeto() {
         await carregar();
     } catch(e) {
         if (typeof mostrarErroGlobal === 'function')
-            mostrarErroGlobal('Erro ao criar projeto', e.message, `POST /api/clientes/${clienteId}/projetos`);
+            mostrarErroGlobal('Erro ao criar projeto', e.message, `POST /api/projetos`);
         else alert('Erro ao criar projeto: ' + e.message);
     }
     finally { btn.disabled = false; btn.textContent = 'Criar Projeto'; }
