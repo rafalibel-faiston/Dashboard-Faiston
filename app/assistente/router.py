@@ -549,6 +549,22 @@ async def rodar_observar_agora(faiston_token: str = Cookie(None)):
     return resumo
 
 
+@router.get("/observar/diagnostico")
+async def diagnostico_observar_endpoint(usuario_id: Optional[int] = None, faiston_token: str = Cookie(None)):
+    """Contagem/metadados de sinalização de um usuário -- nunca o texto
+    (regra 8 continua valendo pro conteúdo). Só pra depurar por que
+    alguém não recebeu sinalização (ver capacidade_observar/diagnostico.py).
+    Sem `usuario_id` na query, mira quem está logado."""
+    sess = await _exigir_admin(faiston_token)
+    from app.assistente.capacidade_observar.diagnostico import resumo
+
+    alvo = usuario_id if usuario_id is not None else sess["id"]
+    resultado = await run_in_threadpool(resumo, alvo)
+    if resultado.get("erro"):
+        raise HTTPException(status_code=500, detail=resultado["erro"])
+    return resultado
+
+
 @router.post("/observar/popular-dados-teste")
 async def popular_dados_teste_endpoint(
     body: PopularDadosTesteRequest = PopularDadosTesteRequest(), faiston_token: str = Cookie(None)

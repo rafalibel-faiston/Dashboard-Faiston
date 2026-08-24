@@ -158,7 +158,15 @@
             <button onclick="limparDadosTeste()" id="btn-limpar-teste" class="bg-white border border-faiston-border text-faiston-muted text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
                 <i class="ph ph-trash text-lg"></i> Limpar dados de teste
             </button>
+            <button onclick="verDiagnosticoObservar()" id="btn-diagnostico-observar" class="bg-white border border-faiston-border text-faiston-muted text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-magnifying-glass text-lg"></i> Ver diagnóstico
+            </button>
         </div>
+        <p class="text-xs text-faiston-faint mt-2">
+            "Ver diagnóstico" mostra só contagem e data das sinalizações do ID
+            acima (orçamento usado, cooldown) — nunca o texto gerado nem o
+            feedback dado, isso continua só da pessoa.
+        </p>
         <span id="status-observar" class="text-sm block mt-2"></span>
         <pre id="resultado-observar" class="hidden mt-3 text-xs bg-faiston-bg border border-faiston-border rounded-lg p-3 overflow-x-auto"></pre>
     </div>
@@ -374,6 +382,39 @@ async function rodarObservarAgora() {
                 ? dados.gravados + ' sinalização(ões) nova(s) gravada(s).'
                 : 'Rodou sem gerar sinalização nova (nada acionável, ou tudo em orçamento/cooldown).';
             status.className = 'text-sm text-green-600';
+            resultado.textContent = JSON.stringify(dados, null, 2);
+            resultado.classList.remove('hidden');
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function verDiagnosticoObservar() {
+    var btn = document.getElementById('btn-diagnostico-observar');
+    var status = document.getElementById('status-observar');
+    var resultado = document.getElementById('resultado-observar');
+    var alvo = _usuarioTesteAlvo();
+
+    btn.disabled = true;
+    status.textContent = 'Consultando...';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var url = '/assistente/observar/diagnostico' + (alvo !== null ? '?usuario_id=' + alvo : '');
+        var res = await fetch(url);
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui consultar o diagnóstico.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = dados.total_historico + ' sinalização(ões) no histórico, ' +
+                dados.essa_semana + ' essa semana (' + dados.vagas_restantes_essa_semana + ' vaga(s) restante(s)).';
+            status.className = 'text-sm text-faiston-muted';
             resultado.textContent = JSON.stringify(dados, null, 2);
             resultado.classList.remove('hidden');
         }
