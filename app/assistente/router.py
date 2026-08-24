@@ -127,7 +127,7 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
                 log_id,
                 resposta="".join(resposta_completa) or None,
                 respondida=False,
-                motivo_falha="timeout" if "timeout" in str(e).lower() else "erro_modelo",
+                motivo_falha=e.motivo,
                 latencia_ms=latencia_ms,
                 capacidade=capacidade,
             )
