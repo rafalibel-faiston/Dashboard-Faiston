@@ -13,8 +13,10 @@ Variáveis de ambiente:
     LLM_TIMEOUT_S  timeout da chamada em segundos (default: 30)
 """
 import os
+from types import SimpleNamespace
 from typing import AsyncIterator, Optional, Tuple
 
+import openai
 from openai import AsyncOpenAI
 
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1")
@@ -33,9 +35,61 @@ _client = AsyncOpenAI(
     timeout=LLM_TIMEOUT_S,
 )
 
+print(
+    f"[assistente/llm] base_url={LLM_BASE_URL} model={LLM_MODEL} "
+    f"chave_configurada={bool(LLM_API_KEY)}"
+)
+
 
 class ModeloIndisponivel(Exception):
-    """Sem chave configurada, ou a chamada ao modelo falhou/deu timeout."""
+    """Sem chave configurada, ou a chamada ao modelo falhou/deu timeout.
+
+    `motivo` é o que vai pra assistente_log.motivo_falha — mais específico
+    que a mensagem pro usuário, que fica sempre genérica (regra: nunca
+    stack trace nem detalhe interno pro usuário, mas o log precisa ser
+    diagnosticável)."""
+
+    def __init__(self, mensagem: str, motivo: str = "erro_modelo"):
+        super().__init__(mensagem)
+        self.motivo = motivo
+
+
+def _extrair_usage(chunk) -> Optional[object]:
+    """A Groq manda o uso do streaming em `x_groq` (chunk final), não no
+    `usage` padrão da OpenAI -- e `x_groq` chega como dict puro (campo que
+    o schema da SDK não conhece), não como objeto com atributo. Normaliza
+    os formatos possíveis pro mesmo shape (objeto com prompt_tokens/
+    completion_tokens) pra nenhum outro arquivo precisar saber da
+    diferença -- é a única função que conhece esse detalhe do provedor."""
+    x_groq = getattr(chunk, "x_groq", None)
+    if isinstance(x_groq, dict):
+        usage = x_groq.get("usage")
+    else:
+        usage = getattr(x_groq, "usage", None)
+    if usage is None:
+        usage = getattr(chunk, "usage", None)
+    if usage is None:
+        return None
+    if isinstance(usage, dict):
+        return SimpleNamespace(
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+        )
+    return usage
+
+
+def _classificar_erro(e: Exception) -> str:
+    if isinstance(e, openai.AuthenticationError):
+        return "chave_invalida"
+    if isinstance(e, openai.NotFoundError):
+        return "modelo_invalido"
+    if isinstance(e, openai.RateLimitError):
+        return "limite_taxa"
+    if isinstance(e, openai.APITimeoutError):
+        return "timeout"
+    if isinstance(e, openai.APIConnectionError):
+        return "sem_rede"
+    return "erro_modelo"
 
 
 async def completar_stream(
@@ -43,26 +97,35 @@ async def completar_stream(
 ) -> AsyncIterator[Tuple[Optional[str], Optional[object]]]:
     """Gera a resposta token a token. Cada item é (delta, usage):
     delta com texto e usage None enquanto está gerando; delta None e
-    usage preenchido no chunk final (stream_options include_usage é o que
-    faz a contagem de tokens chegar no fim do stream)."""
+    usage preenchido no chunk final (ver _extrair_usage — a Groq manda o
+    uso num campo próprio, não no padrão `stream_options` da OpenAI)."""
     if not LLM_API_KEY:
         raise ModeloIndisponivel(
-            "Nenhuma chave de API configurada (defina LLM_API_KEY ou GROQ_API_KEY)."
+            "Nenhuma chave de API configurada (defina LLM_API_KEY ou GROQ_API_KEY).",
+            motivo="sem_chave",
         )
     try:
+        # Sem stream_options aqui: é sintaxe da OpenAI, e a Groq historicamente
+        # rejeita parâmetro que não reconhece (BadRequestError em toda chamada,
+        # sem gerar um token sequer). A Groq expõe o uso de outro jeito no
+        # streaming: campo `x_groq` no chunk final, não `chunk.usage` — ver
+        # docs.groq.com. Lemos os dois pra não quebrar se um dia a Groq passar
+        # a suportar o padrão OpenAI também.
         stream = await _client.chat.completions.create(
             model=LLM_MODEL,
             messages=mensagens,
             temperature=temperature,
             stream=True,
-            stream_options={"include_usage": True},
         )
         async for chunk in stream:
-            if chunk.usage:
-                yield None, chunk.usage
+            usage = _extrair_usage(chunk)
+            if usage is not None:
+                yield None, usage
             elif chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content, None
     except ModeloIndisponivel:
         raise
     except Exception as e:
-        raise ModeloIndisponivel(str(e)) from e
+        motivo = _classificar_erro(e)
+        print(f"[assistente/llm] Erro ({motivo}) chamando {LLM_MODEL} em {LLM_BASE_URL}: {type(e).__name__}: {e}")
+        raise ModeloIndisponivel(str(e), motivo=motivo) from e
