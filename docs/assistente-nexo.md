@@ -213,6 +213,13 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    regra 1 (só lê) neste módulo, isolada em
    `capacidade_observar/dados_teste.py`, nunca chamada por nenhuma
    capacidade conversacional.
+   `POST /assistente/demo/popular` / `.../demo/limpar` (mesma tela,
+   mesmo gate) são mais amplos: criam até 4 funcionários fictícios
+   (`app/assistente/dados_demo.py`, login `demo.*`) e ~7 tarefas
+   variadas cada (feita/em andamento/aberta, tipos e clientes
+   misturados) — pra ver o sistema com dado de verdade, não só pra
+   testar a capacidade D. `limpar` remove as tarefas geradas e desativa
+   (não apaga) os usuários demo.
 6. **Capacidade E — ensinar (modo professor) — feito.** Trilha de
    onboarding guiada: reaproveita documento já indexado (Fase 3) como
    conteúdo de cada etapa — admin marca a posição de um documento na
