@@ -47,7 +47,13 @@ from app.assistente.capacidade_explicar import buscar_hibrido, montar_fontes, mo
 from app.assistente.capacidade_observar import sinalizacoes
 from app.assistente.capacidade_resumir import montar_agregado_semana
 from app.assistente.llm import ModeloIndisponivel, completar_stream
-from app.assistente.schemas import FeedbackRequest, OrdemOnboardingRequest, PerguntaRequest, SinalizacaoFeedbackRequest
+from app.assistente.schemas import (
+    FeedbackRequest,
+    OrdemOnboardingRequest,
+    PerguntaRequest,
+    PopularDadosTesteRequest,
+    SinalizacaoFeedbackRequest,
+)
 
 router = APIRouter(prefix="/assistente", tags=["assistente"])
 
@@ -544,17 +550,23 @@ async def rodar_observar_agora(faiston_token: str = Cookie(None)):
 
 
 @router.post("/observar/popular-dados-teste")
-async def popular_dados_teste_endpoint(faiston_token: str = Cookie(None)):
+async def popular_dados_teste_endpoint(
+    body: PopularDadosTesteRequest = PopularDadosTesteRequest(), faiston_token: str = Cookie(None)
+):
     """Gera dados sintéticos (tarefas repetidas, retrabalho, pendência
-    parada) pra quem está logado, só pra ver a capacidade D detectar
-    alguma coisa sem esperar dado real acumular. Exceção deliberada à
-    regra 1 (só lê) -- ferramenta de QA, admin-only, dado sempre
-    marcado com `cliente = 'Cliente Teste Observar'` (ver
-    capacidade_observar/dados_teste.py)."""
+    parada) pra ver a capacidade D detectar alguma coisa sem esperar
+    dado real acumular. `usuario_id` no corpo mira outra pessoa (pra
+    testar sinalização de mais de uma conta); sem corpo, mira quem está
+    logado. Exceção deliberada à regra 1 (só lê) -- ferramenta de QA,
+    admin-only, dado sempre marcado com `cliente = 'Cliente Teste
+    Observar'` (ver capacidade_observar/dados_teste.py)."""
     sess = await _exigir_admin(faiston_token)
     from app.assistente.capacidade_observar.dados_teste import popular
 
-    resultado = await run_in_threadpool(popular, sess["id"])
+    alvo = body.usuario_id if body.usuario_id is not None else sess["id"]
+    resultado = await run_in_threadpool(popular, alvo)
+    if resultado.get("erro") == "usuario_nao_encontrado":
+        raise HTTPException(status_code=404, detail=f"usuario_id {alvo} não encontrado")
     if resultado.get("erro"):
         raise HTTPException(status_code=500, detail=resultado["erro"])
     return resultado

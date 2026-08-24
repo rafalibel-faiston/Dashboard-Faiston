@@ -26,6 +26,14 @@ def popular(usuario_id: int) -> dict:
         return {"erro": "banco_offline"}
     try:
         cur = conn.cursor()
+        cur.execute("SELECT nome FROM usuarios WHERE id = %s", (usuario_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return {"erro": "usuario_nao_encontrado"}
+        nome = row[0]
+
         cur.execute("SELECT id FROM tipos_atividade WHERE ativo = true LIMIT 1")
         row = cur.fetchone()
         if not row:
@@ -67,10 +75,6 @@ def popular(usuario_id: int) -> dict:
             (usuario_id, "Tarefa com retrabalho de teste (observar)", _CLIENTE_TESTE, tipo_id),
         )
         tarefa_retrabalho_id = cur.fetchone()[0]
-
-        cur.execute("SELECT nome FROM usuarios WHERE id = %s", (usuario_id,))
-        row = cur.fetchone()
-        nome = row[0] if row else "Teste"
 
         for i in range(1, 6):
             cur.execute(
