@@ -11,7 +11,7 @@ avance sem cumprir o critério de aceite da fase anterior.
 ```bash
 LLM_BASE_URL=https://api.groq.com/openai/v1     # default já embutido em llm.py
 LLM_API_KEY=gsk_...                              # se ausente, cai para GROQ_API_KEY (já usada por /api/ia/insights)
-LLM_MODEL=llama-3.1-8b-instant                   # default já embutido em llm.py
+LLM_MODEL=openai/gpt-oss-20b                     # default já embutido em llm.py
 LLM_TIMEOUT_S=30
 ASSISTENTE_PERFIS_PILOTO=admin                   # lista separada por vírgula; controla quem vê e quem pode usar
 ```

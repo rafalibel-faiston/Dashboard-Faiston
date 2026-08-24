@@ -8,8 +8,10 @@ Variáveis de ambiente:
     LLM_API_KEY    chave do provedor (cai para GROQ_API_KEY se não setada,
                    porque o resto do app já usa essa variável hoje —
                    ver /api/ia/insights em main.py)
-    LLM_MODEL      id do modelo (default: llama-3.1-8b-instant, o mesmo já
-                   validado nesta conta Groq)
+    LLM_MODEL      id do modelo (default: openai/gpt-oss-20b — a Groq
+                   descontinuou llama-3.1-8b-instant em 17/jun/2026 e
+                   recomenda este como substituto direto; conferir
+                   console.groq.com/docs/models se voltar a dar 404)
     LLM_TIMEOUT_S  timeout da chamada em segundos (default: 30)
 """
 import os
@@ -21,7 +23,7 @@ from openai import AsyncOpenAI
 
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1")
 LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("GROQ_API_KEY", "")
-LLM_MODEL = os.environ.get("LLM_MODEL", "llama-3.1-8b-instant")
+LLM_MODEL = os.environ.get("LLM_MODEL", "openai/gpt-oss-20b")
 LLM_TIMEOUT_S = float(os.environ.get("LLM_TIMEOUT_S", "30"))
 
 # Construir o client não faz chamada de rede — é seguro mesmo sem chave
