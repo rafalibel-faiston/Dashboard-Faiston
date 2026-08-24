@@ -6411,6 +6411,19 @@ try:
         _scheduler.add_job(_loop_sync_job, "interval", minutes=_loop_minutos,
                            id="loop_sync", replace_existing=True)
         print(f"APScheduler — sync do Microsoft Loop a cada {_loop_minutos}min")
+    # Assistente OPS — capacidade D (observar), job de madrugada: detecta
+    # padrão de repetição/retrabalho/pendência parada, redige e grava
+    # sinalização. Desativado por padrão (ASSISTENTE_OBSERVAR_ENABLED="0")
+    # -- feature nova, precisa de combinado com a liderança antes de ligar
+    # em produção (regra 8 do CLAUDE.md do assistente: a sinalização é da
+    # pessoa, nunca sobe pro gestor -- mas alguém tem que saber que a
+    # capacidade existe antes da equipe ver o primeiro aviso).
+    if os.environ.get("ASSISTENTE_OBSERVAR_ENABLED", "0") == "1":
+        from app.assistente.capacidade_observar.job import rodar_sync as _observar_job
+        _observar_hora = int(os.environ.get("ASSISTENTE_OBSERVAR_HORA", "3"))
+        _scheduler.add_job(_observar_job, "cron", hour=_observar_hora, minute=0,
+                           id="assistente_observar", replace_existing=True)
+        print(f"APScheduler — assistente (capacidade D) agendado às {_observar_hora}h")
     _scheduler.start()
     print("APScheduler iniciado — relatório agendado para dia 1 de cada mês às 08h")
 except ImportError:

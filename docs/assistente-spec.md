@@ -35,7 +35,7 @@ a capacidade B em produção.
 
 ## 1. Schema
 
-Implementado (Fase 1 + Fase 3):
+Implementado (Fase 1 + Fase 3 + Fase 5):
 
 ```sql
 CREATE TABLE IF NOT EXISTS assistente_log (
@@ -75,6 +75,22 @@ CREATE TABLE IF NOT EXISTS documento_chunk (
     embedding    VECTOR(384) NOT NULL,           -- dimensão vem de EMBEDDING_DIM
     tsv          TSVECTOR GENERATED ALWAYS AS (to_tsvector('portuguese', texto)) STORED
 );
+
+CREATE TABLE IF NOT EXISTS sinalizacao (
+    id           BIGSERIAL PRIMARY KEY,
+    usuario_id   INTEGER NOT NULL REFERENCES usuarios(id),
+    detector     TEXT NOT NULL,                   -- 'repeticao_identica' | 'retrabalho' | 'pendencia_parada'
+    assinatura   TEXT NOT NULL,                   -- o que define "o mesmo achado de novo", por detector
+    evidencia    JSONB NOT NULL,                  -- o que foi detectado, vira input da redação e fica auditável
+    texto        TEXT NOT NULL,                   -- redigido pelo modelo em cima da evidência
+    criado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    vista_em     TIMESTAMPTZ,
+    feedback     SMALLINT                         -- NULL | 1 útil | -1 não útil | -2 nunca mais este detector
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sinalizacao_unica
+    ON sinalizacao (usuario_id, detector, assinatura, (criado_em::date));
+CREATE INDEX IF NOT EXISTS idx_sinalizacao_usuario
+    ON sinalizacao (usuario_id, vista_em, criado_em DESC);
 ```
 
 `usuario_id` referencia `usuarios(id)`, a tabela real de usuário deste
@@ -88,11 +104,10 @@ permissão, por exemplo), `setup_schema()` faz rollback só dessa parte e
 segue — `assistente_log` continua funcionando (fases 1/2 não dependem
 disso), só a capacidade B fica indisponível até habilitar a extensão.
 
-Ainda **não** criado (Fase 5):
-
-- Nenhuma tabela nova de atividade pra capacidade D: a atividade já existe
-  em `tarefas` (com `segundos` acumulado) e `status_atividades` (despacho
-  de campo). Fase 5 mapeia essas duas em vez de duplicar — ver seção 8.
+Fase 5: nenhuma tabela nova de atividade pra capacidade D foi criada —
+a atividade já existe em `tarefas`/`tarefa_historico` (backoffice/projeto)
+e `status_atividades` (despacho de campo). Os detectores mapeiam as duas
+primeiras em vez de duplicar — ver seção 8.
 
 ---
 
@@ -164,6 +179,43 @@ exceção da SDK — ver `llm.py:_classificar_erro`).
 Só atualiza o log se `usuario_id` do log bater com quem está logado
 (`log.py:registrar_feedback`) — 404 caso contrário, nunca deixa um
 usuário avaliar a pergunta de outro.
+
+### `GET /assistente/sinalizacoes` (Fase 5)
+
+```json
+{
+  "sinalizacoes": [
+    {
+      "id": 1, "detector": "repeticao_identica",
+      "texto": "Você fez o mesmo tipo de acionamento pro Arcos Dourados 14 vezes essa semana...",
+      "criado_em": "2026-08-20T13:00:00Z", "vista_em": null, "feedback": null
+    }
+  ]
+}
+```
+
+Sempre escopado por `sess["id"]` — não existe parâmetro pra pedir
+sinalização de outra pessoa.
+
+### `GET /assistente/sinalizacoes/contagem` (Fase 5)
+
+`{ "nao_vistas": 2 }` — nunca 401/403 (mesma regra de `/elegivel`, é o
+que alimenta o badge do widget); sem sessão elegível devolve `0`.
+
+### `POST /assistente/sinalizacoes/{id}/visualizar` (Fase 5)
+
+Marca `vista_em`. `403` se o id não existe ou não é da pessoa logada
+(mesma resposta pros dois casos, pra não confirmar existência de id de
+outra pessoa).
+
+### `POST /assistente/sinalizacoes/{id}/feedback` (Fase 5)
+
+```json
+{ "feedback": 1 }
+```
+
+`1` útil, `-1` não útil, `-2` desliga aquele detector pra essa pessoa
+permanentemente. `403` nas mesmas condições do endpoint acima.
 
 ---
 
@@ -397,31 +449,83 @@ abrir pra mais perfis.
 
 ---
 
-## 8. Fase 5 — Capacidade D, observar (não implementada)
+## 8. Fase 5 — Capacidade D, observar · **feito, desligada por padrão**
 
 **Sem tabela `atividade` nova.** A spec original propõe uma tabela
-genérica de atividade; neste sistema ela já existe, espalhada em duas:
+genérica de atividade; neste sistema ela já existe, espalhada — os três
+detectores implementados usam o que já existia, sem exigir desenho de
+captura adicional:
 
-- `tarefas` — id, `usuario_id`, `cliente`, `status`, `segundos`
-  (acumulado, sem início/pausa/fim registrado), `criado_em`,
-  `concluido_em`.
-- `status_atividades` — despacho técnico de campo, com `tecnico_id`,
-  `cliente_id`, `data`, `hora_chegada`/`hora_termino`, `status`.
+- `repeticao_identica` (`app/assistente/capacidade_observar/detectores.py`) —
+  `tarefas` agrupado por `(usuario_id, tipo_atividade_id, cliente)`, 5+
+  vezes numa janela de 5 dias. Assinatura: `tipo::cliente`. Peso:
+  `tempo_total_s` somado (`tarefas.segundos`).
+- `retrabalho` — `tarefa_historico` (`acao = 'editou'`) agrupado por
+  `(autor_id, tarefa_id)`, 4+ edições em 7 dias. Assinatura:
+  `tarefa::{tarefa_id}`. Peso: proxy de 30min por edição (não há duração
+  registrada por edição).
+- `pendencia_parada` — CTE com `percentile_cont(0.9)` da duração de
+  tarefas concluídas por `tipo_atividade_id` (mínimo 5 amostras em 90
+  dias), comparado contra tarefas abertas/em andamento mais velhas que
+  esse p90. Assinatura: `tipo::{tipo_atividade}`. Peso: segundos de
+  atraso sobre o p90. Usa percentil, não média — duração de tarefa tem
+  cauda longa.
 
-Isso limita o detector `duracao_anomala` da spec original: não existe
-duração "de execução real" isolada por sessão de trabalho, só o
-acumulado em `tarefas.segundos` (que pode incluir pausas). Detectores que
-não dependem disso (`repeticao_identica` sobre `tarefas.cliente` +
-`tipo_atividade_id`, `pendencia_parada` sobre `status_atividades` parado
-numa etapa, `padrao_de_calendario`) seguem viáveis sem mudança de
-captura. Antes de implementar, decidir com o Rafa se vale desenhar
-captura adicional (início/fim por sessão) ou aceitar a limitação.
+`duracao_anomala` (sessão de trabalho isolada) e `padrao_de_calendario`
+da spec original não foram implementados: não existe início/pausa/fim
+registrado por sessão neste sistema, só o acumulado em
+`tarefas.segundos` — ficam pra quando/se existir esse desenho de captura.
 
-`sinalizacao` segue como na spec original (cooldown de 30 dias, teto de 2
-por semana, `feedback = -2` desliga o detector permanentemente pra
-aquela pessoa). Regra 8 do CLAUDE.md (sinalização é da pessoa, nunca
-sobre a pessoa pro gestor) não muda — e precisa estar combinada com a
-liderança antes de qualquer sinalização real chegar em alguém.
+Regra 9 do CLAUDE.md do assistente (detecção nunca passa pelo modelo)
+garantida por teste estático: `detectores.py` não importa nada de
+`llm.py` e todo `cur.execute()` usa string SQL literal fixa
+(`tests/test_assistente_observar.py`).
+
+**Orçamento e cooldown** (`capacidade_observar/job.py`), aplicados antes
+de gastar uma chamada de modelo:
+
+- no máximo 2 sinalizações por pessoa por semana — excedente descarta,
+  não vira fila;
+- cooldown de 30 dias por `(usuario_id, detector, assinatura)`;
+- `feedback = -2` desliga aquele detector pra essa pessoa
+  permanentemente.
+
+**Redação** (`capacidade_observar/redacao.py`) é o único arquivo do
+pacote que fala com o modelo — recebe a evidência já detectada, escreve
+até duas frases sem julgar desempenho, ou responde `DESCARTAR` se não
+tiver nada de fato acionável (vira `None`, não grava sinalização).
+
+**Job diário** (`capacidade_observar/job.py:rodar`) roda fora do caminho
+de `/pergunta`, agendado via APScheduler em `main.py`
+(`ASSISTENTE_OBSERVAR_ENABLED=1`, `ASSISTENTE_OBSERVAR_HORA`, default
+3h) — **desligado por padrão**, precisa de alinhamento com a liderança
+antes de ligar (ver `assistente-nexo.md`).
+
+`sinalizacao` (schema na seção 1) é sempre lida/atualizada escopada por
+`usuario_id` (`capacidade_observar/sinalizacoes.py`, endpoints na seção
+2) — regra 8 do CLAUDE.md: a sinalização é da pessoa, nunca sobre a
+pessoa; não existe (e não pode existir) uma consulta que devolva
+sinalização de mais de uma pessoa, nem pra admin.
+
+**Critério de aceite:**
+
+- [x] Nenhuma query de detector chama o modelo — teste de AST
+      (`test_detectores_nao_importa_nada_de_llm`,
+      `test_detectores_so_usa_sql_literal_fixa`).
+- [x] Orçamento de 2/semana respeitado e prioriza o achado de maior peso
+      quando há mais candidatos que vaga
+      (`test_orcamento_limita_a_dois_por_semana_e_prioriza_maior_peso`).
+- [x] Cooldown de 30 dias bloqueia a mesma assinatura
+      (`test_cooldown_de_30_dias_bloqueia_a_mesma_assinatura`).
+- [x] `feedback = -2` desliga o detector permanentemente pra aquela
+      pessoa (`test_feedback_menos_dois_desliga_o_detector_permanentemente`).
+- [x] Teste que tenta acessar/alterar sinalização de outra pessoa e
+      espera 403 — em duas camadas, função (`sinalizacoes.py`) e
+      endpoint de verdade via `TestClient`
+      (`tests/test_assistente_sinalizacoes.py`).
+- [ ] Rodar o job de verdade contra dados reais e calibrar limiares
+      (`minimo`/`dias` de cada detector) com o que a equipe realmente
+      pergunta/reclama — não testável neste ambiente sem banco real.
 
 ---
 
@@ -450,3 +554,13 @@ liderança antes de qualquer sinalização real chegar em alguém.
   clica no chip. Testado visualmente num harness local com stream
   simulado (screenshot do fluxo completo: pergunta → resposta → chips →
   prévia expandida).
+- **Fase 5:** sino no cabeçalho (`#nexo-sino`) com badge de não vistas
+  (também espelhado no ícone flutuante, `#nexo-badge`), poll a cada 2min
+  via `GET /assistente/sinalizacoes/contagem`. Clicar abre a lista
+  (`GET /assistente/sinalizacoes`) no lugar do chat; abrir marca as
+  sinalizações como vistas (`POST .../visualizar`). Cada item tem três
+  botões de feedback (👍 útil, 👎 não útil, 🔕 não me avise mais assim —
+  `POST .../feedback` com `1`/`-1`/`-2`); depois de responder, os botões
+  desabilitam e mostram "Obrigado!", igual ao feedback de resposta do
+  chat. Testado visualmente com stream/lista simulados (screenshot do
+  badge, da lista e do feedback já dado).

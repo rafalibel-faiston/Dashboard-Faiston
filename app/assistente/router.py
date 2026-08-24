@@ -16,6 +16,12 @@ explicar → genérico. Ainda sem classificação de intenção de verdade
 (intencao.py) — cada capacidade decide sozinha se "é com ela" (achar via
 tool_choice="auto" do próprio modelo; explicar via ter achado trecho na
 busca híbrida).
+
+Fase 5: capacidade D (observar) — proativa, fora do caminho de
+/pergunta. O job diário (capacidade_observar/job.py, agendado no
+main.py) detecta padrão, redige e grava sinalização; os endpoints
+/sinalizacoes* aqui só leem/atualizam o que já foi gravado, sempre
+escopado à pessoa que pergunta.
 """
 import json
 import os
@@ -31,9 +37,10 @@ from starlette.concurrency import run_in_threadpool
 from app.assistente import db, log as assistente_log
 from app.assistente.capacidade_achar import formatar_resposta, identificar_e_executar
 from app.assistente.capacidade_explicar import buscar_hibrido, montar_fontes, montar_mensagem_trechos
+from app.assistente.capacidade_observar import sinalizacoes
 from app.assistente.capacidade_resumir import montar_agregado_semana
 from app.assistente.llm import ModeloIndisponivel, completar_stream
-from app.assistente.schemas import FeedbackRequest, PerguntaRequest
+from app.assistente.schemas import FeedbackRequest, PerguntaRequest, SinalizacaoFeedbackRequest
 
 router = APIRouter(prefix="/assistente", tags=["assistente"])
 
@@ -288,6 +295,50 @@ async def feedback(body: FeedbackRequest, faiston_token: str = Cookie(None)):
     ok = await run_in_threadpool(assistente_log.registrar_feedback, body.log_id, sess["id"], body.util)
     if not ok:
         raise HTTPException(status_code=404, detail="Pergunta não encontrada")
+    return {"sucesso": True}
+
+
+# --- Sinalizações (Fase 5 — capacidade D) ---------------------------------
+# Regra 8 do CLAUDE.md do assistente: a sinalização é da pessoa, nunca
+# sobre a pessoa. Todo endpoint aqui é escopado por sess["id"] — nenhum
+# devolve ou altera sinalização de outra pessoa, sem exceção nem pra
+# admin (não existe "ver sinalização de alguém" neste assistente).
+
+@router.get("/sinalizacoes")
+async def listar_sinalizacoes(faiston_token: str = Cookie(None)):
+    sess = await _autenticar(faiston_token)
+    itens = await run_in_threadpool(sinalizacoes.listar_minhas, sess["id"])
+    return {"sinalizacoes": itens}
+
+
+@router.get("/sinalizacoes/contagem")
+async def contar_sinalizacoes_nao_vistas(faiston_token: str = Cookie(None)):
+    """O widget consulta isto pra decidir o número do badge. Nunca
+    401/403 — sem sessão elegível, devolve 0, igual /elegivel."""
+    sess = await run_in_threadpool(db.get_session, faiston_token)
+    if not sess or sess["perfil"] not in _PERFIS_PILOTO:
+        return {"nao_vistas": 0}
+    total = await run_in_threadpool(sinalizacoes.contar_nao_vistas, sess["id"])
+    return {"nao_vistas": total}
+
+
+@router.post("/sinalizacoes/{sinalizacao_id}/visualizar")
+async def marcar_sinalizacao_vista(sinalizacao_id: int, faiston_token: str = Cookie(None)):
+    sess = await _autenticar(faiston_token)
+    ok = await run_in_threadpool(sinalizacoes.marcar_vista, sinalizacao_id, sess["id"])
+    if not ok:
+        raise HTTPException(status_code=403, detail="Sinalização não encontrada")
+    return {"sucesso": True}
+
+
+@router.post("/sinalizacoes/{sinalizacao_id}/feedback")
+async def registrar_sinalizacao_feedback(
+    sinalizacao_id: int, body: SinalizacaoFeedbackRequest, faiston_token: str = Cookie(None)
+):
+    sess = await _autenticar(faiston_token)
+    ok = await run_in_threadpool(sinalizacoes.registrar_feedback, sinalizacao_id, sess["id"], body.feedback)
+    if not ok:
+        raise HTTPException(status_code=403, detail="Sinalização não encontrada")
     return {"sucesso": True}
 
 
