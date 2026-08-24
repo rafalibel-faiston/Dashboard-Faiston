@@ -54,7 +54,7 @@ _CSRF_ISENTAS = {"/api/login", "/api/esqueci-senha", "/api/redefinir-senha"}  # 
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if (request.method in _CSRF_METODOS
-                and request.url.path.startswith("/api/")
+                and (request.url.path.startswith("/api/") or request.url.path.startswith("/assistente/"))
                 and request.url.path not in _CSRF_ISENTAS):
             cookie_token = request.cookies.get("csrf_token")
             header_token = request.headers.get("x-csrf-token")
@@ -860,6 +860,11 @@ def setup_banco():
         print(f"Erro setup: {e}")
 
 setup_banco()
+
+from app.assistente.db import setup_schema as _setup_schema_assistente
+from app.assistente.router import router as assistente_router
+_setup_schema_assistente()
+app.include_router(assistente_router)
 
 # --- MODELOS ---
 class LoginRequest(BaseModel):
