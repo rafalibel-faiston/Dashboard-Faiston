@@ -1,5 +1,5 @@
 """Contratos de entrada e saída do assistente OPS."""
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,3 +12,8 @@ class PerguntaRequest(BaseModel):
 class FeedbackRequest(BaseModel):
     log_id: int
     util: bool
+
+
+class SinalizacaoFeedbackRequest(BaseModel):
+    # 1 útil | -1 não útil | -2 nunca mais este detector
+    feedback: Literal[1, -1, -2]

@@ -156,6 +156,35 @@ def setup_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_documento_chunk_ordem ON documento_chunk (documento_id, ordem)"
         )
 
+        # --- Fase 5: sinalização (capacidade D) --------------------------
+        # Sem tabela nova de atividade -- os detectores leem direto de
+        # `tarefas` e `status_atividades`, que já existem (ver
+        # capacidade_observar/detectores.py). Só `sinalizacao` é nova de
+        # verdade, porque não tem equivalente hoje.
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sinalizacao (
+                id           BIGSERIAL PRIMARY KEY,
+                usuario_id   INTEGER NOT NULL REFERENCES usuarios(id),
+                detector     TEXT NOT NULL,
+                assinatura   TEXT NOT NULL,
+                evidencia    JSONB NOT NULL,
+                texto        TEXT NOT NULL,
+                criado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                vista_em     TIMESTAMPTZ,
+                feedback     SMALLINT
+            )
+            """
+        )
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_sinalizacao_unica "
+            "ON sinalizacao (usuario_id, detector, assinatura, (criado_em::date))"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sinalizacao_usuario "
+            "ON sinalizacao (usuario_id, vista_em, criado_em DESC)"
+        )
+
         conn.commit()
         cur.close()
         conn.close()

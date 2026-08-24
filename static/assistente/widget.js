@@ -39,6 +39,9 @@
             '<div id="nexo-header">' +
             '  <img src="/assistente/avatar.svg" alt="">' +
             '  <div><div class="nexo-titulo">OPS</div><div class="nexo-sub">Assistente Faiston</div></div>' +
+            '  <button type="button" id="nexo-sino" title="Sinalizações" aria-label="Sinalizações">' +
+            '    🔔<span class="nexo-badge" id="nexo-sino-badge" hidden></span>' +
+            "  </button>" +
             '  <a href="/assistente/documentos" id="nexo-gerenciar" title="Gerenciar base de procedimentos" hidden>⚙</a>' +
             '  <button type="button" id="nexo-fechar" aria-label="Fechar">✕</button>' +
             "</div>" +
@@ -46,6 +49,10 @@
             '  <div id="nexo-sugestoes">' +
             '    <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">📊 Resumo da semana</button>' +
             "  </div>" +
+            "</div>" +
+            '<div id="nexo-sinalizacoes" hidden>' +
+            '  <div id="nexo-sinalizacoes-lista"></div>' +
+            '  <div id="nexo-sinalizacoes-vazio" hidden>Nada por aqui — nenhuma sinalização até agora.</div>' +
             "</div>" +
             '<div class="nexo-dica">Em construção — monta o resumo semanal e responde dúvida de procedimento se houver documento indexado. Ainda não acessa outros dados do sistema.</div>' +
             '<form id="nexo-form">' +
@@ -143,6 +150,118 @@
         box.appendChild(up);
         box.appendChild(down);
         wrap.appendChild(box);
+    }
+
+    function tempoRelativo(iso) {
+        if (!iso) return "";
+        var diffMs = Date.now() - new Date(iso).getTime();
+        var minutos = Math.floor(diffMs / 60000);
+        if (minutos < 60) return minutos <= 1 ? "agora há pouco" : minutos + " min atrás";
+        var horas = Math.floor(minutos / 60);
+        if (horas < 24) return horas === 1 ? "há 1 hora" : "há " + horas + " horas";
+        var dias = Math.floor(horas / 24);
+        return dias === 1 ? "há 1 dia" : "há " + dias + " dias";
+    }
+
+    function postJson(url, corpo) {
+        var headers = { "Content-Type": "application/json" };
+        var token = csrfCookie();
+        if (token) headers["X-CSRF-Token"] = token;
+        return fetch(url, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: headers,
+            body: JSON.stringify(corpo || {}),
+        });
+    }
+
+    function montarFeedbackSinalizacao(box, sinalizacaoId) {
+        var opcoes = [
+            { rotulo: "👍", valor: 1, titulo: "Útil" },
+            { rotulo: "👎", valor: -1, titulo: "Não útil" },
+            { rotulo: "🔕", valor: -2, titulo: "Não me avise mais assim" },
+        ];
+        opcoes.forEach(function (op) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = op.rotulo;
+            btn.title = op.titulo;
+            btn.setAttribute("aria-label", op.titulo);
+            btn.addEventListener("click", function () {
+                box.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+                btn.classList.add("nexo-ativo");
+                postJson("/assistente/sinalizacoes/" + sinalizacaoId + "/feedback", { feedback: op.valor }).catch(function () {});
+                var obrigado = document.createElement("span");
+                obrigado.className = "nexo-obrigado";
+                obrigado.textContent = "Obrigado!";
+                box.appendChild(obrigado);
+            });
+            box.appendChild(btn);
+        });
+    }
+
+    function montarItemSinalizacao(item) {
+        var wrap = document.createElement("div");
+        wrap.className = "nexo-sinal-item";
+        var texto = document.createElement("div");
+        texto.className = "nexo-sinal-texto";
+        texto.textContent = item.texto;
+        var quando = document.createElement("div");
+        quando.className = "nexo-sinal-quando";
+        quando.textContent = tempoRelativo(item.criado_em);
+        var feedback = document.createElement("div");
+        feedback.className = "nexo-feedback";
+        wrap.appendChild(texto);
+        wrap.appendChild(quando);
+        if (item.feedback === null || item.feedback === undefined) {
+            montarFeedbackSinalizacao(feedback, item.id);
+            wrap.appendChild(feedback);
+        }
+        return wrap;
+    }
+
+    function atualizarBadge(launcherBadge, sinoBadge) {
+        fetch("/assistente/sinalizacoes/contagem", { credentials: "same-origin" })
+            .then(function (r) { return r.ok ? r.json() : { nao_vistas: 0 }; })
+            .then(function (d) {
+                var n = (d && d.nao_vistas) || 0;
+                [launcherBadge, sinoBadge].forEach(function (el) {
+                    if (!el) return;
+                    if (n > 0) {
+                        el.textContent = n > 9 ? "9+" : String(n);
+                        el.hidden = false;
+                        el.style.display = "inline-block";
+                    } else {
+                        el.hidden = true;
+                        el.style.display = "none";
+                    }
+                });
+            })
+            .catch(function () {});
+    }
+
+    function carregarSinalizacoes(lista, vazio, launcherBadge, sinoBadge) {
+        lista.innerHTML = "";
+        vazio.hidden = true;
+        fetch("/assistente/sinalizacoes", { credentials: "same-origin" })
+            .then(function (r) { return r.ok ? r.json() : { sinalizacoes: [] }; })
+            .then(function (d) {
+                var itens = (d && d.sinalizacoes) || [];
+                if (!itens.length) {
+                    vazio.hidden = false;
+                    return;
+                }
+                itens.forEach(function (item) {
+                    lista.appendChild(montarItemSinalizacao(item));
+                    if (!item.vista_em) {
+                        postJson("/assistente/sinalizacoes/" + item.id + "/visualizar", {}).catch(function () {});
+                    }
+                });
+                atualizarBadge(launcherBadge, sinoBadge);
+            })
+            .catch(function () {
+                vazio.hidden = false;
+            });
     }
 
     async function enviarPergunta(pergunta, mensagens) {
@@ -244,6 +363,30 @@
             var gerenciar = painel.querySelector("#nexo-gerenciar");
             if (gerenciar) gerenciar.hidden = false;
         }
+
+        var sino = painel.querySelector("#nexo-sino");
+        var sinoBadge = painel.querySelector("#nexo-sino-badge");
+        var launcherBadge = launcher.querySelector("#nexo-badge");
+        var painelSinalizacoes = painel.querySelector("#nexo-sinalizacoes");
+        var listaSinalizacoes = painel.querySelector("#nexo-sinalizacoes-lista");
+        var vazioSinalizacoes = painel.querySelector("#nexo-sinalizacoes-vazio");
+        var nexoForm = painel.querySelector("#nexo-form");
+        var nexoDica = painel.querySelector(".nexo-dica");
+        var vendoSinalizacoes = false;
+
+        sino.addEventListener("click", function () {
+            vendoSinalizacoes = !vendoSinalizacoes;
+            painelSinalizacoes.hidden = !vendoSinalizacoes;
+            mensagens.hidden = vendoSinalizacoes;
+            if (nexoDica) nexoDica.hidden = vendoSinalizacoes;
+            nexoForm.hidden = vendoSinalizacoes;
+            if (vendoSinalizacoes) {
+                carregarSinalizacoes(listaSinalizacoes, vazioSinalizacoes, launcherBadge, sinoBadge);
+            }
+        });
+
+        atualizarBadge(launcherBadge, sinoBadge);
+        setInterval(function () { atualizarBadge(launcherBadge, sinoBadge); }, 120000);
 
         async function enviar(pergunta) {
             if (!pergunta) return;

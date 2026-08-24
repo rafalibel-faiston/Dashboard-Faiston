@@ -119,11 +119,18 @@ app/
     ingestao.py            # quebra em blocos + parsers .md/.docx/.pdf (Fase 3)
     catalogo.py             # funções de consulta fixas, expostas como tools (Fase 4)
     capacidade_achar.py     # function calling + formatação de resposta (Fase 4)
+    capacidade_observar/    # padrão detectado em SQL + redação pelo modelo (Fase 5)
+      __init__.py
+      detectores.py         # SQL puro, nunca importa llm.py
+      redacao.py             # único arquivo do pacote que fala com o modelo
+      job.py                  # orçamento (2/semana), cooldown (30 dias), grava sinalizacao
+      sinalizacoes.py          # leitura/atualização escopada por usuario_id
     prompts/
       sistema_generico.md
       sistema_resumir.md
       sistema_explicar.md
       sistema_achar.md
+      sistema_observar.md
 static/
   assistente/
     widget.js
@@ -170,10 +177,22 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    é do tipo achar, texto final montado por código. Escolhidas pelo
    domínio, não pelo log real (sem acesso a ele neste ambiente) — ajustar
    depois de ver o que a equipe pergunta de verdade.
-5. Capacidade D — observar (depende de histórico acumulado; a fonte de
-   atividade hoje é só `tarefas.segundos`, sem log de início/pausa/fim —
-   pode exigir desenho de captura adicional antes de detectar qualquer
-   coisa com qualidade)
+5. **Capacidade D — observar — implementada, desligada por padrão.** Três
+   detectores em SQL puro (`repeticao_identica`, `retrabalho`,
+   `pendencia_parada`), rodando de `tarefas`/`tarefa_historico` (não
+   precisou de tabela nova). Orçamento de no máximo 2 sinalizações por
+   pessoa por semana, cooldown de 30 dias por (pessoa, detector,
+   assinatura), feedback `-2` desliga o detector pra aquela pessoa pra
+   sempre — tudo isso decidido em SQL/Python, nunca pelo modelo; o
+   modelo só redige o texto em cima do achado já detectado (ou descarta,
+   se não tiver nada de fato acionável pra dizer). Job diário agendado
+   via APScheduler (`ASSISTENTE_OBSERVAR_ENABLED=1`,
+   `ASSISTENTE_OBSERVAR_HORA`, default 3h), **desligado por padrão** —
+   ver "Perguntas em aberto" abaixo antes de ligar em produção. Widget
+   tem sino no cabeçalho com contador de não vistas + lista com feedback
+   (útil / não útil / não me avise mais assim). Sinalização é sempre da
+   pessoa, nunca sobre a pessoa: todo endpoint e toda função de leitura
+   são escopados por `usuario_id`, sem view agregada nem por gestor.
 
 ## Perguntas em aberto (não inventar, confirmar antes de avançar)
 
@@ -188,8 +207,10 @@ não a Fase 1:
   `/assistente/documentos` — atalho ⚙ no cabeçalho do widget — só falta
   o conteúdo)
 - Quais tipos de tarefa mais se repetem, na percepção da equipe? Calibra
-  o limiar inicial dos detectores da capacidade D.
+  o limiar inicial dos detectores da capacidade D (hoje: 5+ vezes em 5
+  dias pra `repeticao_identica`, 4+ edições em 7 dias pra `retrabalho`).
 - A capacidade D foi combinada com a liderança? A regra de que a
-  sinalização não sobe pro gestor precisa estar acordada antes de a
-  equipe usar.
+  sinalização não sobe pro gestor precisa estar acordada antes de ligar
+  `ASSISTENTE_OBSERVAR_ENABLED=1` de verdade — está implementada e
+  testada, mas desligada até esse alinhamento acontecer.
 - Ampliar o piloto (hoje só `admin`) pra quais perfis/cargos, e quando?
