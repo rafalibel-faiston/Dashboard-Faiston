@@ -25,9 +25,11 @@ Quatro capacidades, três reativas e uma proativa:
 | **C · Resumir** | Montar relatório semanal (o que hoje já existe parcialmente em `/api/ia/insights`) | Modelo redige em cima de agregado já calculado pelo backend |
 | **D · Observar** | Repetição, retrabalho e pendência esquecida em tarefas/atividades | Job diário detecta o padrão em SQL; o modelo só escreve o aviso |
 
-**Só a Fase 1 está implementada** (log + caixa de perguntas genérica).
-Não avance para a Fase 2 sem validar o critério de aceite dela com a
-equipe — ver `docs/assistente-spec.md`.
+**Fases 1, 2 e 3 implementadas** (log + genérico, resumo semanal,
+explicar via documento indexado). Fases 4 (achar) e 5 (observar) ainda
+não — ver `docs/assistente-spec.md` pros critérios de aceite de cada
+uma, incluindo o que falta validar nas já implementadas (números do
+resumo, conteúdo real pra testar a capacidade B).
 
 ## Stack real deste repositório
 
@@ -50,7 +52,8 @@ equipe — ver `docs/assistente-spec.md`.
 1. **O assistente só lê.** Nenhuma capacidade cria registro, altera
    status ou dispara fluxo em tabela de negócio (`tarefas`, `projetos`,
    `clientes`, `status_atividades`, etc.). A única escrita permitida é em
-   `assistente_log` e, a partir da Fase 3, nas tabelas de documento.
+   `assistente_log` e nas tabelas de documento (`documento`/
+   `documento_chunk`, via `POST /assistente/documentos`, admin-only).
 2. **Resposta de procedimento sem fonte é bug.** Capacidade B sempre
    carrega os documentos de origem. Sem trecho relevante, a resposta é
    "não encontrei isso na base" — nunca conhecimento geral do modelo.
@@ -111,9 +114,13 @@ app/
     llm.py               # cliente do modelo, único ponto que fala com a API
     log.py               # gravação em assistente_log
     capacidade_resumir.py # agregado semanal em SQL (Fase 2)
+    capacidade_explicar.py # busca híbrida + RRF (Fase 3)
+    embeddings.py         # sentence-transformers, local em CPU (Fase 3)
+    ingestao.py            # quebra em blocos + parsers .md/.docx/.pdf (Fase 3)
     prompts/
       sistema_generico.md
       sistema_resumir.md
+      sistema_explicar.md
 static/
   assistente/
     widget.js
@@ -147,8 +154,12 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    classificação de intenção de verdade ainda), agregado semanal em SQL,
    texto redigido em cima do JSON. Falta validar com a equipe se os
    números escolhidos são os certos.
-3. Capacidade B — explicar (precisa de POPs/procedimentos internos como
-   primeiro conteúdo a indexar — ainda não definido)
+3. **Capacidade B — explicar — pipeline pronto, sem conteúdo real ainda.**
+   Ingestão (`.md`/`.docx`/`.pdf`), embedding local, busca híbrida com
+   RRF e recusa honesta sem fonte, tudo implementado e testado com
+   documento sintético. Falta ingerir POPs de verdade
+   (`POST /assistente/documentos`, admin) e rodar o critério de aceite
+   (20 perguntas com resposta + 10 sem) — ver `assistente-spec.md`.
 4. Capacidade A — achar (catálogo fixo sobre `tarefas`/`projetos`/
    `clientes`/`status_atividades`, começando pelas 5 consultas mais
    comuns no log da Fase 1)
@@ -166,7 +177,8 @@ não a Fase 1:
   já calcula tickets por funcionário/cliente/prioridade — é essa a base,
   ou tem outra planilha/reunião que compila algo diferente?
 - Existe POP/procedimento já escrito pra usar como primeiro documento de
-  teste da capacidade B?
+  teste da capacidade B? (o endpoint de ingestão já está pronto —
+  `POST /assistente/documentos` — só falta o conteúdo)
 - Quais tipos de tarefa mais se repetem, na percepção da equipe? Calibra
   o limiar inicial dos detectores da capacidade D.
 - A capacidade D foi combinada com a liderança? A regra de que a
