@@ -175,11 +175,66 @@ def atividades_campo_pendentes(sess: dict, dias: int = 7) -> dict:
         return {"erro": "falha_consulta"}
 
 
+def buscar_carimbo(sess: dict, termo: str) -> dict:
+    """Carimbos (textos prontos de atendimento/acionamento) que os
+    próprios funcionários cadastram em `/api/carimbos` (main.py) —
+    mesma tabela, mesma regra de visibilidade: admin vê todos, os
+    demais só os do próprio time. Busca por título ou categoria; o
+    conteúdo devolvido é reproduzido ao pé da letra na resposta (regra
+    3 do CLAUDE.md do assistente, extensão natural pra texto: o modelo
+    nunca reescreve um carimbo, só ajuda a achar o certo)."""
+    termo = (termo or "").strip()
+    if not termo:
+        raise ValueError("termo vazio")
+    conn = get_conn()
+    if not conn:
+        return {"erro": "banco_offline"}
+    try:
+        cur = conn.cursor()
+        if sess["perfil"] == "admin":
+            cur.execute(
+                """
+                SELECT id, titulo, categoria, conteudo
+                FROM carimbos
+                WHERE titulo ILIKE %s OR categoria ILIKE %s
+                ORDER BY categoria, titulo
+                LIMIT 5
+                """,
+                (f"%{termo}%", f"%{termo}%"),
+            )
+        else:
+            time_sess = sess.get("time") or "Projetos"
+            cur.execute(
+                """
+                SELECT id, titulo, categoria, conteudo
+                FROM carimbos
+                WHERE time_usuario = %s AND (titulo ILIKE %s OR categoria ILIKE %s)
+                ORDER BY categoria, titulo
+                LIMIT 5
+                """,
+                (time_sess, f"%{termo}%", f"%{termo}%"),
+            )
+        linhas = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {
+            "termo": termo,
+            "encontrados": [
+                {"id": r[0], "titulo": r[1], "categoria": r[2], "conteudo": r[3]}
+                for r in linhas
+            ],
+        }
+    except Exception as e:
+        print(f"[assistente/catalogo] Erro em buscar_carimbo: {e}")
+        return {"erro": "falha_consulta"}
+
+
 CATALOGO = {
     "minhas_tarefas": minhas_tarefas,
     "tarefas_por_cliente": tarefas_por_cliente,
     "escala_n2_do_dia": escala_n2_do_dia,
     "atividades_campo_pendentes": atividades_campo_pendentes,
+    "buscar_carimbo": buscar_carimbo,
 }
 
 FERRAMENTAS = [
@@ -252,6 +307,25 @@ FERRAMENTAS = [
                     }
                 },
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "buscar_carimbo",
+            "description": (
+                "Busca um carimbo (texto pronto de atendimento/acionamento que a "
+                "equipe já cadastrou) pelo título ou categoria. Use quando a "
+                "pergunta pedir um carimbo/modelo de texto pronto por nome — "
+                "nunca invente o conteúdo de um carimbo, sempre busque aqui."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "termo": {"type": "string", "description": "Nome ou categoria do carimbo, ou parte dele."}
+                },
+                "required": ["termo"],
             },
         },
     },

@@ -17,3 +17,8 @@ class FeedbackRequest(BaseModel):
 class SinalizacaoFeedbackRequest(BaseModel):
     # 1 útil | -1 não útil | -2 nunca mais este detector
     feedback: Literal[1, -1, -2]
+
+
+class OrdemOnboardingRequest(BaseModel):
+    # posição do documento na trilha de onboarding; None remove da trilha
+    ordem_onboarding: Optional[int] = None

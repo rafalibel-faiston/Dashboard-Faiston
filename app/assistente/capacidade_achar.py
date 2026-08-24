@@ -105,4 +105,18 @@ def formatar_resposta(nome_funcao: str, resultado: dict) -> str:
             f'{resultado["dias"]} dias:\n' + "\n".join(linhas)
         )
 
+    if nome_funcao == "buscar_carimbo":
+        encontrados = resultado.get("encontrados") or []
+        termo = resultado.get("termo", "")
+        if not encontrados:
+            return f'Não encontrei nenhum carimbo com "{termo}".'
+        if len(encontrados) == 1:
+            c = encontrados[0]
+            return f'Carimbo "{c["titulo"]}" ({c["categoria"]}):\n\n{c["conteudo"]}'
+        linhas = [f'- {c["titulo"]} ({c["categoria"]})' for c in encontrados]
+        return (
+            f'Encontrei mais de um carimbo com "{termo}", peça de novo com um '
+            "nome mais específico:\n" + "\n".join(linhas)
+        )
+
     return "Não consegui montar a resposta."

@@ -292,6 +292,12 @@ async function carregarLista() {
                         (data ? ' · atualizado em ' + data : '') +
                     '</div>' +
                 '</div>' +
+                '<div class="flex items-center gap-1 flex-shrink-0" title="Posição na trilha de onboarding (modo professor) -- vazio = fora da trilha">' +
+                    '<i class="ph ph-graduation-cap text-faiston-faint"></i>' +
+                    '<input type="number" min="1" value="' + (d.ordem_onboarding != null ? d.ordem_onboarding : '') + '" placeholder="—" ' +
+                        'class="w-14 px-2 py-1 border border-faiston-border rounded-lg text-xs text-center focus:outline-none focus:border-faiston-purple" ' +
+                        'onchange="salvarOrdemOnboarding(' + d.id + ', this)">' +
+                '</div>' +
                 '<button onclick="removerDocumento(' + d.id + ', this)" class="text-faiston-faint hover:text-faiston-pink transition-colors flex-shrink-0" title="Remover">' +
                     '<i class="ph ph-trash text-lg"></i>' +
                 '</button>' +
@@ -338,6 +344,29 @@ async function rodarObservarAgora() {
         status.className = 'text-sm text-faiston-pink';
     } finally {
         btn.disabled = false;
+    }
+}
+
+async function salvarOrdemOnboarding(id, input) {
+    var valor = input.value.trim();
+    var ordem = valor === '' ? null : parseInt(valor, 10);
+    input.disabled = true;
+    try {
+        var res = await fetch('/assistente/documentos/' + id + '/onboarding', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ordem_onboarding: ordem }),
+        });
+        if (!res.ok) {
+            var dados = await res.json().catch(function () { return {}; });
+            alert(dados.detail || 'Não consegui salvar a posição no onboarding.');
+            carregarLista();
+        }
+    } catch (e) {
+        alert('Erro de conexão.');
+        carregarLista();
+    } finally {
+        input.disabled = false;
     }
 }
 

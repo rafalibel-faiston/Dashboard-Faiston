@@ -48,6 +48,7 @@
             '<div id="nexo-mensagens">' +
             '  <div id="nexo-sugestoes">' +
             '    <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">📊 Resumo da semana</button>' +
+            '    <button type="button" class="nexo-chip" data-pergunta="Quero começar o onboarding">🎓 Começar onboarding</button>' +
             "  </div>" +
             "</div>" +
             '<div id="nexo-sinalizacoes" hidden>' +

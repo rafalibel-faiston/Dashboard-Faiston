@@ -36,11 +36,18 @@ from starlette.concurrency import run_in_threadpool
 
 from app.assistente import db, log as assistente_log
 from app.assistente.capacidade_achar import formatar_resposta, identificar_e_executar
+from app.assistente.capacidade_ensinar import (
+    avancar as avancar_onboarding,
+    etapa_por_ordem,
+    iniciar_ou_retomar as iniciar_ou_retomar_onboarding,
+    progresso_atual as progresso_onboarding,
+    total_etapas as total_etapas_onboarding,
+)
 from app.assistente.capacidade_explicar import buscar_hibrido, montar_fontes, montar_mensagem_trechos
 from app.assistente.capacidade_observar import sinalizacoes
 from app.assistente.capacidade_resumir import montar_agregado_semana
 from app.assistente.llm import ModeloIndisponivel, completar_stream
-from app.assistente.schemas import FeedbackRequest, PerguntaRequest, SinalizacaoFeedbackRequest
+from app.assistente.schemas import FeedbackRequest, OrdemOnboardingRequest, PerguntaRequest, SinalizacaoFeedbackRequest
 
 router = APIRouter(prefix="/assistente", tags=["assistente"])
 
@@ -49,6 +56,7 @@ _STATIC_DIR = _DIR.parent.parent / "static" / "assistente"
 _PROMPT_GENERICO = (_DIR / "prompts" / "sistema_generico.md").read_text(encoding="utf-8")
 _PROMPT_RESUMIR = (_DIR / "prompts" / "sistema_resumir.md").read_text(encoding="utf-8")
 _PROMPT_EXPLICAR = (_DIR / "prompts" / "sistema_explicar.md").read_text(encoding="utf-8")
+_PROMPT_PROFESSOR = (_DIR / "prompts" / "sistema_professor.md").read_text(encoding="utf-8")
 _RECUSA_SEM_DOCUMENTO = "Não encontrei isso na base de procedimentos."
 
 
@@ -64,6 +72,33 @@ def _eh_pedido_de_resumo(pergunta: str) -> bool:
     conversa genérica, sem correr o risco de um NL→SQL aberto."""
     p = _normalizar(pergunta)
     return "resumo" in p and ("semana" in p or "semanal" in p)
+
+
+_GATILHOS_ENSINAR_INICIAR = (
+    "onboarding",
+    "modo professor",
+    "quero aprender do zero",
+)
+
+
+def _eh_pedido_de_ensinar_iniciar(pergunta: str) -> bool:
+    """Gatilho por palavra-chave (mesmo espírito da Fase 2) pra começar
+    ou retomar a trilha de onboarding. "sou novo"/"sou nova" só conta
+    junto com "time"/"equipe"/"aqui" pra não disparar em toda frase que
+    mencionar isso à toa."""
+    p = _normalizar(pergunta)
+    if any(g in p for g in _GATILHOS_ENSINAR_INICIAR):
+        return True
+    eh_novo = "sou novo" in p or "sou nova" in p or "acabei de entrar" in p
+    return eh_novo and ("time" in p or "equipe" in p or "aqui" in p)
+
+
+def _eh_pedido_de_ensinar_continuar(pergunta: str) -> bool:
+    """Frase distinta o bastante ("próxima aula") pra não colidir com uso
+    normal do assistente -- só é checada, além disso, quando a pessoa já
+    tem uma trilha em andamento (ver stream())."""
+    p = _normalizar(pergunta)
+    return "proxima aula" in p or "continuar aula" in p or "proxima etapa" in p
 
 # Piloto: só estes perfis veem o widget (servidor e front concordam nisso —
 # o front esconde o botão, mas o servidor é quem de fato barra). Lista
@@ -124,7 +159,53 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
 
         pedido_resumo = _eh_pedido_de_resumo(body.pergunta)
 
+        # Fase 6 (capacidade E, ensinar): checado antes de achar/explicar,
+        # mesmo nível de prioridade que o resumo — "próxima aula" só conta
+        # como continuar a trilha se a pessoa já tiver uma em andamento,
+        # pra não interferir em conversa normal.
+        pedido_ensinar_iniciar = False
+        pedido_ensinar_continuar = False
         if not pedido_resumo:
+            pedido_ensinar_iniciar = _eh_pedido_de_ensinar_iniciar(body.pergunta)
+            if not pedido_ensinar_iniciar:
+                progresso_existente = await run_in_threadpool(progresso_onboarding, sess["id"])
+                if progresso_existente and not progresso_existente["concluido"]:
+                    pedido_ensinar_continuar = _eh_pedido_de_ensinar_continuar(body.pergunta)
+        pedido_ensinar = pedido_ensinar_iniciar or pedido_ensinar_continuar
+
+        etapa_ensinar = None
+        if pedido_ensinar:
+            progresso = await run_in_threadpool(
+                iniciar_ou_retomar_onboarding if pedido_ensinar_iniciar else avancar_onboarding,
+                sess["id"],
+            )
+            total = await run_in_threadpool(total_etapas_onboarding)
+            if total and not progresso["concluido"]:
+                etapa_ensinar = await run_in_threadpool(etapa_por_ordem, progresso["etapa_atual"])
+
+            if not total or etapa_ensinar is None:
+                yield _sse("inicio", {"log_id": log_id, "capacidade": "ensinar"})
+                texto_final = (
+                    "Você já passou por todas as etapas do onboarding que existem hoje. "
+                    "Qualquer dúvida, é só perguntar normalmente."
+                    if progresso["concluido"]
+                    else "Ainda não tem etapa de onboarding cadastrada, ou não consegui acessar os "
+                    "dados agora. Fale com o admin ou tente de novo em instantes."
+                )
+                yield _sse("texto", {"delta": texto_final})
+                latencia_ms = int((time.monotonic() - inicio) * 1000)
+                await run_in_threadpool(
+                    assistente_log.finalizar,
+                    log_id,
+                    resposta=texto_final,
+                    respondida=True,
+                    latencia_ms=latencia_ms,
+                    capacidade="ensinar",
+                )
+                yield _sse("fim", {"tokens_entrada": None, "tokens_saida": None, "latencia_ms": latencia_ms})
+                return
+
+        if not pedido_resumo and not pedido_ensinar:
             # Qualquer falha aqui (modelo fora do ar, resposta da API num
             # formato inesperado, etc.) cai pro fluxo de explicar/genérico
             # em vez de derrubar a conversa inteira — achar é só a primeira
@@ -165,7 +246,7 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
                 return
 
         trechos = None
-        if not pedido_resumo:
+        if not pedido_resumo and not pedido_ensinar:
             trechos = await run_in_threadpool(buscar_hibrido, body.pergunta)
             if trechos is None:
                 latencia_ms = int((time.monotonic() - inicio) * 1000)
@@ -182,7 +263,9 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
                 yield _sse("erro", {"mensagem": "Não consegui buscar nos procedimentos agora. Tente de novo em instantes."})
                 return
 
-        if pedido_resumo:
+        if pedido_ensinar:
+            capacidade = "ensinar"
+        elif pedido_resumo:
             capacidade = "resumir"
         elif trechos:
             capacidade = "explicar"
@@ -190,7 +273,18 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
             capacidade = None
         yield _sse("inicio", {"log_id": log_id, "capacidade": capacidade})
 
-        if pedido_resumo:
+        if pedido_ensinar:
+            mensagens = [
+                {"role": "system", "content": _PROMPT_PROFESSOR},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Etapa {progresso['etapa_atual']} de {total}: {etapa_ensinar['titulo']}\n\n"
+                        f"{etapa_ensinar['texto']}"
+                    ),
+                },
+            ]
+        elif pedido_resumo:
             agregado = await run_in_threadpool(montar_agregado_semana)
             if agregado is None:
                 latencia_ms = int((time.monotonic() - inicio) * 1000)
@@ -403,6 +497,24 @@ async def ingerir(
     if documento_id is None:
         raise HTTPException(status_code=500, detail="Não consegui gravar o documento agora")
     return {"documento_id": documento_id, "titulo": titulo}
+
+
+@router.patch("/documentos/{documento_id}/onboarding")
+async def definir_ordem_onboarding_endpoint(
+    documento_id: int, body: OrdemOnboardingRequest, faiston_token: str = Cookie(None)
+):
+    """Marca (ou remove) a posição de um documento na trilha de
+    onboarding (capacidade E, ensinar) — Fase 6."""
+    await _exigir_admin(faiston_token)
+    from app.assistente.ingestao import definir_ordem_onboarding
+
+    try:
+        ok = await run_in_threadpool(definir_ordem_onboarding, documento_id, body.ordem_onboarding)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not ok:
+        raise HTTPException(status_code=404, detail="Documento não encontrado")
+    return {"sucesso": True}
 
 
 @router.delete("/documentos/{documento_id}")
