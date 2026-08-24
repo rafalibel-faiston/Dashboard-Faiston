@@ -268,6 +268,22 @@ def test_feedback_menos_dois_desliga_o_detector_permanentemente():
     assert 1 not in candidatos
 
 
+# --- dados_teste.py (botão de QA na tela admin) -- também SQL literal --
+
+def test_dados_teste_so_usa_sql_literal_fixa():
+    codigo = (_RAIZ / "app" / "assistente" / "capacidade_observar" / "dados_teste.py").read_text(encoding="utf-8")
+    arvore = ast.parse(codigo)
+    chamadas = 0
+    for node in ast.walk(arvore):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "execute":
+            chamadas += 1
+            primeiro_arg = node.args[0]
+            assert isinstance(primeiro_arg, ast.Constant) and isinstance(primeiro_arg.value, str), (
+                f"cur.execute() na linha {node.lineno} de dados_teste.py não usa string literal fixa"
+            )
+    assert chamadas >= 5
+
+
 def test_pessoas_diferentes_tem_orcamento_independente():
     achados = [
         _achado(1, "repeticao_identica", "a", peso=100),

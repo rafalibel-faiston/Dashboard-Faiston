@@ -543,6 +543,34 @@ async def rodar_observar_agora(faiston_token: str = Cookie(None)):
     return resumo
 
 
+@router.post("/observar/popular-dados-teste")
+async def popular_dados_teste_endpoint(faiston_token: str = Cookie(None)):
+    """Gera dados sintéticos (tarefas repetidas, retrabalho, pendência
+    parada) pra quem está logado, só pra ver a capacidade D detectar
+    alguma coisa sem esperar dado real acumular. Exceção deliberada à
+    regra 1 (só lê) -- ferramenta de QA, admin-only, dado sempre
+    marcado com `cliente = 'Cliente Teste Observar'` (ver
+    capacidade_observar/dados_teste.py)."""
+    sess = await _exigir_admin(faiston_token)
+    from app.assistente.capacidade_observar.dados_teste import popular
+
+    resultado = await run_in_threadpool(popular, sess["id"])
+    if resultado.get("erro"):
+        raise HTTPException(status_code=500, detail=resultado["erro"])
+    return resultado
+
+
+@router.post("/observar/limpar-dados-teste")
+async def limpar_dados_teste_endpoint(faiston_token: str = Cookie(None)):
+    await _exigir_admin(faiston_token)
+    from app.assistente.capacidade_observar.dados_teste import limpar
+
+    resultado = await run_in_threadpool(limpar)
+    if resultado.get("erro"):
+        raise HTTPException(status_code=500, detail=resultado["erro"])
+    return resultado
+
+
 # --- Arquivos estáticos do widget ---------------------------------------
 # Rotas explícitas em vez de StaticFiles mount, mesmo padrão já usado pelo
 # main.py para /faiston-ops-mark.svg — evita qualquer conflito de path com

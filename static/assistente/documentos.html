@@ -137,16 +137,25 @@
             <span class="text-sm font-bold text-faiston-dark">Sinalizações proativas (capacidade D)</span>
         </div>
         <p class="text-sm text-faiston-muted mb-4">
-            O job de verdade roda sozinho de madrugada. Este botão dispara a mesma
-            detecção agora, pra testar sem esperar — só aparece pra admin, mesmo
-            gate desta tela.
+            O job de verdade roda sozinho de madrugada. Sem dado real acumulado
+            ainda, use "Gerar dados de teste" pra criar tarefas sintéticas
+            (marcadas com o cliente "Cliente Teste Observar") que disparam os
+            três detectores, depois "Rodar detecção agora" pra ver a sinalização
+            aparecer. "Limpar dados de teste" remove só o que foi gerado aqui —
+            nunca toca em tarefa real. Tudo admin-only, mesmo gate desta tela.
         </p>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
+            <button onclick="popularDadosTeste()" id="btn-popular-teste" class="bg-white border border-faiston-border text-faiston-dark text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-flask text-faiston-purple"></i> Gerar dados de teste
+            </button>
             <button onclick="rodarObservarAgora()" id="btn-observar" class="grad-bg text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
                 <i class="ph ph-play"></i> Rodar detecção agora
             </button>
-            <span id="status-observar" class="text-sm"></span>
+            <button onclick="limparDadosTeste()" id="btn-limpar-teste" class="bg-white border border-faiston-border text-faiston-muted text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-trash text-lg"></i> Limpar dados de teste
+            </button>
         </div>
+        <span id="status-observar" class="text-sm block mt-2"></span>
         <pre id="resultado-observar" class="hidden mt-3 text-xs bg-faiston-bg border border-faiston-border rounded-lg p-3 overflow-x-auto"></pre>
     </div>
 
@@ -338,6 +347,65 @@ async function rodarObservarAgora() {
             status.className = 'text-sm text-green-600';
             resultado.textContent = JSON.stringify(dados, null, 2);
             resultado.classList.remove('hidden');
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function popularDadosTeste() {
+    var btn = document.getElementById('btn-popular-teste');
+    var status = document.getElementById('status-observar');
+    var resultado = document.getElementById('resultado-observar');
+
+    btn.disabled = true;
+    status.textContent = 'Gerando tarefas sintéticas...';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var res = await fetch('/assistente/observar/popular-dados-teste', { method: 'POST' });
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui gerar os dados de teste.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = 'Dados de teste gerados. Agora clique em "Rodar detecção agora".';
+            status.className = 'text-sm text-green-600';
+            resultado.textContent = JSON.stringify(dados, null, 2);
+            resultado.classList.remove('hidden');
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function limparDadosTeste() {
+    if (!confirm('Remover os dados sintéticos de teste (tarefas do "Cliente Teste Observar")? Isso não afeta nenhuma tarefa real.')) return;
+    var btn = document.getElementById('btn-limpar-teste');
+    var status = document.getElementById('status-observar');
+    var resultado = document.getElementById('resultado-observar');
+
+    btn.disabled = true;
+    status.textContent = 'Removendo dados de teste...';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var res = await fetch('/assistente/observar/limpar-dados-teste', { method: 'POST' });
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui limpar os dados de teste.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = dados.tarefas_removidas + ' tarefa(s) de teste removida(s).';
+            status.className = 'text-sm text-green-600';
         }
     } catch (e) {
         status.textContent = 'Erro de conexão. Tente de novo.';

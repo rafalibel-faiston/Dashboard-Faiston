@@ -206,7 +206,13 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    são escopados por `usuario_id`, sem view agregada nem por gestor.
    `POST /assistente/observar/rodar-agora` (admin, botão na tela
    `/assistente/documentos`) dispara o job na hora, só pra testar sem
-   esperar o agendamento diário.
+   esperar o agendamento diário. `POST /assistente/observar/popular-dados-teste`
+   / `.../limpar-dados-teste` (mesma tela, mesmo gate) geram/removem
+   tarefas sintéticas pra quem clicou, marcadas com
+   `cliente = 'Cliente Teste Observar'` — única exceção deliberada à
+   regra 1 (só lê) neste módulo, isolada em
+   `capacidade_observar/dados_teste.py`, nunca chamada por nenhuma
+   capacidade conversacional.
 6. **Capacidade E — ensinar (modo professor) — feito.** Trilha de
    onboarding guiada: reaproveita documento já indexado (Fase 3) como
    conteúdo de cada etapa — admin marca a posição de um documento na
