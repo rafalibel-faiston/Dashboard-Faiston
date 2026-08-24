@@ -94,12 +94,40 @@ def extrair_texto_docx(caminho: Path) -> str:
     return "\n\n".join(paragrafos)
 
 
+def _palavras_coladas(texto: str) -> bool:
+    """Heurística pra detectar quando a extração perdeu os espaços (PDF
+    que posiciona caractere por caractere sem glifo de espaço — comum em
+    exportação de certas ferramentas). Compara caracteres totais contra
+    número de "palavras" (separadas por qualquer espaço em branco): texto
+    normal fica em torno de 5 caracteres por palavra; texto colado — no
+    caso extremo, sem espaço nenhum — vira uma "palavra" só, enorme."""
+    texto = texto.strip()
+    if len(texto) < 50:
+        return False
+    palavras = texto.split()
+    if not palavras:
+        return False
+    media = len(texto) / len(palavras)
+    return media > 20
+
+
 def extrair_texto_pdf(caminho: Path) -> str:
     from pypdf import PdfReader
 
     reader = PdfReader(str(caminho))
-    paginas = [pagina.extract_text() or "" for pagina in reader.pages]
-    return "\n\n".join(p.strip() for p in paginas if p.strip())
+    # extraction_mode="layout" reconstrói a posição 2D do texto em vez de
+    # só detectar espaço por lacuna entre caracteres -- lida melhor com
+    # PDF que não usa glifo de espaço de verdade entre palavras.
+    paginas = [pagina.extract_text(extraction_mode="layout") or "" for pagina in reader.pages]
+    texto = "\n\n".join(p.strip() for p in paginas if p.strip())
+    if _palavras_coladas(texto):
+        print(
+            "[assistente/ingestao] Aviso: texto extraído de "
+            f"'{caminho.name}' parece sem espaços entre palavras "
+            "(PDF sem glifo de espaço) — qualidade da busca pode ficar ruim "
+            "pra este documento."
+        )
+    return texto
 
 
 _EXTRATORES = {
