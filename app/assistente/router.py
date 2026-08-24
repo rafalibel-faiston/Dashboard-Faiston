@@ -118,22 +118,18 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
         pedido_resumo = _eh_pedido_de_resumo(body.pergunta)
 
         if not pedido_resumo:
+            # Qualquer falha aqui (modelo fora do ar, resposta da API num
+            # formato inesperado, etc.) cai pro fluxo de explicar/genérico
+            # em vez de derrubar a conversa inteira — achar é só a primeira
+            # tentativa, uma tentativa que falha não pode travar as outras.
+            # Se o modelo estiver mesmo fora do ar, o erro vai aparecer do
+            # mesmo jeito lá na frente, no fluxo que já trata isso.
             try:
                 resultado_achar = await identificar_e_executar(body.pergunta, sess)
-            except ModeloIndisponivel as e:
-                latencia_ms = int((time.monotonic() - inicio) * 1000)
-                await run_in_threadpool(
-                    assistente_log.finalizar,
-                    log_id,
-                    resposta=None,
-                    respondida=False,
-                    motivo_falha=e.motivo,
-                    latencia_ms=latencia_ms,
-                    capacidade="achar",
-                )
-                yield _sse("inicio", {"log_id": log_id, "capacidade": "achar"})
-                yield _sse("erro", {"mensagem": "O assistente não conseguiu responder agora. Tente de novo em instantes."})
-                return
+            except Exception as e:
+                import traceback
+                print(f"[assistente/router] Falha na tentativa de achar: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+                resultado_achar = None
 
             if resultado_achar is not None:
                 nome_funcao, dados, usage = resultado_achar
