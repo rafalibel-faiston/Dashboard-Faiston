@@ -105,109 +105,124 @@ def setup_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_assistente_log_pendente "
             "ON assistente_log (respondida, criado_em DESC)"
         )
-        # Commita aqui antes de tentar as extensões: se CREATE EXTENSION
-        # falhar (ex.: plano sem permissão), o rollback do except abaixo
-        # não pode levar junto a criação de assistente_log que já rodou.
+        # Commita aqui antes de seguir: cada fase abaixo tem seu próprio
+        # commit/rollback isolado, pra uma fase falhando (ex.: extensão
+        # vector indisponível) não desfazer o que as outras já
+        # conseguiram criar -- histórico real: uma falha na Fase 6 já
+        # levou junto a criação de `sinalizacao` (Fase 5) por estarem no
+        # mesmo commit único no final.
         conn.commit()
 
         # --- Fase 3: base de procedimentos (capacidade B) ---------------
         try:
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
             cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS documento (
+                    id            BIGSERIAL PRIMARY KEY,
+                    titulo        TEXT NOT NULL UNIQUE,
+                    origem        TEXT,
+                    versao        TEXT,
+                    atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    ativo         BOOLEAN NOT NULL DEFAULT true
+                )
+                """
+            )
+            cur.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS documento_chunk (
+                    id           BIGSERIAL PRIMARY KEY,
+                    documento_id BIGINT NOT NULL REFERENCES documento(id) ON DELETE CASCADE,
+                    ordem        INTEGER NOT NULL,
+                    texto        TEXT NOT NULL,
+                    embedding    VECTOR({EMBEDDING_DIM}) NOT NULL,
+                    tsv          TSVECTOR GENERATED ALWAYS AS (to_tsvector('portuguese', texto)) STORED
+                )
+                """
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_documento_chunk_hnsw "
+                "ON documento_chunk USING hnsw (embedding vector_cosine_ops)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_documento_chunk_tsv ON documento_chunk USING gin (tsv)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_documento_chunk_ordem ON documento_chunk (documento_id, ordem)"
+            )
+            conn.commit()
         except Exception as e:
-            # Neon costuma ter as duas liberadas, mas alguns planos exigem
-            # habilitar manualmente no console -- não deixa a Fase 1/2
-            # (que não precisam disso) offline por causa disso.
-            print(f"[assistente/db] Não consegui criar extensão vector/pg_trgm: {e}")
+            # Neon costuma ter as duas extensões liberadas, mas alguns
+            # planos exigem habilitar manualmente no console -- não deixa
+            # a Fase 1/2 (que não precisam disso) offline por causa disso.
+            print(f"[assistente/db] Fase 3 (base de procedimentos) não pôde ser criada: {e}")
             conn.rollback()
-
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS documento (
-                id            BIGSERIAL PRIMARY KEY,
-                titulo        TEXT NOT NULL UNIQUE,
-                origem        TEXT,
-                versao        TEXT,
-                atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
-                ativo         BOOLEAN NOT NULL DEFAULT true
-            )
-            """
-        )
-        cur.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS documento_chunk (
-                id           BIGSERIAL PRIMARY KEY,
-                documento_id BIGINT NOT NULL REFERENCES documento(id) ON DELETE CASCADE,
-                ordem        INTEGER NOT NULL,
-                texto        TEXT NOT NULL,
-                embedding    VECTOR({EMBEDDING_DIM}) NOT NULL,
-                tsv          TSVECTOR GENERATED ALWAYS AS (to_tsvector('portuguese', texto)) STORED
-            )
-            """
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_documento_chunk_hnsw "
-            "ON documento_chunk USING hnsw (embedding vector_cosine_ops)"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_documento_chunk_tsv ON documento_chunk USING gin (tsv)"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_documento_chunk_ordem ON documento_chunk (documento_id, ordem)"
-        )
 
         # --- Fase 5: sinalização (capacidade D) --------------------------
         # Sem tabela nova de atividade -- os detectores leem direto de
         # `tarefas` e `status_atividades`, que já existem (ver
         # capacidade_observar/detectores.py). Só `sinalizacao` é nova de
-        # verdade, porque não tem equivalente hoje.
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sinalizacao (
-                id           BIGSERIAL PRIMARY KEY,
-                usuario_id   INTEGER NOT NULL REFERENCES usuarios(id),
-                detector     TEXT NOT NULL,
-                assinatura   TEXT NOT NULL,
-                evidencia    JSONB NOT NULL,
-                texto        TEXT NOT NULL,
-                criado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
-                vista_em     TIMESTAMPTZ,
-                feedback     SMALLINT
+        # verdade, porque não tem equivalente hoje. Não depende da Fase 3
+        # (nenhuma coluna vector), fase isolada de propósito.
+        try:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sinalizacao (
+                    id           BIGSERIAL PRIMARY KEY,
+                    usuario_id   INTEGER NOT NULL REFERENCES usuarios(id),
+                    detector     TEXT NOT NULL,
+                    assinatura   TEXT NOT NULL,
+                    evidencia    JSONB NOT NULL,
+                    texto        TEXT NOT NULL,
+                    criado_em    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    vista_em     TIMESTAMPTZ,
+                    feedback     SMALLINT
+                )
+                """
             )
-            """
-        )
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_sinalizacao_unica "
-            "ON sinalizacao (usuario_id, detector, assinatura, (criado_em::date))"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_sinalizacao_usuario "
-            "ON sinalizacao (usuario_id, vista_em, criado_em DESC)"
-        )
+            cur.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_sinalizacao_unica "
+                "ON sinalizacao (usuario_id, detector, assinatura, (criado_em::date))"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sinalizacao_usuario "
+                "ON sinalizacao (usuario_id, vista_em, criado_em DESC)"
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"[assistente/db] Fase 5 (sinalizacao) não pôde ser criada: {e}")
+            conn.rollback()
 
         # --- Fase 6: trilha de onboarding (capacidade E, ensinar) --------
         # Reaproveita `documento` (Fase 3) como conteúdo da trilha -- só
         # marca a posição de cada um no onboarding, sem sistema de
         # conteúdo novo. `onboarding_progresso` é só o que não existia:
-        # em que etapa cada pessoa está.
-        cur.execute("ALTER TABLE documento ADD COLUMN IF NOT EXISTS ordem_onboarding INTEGER")
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_documento_ordem_onboarding "
-            "ON documento (ordem_onboarding) WHERE ordem_onboarding IS NOT NULL"
-        )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS onboarding_progresso (
-                usuario_id    INTEGER PRIMARY KEY REFERENCES usuarios(id),
-                etapa_atual   INTEGER NOT NULL DEFAULT 1,
-                iniciado_em   TIMESTAMPTZ NOT NULL DEFAULT now(),
-                atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
-                concluido_em  TIMESTAMPTZ
+        # em que etapa cada pessoa está. Depende de `documento` existir
+        # (Fase 3) -- se ela não foi criada, esta fase falha sozinha, sem
+        # afetar a Fase 5 acima (já commitada).
+        try:
+            cur.execute("ALTER TABLE documento ADD COLUMN IF NOT EXISTS ordem_onboarding INTEGER")
+            cur.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_documento_ordem_onboarding "
+                "ON documento (ordem_onboarding) WHERE ordem_onboarding IS NOT NULL"
             )
-            """
-        )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS onboarding_progresso (
+                    usuario_id    INTEGER PRIMARY KEY REFERENCES usuarios(id),
+                    etapa_atual   INTEGER NOT NULL DEFAULT 1,
+                    iniciado_em   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    concluido_em  TIMESTAMPTZ
+                )
+                """
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"[assistente/db] Fase 6 (onboarding) não pôde ser criada: {e}")
+            conn.rollback()
 
-        conn.commit()
         cur.close()
         conn.close()
     except Exception as e:
