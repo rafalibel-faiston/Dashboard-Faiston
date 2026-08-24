@@ -64,7 +64,8 @@ def resumo(usuario_id: int) -> dict:
     except Exception as e:
         print(f"[assistente/observar] Erro no diagnóstico: {e}")
         try:
+            conn.rollback()
             conn.close()
         except Exception:
             pass
-        return {"erro": "falha_consulta"}
+        return {"erro": "falha_consulta", "detalhe": str(e)}
