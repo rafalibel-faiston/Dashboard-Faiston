@@ -583,6 +583,33 @@ async def limpar_dados_teste_endpoint(faiston_token: str = Cookie(None)):
     return resultado
 
 
+# --- Dados de demonstração (usuários + tarefas variadas, fora da -------
+# --- capacidade D) -- mesma ressalva de dados_teste.py: ferramenta de --
+# --- QA, exceção deliberada à regra 1 (só lê), admin-only, nunca ------
+# --- chamada por nenhuma capacidade conversacional. ---------------------
+
+@router.post("/demo/popular")
+async def popular_demo_endpoint(faiston_token: str = Cookie(None)):
+    await _exigir_admin(faiston_token)
+    from app.assistente.dados_demo import popular
+
+    resultado = await run_in_threadpool(popular)
+    if resultado.get("erro"):
+        raise HTTPException(status_code=500, detail=resultado["erro"])
+    return resultado
+
+
+@router.post("/demo/limpar")
+async def limpar_demo_endpoint(faiston_token: str = Cookie(None)):
+    await _exigir_admin(faiston_token)
+    from app.assistente.dados_demo import limpar
+
+    resultado = await run_in_threadpool(limpar)
+    if resultado.get("erro"):
+        raise HTTPException(status_code=500, detail=resultado["erro"])
+    return resultado
+
+
 # --- Arquivos estáticos do widget ---------------------------------------
 # Rotas explícitas em vez de StaticFiles mount, mesmo padrão já usado pelo
 # main.py para /faiston-ops-mark.svg — evita qualquer conflito de path com
