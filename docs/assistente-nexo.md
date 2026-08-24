@@ -126,6 +126,7 @@ static/
     widget.js
     widget.css
     avatar.svg
+    documentos.html        # tela admin de gestão da base (Fase 3)
 docs/
   assistente-nexo.md      # este arquivo
   assistente-spec.md      # fases e critério de aceite
@@ -177,8 +178,9 @@ não a Fase 1:
   já calcula tickets por funcionário/cliente/prioridade — é essa a base,
   ou tem outra planilha/reunião que compila algo diferente?
 - Existe POP/procedimento já escrito pra usar como primeiro documento de
-  teste da capacidade B? (o endpoint de ingestão já está pronto —
-  `POST /assistente/documentos` — só falta o conteúdo)
+  teste da capacidade B? (a tela de upload já está pronta em
+  `/assistente/documentos` — atalho ⚙ no cabeçalho do widget — só falta
+  o conteúdo)
 - Quais tipos de tarefa mais se repetem, na percepção da equipe? Calibra
   o limiar inicial dos detectores da capacidade D.
 - A capacidade D foi combinada com a liderança? A regra de que a

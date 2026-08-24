@@ -178,3 +178,69 @@ def ingerir_documento(
         except Exception:
             pass
         return None
+
+
+def listar_documentos() -> List[dict]:
+    """Pra tela de admin (static/assistente/documentos.html): título,
+    origem, versão e quantas blocos cada documento tem hoje."""
+    conn = get_conn()
+    if not conn:
+        return []
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT d.id, d.titulo, d.origem, d.versao, d.atualizado_em, d.ativo,
+                   COUNT(c.id) AS blocos
+            FROM documento d
+            LEFT JOIN documento_chunk c ON c.documento_id = d.id
+            GROUP BY d.id
+            ORDER BY d.atualizado_em DESC
+            """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [
+            {
+                "id": r[0],
+                "titulo": r[1],
+                "origem": r[2],
+                "versao": r[3],
+                "atualizado_em": r[4].isoformat() if r[4] else None,
+                "ativo": r[5],
+                "blocos": r[6],
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        print(f"[assistente/ingestao] Erro ao listar documentos: {e}")
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return []
+
+
+def remover_documento(documento_id: int) -> bool:
+    """Remove o documento e, por ON DELETE CASCADE, todos os chunks dele —
+    some da busca imediatamente."""
+    conn = get_conn()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM documento WHERE id = %s", (documento_id,))
+        ok = cur.rowcount > 0
+        conn.commit()
+        cur.close()
+        conn.close()
+        return ok
+    except Exception as e:
+        print(f"[assistente/ingestao] Erro ao remover documento {documento_id}: {e}")
+        try:
+            conn.rollback()
+            conn.close()
+        except Exception:
+            pass
+        return False

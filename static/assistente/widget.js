@@ -39,6 +39,7 @@
             '<div id="nexo-header">' +
             '  <img src="/assistente/avatar.svg" alt="">' +
             '  <div><div class="nexo-titulo">OPS</div><div class="nexo-sub">Assistente Faiston</div></div>' +
+            '  <a href="/assistente/documentos" id="nexo-gerenciar" title="Gerenciar base de procedimentos" hidden>⚙</a>' +
             '  <button type="button" id="nexo-fechar" aria-label="Fechar">✕</button>' +
             "</div>" +
             '<div id="nexo-mensagens">' +
@@ -229,7 +230,7 @@
         if (buffer.trim()) processarEvento(buffer);
     }
 
-    function iniciar() {
+    function iniciar(admin) {
         carregarCss();
         var mensagens = null;
         var { launcher, painel } = montarDom();
@@ -239,6 +240,10 @@
         var enviarBtn = painel.querySelector("#nexo-enviar");
         var fechar = painel.querySelector("#nexo-fechar");
         var sugestoes = painel.querySelector("#nexo-sugestoes");
+        if (admin) {
+            var gerenciar = painel.querySelector("#nexo-gerenciar");
+            if (gerenciar) gerenciar.hidden = false;
+        }
 
         async function enviar(pergunta) {
             if (!pergunta) return;
@@ -304,7 +309,7 @@
     function verificarElegibilidadeEIniciar() {
         fetch("/assistente/elegivel", { credentials: "same-origin" })
             .then(function (r) { return r.ok ? r.json() : { elegivel: false }; })
-            .then(function (d) { if (d && d.elegivel) iniciar(); })
+            .then(function (d) { if (d && d.elegivel) iniciar(!!d.admin); })
             .catch(function () { /* offline ou rota indisponível: widget simplesmente não aparece */ });
     }
 
