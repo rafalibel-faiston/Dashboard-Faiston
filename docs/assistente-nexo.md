@@ -1,4 +1,4 @@
-# Assistente NEXO — Faiston OPS (Dashboard de Apontamento)
+# Assistente OPS — Faiston OPS (Dashboard de Apontamento)
 
 Contexto permanente do assistente embutido neste sistema. Leia antes de
 qualquer alteração em `app/assistente/`, `static/assistente/` ou nas
@@ -110,8 +110,10 @@ app/
     db.py                # conexão + sessão (reaproveita tabela `sessoes`)
     llm.py               # cliente do modelo, único ponto que fala com a API
     log.py               # gravação em assistente_log
+    capacidade_resumir.py # agregado semanal em SQL (Fase 2)
     prompts/
       sistema_generico.md
+      sistema_resumir.md
 static/
   assistente/
     widget.js
@@ -141,8 +143,10 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
 
 1. **Log e caixa de perguntas — feito.** Resposta genérica em streaming,
    sem acesso a dado do sistema nem a documentos.
-2. Capacidade C — resumir (relatório semanal; ver `/api/ia/insights`
-   existente como ponto de partida do que já é calculado hoje)
+2. **Capacidade C — resumir — feito.** Gatilho por palavra-chave (não é
+   classificação de intenção de verdade ainda), agregado semanal em SQL,
+   texto redigido em cima do JSON. Falta validar com a equipe se os
+   números escolhidos são os certos.
 3. Capacidade B — explicar (precisa de POPs/procedimentos internos como
    primeiro conteúdo a indexar — ainda não definido)
 4. Capacidade A — achar (catálogo fixo sobre `tarefas`/`projetos`/

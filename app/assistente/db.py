@@ -1,4 +1,4 @@
-"""Acesso a banco do assistente NEXO.
+"""Acesso a banco do assistente OPS.
 
 Reaproveita o mesmo Postgres e o mesmo padrão de conexão do resto do
 Faiston OPS (psycopg2 síncrono, uma conexão por chamada — ver main.py

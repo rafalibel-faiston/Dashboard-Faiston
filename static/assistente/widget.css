@@ -1,4 +1,4 @@
-/* Widget do assistente NEXO. Usa as variáveis --th-* já definidas em
+/* Widget do assistente OPS. Usa as variáveis --th-* já definidas em
    /css/style.css, então segue o tema claro/escuro da tela sem esforço
    extra. Namespace #nexo-* pra nunca colidir com o CSS de cada tela. */
 
@@ -91,6 +91,18 @@
     gap: 12px;
     background: var(--th-bg, #F4F5FA);
 }
+
+#nexo-sugestoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.nexo-chip {
+    border: 1px solid var(--th-border, #E5E8F0);
+    background: var(--th-surface, #fff);
+    color: var(--th-text, #0B0D1F);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    cursor: pointer;
+}
+.nexo-chip:hover { border-color: #5B2EE0; color: #5B2EE0; }
 
 .nexo-msg { max-width: 88%; font-size: 13.5px; line-height: 1.5; }
 .nexo-msg-usuario { align-self: flex-end; }
