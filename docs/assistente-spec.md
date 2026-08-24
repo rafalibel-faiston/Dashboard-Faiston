@@ -130,7 +130,7 @@ event: texto
 data: {"delta": "O fluxo de RMA "}
 
 event: texto
-data: {"delta": "começa com a abertura do chamado [1]."}
+data: {"delta": "começa com a abertura do chamado."}
 
 event: fontes
 data: {"fontes": [{"documento_id": 12, "titulo": "POP RMA Vita", "trecho": "..."}]}
@@ -285,7 +285,9 @@ Implementado conforme a spec original, sem mudança de desenho:
   documento indexado ainda (cai no genérico da Fase 1).
 - `POST /assistente/pergunta` decide o roteamento: pedido de resumo →
   Fase 2; senão, roda a busca híbrida — achou trecho → capacidade
-  `explicar` com `prompts/sistema_explicar.md`, cita `[n]` e recusa
+  `explicar` com `prompts/sistema_explicar.md`, resposta em texto
+  corrido e natural (sem citar número de trecho tipo "[2]" no meio da
+  frase — as fontes já vão à parte no evento `fontes`) e recusa
   exatamente "Não encontrei isso na base de procedimentos." sem trecho
   que sustente; sem nenhum documento indexado → genérico da Fase 1
   (comportamento inalterado até a primeira ingestão).
@@ -442,7 +444,9 @@ liderança antes de qualquer sinalização real chegar em alguém.
 - Chip de sugestão "Resumo da semana" no estado vazio do painel.
 - **Fase 3:** fontes da capacidade B viram chips clicáveis abaixo da
   resposta (`.nexo-fonte-chip`) — clicar expande uma prévia curta do
-  trecho (`.nexo-fonte-previa`), sem navegar pra lugar nenhum. Testado
-  visualmente num harness local com stream simulado (screenshot do
-  fluxo: pergunta → resposta com citação `[n]` → chips → prévia
-  expandida).
+  trecho (`.nexo-fonte-previa`), sem navegar pra lugar nenhum. O texto
+  da resposta em si não cita número de trecho (removido a pedido — lia
+  mal, tipo "às terças e quintas [2] [4]"); quem quer conferir a fonte
+  clica no chip. Testado visualmente num harness local com stream
+  simulado (screenshot do fluxo completo: pergunta → resposta → chips →
+  prévia expandida).
