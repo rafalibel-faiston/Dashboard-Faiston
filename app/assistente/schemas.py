@@ -22,3 +22,8 @@ class SinalizacaoFeedbackRequest(BaseModel):
 class OrdemOnboardingRequest(BaseModel):
     # posição do documento na trilha de onboarding; None remove da trilha
     ordem_onboarding: Optional[int] = None
+
+
+class PopularDadosTesteRequest(BaseModel):
+    # usuario_id alvo dos dados sintéticos; None = quem está chamando
+    usuario_id: Optional[int] = None

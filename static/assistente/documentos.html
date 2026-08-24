@@ -144,6 +144,10 @@
             aparecer. "Limpar dados de teste" remove só o que foi gerado aqui —
             nunca toca em tarefa real. Tudo admin-only, mesmo gate desta tela.
         </p>
+        <div class="flex items-center gap-2 mb-3">
+            <label for="input-usuario-teste" class="text-xs text-faiston-muted whitespace-nowrap">Gerar/rodar pra (ID do usuário, vazio = eu mesmo):</label>
+            <input type="number" id="input-usuario-teste" placeholder="ex.: 7" class="w-24 px-2 py-1 border border-faiston-border rounded-lg text-xs focus:outline-none focus:border-faiston-purple">
+        </div>
         <div class="flex items-center gap-3 flex-wrap">
             <button onclick="popularDadosTeste()" id="btn-popular-teste" class="bg-white border border-faiston-border text-faiston-dark text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
                 <i class="ph ph-flask text-faiston-purple"></i> Gerar dados de teste
@@ -356,6 +360,11 @@ async function rodarObservarAgora() {
     }
 }
 
+function _usuarioTesteAlvo() {
+    var valor = document.getElementById('input-usuario-teste').value.trim();
+    return valor === '' ? null : parseInt(valor, 10);
+}
+
 async function popularDadosTeste() {
     var btn = document.getElementById('btn-popular-teste');
     var status = document.getElementById('status-observar');
@@ -367,7 +376,11 @@ async function popularDadosTeste() {
     resultado.classList.add('hidden');
 
     try {
-        var res = await fetch('/assistente/observar/popular-dados-teste', { method: 'POST' });
+        var res = await fetch('/assistente/observar/popular-dados-teste', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuario_id: _usuarioTesteAlvo() }),
+        });
         var dados = await res.json().catch(function () { return {}; });
         if (!res.ok) {
             status.textContent = dados.detail || 'Não consegui gerar os dados de teste.';
