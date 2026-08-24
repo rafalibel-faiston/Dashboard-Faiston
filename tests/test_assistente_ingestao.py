@@ -2,7 +2,7 @@
 depende de banco nem de embedding, roda sempre (não precisa de
 TEST_DATABASE_URL).
 """
-from app.assistente.ingestao import quebrar_em_blocos
+from app.assistente.ingestao import _palavras_coladas, quebrar_em_blocos
 
 _FRASE = (
     "Esta e a frase numero {i} do paragrafo, com texto suficiente para "
@@ -67,3 +67,23 @@ def test_paragrafo_unico_gigante_ainda_quebra_por_frase():
     assert len(blocos) >= 2
     for bloco in blocos:
         assert bloco.rstrip()[-1] in ".!?"
+
+
+# --- Detecção de PDF que perde espaço na extração (bug real observado) ---
+
+def test_texto_normal_nao_e_detectado_como_colado():
+    texto = "Este é um procedimento de teste da Faiston. Após a conclusão, o estágio será atualizado."
+    assert not _palavras_coladas(texto)
+
+
+def test_texto_sem_espaco_nenhum_e_detectado_como_colado():
+    # exatamente o formato do bug relatado: PDF sem glifo de espaço entre
+    # palavras vira uma única string enorme
+    texto = "Apósconcluída,oestágioseráatualizadopara:EnviadoGoon2.1AcesseGoon.Objetivo:Abrangência:1.AberturadoChamado"
+    assert _palavras_coladas(texto)
+
+
+def test_texto_curto_nao_dispara_falso_positivo():
+    # título ou frase curta sem espaço não é motivo pra suspeitar de nada
+    assert not _palavras_coladas("TituloSemEspaco")
+    assert not _palavras_coladas("")
