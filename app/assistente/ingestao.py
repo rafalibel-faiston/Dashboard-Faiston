@@ -115,11 +115,20 @@ def extrair_texto_pdf(caminho: Path) -> str:
     from pypdf import PdfReader
 
     reader = PdfReader(str(caminho))
-    # extraction_mode="layout" reconstrói a posição 2D do texto em vez de
-    # só detectar espaço por lacuna entre caracteres -- lida melhor com
-    # PDF que não usa glifo de espaço de verdade entre palavras.
-    paginas = [pagina.extract_text(extraction_mode="layout") or "" for pagina in reader.pages]
-    texto = "\n\n".join(p.strip() for p in paginas if p.strip())
+    paginas = []
+    for pagina in reader.pages:
+        # extraction_mode="layout" reconstrói a posição 2D do texto em vez
+        # de só detectar espaço por lacuna entre caracteres -- lida melhor
+        # com PDF que não usa glifo de espaço de verdade entre palavras.
+        # Mas em alguns PDFs (geradores/fontes específicos) o layout sai
+        # vazio onde o modo padrão ainda extrai algo -- nesse caso, texto
+        # colado é sempre melhor que nenhum texto, então cai pro "plain".
+        texto_pagina = (pagina.extract_text(extraction_mode="layout") or "").strip()
+        if not texto_pagina:
+            texto_pagina = (pagina.extract_text() or "").strip()
+        if texto_pagina:
+            paginas.append(texto_pagina)
+    texto = "\n\n".join(paginas)
     if _palavras_coladas(texto):
         print(
             "[assistente/ingestao] Aviso: texto extraído de "
