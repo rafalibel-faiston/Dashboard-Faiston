@@ -24,28 +24,6 @@ def get_conn():
         return None
 
 
-def get_conn_vector():
-    """Conexão com o tipo `vector` do pgvector registrado — só usada por
-    ingestao.py e capacidade_explicar.py, depois que a extensão já existe
-    (setup_schema já rodou). Sem isso o psycopg2 não sabe adaptar
-    list[float] pro tipo VECTOR(N) da coluna embedding."""
-    conn = get_conn()
-    if not conn:
-        return None
-    try:
-        from pgvector.psycopg2 import register_vector
-
-        register_vector(conn)
-        return conn
-    except Exception as e:
-        print(f"[assistente/db] Erro registrando tipo vector: {e}")
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return None
-
-
 def get_session(token: Optional[str]) -> Optional[dict]:
     """Lê a sessão pelo cookie faiston_token. Mesma tabela `sessoes` que o
     resto do sistema usa — a pergunta roda com a permissão de quem
