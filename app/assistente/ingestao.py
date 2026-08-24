@@ -163,7 +163,7 @@ def ingerir_documento(
 
         for ordem, (bloco, vetor) in enumerate(zip(blocos, embeddings)):
             cur.execute(
-                "INSERT INTO documento_chunk (documento_id, ordem, texto, embedding) VALUES (%s, %s, %s, %s)",
+                "INSERT INTO documento_chunk (documento_id, ordem, texto, embedding) VALUES (%s, %s, %s, %s::vector)",
                 (documento_id, ordem, bloco, vetor),
             )
         conn.commit()

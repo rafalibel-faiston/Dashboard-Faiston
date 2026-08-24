@@ -7,7 +7,7 @@ decide se a pergunta "tem resposta".
 """
 from typing import List, Optional, TypedDict
 
-from app.assistente.db import get_conn_vector
+from app.assistente.db import get_conn
 from app.assistente.embeddings import embed_query
 
 RRF_K = 60
@@ -34,21 +34,24 @@ def buscar_hibrido(pergunta: str, top_k: int = _TOP_K) -> Optional[List[Trecho]]
     Devolve `None` em erro de banco/busca (o router trata como falha do
     assistente); `[]` só quando a busca rodou certinho mas não há nenhum
     documento indexado ainda (estado normal antes da primeira ingestão)."""
-    conn = get_conn_vector()
+    conn = get_conn()
     if not conn:
         return None
     try:
         cur = conn.cursor()
         vetor = embed_query(pergunta)
 
+        # ::vector explícito -- embed_query devolve list[float] (não
+        # numpy), e sem o cast o psycopg2 manda como array comum do
+        # Postgres; o operador <=> só existe entre vector e vector.
         cur.execute(
             """
             SELECT c.id, c.documento_id, d.titulo, c.texto,
-                   ROW_NUMBER() OVER (ORDER BY c.embedding <=> %s) AS posicao
+                   ROW_NUMBER() OVER (ORDER BY c.embedding <=> %s::vector) AS posicao
             FROM documento_chunk c
             JOIN documento d ON d.id = c.documento_id
             WHERE d.ativo = true
-            ORDER BY c.embedding <=> %s
+            ORDER BY c.embedding <=> %s::vector
             LIMIT %s
             """,
             (vetor, vetor, _LIMITE_POR_BUSCA),
