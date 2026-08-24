@@ -6,6 +6,16 @@ Fase 3: capacidade B (explicar) — se houver documento indexado, toda
 pergunta que não for pedido de resumo passa pela busca híbrida; sem
 documento nenhum ainda, cai no genérico da Fase 1 (comportamento atual
 até a primeira ingestão).
+Fase 4: capacidade A (achar) — tentada antes de explicar/genérico: o
+modelo decide (function calling, tool_choice="auto") se a pergunta bate
+com uma das funções do catálogo; se não bater com nenhuma, segue pro
+fluxo de explicar/genérico normalmente.
+
+Ordem de tentativa pra toda pergunta que não é pedido de resumo: achar →
+explicar → genérico. Ainda sem classificação de intenção de verdade
+(intencao.py) — cada capacidade decide sozinha se "é com ela" (achar via
+tool_choice="auto" do próprio modelo; explicar via ter achado trecho na
+busca híbrida).
 """
 import json
 import os
@@ -19,6 +29,7 @@ from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.assistente import db, log as assistente_log
+from app.assistente.capacidade_achar import formatar_resposta, identificar_e_executar
 from app.assistente.capacidade_explicar import buscar_hibrido, montar_fontes, montar_mensagem_trechos
 from app.assistente.capacidade_resumir import montar_agregado_semana
 from app.assistente.llm import ModeloIndisponivel, completar_stream
@@ -105,6 +116,51 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
         )
 
         pedido_resumo = _eh_pedido_de_resumo(body.pergunta)
+
+        if not pedido_resumo:
+            try:
+                resultado_achar = await identificar_e_executar(body.pergunta, sess)
+            except ModeloIndisponivel as e:
+                latencia_ms = int((time.monotonic() - inicio) * 1000)
+                await run_in_threadpool(
+                    assistente_log.finalizar,
+                    log_id,
+                    resposta=None,
+                    respondida=False,
+                    motivo_falha=e.motivo,
+                    latencia_ms=latencia_ms,
+                    capacidade="achar",
+                )
+                yield _sse("inicio", {"log_id": log_id, "capacidade": "achar"})
+                yield _sse("erro", {"mensagem": "O assistente não conseguiu responder agora. Tente de novo em instantes."})
+                return
+
+            if resultado_achar is not None:
+                nome_funcao, dados, usage = resultado_achar
+                yield _sse("inicio", {"log_id": log_id, "capacidade": "achar"})
+                texto_final = formatar_resposta(nome_funcao, dados)
+                yield _sse("texto", {"delta": texto_final})
+                latencia_ms = int((time.monotonic() - inicio) * 1000)
+                tokens_entrada = getattr(usage, "prompt_tokens", None) if usage else None
+                tokens_saida = getattr(usage, "completion_tokens", None) if usage else None
+                await run_in_threadpool(
+                    assistente_log.finalizar,
+                    log_id,
+                    resposta=texto_final,
+                    respondida=nome_funcao != "_invalido",
+                    motivo_falha="funcao_nao_identificada" if nome_funcao == "_invalido" else None,
+                    tokens_entrada=tokens_entrada,
+                    tokens_saida=tokens_saida,
+                    latencia_ms=latencia_ms,
+                    capacidade="achar",
+                )
+                yield _sse("fim", {
+                    "tokens_entrada": tokens_entrada,
+                    "tokens_saida": tokens_saida,
+                    "latencia_ms": latencia_ms,
+                })
+                return
+
         trechos = None
         if not pedido_resumo:
             trechos = await run_in_threadpool(buscar_hibrido, body.pergunta)

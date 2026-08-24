@@ -325,29 +325,73 @@ conteúdo de verdade ainda não dá pra rodar o critério de aceite abaixo.
 
 ---
 
-## 7. Fase 4 — Capacidade A, achar (não implementada)
+## 7. Fase 4 — Capacidade A, achar · **feito**
 
-Catálogo fixo, sem SQL gerado pelo modelo — mesma regra da spec
-original. Consultas candidatas neste schema (a confirmar contra o log
-real da Fase 1, não escolher no escuro):
+Catálogo fixo (`app/assistente/catalogo.py`), sem SQL gerado pelo
+modelo. Consultas implementadas — escolhidas pelo domínio, **não**
+confirmadas contra o log real da Fase 1 (este ambiente de
+desenvolvimento não tem acesso ao `assistente_log` de produção); ajustar
+depois de olhar o log de verdade é esperado:
 
 ```python
-async def status_tarefas_usuario(usuario_id: int) -> dict:
-    """Quantas tarefas abertas/em andamento/concluídas a pessoa tem."""
+def minhas_tarefas(sess: dict, status: str | None = None) -> dict:
+    """Quantas tarefas a pessoa que perguntou tem, por status. Sempre
+    sobre quem pergunta -- nunca recebe usuario_id de fora."""
 
-async def tarefas_por_cliente(cliente: str) -> list[dict]:
-    """Tarefas em aberto de um cliente específico."""
+def tarefas_por_cliente(sess: dict, cliente: str) -> dict:
+    """Tarefas em aberto/andamento de um cliente específico."""
 
-async def atividades_campo_pendentes(dias: int = 7) -> list[dict]:
-    """status_atividades com status != 'concluido' há mais de N dias."""
+def escala_n2_do_dia(sess: dict, data: str) -> dict:
+    """Quem está de plantão N2 numa data (YYYY-MM-DD)."""
 
-async def escala_n2_do_dia(data: str) -> list[dict]:
-    """Quem está de plantão N2 numa data."""
+def atividades_campo_pendentes(sess: dict, dias: int = 7) -> dict:
+    """status_atividades não concluída/cancelada há mais de N dias."""
 ```
 
-Todas rodam com a permissão de quem perguntou — se o resto do OPS já
-restringe visão por `time`/`cargo` em alguma dessas tabelas, a função
-aqui replica a mesma restrição, nunca um acesso mais amplo.
+`minhas_tarefas` cumpre a regra 5 (roda com a permissão de quem
+perguntou) por desenho: não existe parâmetro pra consultar outra
+pessoa. As outras três são visão de equipe (cliente, escala, despacho),
+sem recorte por `time`/`cargo` ainda — aceitável no piloto atual
+(só `admin`), mas listado como limitação conhecida pra quando o piloto
+abrir pra mais perfis.
+
+**Fluxo** (`app/assistente/capacidade_achar.py`):
+
+1. `POST /assistente/pergunta` tenta achar **antes** de explicar/
+   genérico, pra qualquer pergunta que não seja pedido de resumo. O
+   modelo recebe a pergunta e o catálogo como `tools`
+   (`tool_choice="auto"`, `llm.py:completar_com_ferramentas`, chamada
+   sem streaming) e decide sozinho: chama uma função, ou não chama
+   nenhuma (aí o router segue pra explicar/genérico normalmente — é
+   assim que "achar" decide se a pergunta é dele, sem heurística de
+   palavra-chave).
+2. Se o modelo chamou uma função: `catalogo.executar()` é o único ponto
+   de execução — valida que a função existe no catálogo e que os
+   argumentos batem (tipo, faixa, formato de data), roda a query fixa
+   parametrizada. Argumento ou função inválida vira `ValueError`/
+   `TypeError`, nunca erro 500.
+3. O texto final é montado por **código**, não pelo modelo
+   (`capacidade_achar.py:formatar_resposta`) — regra 3, o modelo nunca
+   recalcula/reafirma número. Sem streaming de verdade aqui (a resposta
+   já está pronta), mandada como um único evento `texto`.
+4. Função inexistente ou argumento inválido → "Não consegui entender
+   qual informação você precisa." (nunca tenta adivinhar), grava
+   `motivo_falha = 'funcao_nao_identificada'`, `respondida = false`.
+
+**Critério de aceite:**
+
+- [x] Nenhuma string SQL é construída a partir de saída do modelo —
+      `tests/test_assistente_achar.py::test_nenhuma_sql_e_montada_dinamicamente_no_catalogo`
+      percorre a AST de `catalogo.py` e garante que todo `cur.execute()`
+      usa string literal fixa, nunca f-string/concatenação com
+      argumento do modelo.
+- [x] Perguntar por algo que não bate com nenhuma função devolve
+      resposta honesta, não erro 500 — testado com mock do modelo
+      (`resultado_achar = None` cai pro fluxo normal; `_invalido` vira
+      recusa).
+- [ ] Usuário sem permissão sobre uma base não recebe o dado dela — não
+      testável hoje porque o piloto é só `admin`; falta desenhar quando
+      o piloto abrir pra `cargo`/`time` diferentes.
 
 ---
 
