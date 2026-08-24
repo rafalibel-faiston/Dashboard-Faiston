@@ -416,6 +416,21 @@ async def remover_documento_endpoint(documento_id: int, faiston_token: str = Coo
     return {"sucesso": True}
 
 
+# --- Disparo manual do job diário (Fase 5 — só pra teste/depuração) ------
+# O job de verdade roda sozinho, de madrugada, via APScheduler (main.py).
+# Este endpoint existe só pra não precisar esperar até 3h da manhã pra
+# validar a capacidade D no ambiente de teste — mesmo gate de admin dos
+# outros endpoints de gestão, nunca exposto no piloto geral.
+
+@router.post("/observar/rodar-agora")
+async def rodar_observar_agora(faiston_token: str = Cookie(None)):
+    await _exigir_admin(faiston_token)
+    from app.assistente.capacidade_observar.job import rodar
+
+    resumo = await rodar()
+    return resumo
+
+
 # --- Arquivos estáticos do widget ---------------------------------------
 # Rotas explícitas em vez de StaticFiles mount, mesmo padrão já usado pelo
 # main.py para /faiston-ops-mark.svg — evita qualquer conflito de path com
