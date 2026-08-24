@@ -561,7 +561,8 @@ async def diagnostico_observar_endpoint(usuario_id: Optional[int] = None, faisto
     alvo = usuario_id if usuario_id is not None else sess["id"]
     resultado = await run_in_threadpool(resumo, alvo)
     if resultado.get("erro"):
-        raise HTTPException(status_code=500, detail=resultado["erro"])
+        detalhe = resultado["erro"] + (f": {resultado['detalhe']}" if resultado.get("detalhe") else "")
+        raise HTTPException(status_code=500, detail=detalhe)
     return resultado
 
 
