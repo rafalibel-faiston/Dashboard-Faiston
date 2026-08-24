@@ -1,6 +1,11 @@
-"""Endpoints do assistente OPS. Fase 1: log + caixa de perguntas — resposta
-genérica em streaming, sem acesso a dado do sistema nem a documentos ainda
-(isso vem nas fases 2/3, só depois de validar esta com a equipe).
+"""Endpoints do assistente OPS.
+
+Fase 1: log + caixa de perguntas, resposta genérica em streaming.
+Fase 2: capacidade C (resumir) por gatilho de palavra-chave.
+Fase 3: capacidade B (explicar) — se houver documento indexado, toda
+pergunta que não for pedido de resumo passa pela busca híbrida; sem
+documento nenhum ainda, cai no genérico da Fase 1 (comportamento atual
+até a primeira ingestão).
 """
 import json
 import os
@@ -9,11 +14,12 @@ import unicodedata
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, HTTPException
+from fastapi import APIRouter, Cookie, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.assistente import db, log as assistente_log
+from app.assistente.capacidade_explicar import buscar_hibrido, montar_fontes, montar_mensagem_trechos
 from app.assistente.capacidade_resumir import montar_agregado_semana
 from app.assistente.llm import ModeloIndisponivel, completar_stream
 from app.assistente.schemas import FeedbackRequest, PerguntaRequest
@@ -24,6 +30,8 @@ _DIR = Path(__file__).resolve().parent
 _STATIC_DIR = _DIR.parent.parent / "static" / "assistente"
 _PROMPT_GENERICO = (_DIR / "prompts" / "sistema_generico.md").read_text(encoding="utf-8")
 _PROMPT_RESUMIR = (_DIR / "prompts" / "sistema_resumir.md").read_text(encoding="utf-8")
+_PROMPT_EXPLICAR = (_DIR / "prompts" / "sistema_explicar.md").read_text(encoding="utf-8")
+_RECUSA_SEM_DOCUMENTO = "Não encontrei isso na base de procedimentos."
 
 
 def _normalizar(txt: str) -> str:
@@ -82,7 +90,30 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
         )
 
         pedido_resumo = _eh_pedido_de_resumo(body.pergunta)
-        capacidade = "resumir" if pedido_resumo else None
+        trechos = None
+        if not pedido_resumo:
+            trechos = await run_in_threadpool(buscar_hibrido, body.pergunta)
+            if trechos is None:
+                latencia_ms = int((time.monotonic() - inicio) * 1000)
+                await run_in_threadpool(
+                    assistente_log.finalizar,
+                    log_id,
+                    resposta=None,
+                    respondida=False,
+                    motivo_falha="erro_modelo",
+                    latencia_ms=latencia_ms,
+                    capacidade="explicar",
+                )
+                yield _sse("inicio", {"log_id": log_id, "capacidade": "explicar"})
+                yield _sse("erro", {"mensagem": "Não consegui buscar nos procedimentos agora. Tente de novo em instantes."})
+                return
+
+        if pedido_resumo:
+            capacidade = "resumir"
+        elif trechos:
+            capacidade = "explicar"
+        else:
+            capacidade = None
         yield _sse("inicio", {"log_id": log_id, "capacidade": capacidade})
 
         if pedido_resumo:
@@ -103,6 +134,11 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
             mensagens = [
                 {"role": "system", "content": _PROMPT_RESUMIR},
                 {"role": "user", "content": json.dumps(agregado, ensure_ascii=False)},
+            ]
+        elif trechos:
+            mensagens = [
+                {"role": "system", "content": _PROMPT_EXPLICAR},
+                {"role": "user", "content": f"{montar_mensagem_trechos(trechos)}\n\nPergunta: {body.pergunta}"},
             ]
         else:
             mensagens = [
@@ -149,16 +185,27 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
 
         latencia_ms = int((time.monotonic() - inicio) * 1000)
         texto_final = "".join(resposta_completa)
+
+        # Regra 2 do CLAUDE.md do assistente: recusa honesta sem trecho
+        # relevante é sucesso, não falha -- mas motivo_falha='sem_documento'
+        # marca a pergunta como não respondida de fato, pra alimentar
+        # /assistente/lacunas (Fase 4) com o que falta documentar.
+        eh_recusa = capacidade == "explicar" and texto_final.strip() == _RECUSA_SEM_DOCUMENTO
+        motivo_falha = "sem_documento" if eh_recusa else None
+
         await run_in_threadpool(
             assistente_log.finalizar,
             log_id,
             resposta=texto_final,
             respondida=bool(texto_final),
+            motivo_falha=motivo_falha,
             tokens_entrada=tokens_entrada,
             tokens_saida=tokens_saida,
             latencia_ms=latencia_ms,
             capacidade=capacidade,
         )
+        if capacidade == "explicar" and trechos and not eh_recusa:
+            yield _sse("fontes", {"fontes": montar_fontes(trechos)})
         yield _sse("fim", {
             "tokens_entrada": tokens_entrada,
             "tokens_saida": tokens_saida,
@@ -175,6 +222,52 @@ async def feedback(body: FeedbackRequest, faiston_token: str = Cookie(None)):
     if not ok:
         raise HTTPException(status_code=404, detail="Pergunta não encontrada")
     return {"sucesso": True}
+
+
+# --- Ingestão de documento (Fase 3 — capacidade B) -----------------------
+# Gestão de conteúdo é mais sensível que só perguntar: sempre exige
+# perfil='admin' de verdade, independente de quem mais estiver no piloto
+# via ASSISTENTE_PERFIS_PILOTO.
+@router.post("/documentos")
+async def ingerir(
+    arquivo: UploadFile = File(...),
+    titulo: str = Form(...),
+    origem: Optional[str] = Form(None),
+    versao: Optional[str] = Form(None),
+    faiston_token: str = Cookie(None),
+):
+    sess = await run_in_threadpool(db.get_session, faiston_token)
+    if not sess:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    if sess["perfil"] != "admin":
+        raise HTTPException(status_code=403, detail="Só admin pode gerenciar a base de procedimentos")
+
+    from app.assistente.ingestao import extrair_texto, ingerir_documento
+
+    sufixo = Path(arquivo.filename or "").suffix.lower()
+    if sufixo not in (".md", ".markdown", ".docx", ".pdf"):
+        raise HTTPException(status_code=400, detail="Formato não suportado (use .md, .docx ou .pdf)")
+
+    conteudo = await arquivo.read()
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=sufixo, delete=True) as tmp:
+        tmp.write(conteudo)
+        tmp.flush()
+        try:
+            texto = await run_in_threadpool(extrair_texto, Path(tmp.name))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Não consegui ler o arquivo: {e}")
+
+    if not texto.strip():
+        raise HTTPException(status_code=400, detail="Arquivo sem texto extraível")
+
+    documento_id = await run_in_threadpool(
+        ingerir_documento, titulo, texto, origem, versao
+    )
+    if documento_id is None:
+        raise HTTPException(status_code=500, detail="Não consegui gravar o documento agora")
+    return {"documento_id": documento_id, "titulo": titulo}
 
 
 # --- Arquivos estáticos do widget ---------------------------------------

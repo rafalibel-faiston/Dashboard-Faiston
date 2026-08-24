@@ -24,6 +24,28 @@ def get_conn():
         return None
 
 
+def get_conn_vector():
+    """Conexão com o tipo `vector` do pgvector registrado — só usada por
+    ingestao.py e capacidade_explicar.py, depois que a extensão já existe
+    (setup_schema já rodou). Sem isso o psycopg2 não sabe adaptar
+    list[float] pro tipo VECTOR(N) da coluna embedding."""
+    conn = get_conn()
+    if not conn:
+        return None
+    try:
+        from pgvector.psycopg2 import register_vector
+
+        register_vector(conn)
+        return conn
+    except Exception as e:
+        print(f"[assistente/db] Erro registrando tipo vector: {e}")
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return None
+
+
 def get_session(token: Optional[str]) -> Optional[dict]:
     """Lê a sessão pelo cookie faiston_token. Mesma tabela `sessoes` que o
     resto do sistema usa — a pergunta roda com a permissão de quem
@@ -66,15 +88,17 @@ def get_session(token: Optional[str]) -> Optional[dict]:
 
 
 def setup_schema() -> None:
-    """Cria a tabela do log do assistente se ainda não existir. Chamada uma
-    vez na subida do app (main.py), logo depois do setup_banco() do resto
-    do sistema. Fase 1: só assistente_log — documento/documento_chunk
-    entram na Fase 3 (capacidade B), quando existir de fato o que indexar."""
+    """Cria o schema do assistente se ainda não existir. Chamada uma vez na
+    subida do app (main.py), logo depois do setup_banco() do resto do
+    sistema. Idempotente (IF NOT EXISTS em tudo), mesmo padrão que o resto
+    do app já usa — sem runner de migração separado."""
     conn = get_conn()
     if not conn:
         print("[assistente/db] Banco offline, schema do assistente não criado.")
         return
     try:
+        from app.assistente.embeddings import EMBEDDING_DIM
+
         cur = conn.cursor()
         cur.execute(
             """
@@ -103,6 +127,57 @@ def setup_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_assistente_log_pendente "
             "ON assistente_log (respondida, criado_em DESC)"
         )
+        # Commita aqui antes de tentar as extensões: se CREATE EXTENSION
+        # falhar (ex.: plano sem permissão), o rollback do except abaixo
+        # não pode levar junto a criação de assistente_log que já rodou.
+        conn.commit()
+
+        # --- Fase 3: base de procedimentos (capacidade B) ---------------
+        try:
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+        except Exception as e:
+            # Neon costuma ter as duas liberadas, mas alguns planos exigem
+            # habilitar manualmente no console -- não deixa a Fase 1/2
+            # (que não precisam disso) offline por causa disso.
+            print(f"[assistente/db] Não consegui criar extensão vector/pg_trgm: {e}")
+            conn.rollback()
+
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS documento (
+                id            BIGSERIAL PRIMARY KEY,
+                titulo        TEXT NOT NULL UNIQUE,
+                origem        TEXT,
+                versao        TEXT,
+                atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+                ativo         BOOLEAN NOT NULL DEFAULT true
+            )
+            """
+        )
+        cur.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS documento_chunk (
+                id           BIGSERIAL PRIMARY KEY,
+                documento_id BIGINT NOT NULL REFERENCES documento(id) ON DELETE CASCADE,
+                ordem        INTEGER NOT NULL,
+                texto        TEXT NOT NULL,
+                embedding    VECTOR({EMBEDDING_DIM}) NOT NULL,
+                tsv          TSVECTOR GENERATED ALWAYS AS (to_tsvector('portuguese', texto)) STORED
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_documento_chunk_hnsw "
+            "ON documento_chunk USING hnsw (embedding vector_cosine_ops)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_documento_chunk_tsv ON documento_chunk USING gin (tsv)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_documento_chunk_ordem ON documento_chunk (documento_id, ordem)"
+        )
+
         conn.commit()
         cur.close()
         conn.close()

@@ -46,7 +46,7 @@
             '    <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">📊 Resumo da semana</button>' +
             "  </div>" +
             "</div>" +
-            '<div class="nexo-dica">Em construção — hoje só monta o resumo semanal e responde de forma genérica. Ainda não acessa documentos nem outros dados do sistema.</div>' +
+            '<div class="nexo-dica">Em construção — monta o resumo semanal e responde dúvida de procedimento se houver documento indexado. Ainda não acessa outros dados do sistema.</div>' +
             '<form id="nexo-form">' +
             '  <textarea id="nexo-input" rows="1" placeholder="Pergunte algo..." maxlength="2000"></textarea>' +
             '  <button type="submit" id="nexo-enviar" aria-label="Enviar">➤</button>' +
@@ -78,6 +78,31 @@
         wrap.appendChild(bolha);
         mensagens.appendChild(wrap);
         mensagens.scrollTop = mensagens.scrollHeight;
+    }
+
+    function montarFontes(wrap, fontes) {
+        if (!fontes || !fontes.length) return;
+        var box = document.createElement("div");
+        box.className = "nexo-fontes";
+        fontes.forEach(function (fonte) {
+            var chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "nexo-fonte-chip";
+            chip.textContent = "📄 " + fonte.titulo;
+            var previa = document.createElement("div");
+            previa.className = "nexo-fonte-previa";
+            previa.textContent = fonte.trecho || "";
+            previa.hidden = true;
+            chip.addEventListener("click", function () {
+                previa.hidden = !previa.hidden;
+            });
+            var item = document.createElement("div");
+            item.className = "nexo-fonte-item";
+            item.appendChild(chip);
+            item.appendChild(previa);
+            box.appendChild(item);
+        });
+        wrap.appendChild(box);
     }
 
     function montarFeedback(wrap, logId) {
@@ -180,6 +205,8 @@
                 cursor.className = "nexo-cursor";
                 bolha.appendChild(cursor);
                 mensagens.scrollTop = mensagens.scrollHeight;
+            } else if (evento === "fontes") {
+                montarFontes(wrap, dados.fontes);
             } else if (evento === "erro") {
                 wrap.classList.add("nexo-erro");
                 bolha.textContent = dados.mensagem || "Algo deu errado.";

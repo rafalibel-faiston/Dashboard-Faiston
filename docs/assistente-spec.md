@@ -14,17 +14,28 @@ LLM_API_KEY=gsk_...                              # se ausente, cai para GROQ_API
 LLM_MODEL=openai/gpt-oss-20b                     # default já embutido em llm.py
 LLM_TIMEOUT_S=30
 ASSISTENTE_PERFIS_PILOTO=admin                   # lista separada por vírgula; controla quem vê e quem pode usar
+EMBEDDING_MODEL=intfloat/multilingual-e5-small   # default já embutido em embeddings.py (Fase 3)
+EMBEDDING_DIM=384                                # tem que bater com VECTOR(N) no schema — não troca sem reindexar tudo
 ```
 
 Nenhuma dessas é obrigatória pra o app subir — `llm.py` só falha (com
 `event: erro` no stream, nunca derrubando o resto do OPS) na hora de
 efetivamente chamar o modelo sem chave configurada.
 
+**Atenção pro deploy (Railway):** `embeddings.py` baixa o modelo
+`intfloat/multilingual-e5-small` do Hugging Face na primeira vez que é
+usado (a primeira ingestão, ou a primeira pergunta depois de haver
+documento indexado) — precisa de saída de rede liberada pra
+`huggingface.co`/`hf.co`. Esse download **não foi validado neste
+ambiente de desenvolvimento** (o proxy daqui bloqueia huggingface.co por
+política); confirmar que funciona de fato no Railway antes de contar com
+a capacidade B em produção.
+
 ---
 
 ## 1. Schema
 
-Implementado (Fase 1):
+Implementado (Fase 1 + Fase 3):
 
 ```sql
 CREATE TABLE IF NOT EXISTS assistente_log (
@@ -33,25 +44,52 @@ CREATE TABLE IF NOT EXISTS assistente_log (
     usuario_id      INTEGER     NOT NULL REFERENCES usuarios(id),
     pergunta        TEXT        NOT NULL,
     contexto_tela   TEXT,
-    capacidade      TEXT,                       -- 'achar' | 'explicar' | 'resumir' | 'fora_escopo' | NULL (fase 1)
+    capacidade      TEXT,                       -- 'achar' | 'explicar' | 'resumir' | 'fora_escopo' | NULL (genérica)
     resposta        TEXT,
     fontes          JSONB       NOT NULL DEFAULT '[]'::jsonb,
     respondida      BOOLEAN     NOT NULL DEFAULT false,
-    motivo_falha    TEXT,                       -- 'sem_documento' | 'erro_modelo' | 'timeout' | ...
+    motivo_falha    TEXT,                       -- 'sem_documento' | 'erro_modelo' | 'chave_invalida' | 'modelo_invalido' | 'limite_taxa' | 'timeout' | 'sem_rede'
     tokens_entrada  INTEGER,
     tokens_saida    INTEGER,
     latencia_ms     INTEGER,
     feedback        SMALLINT                    -- NULL | 1 útil | -1 não útil
 );
+
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE TABLE IF NOT EXISTS documento (
+    id            BIGSERIAL PRIMARY KEY,
+    titulo        TEXT NOT NULL UNIQUE,
+    origem        TEXT,
+    versao        TEXT,
+    atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ativo         BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS documento_chunk (
+    id           BIGSERIAL PRIMARY KEY,
+    documento_id BIGINT NOT NULL REFERENCES documento(id) ON DELETE CASCADE,
+    ordem        INTEGER NOT NULL,
+    texto        TEXT NOT NULL,
+    embedding    VECTOR(384) NOT NULL,           -- dimensão vem de EMBEDDING_DIM
+    tsv          TSVECTOR GENERATED ALWAYS AS (to_tsvector('portuguese', texto)) STORED
+);
 ```
 
 `usuario_id` referencia `usuarios(id)`, a tabela real de usuário deste
 sistema (`perfil` + `cargo` + `time` definem permissão — ver
-`app/assistente/db.py:get_session`).
+`app/assistente/db.py:get_session`). `documento.titulo` é `UNIQUE`:
+reingerir um título existente atualiza o mesmo documento em vez de
+duplicar (apaga os chunks antigos, insere os novos — ver seção 6).
 
-Ainda **não** criado (chega na fase correspondente):
+Se `CREATE EXTENSION vector`/`pg_trgm` falhar (plano do Neon sem
+permissão, por exemplo), `setup_schema()` faz rollback só dessa parte e
+segue — `assistente_log` continua funcionando (fases 1/2 não dependem
+disso), só a capacidade B fica indisponível até habilitar a extensão.
 
-- `documento` / `documento_chunk` (+ extensões `vector` e `pg_trgm`) — Fase 3, capacidade B.
+Ainda **não** criado (Fase 5):
+
 - Nenhuma tabela nova de atividade pra capacidade D: a atividade já existe
   em `tarefas` (com `segundos` acumulado) e `status_atividades` (despacho
   de campo). Fase 5 mapeia essas duas em vez de duplicar — ver seção 8.
@@ -86,22 +124,36 @@ Saída: stream SSE, `media_type="text/event-stream"`.
 
 ```
 event: inicio
-data: {"log_id": 1841, "capacidade": null}
+data: {"log_id": 1841, "capacidade": "explicar"}
 
 event: texto
-data: {"delta": "Ainda estou "}
+data: {"delta": "O fluxo de RMA "}
 
 event: texto
-data: {"delta": "em construção..."}
+data: {"delta": "começa com a abertura do chamado [1]."}
+
+event: fontes
+data: {"fontes": [{"documento_id": 12, "titulo": "POP RMA Vita", "trecho": "..."}]}
 
 event: fim
-data: {"tokens_entrada": 120, "tokens_saida": 38, "latencia_ms": 640}
+data: {"tokens_entrada": 420, "tokens_saida": 60, "latencia_ms": 900}
 ```
 
-`capacidade` fica `null` na Fase 1 (não existe classificação de intenção
-ainda). `event: fontes` só passa a existir na Fase 3 (capacidade B).
+`capacidade` é `"resumir"` (pedido de resumo semanal detectado por
+palavra-chave), `"explicar"` (achou trecho de documento indexado) ou
+`null` (conversa genérica — Fase 1, ou nenhum documento indexado ainda).
+`event: fontes` só existe quando `capacidade == "explicar"` **e** a
+resposta não foi a recusa fixa ("Não encontrei isso na base de
+procedimentos.") — sai depois do texto, antes do `fim`.
+
+Uma recusa (regra 2: sem trecho relevante, sem invenção) ainda é
+`respondida: true` no log — é uma resposta honesta, não uma falha — mas
+grava `motivo_falha = 'sem_documento'`, que é o que alimenta
+`/assistente/lacunas` (ainda não implementado, Fase 4).
+
 Erro do modelo vira `event: erro` com mensagem legível, nunca stack
-trace, e grava `motivo_falha` no log.
+trace, e grava `motivo_falha` no log (classificado a partir do tipo de
+exceção da SDK — ver `llm.py:_classificar_erro`).
 
 ### `POST /assistente/feedback`
 
@@ -207,14 +259,60 @@ calculados pelo modelo; máximo cinco parágrafos.
 
 ---
 
-## 6. Fase 3 — Capacidade B, explicar (não implementada)
+## 6. Fase 3 — Capacidade B, explicar · **feito**
 
-Sem mudança de desenho em relação à spec original (ingestão de
-`.md`/`.docx`/`.pdf`, blocos de 500–700 palavras com 80 de sobreposição,
-`documento`/`documento_chunk` com `pgvector` + `pg_trgm`, busca híbrida
-com Reciprocal Rank Fusion, prompt que recusa sem trecho de origem). O
-que falta antes de começar: **conteúdo real** — nenhum POP foi indicado
-ainda como primeiro documento de teste.
+Implementado conforme a spec original, sem mudança de desenho:
+
+- `app/assistente/ingestao.py` — `quebrar_em_blocos()` (500–700 palavras,
+  80 de sobreposição, nunca corta no meio de frase; prioriza fechar o
+  bloco numa borda de parágrafo assim que atinge o mínimo — se um
+  parágrafo sozinho estoura o máximo, quebra por sentença dentro dele).
+  `extrair_texto()` lê `.md`, `.docx` (`python-docx`) e `.pdf` (`pypdf`).
+  `ingerir_documento()` prefixa o título do documento antes do embedding
+  (melhora a recuperação de blocos do meio, que sozinhos perdem
+  contexto), apaga os chunks antigos antes de inserir os novos quando o
+  título já existe (`documento.titulo UNIQUE`).
+- `app/assistente/embeddings.py` — `sentence-transformers`, modelo e
+  dimensão configuráveis (`EMBEDDING_MODEL`/`EMBEDDING_DIM`), carregado
+  só na primeira chamada (import pesado isolado, não atrasa a subida do
+  resto do assistente). Prefixo `"query: "`/`"passage: "` embutido nas
+  funções — nenhum outro módulo monta esse prefixo à mão.
+- `app/assistente/capacidade_explicar.py` — `buscar_hibrido()` roda as
+  duas buscas (vetorial via `pgvector`, textual via `tsvector`/
+  `plainto_tsquery`) e funde com Reciprocal Rank Fusion
+  (`fundir_rrf()`, extraída à parte, pura, testável sem banco). Devolve
+  `None` em erro (o router avisa e não inventa) e `[]` quando não há
+  documento indexado ainda (cai no genérico da Fase 1).
+- `POST /assistente/pergunta` decide o roteamento: pedido de resumo →
+  Fase 2; senão, roda a busca híbrida — achou trecho → capacidade
+  `explicar` com `prompts/sistema_explicar.md`, cita `[n]` e recusa
+  exatamente "Não encontrei isso na base de procedimentos." sem trecho
+  que sustente; sem nenhum documento indexado → genérico da Fase 1
+  (comportamento inalterado até a primeira ingestão).
+- `POST /assistente/documentos` — endpoint de ingestão (upload
+  multipart: `arquivo` + `titulo` + `origem`/`versao` opcionais), restrito
+  a `perfil == 'admin'` sempre (independente de `ASSISTENTE_PERFIS_PILOTO`
+  — gestão de conteúdo é mais sensível que só perguntar).
+
+**Ainda falta:** nenhum POP real foi ingerido — o pipeline está pronto e
+testado (chunking, RRF, roteamento, recusa) mas sem conteúdo de verdade
+ainda não dá pra rodar o critério de aceite abaixo.
+
+**Critério de aceite** (rodar depois de ingerir POPs reais via
+`POST /assistente/documentos`):
+
+- [ ] Conjunto de 20 perguntas com resposta conhecida na base + 10 cuja
+      resposta não está na base.
+- [ ] Nas 10 sem resposta, recusa honesta nas 10 — uma resposta
+      inventada aqui reprova a fase.
+- [ ] Nas 20 com resposta, pelo menos 16 corretas e todas com trecho
+      citado (evento `fontes` presente).
+- [x] Toda recusa grava `motivo_falha = 'sem_documento'` — já
+      implementado e verificado com resposta simulada (`router.py`);
+      falta só confirmar com conteúdo real.
+- [x] `documento.titulo` repetido reingere em vez de duplicar (apaga
+      chunks antigos, insere os novos) — implementado em
+      `ingerir_documento()`.
 
 ---
 
@@ -272,10 +370,11 @@ liderança antes de qualquer sinalização real chegar em alguém.
 
 ---
 
-## 9. Widget — implementado na Fase 1
+## 9. Widget
 
-- Botão flutuante com avatar (`static/assistente/avatar.svg`, gradiente
-  na paleta da marca — `#5B2EE0` → `#B826C9` → `#EC4899`), atalho `Alt+A`.
+- Botão flutuante com avatar (`static/assistente/avatar.svg`, rosto
+  simples em gradiente na paleta da marca — `#5B2EE0` → `#B826C9` →
+  `#EC4899`), atalho `Alt+A`.
 - Streaming palavra a palavra via `fetch` + leitura manual do stream SSE
   (não usa `EventSource`, porque o endpoint é POST).
 - CSRF tratado no próprio widget (lê `csrf_token` do cookie e ecoa em
@@ -287,6 +386,10 @@ liderança antes de qualquer sinalização real chegar em alguém.
   carregamento (cursor piscando).
 - Sem `localStorage` de histórico — cada abertura do widget começa vazia,
   o histórico de verdade é `assistente_log` no servidor.
-- Fontes da capacidade B (chips clicáveis) — placeholder no CSS
-  (`.nexo-feedback`/estrutura de bolha já suporta anexar conteúdo extra),
-  implementação real fica pra Fase 3.
+- Chip de sugestão "Resumo da semana" no estado vazio do painel.
+- **Fase 3:** fontes da capacidade B viram chips clicáveis abaixo da
+  resposta (`.nexo-fonte-chip`) — clicar expande uma prévia curta do
+  trecho (`.nexo-fonte-previa`), sem navegar pra lugar nenhum. Testado
+  visualmente num harness local com stream simulado (screenshot do
+  fluxo: pergunta → resposta com citação `[n]` → chips → prévia
+  expandida).
