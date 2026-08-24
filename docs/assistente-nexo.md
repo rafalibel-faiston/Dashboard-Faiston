@@ -16,20 +16,23 @@ Assistente de IA embutido no **Faiston OPS** (este dashboard de
 apontamento de projetos e despacho técnico). Usuário: equipe interna —
 backoffice de projetos, N2 de campo, gestão, diretoria.
 
-Quatro capacidades, três reativas e uma proativa:
+Seis capacidades, quatro reativas, uma proativa e uma guiada:
 
 | Capacidade | O que resolve | Como funciona |
 |---|---|---|
-| **A · Achar** | Procurar informação no sistema (status de tarefa, cliente, atividade de campo) | Modelo escolhe uma função de um catálogo fixo; o backend executa a consulta |
+| **A · Achar** | Procurar informação no sistema (status de tarefa, cliente, atividade de campo, carimbo de atendimento) | Modelo escolhe uma função de um catálogo fixo; o backend executa a consulta |
 | **B · Explicar** | Dúvida de procedimento e fluxo (como abrir um chamado, como fechar uma atividade N2) | Busca híbrida nos documentos internos + resposta citando a fonte |
 | **C · Resumir** | Montar relatório semanal (o que hoje já existe parcialmente em `/api/ia/insights`) | Modelo redige em cima de agregado já calculado pelo backend |
 | **D · Observar** | Repetição, retrabalho e pendência esquecida em tarefas/atividades | Job diário detecta o padrão em SQL; o modelo só escreve o aviso |
+| **E · Ensinar** | Onboarding de quem é novo no time — trilha guiada, uma etapa de cada vez | Modelo ensina em cima do conteúdo de um documento já indexado; progresso guardado por pessoa |
 
-**Fases 1, 2 e 3 implementadas** (log + genérico, resumo semanal,
-explicar via documento indexado). Fases 4 (achar) e 5 (observar) ainda
-não — ver `docs/assistente-spec.md` pros critérios de aceite de cada
-uma, incluindo o que falta validar nas já implementadas (números do
-resumo, conteúdo real pra testar a capacidade B).
+**Todas as fases implementadas** (log + genérico, resumo semanal,
+explicar via documento indexado, achar por catálogo fixo — incluindo
+busca de carimbo —, observar desligado por padrão, ensinar). Ver
+`docs/assistente-spec.md` pros critérios de aceite de cada uma,
+incluindo o que falta validar (números do resumo, conteúdo real pra
+testar a capacidade B, alinhamento com a liderança antes de ligar a
+capacidade D).
 
 ## Stack real deste repositório
 
@@ -125,12 +128,14 @@ app/
       redacao.py             # único arquivo do pacote que fala com o modelo
       job.py                  # orçamento (2/semana), cooldown (30 dias), grava sinalizacao
       sinalizacoes.py          # leitura/atualização escopada por usuario_id
+    capacidade_ensinar.py   # trilha de onboarding: progresso por pessoa (Fase 6)
     prompts/
       sistema_generico.md
       sistema_resumir.md
       sistema_explicar.md
       sistema_achar.md
       sistema_observar.md
+      sistema_professor.md
 static/
   assistente/
     widget.js
@@ -171,12 +176,18 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    documento sintético. Falta ingerir POPs de verdade
    (`POST /assistente/documentos`, admin) e rodar o critério de aceite
    (20 perguntas com resposta + 10 sem) — ver `assistente-spec.md`.
-4. **Capacidade A — achar — feito.** Catálogo fixo (4 funções:
+4. **Capacidade A — achar — feito.** Catálogo fixo (5 funções:
    `minhas_tarefas`, `tarefas_por_cliente`, `escala_n2_do_dia`,
-   `atividades_campo_pendentes`), function calling decide se a pergunta
-   é do tipo achar, texto final montado por código. Escolhidas pelo
-   domínio, não pelo log real (sem acesso a ele neste ambiente) — ajustar
-   depois de ver o que a equipe pergunta de verdade.
+   `atividades_campo_pendentes`, `buscar_carimbo`), function calling
+   decide se a pergunta é do tipo achar, texto final montado por código.
+   `buscar_carimbo` busca na tabela `carimbos` que já existia no OPS
+   (textos prontos de atendimento/acionamento cadastrados pelos próprios
+   funcionários, `/api/carimbos` em `main.py`) — mesma regra de
+   visibilidade por time que o CRUD original, conteúdo devolvido ao pé
+   da letra (o modelo nunca reescreve um carimbo). As outras quatro
+   foram escolhidas pelo domínio, não pelo log real (sem acesso a ele
+   neste ambiente) — ajustar depois de ver o que a equipe pergunta de
+   verdade.
 5. **Capacidade D — observar — implementada, desligada por padrão.** Três
    detectores em SQL puro (`repeticao_identica`, `retrabalho`,
    `pendencia_parada`), rodando de `tarefas`/`tarefa_historico` (não
@@ -193,6 +204,23 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    (útil / não útil / não me avise mais assim). Sinalização é sempre da
    pessoa, nunca sobre a pessoa: todo endpoint e toda função de leitura
    são escopados por `usuario_id`, sem view agregada nem por gestor.
+   `POST /assistente/observar/rodar-agora` (admin, botão na tela
+   `/assistente/documentos`) dispara o job na hora, só pra testar sem
+   esperar o agendamento diário.
+6. **Capacidade E — ensinar (modo professor) — feito.** Trilha de
+   onboarding guiada: reaproveita documento já indexado (Fase 3) como
+   conteúdo de cada etapa — admin marca a posição de um documento na
+   trilha (`documento.ordem_onboarding`, campo "posição no onboarding"
+   na tela `/assistente/documentos`) em vez de um sistema de conteúdo
+   novo. Progresso por pessoa em `onboarding_progresso`, sempre retoma
+   de onde parou. Gatilho por palavra-chave: "onboarding"/"modo
+   professor"/"sou novo(a) no time" começa ou retoma a trilha; "próxima
+   aula" (frase distinta o bastante pra não colidir com conversa normal)
+   avança — só conta como gatilho quando a pessoa já tem uma trilha em
+   andamento. O modelo ensina em cima do conteúdo da etapa recebida (tom
+   didático, `prompts/sistema_professor.md`), nunca inventa procedimento
+   fora do que foi passado. Chip "🎓 Começar onboarding" no estado vazio
+   do widget.
 
 ## Perguntas em aberto (não inventar, confirmar antes de avançar)
 
@@ -214,3 +242,6 @@ não a Fase 1:
   `ASSISTENTE_OBSERVAR_ENABLED=1` de verdade — está implementada e
   testada, mas desligada até esse alinhamento acontecer.
 - Ampliar o piloto (hoje só `admin`) pra quais perfis/cargos, e quando?
+- Quais documentos (e em que ordem) formam a trilha de onboarding da
+  capacidade E? Hoje nenhum documento está marcado — a trilha fica vazia
+  até o admin escolher pela tela `/assistente/documentos`.

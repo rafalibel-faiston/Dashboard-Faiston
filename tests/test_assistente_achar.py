@@ -103,6 +103,36 @@ def test_atividades_pendentes_com_dados():
     assert "10" in texto
 
 
+def test_buscar_carimbo_nenhum_encontrado():
+    texto = formatar_resposta("buscar_carimbo", {"termo": "xpto", "encontrados": []})
+    assert "não encontrei" in texto.lower()
+    assert "xpto" in texto
+
+
+def test_buscar_carimbo_um_encontrado_devolve_conteudo_ao_pe_da_letra():
+    conteudo = "Prezado cliente, seu chamado foi encerrado. Att, equipe Faiston."
+    texto = formatar_resposta(
+        "buscar_carimbo",
+        {"termo": "encerramento", "encontrados": [
+            {"id": 1, "titulo": "Encerramento padrão", "categoria": "Atendimento", "conteudo": conteudo},
+        ]},
+    )
+    assert conteudo in texto
+    assert "Encerramento padrão" in texto
+
+
+def test_buscar_carimbo_varios_encontrados_lista_pra_escolher():
+    texto = formatar_resposta(
+        "buscar_carimbo",
+        {"termo": "acion", "encontrados": [
+            {"id": 1, "titulo": "Acionamento N2", "categoria": "Campo", "conteudo": "..."},
+            {"id": 2, "titulo": "Acionamento cliente", "categoria": "Atendimento", "conteudo": "..."},
+        ]},
+    )
+    assert "Acionamento N2" in texto
+    assert "Acionamento cliente" in texto
+
+
 def test_invalido_vira_recusa_honesta():
     texto = formatar_resposta("_invalido", {})
     assert texto == "Não consegui entender qual informação você precisa."
@@ -145,3 +175,8 @@ def test_executar_argumento_nao_declarado_gera_typeerror():
     # o modelo "inventou" um parâmetro que a função não tem
     with pytest.raises(TypeError):
         executar("minhas_tarefas", {"usuario_id_de_outra_pessoa": 999}, {"id": 1})
+
+
+def test_executar_buscar_carimbo_termo_vazio_gera_valueerror():
+    with pytest.raises(ValueError):
+        executar("buscar_carimbo", {"termo": "   "}, {"id": 1, "perfil": "funcionario", "time": "Projetos"})

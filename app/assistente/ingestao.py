@@ -228,7 +228,7 @@ def listar_documentos() -> List[dict]:
         cur.execute(
             """
             SELECT d.id, d.titulo, d.origem, d.versao, d.atualizado_em, d.ativo,
-                   COUNT(c.id) AS blocos
+                   COUNT(c.id) AS blocos, d.ordem_onboarding
             FROM documento d
             LEFT JOIN documento_chunk c ON c.documento_id = d.id
             GROUP BY d.id
@@ -247,6 +247,7 @@ def listar_documentos() -> List[dict]:
                 "atualizado_em": r[4].isoformat() if r[4] else None,
                 "ativo": r[5],
                 "blocos": r[6],
+                "ordem_onboarding": r[7],
             }
             for r in rows
         ]
@@ -257,6 +258,48 @@ def listar_documentos() -> List[dict]:
         except Exception:
             pass
         return []
+
+
+def definir_ordem_onboarding(documento_id: int, ordem: Optional[int]) -> bool:
+    """Marca (ou remove, se `ordem` for None) a posição de um documento na
+    trilha de onboarding (capacidade E, ensinar). Checa duplicidade antes
+    de gravar (em vez de deixar o índice único do banco estourar) pra
+    devolver um erro claro em vez de uma exceção genérica -- mesmo
+    padrão de `main.py:criar_carimbo` pro nome duplicado."""
+    ordem = int(ordem) if ordem is not None else None
+    conn = get_conn()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        if ordem is not None:
+            cur.execute(
+                "SELECT id FROM documento WHERE ordem_onboarding = %s AND id != %s",
+                (ordem, documento_id),
+            )
+            if cur.fetchone():
+                cur.close()
+                conn.close()
+                raise ValueError(f"já existe um documento na posição {ordem} do onboarding")
+        cur.execute(
+            "UPDATE documento SET ordem_onboarding = %s WHERE id = %s",
+            (ordem, documento_id),
+        )
+        ok = cur.rowcount > 0
+        conn.commit()
+        cur.close()
+        conn.close()
+        return ok
+    except ValueError:
+        raise
+    except Exception as e:
+        print(f"[assistente/ingestao] Erro definindo ordem de onboarding: {e}")
+        try:
+            conn.rollback()
+            conn.close()
+        except Exception:
+            pass
+        return False
 
 
 def remover_documento(documento_id: int) -> bool:

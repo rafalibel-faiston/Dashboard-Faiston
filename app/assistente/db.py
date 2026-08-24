@@ -185,6 +185,28 @@ def setup_schema() -> None:
             "ON sinalizacao (usuario_id, vista_em, criado_em DESC)"
         )
 
+        # --- Fase 6: trilha de onboarding (capacidade E, ensinar) --------
+        # Reaproveita `documento` (Fase 3) como conteúdo da trilha -- só
+        # marca a posição de cada um no onboarding, sem sistema de
+        # conteúdo novo. `onboarding_progresso` é só o que não existia:
+        # em que etapa cada pessoa está.
+        cur.execute("ALTER TABLE documento ADD COLUMN IF NOT EXISTS ordem_onboarding INTEGER")
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_documento_ordem_onboarding "
+            "ON documento (ordem_onboarding) WHERE ordem_onboarding IS NOT NULL"
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS onboarding_progresso (
+                usuario_id    INTEGER PRIMARY KEY REFERENCES usuarios(id),
+                etapa_atual   INTEGER NOT NULL DEFAULT 1,
+                iniciado_em   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+                concluido_em  TIMESTAMPTZ
+            )
+            """
+        )
+
         conn.commit()
         cur.close()
         conn.close()

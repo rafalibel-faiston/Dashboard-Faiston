@@ -400,14 +400,32 @@ def escala_n2_do_dia(sess: dict, data: str) -> dict:
 
 def atividades_campo_pendentes(sess: dict, dias: int = 7) -> dict:
     """status_atividades não concluída/cancelada há mais de N dias."""
+
+def buscar_carimbo(sess: dict, termo: str) -> dict:
+    """Busca em `carimbos` (textos prontos de atendimento/acionamento
+    que a própria equipe cadastra em /api/carimbos, main.py) por título
+    ou categoria. Mesma regra de visibilidade do CRUD original: admin vê
+    todos, os demais só os do próprio time (sess['time'])."""
 ```
 
 `minhas_tarefas` cumpre a regra 5 (roda com a permissão de quem
 perguntou) por desenho: não existe parâmetro pra consultar outra
-pessoa. As outras três são visão de equipe (cliente, escala, despacho),
-sem recorte por `time`/`cargo` ainda — aceitável no piloto atual
-(só `admin`), mas listado como limitação conhecida pra quando o piloto
-abrir pra mais perfis.
+pessoa. `tarefas_por_cliente`/`escala_n2_do_dia`/`atividades_campo_pendentes`
+são visão de equipe (cliente, escala, despacho), sem recorte por
+`time`/`cargo` ainda — aceitável no piloto atual (só `admin`), mas
+listado como limitação conhecida pra quando o piloto abrir pra mais
+perfis. `buscar_carimbo` já nasce escopada por time (reaproveitando a
+regra que a tabela `carimbos` já tinha antes do assistente existir).
+
+`buscar_carimbo` é a única função do catálogo cujo resultado é
+reproduzido ao pé da letra na resposta (`capacidade_achar.py:
+formatar_resposta`) — um carimbo é texto pronto pra colar num
+atendimento, então o modelo nunca reformula o conteúdo, só ajuda a
+achar o carimbo certo. Zero resultado → recusa honesta citando o termo
+buscado; mais de um resultado → lista os títulos e pede um termo mais
+específico (sem follow-up de conversa — cada pergunta é isolada, então
+"qual desses" tem que ser respondido numa nova pergunta com nome mais
+preciso, não um "sim"/"o segundo").
 
 **Fluxo** (`app/assistente/capacidade_achar.py`):
 
@@ -527,9 +545,93 @@ sinalização de mais de uma pessoa, nem pra admin.
       (`minimo`/`dias` de cada detector) com o que a equipe realmente
       pergunta/reclama — não testável neste ambiente sem banco real.
 
+`POST /assistente/observar/rodar-agora` (admin, `_exigir_admin`) roda o
+job (`job.rodar()`) na hora em vez de esperar o agendamento diário —
+existe só pra testar/depurar, nunca chamado pelo fluxo normal. Botão
+correspondente na tela `/assistente/documentos`.
+
 ---
 
-## 9. Widget
+## 9. Fase 6 — Capacidade E, ensinar (modo professor) · **feito**
+
+Onboarding guiado: leva quem é novo no time pelos documentos marcados
+como trilha, um de cada vez, num tom didático. Reaproveita a base de
+procedimentos que já existe (Fase 3) como conteúdo — nenhum sistema de
+conteúdo novo, só uma posição opcional em cada documento
+(`documento.ordem_onboarding`, índice único parcial — nunca duas etapas
+na mesma posição). O que não tinha equivalente é o progresso por
+pessoa (schema na seção 1, `onboarding_progresso`).
+
+**Módulo** (`app/assistente/capacidade_ensinar.py`) — todas as queries
+em SQL literal fixo, garantido por teste de AST:
+
+```python
+def total_etapas() -> int: ...
+def etapa_por_ordem(ordem: int) -> dict | None:
+    """Documento daquela posição -- concatena os blocos (Fase 3) na
+    ordem original, porque não existe texto bruto salvo."""
+def progresso_atual(usuario_id: int) -> dict | None:
+    """None = nunca começou. {"etapa_atual": N, "concluido": bool} caso
+    contrário."""
+def iniciar_ou_retomar(usuario_id: int) -> dict:
+    """Cria na etapa 1 se nunca começou; se já tem progresso (mesmo
+    concluído), retoma dali -- nunca reinicia por cima."""
+def avancar(usuario_id: int) -> dict:
+    """+1 etapa; sem próxima na trilha, marca concluído em vez de
+    apontar pra uma etapa que não existe."""
+```
+
+**Gatilho** (`app/assistente/router.py`), checado com a mesma
+prioridade do resumo — antes de achar/explicar/genérico:
+
+- Começar/retomar: `_eh_pedido_de_ensinar_iniciar` — palavra-chave
+  ("onboarding", "modo professor") ou "sou novo(a)" combinado com
+  "time"/"equipe"/"aqui" (sozinho é frase comum demais pra virar
+  gatilho).
+- Continuar: `_eh_pedido_de_ensinar_continuar` — só a frase "próxima
+  aula"/"continuar aula"/"próxima etapa" (distinta o bastante pra não
+  colidir com "qual o próximo passo do chamado?" ou conversa normal), e
+  só é checada quando a pessoa já tem uma trilha em andamento
+  (`progresso_atual` não-`None` e não concluída). Depois de concluído o
+  onboarding, "próxima aula" deixa de ser gatilho especial e vira
+  pergunta normal (achar → explicar → genérico), sem tratamento
+  diferente.
+
+Sem etapa cadastrada (`total_etapas() == 0`) ou trilha já concluída:
+resposta fixa (sem chamar o modelo), mesmo princípio da regra 3 —
+código decide quando não há o que ensinar, o modelo só escreve quando
+há conteúdo de verdade pra explicar. Havendo etapa: streaming normal via
+`completar_stream`, com `prompts/sistema_professor.md` como prompt de
+sistema e o conteúdo da etapa (título + blocos concatenados) como
+mensagem de usuário — o modelo nunca recebe a pergunta original da
+pessoa nessa capacidade, só o material a ensinar.
+
+**Admin** define a trilha na tela `/assistente/documentos` — campo
+numérico "posição no onboarding" por documento
+(`PATCH /assistente/documentos/{id}/onboarding`,
+`{"ordem_onboarding": int | null}`), `null` remove da trilha. Posição
+duplicada devolve `400` (checado antes do `UPDATE`, mesmo padrão de
+`main.py:criar_carimbo` pro nome duplicado — nunca deixa o índice único
+do banco estourar como exceção genérica).
+
+**Critério de aceite:**
+
+- [x] `capacidade_ensinar.py` só usa SQL literal fixo — teste de AST
+      (`test_capacidade_ensinar_so_usa_sql_literal_fixa`).
+- [x] "Próxima aula" só dispara com trilha em andamento, nunca em
+      conversa normal ou depois de concluído — coberto com mock de
+      `TestClient` simulando os três casos (iniciar, continuar, sem
+      trilha/concluído).
+- [x] Progresso nunca reinicia sozinho por cima de uma trilha em
+      andamento ou já concluída (`test_iniciar_ou_retomar_ja_tinha_progresso_nao_reinicia`).
+- [ ] Rodar com uma trilha real (POPs marcados de verdade) e validar
+      com alguém realmente novo no time se o tom didático funciona —
+      não testável neste ambiente sem pessoa de verdade nem conteúdo
+      real.
+
+---
+
+## 10. Widget
 
 - Botão flutuante com avatar (`static/assistente/avatar.svg`, rosto
   simples em gradiente na paleta da marca — `#5B2EE0` → `#B826C9` →
@@ -564,3 +666,8 @@ sinalização de mais de uma pessoa, nem pra admin.
   desabilitam e mostram "Obrigado!", igual ao feedback de resposta do
   chat. Testado visualmente com stream/lista simulados (screenshot do
   badge, da lista e do feedback já dado).
+- **Fase 6:** chip "🎓 Começar onboarding" no estado vazio do painel,
+  ao lado do "📊 Resumo da semana" — manda a frase-gatilho de
+  `_eh_pedido_de_ensinar_iniciar`, sem UI dedicada além disso (a aula
+  aparece como mensagem normal do assistente, "próxima aula" é só
+  digitar como qualquer pergunta).
