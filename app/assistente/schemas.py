@@ -1,4 +1,4 @@
-"""Contratos de entrada e saída do assistente NEXO."""
+"""Contratos de entrada e saída do assistente OPS."""
 from typing import Optional
 
 from pydantic import BaseModel, Field

@@ -1,4 +1,4 @@
-# Especificação de implementação — Assistente NEXO (Dashboard-Faiston)
+# Especificação de implementação — Assistente OPS (Dashboard-Faiston)
 
 Adaptação da spec genérica ao schema real deste repositório. Leia junto
 com `docs/assistente-nexo.md`. Implemente fase por fase, na ordem; não
@@ -168,24 +168,42 @@ que vem depois, não suposição.
 
 ---
 
-## 5. Fase 2 — Capacidade C, resumir (não implementada)
+## 5. Fase 2 — Capacidade C, resumir · **feito**
 
-Ponto de partida real: `/api/ia/insights` em `main.py` (linha ~4059) já
-calcula, inteiramente em SQL, tickets por funcionário/cliente/prioridade
-e tickets atrasados — e já manda isso pro modelo virar texto (hoje 3
-insights curtos, via `http.client` direto em vez de `AsyncOpenAI`). A
-Fase 2 do assistente deveria:
+`app/assistente/capacidade_resumir.py:montar_agregado_semana()` — agregado
+inteiramente em SQL (mesma base do `/api/ia/insights` já existente em
+`main.py`, com recorte por semana adicionado): tarefas concluídas e horas
+por funcionário, tarefas por cliente, tickets acima do limite de atraso
+(`limite_dias_atraso` vai explícito no JSON, não só embutido no nome do
+campo — evita que o modelo escreva um número que pareça inventado) e
+atendimentos de campo concluídos na semana (`status_atividades`).
 
-- Migrar essa lógica pra `app/assistente/capacidade_resumir.py`, reusando
-  `llm.py` em vez da chamada HTTP crua duplicada.
-- Confirmar com o Rafa se os números de `/api/ia/insights` são de fato o
-  que entra no resumo semanal, ou se falta algo (ver pergunta em aberto
-  em `assistente-nexo.md`).
+Ainda sem classificação de intenção de verdade (isso é Fase 4,
+`intencao.py`): `router.py:_eh_pedido_de_resumo()` é um gatilho por
+palavra-chave (`"resumo"` + `"semana"`/`"semanal"`, sem acento) que decide,
+dentro do mesmo `POST /assistente/pergunta`, entre chamar
+`montar_agregado_semana()` + `prompts/sistema_resumir.md` ou seguir pelo
+fluxo genérico da Fase 1. `capacidade` vai como `"resumir"` no evento
+`inicio` e no log, em vez de `null`. O widget ganhou um chip de sugestão
+("📊 Resumo da semana") no estado vazio do painel pra não depender só do
+usuário adivinhar a frase certa.
 
-Regras da spec original continuam valendo sem alteração: números
-exatamente do JSON, nunca calculados pelo modelo; máximo cinco
-parágrafos; teste que extrai números do texto gerado e confirma que
-todos vêm do JSON de entrada.
+Regras da spec original sem alteração: números exatamente do JSON, nunca
+calculados pelo modelo; máximo cinco parágrafos.
+
+**Critério de aceite:**
+
+- [x] Todo número do texto gerado aparece no JSON de entrada —
+      `tests/test_assistente_resumir_numeros.py` (não depende de banco
+      nem de chamada ao modelo, roda sempre; testa a função
+      `todos_numeros_batem()` que o critério pede).
+- [ ] Rodar duas vezes com o mesmo JSON produz textos equivalentes em
+      conteúdo — depende de chamada real ao modelo, precisa validação
+      manual em produção/teste, não dá pra automatizar sem `LLM_API_KEY`.
+- [ ] Validar com a equipe se os números escolhidos (tarefas concluídas e
+      horas por funcionário/cliente, atrasados, atendimentos de campo)
+      são de fato os que interessam no resumo semanal — ainda não
+      confirmado com o Rafa (pergunta em aberto original).
 
 ---
 

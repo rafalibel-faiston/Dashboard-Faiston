@@ -1,4 +1,4 @@
-/* Widget do assistente NEXO — Faiston OPS.
+/* Widget do assistente OPS — Faiston OPS.
  * Fase 1: caixa de perguntas com resposta em streaming (SSE) e log no
  * servidor. Sem localStorage de histórico (o histórico, se existir,
  * vem do log — regra da especificação). Autocontido: não depende do
@@ -27,8 +27,8 @@
         var launcher = document.createElement("button");
         launcher.id = "nexo-launcher";
         launcher.type = "button";
-        launcher.title = "Assistente NEXO (Alt+A)";
-        launcher.setAttribute("aria-label", "Abrir assistente NEXO");
+        launcher.title = "Assistente OPS (Alt+A)";
+        launcher.setAttribute("aria-label", "Abrir assistente OPS");
         launcher.innerHTML =
             '<img src="/assistente/avatar.svg" alt="">' +
             '<span class="nexo-badge" id="nexo-badge"></span>';
@@ -38,11 +38,15 @@
         painel.innerHTML =
             '<div id="nexo-header">' +
             '  <img src="/assistente/avatar.svg" alt="">' +
-            '  <div><div class="nexo-titulo">NEXO</div><div class="nexo-sub">Assistente Faiston OPS</div></div>' +
+            '  <div><div class="nexo-titulo">OPS</div><div class="nexo-sub">Assistente Faiston</div></div>' +
             '  <button type="button" id="nexo-fechar" aria-label="Fechar">✕</button>' +
             "</div>" +
-            '<div id="nexo-mensagens"></div>' +
-            '<div class="nexo-dica">Ainda em construção — não acessa dados do sistema nem documentos.</div>' +
+            '<div id="nexo-mensagens">' +
+            '  <div id="nexo-sugestoes">' +
+            '    <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">📊 Resumo da semana</button>' +
+            "  </div>" +
+            "</div>" +
+            '<div class="nexo-dica">Em construção — hoje só monta o resumo semanal e responde de forma genérica. Ainda não acessa documentos nem outros dados do sistema.</div>' +
             '<form id="nexo-form">' +
             '  <textarea id="nexo-input" rows="1" placeholder="Pergunte algo..." maxlength="2000"></textarea>' +
             '  <button type="submit" id="nexo-enviar" aria-label="Enviar">➤</button>' +
@@ -207,6 +211,25 @@
         var input = painel.querySelector("#nexo-input");
         var enviarBtn = painel.querySelector("#nexo-enviar");
         var fechar = painel.querySelector("#nexo-fechar");
+        var sugestoes = painel.querySelector("#nexo-sugestoes");
+
+        async function enviar(pergunta) {
+            if (!pergunta) return;
+            if (sugestoes) { sugestoes.remove(); sugestoes = null; }
+            enviarBtn.disabled = true;
+            try {
+                await enviarPergunta(pergunta, mensagens);
+            } finally {
+                enviarBtn.disabled = false;
+                input.focus();
+            }
+        }
+
+        painel.querySelectorAll(".nexo-chip").forEach(function (chip) {
+            chip.addEventListener("click", function () {
+                enviar(chip.getAttribute("data-pergunta"));
+            });
+        });
 
         function abrir() {
             painel.classList.add("aberto");
@@ -241,19 +264,13 @@
             }
         });
 
-        form.addEventListener("submit", async function (ev) {
+        form.addEventListener("submit", function (ev) {
             ev.preventDefault();
             var pergunta = input.value.trim();
             if (!pergunta) return;
             input.value = "";
             input.style.height = "auto";
-            enviarBtn.disabled = true;
-            try {
-                await enviarPergunta(pergunta, mensagens);
-            } finally {
-                enviarBtn.disabled = false;
-                input.focus();
-            }
+            enviar(pergunta);
         });
     }
 

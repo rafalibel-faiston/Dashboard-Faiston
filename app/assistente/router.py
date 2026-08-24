@@ -1,10 +1,11 @@
-"""Endpoints do assistente NEXO. Fase 1: log + caixa de perguntas — resposta
+"""Endpoints do assistente OPS. Fase 1: log + caixa de perguntas — resposta
 genérica em streaming, sem acesso a dado do sistema nem a documentos ainda
 (isso vem nas fases 2/3, só depois de validar esta com a equipe).
 """
 import json
 import os
 import time
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -13,6 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.assistente import db, log as assistente_log
+from app.assistente.capacidade_resumir import montar_agregado_semana
 from app.assistente.llm import ModeloIndisponivel, completar_stream
 from app.assistente.schemas import FeedbackRequest, PerguntaRequest
 
@@ -21,6 +23,21 @@ router = APIRouter(prefix="/assistente", tags=["assistente"])
 _DIR = Path(__file__).resolve().parent
 _STATIC_DIR = _DIR.parent.parent / "static" / "assistente"
 _PROMPT_GENERICO = (_DIR / "prompts" / "sistema_generico.md").read_text(encoding="utf-8")
+_PROMPT_RESUMIR = (_DIR / "prompts" / "sistema_resumir.md").read_text(encoding="utf-8")
+
+
+def _normalizar(txt: str) -> str:
+    nfkd = unicodedata.normalize("NFKD", txt.lower())
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _eh_pedido_de_resumo(pergunta: str) -> bool:
+    """Fase 2: sem classificação de intenção de verdade ainda (isso é
+    Fase 4/intencao.py) — um gatilho simples por palavra-chave é
+    suficiente pra decidir entre o resumo semanal (SQL + redação) e a
+    conversa genérica, sem correr o risco de um NL→SQL aberto."""
+    p = _normalizar(pergunta)
+    return "resumo" in p and ("semana" in p or "semanal" in p)
 
 # Piloto: só estes perfis veem o widget (servidor e front concordam nisso —
 # o front esconde o botão, mas o servidor é quem de fato barra). Lista
@@ -63,12 +80,35 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
         log_id = await run_in_threadpool(
             assistente_log.criar_pergunta, sess["id"], body.pergunta, body.contexto_tela
         )
-        yield _sse("inicio", {"log_id": log_id, "capacidade": None})
 
-        mensagens = [
-            {"role": "system", "content": _PROMPT_GENERICO},
-            {"role": "user", "content": body.pergunta},
-        ]
+        pedido_resumo = _eh_pedido_de_resumo(body.pergunta)
+        capacidade = "resumir" if pedido_resumo else None
+        yield _sse("inicio", {"log_id": log_id, "capacidade": capacidade})
+
+        if pedido_resumo:
+            agregado = await run_in_threadpool(montar_agregado_semana)
+            if agregado is None:
+                latencia_ms = int((time.monotonic() - inicio) * 1000)
+                await run_in_threadpool(
+                    assistente_log.finalizar,
+                    log_id,
+                    resposta=None,
+                    respondida=False,
+                    motivo_falha="erro_modelo",
+                    latencia_ms=latencia_ms,
+                    capacidade=capacidade,
+                )
+                yield _sse("erro", {"mensagem": "Não consegui acessar os dados agora pra montar o resumo. Tente de novo em instantes."})
+                return
+            mensagens = [
+                {"role": "system", "content": _PROMPT_RESUMIR},
+                {"role": "user", "content": json.dumps(agregado, ensure_ascii=False)},
+            ]
+        else:
+            mensagens = [
+                {"role": "system", "content": _PROMPT_GENERICO},
+                {"role": "user", "content": body.pergunta},
+            ]
         resposta_completa = []
         tokens_entrada = None
         tokens_saida = None
@@ -89,6 +129,7 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
                 respondida=False,
                 motivo_falha="timeout" if "timeout" in str(e).lower() else "erro_modelo",
                 latencia_ms=latencia_ms,
+                capacidade=capacidade,
             )
             yield _sse("erro", {"mensagem": "O assistente não conseguiu responder agora. Tente de novo em instantes."})
             return
@@ -101,6 +142,7 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
                 respondida=False,
                 motivo_falha="erro_modelo",
                 latencia_ms=latencia_ms,
+                capacidade=capacidade,
             )
             yield _sse("erro", {"mensagem": "Algo deu errado ao gerar a resposta. Tente de novo em instantes."})
             return
@@ -115,6 +157,7 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
             tokens_entrada=tokens_entrada,
             tokens_saida=tokens_saida,
             latencia_ms=latencia_ms,
+            capacidade=capacidade,
         )
         yield _sse("fim", {
             "tokens_entrada": tokens_entrada,
