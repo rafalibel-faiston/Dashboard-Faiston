@@ -117,10 +117,13 @@ app/
     capacidade_explicar.py # busca híbrida + RRF (Fase 3)
     embeddings.py         # sentence-transformers, local em CPU (Fase 3)
     ingestao.py            # quebra em blocos + parsers .md/.docx/.pdf (Fase 3)
+    catalogo.py             # funções de consulta fixas, expostas como tools (Fase 4)
+    capacidade_achar.py     # function calling + formatação de resposta (Fase 4)
     prompts/
       sistema_generico.md
       sistema_resumir.md
       sistema_explicar.md
+      sistema_achar.md
 static/
   assistente/
     widget.js
@@ -161,9 +164,12 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    documento sintético. Falta ingerir POPs de verdade
    (`POST /assistente/documentos`, admin) e rodar o critério de aceite
    (20 perguntas com resposta + 10 sem) — ver `assistente-spec.md`.
-4. Capacidade A — achar (catálogo fixo sobre `tarefas`/`projetos`/
-   `clientes`/`status_atividades`, começando pelas 5 consultas mais
-   comuns no log da Fase 1)
+4. **Capacidade A — achar — feito.** Catálogo fixo (4 funções:
+   `minhas_tarefas`, `tarefas_por_cliente`, `escala_n2_do_dia`,
+   `atividades_campo_pendentes`), function calling decide se a pergunta
+   é do tipo achar, texto final montado por código. Escolhidas pelo
+   domínio, não pelo log real (sem acesso a ele neste ambiente) — ajustar
+   depois de ver o que a equipe pergunta de verdade.
 5. Capacidade D — observar (depende de histórico acumulado; a fonte de
    atividade hoje é só `tarefas.segundos`, sem log de início/pausa/fim —
    pode exigir desenho de captura adicional antes de detectar qualquer

@@ -131,3 +131,26 @@ async def completar_stream(
         motivo = _classificar_erro(e)
         print(f"[assistente/llm] Erro ({motivo}) chamando {LLM_MODEL} em {LLM_BASE_URL}: {type(e).__name__}: {e}")
         raise ModeloIndisponivel(str(e), motivo=motivo) from e
+
+
+async def completar_com_ferramentas(mensagens: list[dict], ferramentas: list[dict], temperature: float = 0.0):
+    """Chamada sem streaming — usada pela capacidade 'achar'. O modelo só
+    escolhe qual função do catálogo chamar e com que argumento; quem
+    valida e executa é o backend (catalogo.py), nunca o modelo."""
+    if not LLM_API_KEY:
+        raise ModeloIndisponivel(
+            "Nenhuma chave de API configurada (defina LLM_API_KEY ou GROQ_API_KEY).",
+            motivo="sem_chave",
+        )
+    try:
+        return await _client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=mensagens,
+            tools=ferramentas,
+            tool_choice="auto",
+            temperature=temperature,
+        )
+    except Exception as e:
+        motivo = _classificar_erro(e)
+        print(f"[assistente/llm] Erro ({motivo}) chamando {LLM_MODEL} com ferramentas: {type(e).__name__}: {e}")
+        raise ModeloIndisponivel(str(e), motivo=motivo) from e
