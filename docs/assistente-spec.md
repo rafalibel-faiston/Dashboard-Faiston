@@ -293,13 +293,22 @@ Implementado conforme a spec original, sem mudança de desenho:
   multipart: `arquivo` + `titulo` + `origem`/`versao` opcionais), restrito
   a `perfil == 'admin'` sempre (independente de `ASSISTENTE_PERFIS_PILOTO`
   — gestão de conteúdo é mais sensível que só perguntar).
+- `GET /assistente/documentos` — tela de admin
+  (`static/assistente/documentos.html`): arrastar/escolher arquivo,
+  título/origem/versão, lista dos documentos já indexados com contagem
+  de blocos e botão de remover (`DELETE /assistente/documentos/{id}`,
+  `GET /assistente/documentos/lista` pro JSON). Mesmo gate server-side
+  das outras páginas do OPS — sem sessão redireciona pro login, sem ser
+  admin redireciona pro dashboard. Atalho (ícone ⚙) no cabeçalho do
+  widget, visível só pra quem `GET /assistente/elegivel` devolve
+  `admin: true`.
 
 **Ainda falta:** nenhum POP real foi ingerido — o pipeline está pronto e
-testado (chunking, RRF, roteamento, recusa) mas sem conteúdo de verdade
-ainda não dá pra rodar o critério de aceite abaixo.
+testado (chunking, RRF, roteamento, recusa, tela de upload) mas sem
+conteúdo de verdade ainda não dá pra rodar o critério de aceite abaixo.
 
-**Critério de aceite** (rodar depois de ingerir POPs reais via
-`POST /assistente/documentos`):
+**Critério de aceite** (rodar depois de ingerir POPs reais pela tela em
+`/assistente/documentos`):
 
 - [ ] Conjunto de 20 perguntas com resposta conhecida na base + 10 cuja
       resposta não está na base.

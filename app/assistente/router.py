@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.assistente import db, log as assistente_log
@@ -71,12 +71,27 @@ async def _autenticar(faiston_token: Optional[str]) -> dict:
     return sess
 
 
+async def _exigir_admin(faiston_token: Optional[str]) -> dict:
+    """Gestão de conteúdo é mais sensível que só perguntar: sempre exige
+    perfil='admin' de verdade, independente de quem mais estiver no
+    piloto via ASSISTENTE_PERFIS_PILOTO."""
+    sess = await run_in_threadpool(db.get_session, faiston_token)
+    if not sess:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    if sess["perfil"] != "admin":
+        raise HTTPException(status_code=403, detail="Só admin pode gerenciar a base de procedimentos")
+    return sess
+
+
 @router.get("/elegivel")
 async def elegivel(faiston_token: str = Cookie(None)):
     """O widget consulta isto pra decidir se aparece. Nunca 401/403 aqui —
-    só diz sim/não, pra não gerar erro no console em toda tela."""
+    só diz sim/não, pra não gerar erro no console em toda tela.
+    `admin` vai junto pra o widget decidir se mostra o atalho de gestão
+    da base de procedimentos, sem precisar de uma segunda chamada."""
     sess = await run_in_threadpool(db.get_session, faiston_token)
-    return {"elegivel": bool(sess and sess["perfil"] in _PERFIS_PILOTO)}
+    elegivel_ = bool(sess and sess["perfil"] in _PERFIS_PILOTO)
+    return {"elegivel": elegivel_, "admin": bool(elegivel_ and sess["perfil"] == "admin")}
 
 
 @router.post("/pergunta")
@@ -225,9 +240,30 @@ async def feedback(body: FeedbackRequest, faiston_token: str = Cookie(None)):
 
 
 # --- Ingestão de documento (Fase 3 — capacidade B) -----------------------
-# Gestão de conteúdo é mais sensível que só perguntar: sempre exige
-# perfil='admin' de verdade, independente de quem mais estiver no piloto
-# via ASSISTENTE_PERFIS_PILOTO.
+
+@router.get("/documentos")
+async def documentos_admin_page(faiston_token: str = Cookie(None)):
+    """Tela de gestão da base de procedimentos — mesmo padrão de gate
+    server-side que as outras páginas do OPS (ex.: /dashboard em
+    main.py): sem sessão ou sem ser admin, redireciona em vez de
+    devolver a página."""
+    sess = await run_in_threadpool(db.get_session, faiston_token)
+    if not sess:
+        return RedirectResponse("/")
+    if sess["perfil"] != "admin":
+        return RedirectResponse("/dashboard")
+    return FileResponse(_STATIC_DIR / "documentos.html")
+
+
+@router.get("/documentos/lista")
+async def listar_documentos_endpoint(faiston_token: str = Cookie(None)):
+    await _exigir_admin(faiston_token)
+    from app.assistente.ingestao import listar_documentos
+
+    documentos = await run_in_threadpool(listar_documentos)
+    return {"documentos": documentos}
+
+
 @router.post("/documentos")
 async def ingerir(
     arquivo: UploadFile = File(...),
@@ -236,11 +272,7 @@ async def ingerir(
     versao: Optional[str] = Form(None),
     faiston_token: str = Cookie(None),
 ):
-    sess = await run_in_threadpool(db.get_session, faiston_token)
-    if not sess:
-        raise HTTPException(status_code=401, detail="Não autenticado")
-    if sess["perfil"] != "admin":
-        raise HTTPException(status_code=403, detail="Só admin pode gerenciar a base de procedimentos")
+    await _exigir_admin(faiston_token)
 
     from app.assistente.ingestao import extrair_texto, ingerir_documento
 
@@ -268,6 +300,17 @@ async def ingerir(
     if documento_id is None:
         raise HTTPException(status_code=500, detail="Não consegui gravar o documento agora")
     return {"documento_id": documento_id, "titulo": titulo}
+
+
+@router.delete("/documentos/{documento_id}")
+async def remover_documento_endpoint(documento_id: int, faiston_token: str = Cookie(None)):
+    await _exigir_admin(faiston_token)
+    from app.assistente.ingestao import remover_documento
+
+    ok = await run_in_threadpool(remover_documento, documento_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Documento não encontrado")
+    return {"sucesso": True}
 
 
 # --- Arquivos estáticos do widget ---------------------------------------

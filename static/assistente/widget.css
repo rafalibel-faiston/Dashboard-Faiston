@@ -81,6 +81,23 @@
     line-height: 1;
 }
 #nexo-header button:hover { background: rgba(255,255,255,0.28); }
+#nexo-header a#nexo-gerenciar {
+    margin-left: auto;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+}
+#nexo-header a#nexo-gerenciar:hover { background: rgba(255,255,255,0.28); }
+#nexo-header a#nexo-gerenciar[hidden] { display: none; }
 
 #nexo-mensagens {
     flex: 1 1 auto;
