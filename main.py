@@ -4071,6 +4071,58 @@ def count_minhas_nao_lidas(faiston_token: str = Cookie(None)):
         return {"count": count}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+# --- AVISOS GLOBAIS (banner de novidade, ex.: lançamento do Assistente OPS) ---
+# Não usa a tabela `notificacoes` de propósito: aquela tem um cap global de
+# 200 linhas (pensado pra feed de atividade tipo "tarefa criada"), e criar
+# uma linha por usuário pra um aviso de massa evictaria notificações reais
+# de gente que não tem nada a ver com o aviso. Um aviso global é 1 linha só
+# em `configuracoes` (mesmo padrão já usado por outras configs), lido por
+# todo mundo; "visto" é rastreado no navegador (localStorage), não no banco.
+_AVISO_OPS_CHAVE = "aviso_assistente_ops"
+
+@app.get("/api/avisos-ops")
+def get_aviso_ops(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        import json as _json
+        cur = conn.cursor()
+        cur.execute("SELECT valor FROM configuracoes WHERE chave=%s", (_AVISO_OPS_CHAVE,))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        return _json.loads(row[0]) if row else None
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/avisos-ops/disparar")
+def disparar_aviso_ops(faiston_token: str = Cookie(None)):
+    """Dispara (ou redispara) o aviso de novidade do Assistente OPS pra todo
+    mundo -- reexecutar atualiza `disparado_em`, o que faz o aviso aparecer
+    de novo até pra quem já tinha fechado (localStorage compara por esse
+    valor, não por ter visto uma vez na vida)."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500)
+    try:
+        import json as _json
+        from datetime import datetime as _dt
+        valor = _json.dumps({
+            "mensagem": "🤖 Novidade: conheça o Assistente OPS! Ele acha carimbo, tira dúvida de procedimento e resume sua semana.",
+            "link": "/ajuda?destaque=assistente",
+            "disparado_em": _dt.utcnow().isoformat(),
+        })
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO configuracoes (chave, valor, atualizado_em) VALUES (%s, %s, NOW())
+               ON CONFLICT (chave) DO UPDATE SET valor=EXCLUDED.valor, atualizado_em=NOW()""",
+            (_AVISO_OPS_CHAVE, valor)
+        )
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 # --- IA INSIGHTS ---
 @app.post("/api/ia/insights")
 def gerar_insights_ia(faiston_token: str = Cookie(None)):
@@ -4623,16 +4675,20 @@ def deletar_cliente(cid: int, faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/ajuda")
-def ajuda_page(perfil: str = "", faiston_token: str = Cookie(None)):
+def ajuda_page(perfil: str = "", faiston_token: str = Cookie(None), request: Request = None):
     # Se o perfil não veio na URL, descobre pela sessão e redireciona —
     # assim cada perfil vê só a aba do guia correspondente à sua função,
     # independente de como o guia foi aberto (login, email ou link direto).
+    # Preserva os demais parâmetros (ex.: ?destaque=assistente do aviso de
+    # novidade) -- senão o redirect os descarta e o link do aviso perde o
+    # scroll/abertura automática do widget.
     if not perfil:
         sess = get_session(faiston_token)
         if sess and sess.get("perfil"):
             destino = _perfil_guia(sess["perfil"], sess.get("cargo", ""),
                                    sess.get("perfil_real", ""))
-            return RedirectResponse(f"/ajuda?perfil={destino}")
+            outros = "&".join(f"{k}={v}" for k, v in request.query_params.items()) if request else ""
+            return RedirectResponse(f"/ajuda?perfil={destino}" + (f"&{outros}" if outros else ""))
     return FileResponse("static/ajuda.html")
 
 # Rotas antigas (páginas standalone duplicadas) → redirecionam para a SPA,

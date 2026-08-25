@@ -2380,6 +2380,10 @@
                     <option value="backoffice">Backoffice</option>
                     <option value="desenvolvedor">Desenvolvedor</option>
                 </select>
+                <button onclick="dispararAvisoAssistenteOps()" title="Manda um aviso (banner no widget) pra todo mundo elegível conhecer o Assistente OPS"
+                    class="px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-border bg-white text-faiston-muted hover:border-faiston-purple hover:text-faiston-purple transition-colors flex items-center gap-2">
+                    <i class="ph ph-megaphone"></i> Avisar sobre o Assistente OPS
+                </button>
                 <button onclick="adminOpenModalUser()" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
                     <i class="ph ph-plus-circle"></i> Novo Usuário
                 </button>
@@ -8665,6 +8669,17 @@ async function limparTodasTarefas() {
 function adminAtualizarCargo() {
     const ehFuncionario = document.getElementById('u-perfil').value === 'funcionario';
     document.getElementById('wrap-cargo-admin').classList.toggle('hidden', !ehFuncionario);
+}
+
+async function dispararAvisoAssistenteOps() {
+    if (!confirm('Isso mostra um banner de novidade sobre o Assistente OPS pra todo mundo elegível (link pra página de Ajuda), inclusive quem já tinha fechado um aviso anterior. Confirma?')) return;
+    try {
+        const res = await fetch('/api/avisos-ops/disparar', { method: 'POST' });
+        if (!res.ok) { alert('Não consegui disparar o aviso agora. Tente de novo em instantes.'); return; }
+        alert('Aviso disparado! Quem tiver acesso ao Assistente OPS vai ver o banner na próxima vez que carregar uma tela.');
+    } catch (e) {
+        alert('Não consegui disparar o aviso agora. Tente de novo em instantes.');
+    }
 }
 
 function adminOpenModalUser() {

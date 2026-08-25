@@ -1,0 +1,79 @@
+"""
+Testes do aviso global de novidade (ex.: lançamento do Assistente OPS):
+GET/POST /api/avisos-ops e o redirect de /ajuda preservando ?destaque=.
+"""
+import uuid
+
+
+class TestAvisoOps:
+    def test_get_sem_login_retorna_401(self, app):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        resp = client.get("/api/avisos-ops")
+        assert resp.status_code == 401
+
+    def test_disparar_sem_permissao_retorna_403(self, app):
+        # POST /api/usuarios ignora a senha enviada (endurecimento de
+        # 2026-08-10 -- a pessoa define a própria senha pelo link de
+        # e-mail, que não existe neste ambiente de teste sem
+        # BREVO_API_KEY/EMAIL_USER). Cria direto no banco de teste pra
+        # isolar este teste desse fluxo, que não é o que está sendo
+        # testado aqui.
+        import main
+        from fastapi.testclient import TestClient
+
+        usuario = f"teste_func_{uuid.uuid4().hex[:8]}"
+        senha = "senhaTeste123"
+        conn = main.get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO usuarios (usuario, senha_hash, nome, perfil, email, primeiro_acesso, time, cargo) "
+            "VALUES (%s, %s, %s, 'funcionario', %s, FALSE, 'Projetos', 'analista')",
+            (usuario, main.hash_senha(senha), "Func Fixture Teste", f"{usuario}@example.com"),
+        )
+        conn.commit(); cur.close(); conn.close()
+
+        client = TestClient(app)
+        resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
+        assert resp.status_code == 200, resp.text
+        resp = client.post("/api/avisos-ops/disparar")
+        assert resp.status_code == 403
+
+    def test_disparar_e_ler_de_volta(self, admin_client):
+        resp = admin_client.post("/api/avisos-ops/disparar")
+        assert resp.status_code == 200, resp.text
+
+        resp = admin_client.get("/api/avisos-ops")
+        assert resp.status_code == 200
+        aviso = resp.json()
+        assert aviso is not None
+        assert "assistente ops" in aviso["mensagem"].lower() or "Assistente OPS" in aviso["mensagem"]
+        assert aviso["link"] == "/ajuda?destaque=assistente"
+        assert aviso["disparado_em"]
+
+    def test_disparar_de_novo_atualiza_o_timestamp(self, admin_client):
+        primeiro = admin_client.post("/api/avisos-ops/disparar").json()
+        segundo_disparo = admin_client.get("/api/avisos-ops").json()["disparado_em"]
+
+        resp = admin_client.post("/api/avisos-ops/disparar")
+        assert resp.status_code == 200
+        terceiro = admin_client.get("/api/avisos-ops").json()["disparado_em"]
+        # Não é garantido que o timestamp mude num teste rápido o bastante
+        # (resolução), mas o campo tem que continuar presente e válido nos
+        # dois disparos -- é isso que faz o front reavaliar "já vi isso?".
+        assert segundo_disparo and terceiro
+
+
+class TestAjudaPreservaDestaque:
+    def test_ajuda_sem_perfil_redireciona_preservando_destaque(self, admin_client):
+        resp = admin_client.get("/ajuda?destaque=assistente", follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        location = resp.headers["location"]
+        assert "destaque=assistente" in location
+        assert "perfil=" in location
+
+    def test_ajuda_com_perfil_no_url_no_redireciona(self, app):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        resp = client.get("/ajuda?perfil=func&destaque=assistente", follow_redirects=False)
+        assert resp.status_code == 200

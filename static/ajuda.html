@@ -224,6 +224,42 @@
 <!-- ══════════════════ CONTENT ══════════════════ -->
 <div class="max-w-5xl mx-auto px-6 py-10">
 
+<!-- ════════════ ASSISTENTE OPS (visível pra qualquer perfil, fora das abas) ════════════ -->
+<div id="secao-assistente-ops" class="reveal" style="margin-bottom:32px">
+    <div style="background:linear-gradient(135deg,#5B2EE0,#8B2EE0);border-radius:20px;padding:28px;color:white;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-30px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.06)"></div>
+        <div style="display:flex;align-items:flex-start;gap:16px;position:relative">
+            <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;backdrop-filter:blur(10px);font-size:22px">🤖</div>
+            <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+                    <h3 style="font-size:18px;font-weight:800;font-family:'Space Grotesk',sans-serif">Conheça o Assistente OPS</h3>
+                    <span style="background:rgba(255,255,255,.2);border-radius:100px;padding:2px 10px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">Novidade</span>
+                </div>
+                <p style="font-size:14px;color:rgba(255,255,255,.85);line-height:1.7;margin-bottom:18px">É o ícone roxo flutuante no canto inferior direito da tela (ou <kbd style="background:rgba(255,255,255,.18);border-radius:5px;padding:1px 6px;font-size:12px">Alt+A</kbd>). Converse com ele em português normal:</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:16px">
+                    <div style="background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px)">
+                        <div style="font-size:12px;font-weight:700;margin-bottom:3px">🔎 Acha na hora</div>
+                        <p style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.5">Suas tarefas, atividade de campo parada, escala do N2 do dia, ou um carimbo de atendimento — com um botão pra <strong style="color:white">copiar o carimbo</strong> pronto pra colar.</p>
+                    </div>
+                    <div style="background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px)">
+                        <div style="font-size:12px;font-weight:700;margin-bottom:3px">📖 Explica procedimento</div>
+                        <p style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.5">Responde dúvida de fluxo citando o documento de origem — nunca inventa se não achar a fonte.</p>
+                    </div>
+                    <div style="background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px)">
+                        <div style="font-size:12px;font-weight:700;margin-bottom:3px">📊 Resume sua semana</div>
+                        <p style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.5">Pergunte "resumo da semana" e ele monta em cima do que já está registrado — só o seu, não da equipe.</p>
+                    </div>
+                    <div style="background:rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px)">
+                        <div style="font-size:12px;font-weight:700;margin-bottom:3px">☀️ Check-in diário</div>
+                        <p style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.5">Na primeira vez que você loga no dia, ele abre sozinho, resume o que rolou ontem e pergunta o plano de hoje.</p>
+                    </div>
+                </div>
+                <p style="font-size:12px;color:rgba(255,255,255,.65);line-height:1.6">Ainda em piloto: se o ícone não aparecer no seu perfil, é porque seu acesso está sendo liberado por etapas.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ════════════ FUNCIONÁRIO ════════════ -->
 <div id="tab-func" class="tab-panel active" style="display:flex;flex-direction:column;gap:32px">
 
@@ -2154,7 +2190,29 @@ document.getElementById('ano').textContent = new Date().getFullYear();
         if (label) label.textContent = 'Ir para o sistema';
         if (icon) icon.className = 'ph ph-arrow-right';
     }
+
+    // Vindo do link do aviso de novidade (?destaque=assistente, ver
+    // static/assistente/widget.js:montarAvisoGlobal) -- rola até a seção
+    // e abre o painel do OPS sozinho. O widget monta o próprio DOM de
+    // forma assíncrona (só depois de confirmar elegibilidade), então
+    // espera o launcher existir em vez de assumir que já está lá.
+    if (params.get('destaque') === 'assistente') {
+        const secao = document.getElementById('secao-assistente-ops');
+        if (secao) secao.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        let tentativas = 0;
+        const esperarLauncher = setInterval(() => {
+            tentativas++;
+            const launcher = document.getElementById('ops-launcher');
+            if (launcher) {
+                clearInterval(esperarLauncher);
+                launcher.click();
+            } else if (tentativas > 20) {
+                clearInterval(esperarLauncher);
+            }
+        }, 250);
+    }
 })();
 </script>
+<script src="/assistente/widget.js?v=2"></script>
 </body>
 </html>

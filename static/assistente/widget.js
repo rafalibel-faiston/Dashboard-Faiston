@@ -642,6 +642,53 @@
                 iniciarCheckinDiario(mensagens);
             })
             .catch(function () { /* checkin é proativo -- falha em silêncio */ });
+
+        fetch("/api/avisos-ops", { credentials: "same-origin" })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(montarAvisoGlobal)
+            .catch(function () {});
+    }
+
+    /* Aviso global de novidade (ex.: lançamento do Assistente OPS),
+     * disparado pelo admin em GET/POST /api/avisos-ops (main.py). Não é
+     * uma sinalização da capacidade D (essa é pessoal, por usuário) --
+     * é um recado único pra empresa toda, então "visto" fica só no
+     * localStorage de quem já fechou, comparado por `disparado_em` (um
+     * novo disparo com timestamp diferente reaparece pra todo mundo,
+     * inclusive quem já tinha fechado o anterior). */
+    function montarAvisoGlobal(aviso) {
+        if (!aviso || !aviso.disparado_em) return;
+        var vistoKey = "ops_aviso_visto";
+        try {
+            if (localStorage.getItem(vistoKey) === aviso.disparado_em) return;
+        } catch (e) { /* localStorage indisponível: mostra sempre, sem persistir */ }
+
+        var caixa = document.createElement("div");
+        caixa.className = "ops-aviso";
+        var fechar = document.createElement("button");
+        fechar.type = "button";
+        fechar.className = "ops-aviso-fechar";
+        fechar.setAttribute("aria-label", "Fechar aviso");
+        fechar.textContent = "✕";
+        var texto = document.createElement("p");
+        texto.className = "ops-aviso-texto";
+        texto.textContent = aviso.mensagem || "";
+        var link = document.createElement("a");
+        link.className = "ops-aviso-link";
+        link.href = aviso.link || "/ajuda";
+        link.textContent = "Saiba mais →";
+        caixa.appendChild(fechar);
+        caixa.appendChild(texto);
+        caixa.appendChild(link);
+
+        function marcarVisto() {
+            try { localStorage.setItem(vistoKey, aviso.disparado_em); } catch (e) {}
+            caixa.remove();
+        }
+        fechar.addEventListener("click", marcarVisto);
+        link.addEventListener("click", marcarVisto);
+
+        document.body.appendChild(caixa);
     }
 
     function verificarElegibilidadeEIniciar() {

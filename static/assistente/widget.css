@@ -410,3 +410,48 @@
 #ops-enviar:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 #ops-enviar:hover:not(:disabled) { transform: scale(1.07); }
 #ops-enviar:active:not(:disabled) { transform: scale(0.93); }
+
+/* Aviso global de novidade -- flutua acima do launcher, mesma família
+   visual do widget mas com identidade própria (fundo degradê) pra se
+   diferenciar claramente de uma bolha de conversa. */
+.ops-aviso {
+    position: fixed;
+    right: 24px;
+    bottom: 92px;
+    z-index: 9998;
+    width: 260px;
+    padding: 14px 16px 12px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #5B2EE0, #8B2EE0);
+    color: #fff;
+    box-shadow: 0 10px 28px rgba(91, 46, 224, 0.35);
+    animation: ops-surgir 0.24s ease both;
+}
+.ops-aviso-fechar {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    border: none;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+}
+.ops-aviso-fechar:hover { background: rgba(255, 255, 255, 0.28); }
+.ops-aviso-texto { margin: 0 20px 8px 0; font-size: 12.5px; line-height: 1.5; }
+.ops-aviso-link {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+}
+.ops-aviso-link:hover { border-bottom-color: #fff; }
+@media (max-width: 480px) {
+    .ops-aviso { right: 12px; left: 12px; width: auto; bottom: 88px; }
+}
