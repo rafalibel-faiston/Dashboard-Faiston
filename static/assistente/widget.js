@@ -288,13 +288,40 @@
         wrap.classList.add("nexo-aguardando");
     }
 
+    /* Tempo mínimo que os pontinhos ficam na tela. Sem isso, resposta
+     * rápida faz eles piscarem por uns 100ms — o olho não registra, e a
+     * resposta parece surgir do nada. Segurar meio segundo faz a coisa
+     * ler como "ele parou pra pensar" em vez de um flash. Não atrasa o
+     * fim da resposta: o texto continua chegando por trás, só a primeira
+     * pintura na tela é que espera. */
+    var MIN_DIGITANDO_MS = 500;
+
     async function consumirStreamSSE(resp, wrap, bolha, mensagens) {
         var reader = resp.body.getReader();
         var decoder = new TextDecoder();
         var buffer = "";
         var texto = "";
         var logId = null;
-        var primeiraLinha = true;
+        var comecouEm = Date.now();
+        var mostrandoTexto = false;  // já trocou os pontinhos pelo texto?
+        var trocaAgendada = null;
+
+        function pintar(comCaret) {
+            bolha.textContent = texto;
+            if (comCaret) {
+                var caret = document.createElement("span");
+                caret.className = "nexo-caret";
+                bolha.appendChild(caret);
+            }
+            mensagens.scrollTop = mensagens.scrollHeight;
+        }
+
+        function trocarPontosPorTexto() {
+            if (trocaAgendada) { clearTimeout(trocaAgendada); trocaAgendada = null; }
+            bolha.innerHTML = "";
+            wrap.classList.remove("nexo-aguardando");
+            mostrandoTexto = true;
+        }
 
         function processarEvento(blocoBruto) {
             var evento = "message";
@@ -309,28 +336,43 @@
             if (evento === "inicio") {
                 logId = dados.log_id;
             } else if (evento === "texto") {
-                // Primeiro pedaço de texto: tira os pontinhos de "digitando"
-                // e passa a mostrar a resposta em si.
-                if (primeiraLinha) {
-                    bolha.innerHTML = "";
-                    wrap.classList.remove("nexo-aguardando");
-                    primeiraLinha = false;
-                }
                 texto += dados.delta || "";
-                bolha.textContent = texto;
-                var caret = document.createElement("span");
-                caret.className = "nexo-caret";
-                bolha.appendChild(caret);
-                mensagens.scrollTop = mensagens.scrollHeight;
+                if (mostrandoTexto) {
+                    pintar(true);
+                } else if (!trocaAgendada) {
+                    // Primeiro pedaço chegou: agenda a troca dos pontinhos
+                    // pelo texto respeitando o tempo mínimo. O que chegar
+                    // enquanto isso vai se acumulando em `texto`.
+                    trocaAgendada = setTimeout(function () {
+                        trocaAgendada = null;
+                        trocarPontosPorTexto();
+                        pintar(true);
+                    }, Math.max(0, MIN_DIGITANDO_MS - (Date.now() - comecouEm)));
+                }
             } else if (evento === "fontes") {
                 montarFontes(wrap, dados.fontes);
             } else if (evento === "erro") {
+                trocarPontosPorTexto();
                 wrap.classList.add("nexo-erro");
-                wrap.classList.remove("nexo-aguardando");
                 bolha.textContent = dados.mensagem || "Algo deu errado.";
             } else if (evento === "fim") {
-                bolha.textContent = texto;
-                if (texto) montarFeedback(wrap, logId);
+                // Resposta inteira pode chegar antes do tempo mínimo (cache,
+                // resposta curta). Respeita o mínimo aqui também, senão os
+                // pontinhos piscam e somem -- justamente o que a gente quer
+                // evitar. Sem caret no fim, pra não deixar o traço piscando
+                // pra sempre depois que a resposta acabou.
+                function fecharNaTela() {
+                    trocarPontosPorTexto();
+                    pintar(false);
+                    if (texto) montarFeedback(wrap, logId);
+                }
+                var restante = Math.max(0, MIN_DIGITANDO_MS - (Date.now() - comecouEm));
+                if (mostrandoTexto || restante === 0) {
+                    fecharNaTela();
+                } else {
+                    if (trocaAgendada) { clearTimeout(trocaAgendada); trocaAgendada = null; }
+                    setTimeout(fecharNaTela, restante);
+                }
             }
         }
 
