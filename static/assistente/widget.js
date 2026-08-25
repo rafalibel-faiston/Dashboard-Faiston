@@ -48,13 +48,12 @@
             '<div id="nexo-mensagens">' +
             '  <div id="nexo-sugestoes">' +
             '    <div class="nexo-boas-vindas">' +
-            '      <img src="/assistente/avatar.svg" alt="" class="nexo-boas-vindas-avatar">' +
-            '      <div class="nexo-boas-vindas-titulo">Oi! Eu sou o OPS.</div>' +
-            '      <div class="nexo-boas-vindas-sub">Pergunte algo, ou escolha uma sugestão:</div>' +
+            '      <div class="nexo-boas-vindas-titulo">Como posso ajudar?</div>' +
+            '      <div class="nexo-boas-vindas-sub">Pergunte sobre um procedimento, suas tarefas ou o resumo da sua semana.</div>' +
             "    </div>" +
             '    <div class="nexo-chips-linha">' +
-            '      <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">📊 Resumo da semana</button>' +
-            '      <button type="button" class="nexo-chip" data-pergunta="Quero começar o onboarding">🎓 Começar onboarding</button>' +
+            '      <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">Resumo da semana</button>' +
+            '      <button type="button" class="nexo-chip" data-pergunta="Quero começar o onboarding">Começar onboarding</button>' +
             "    </div>" +
             "  </div>" +
             "</div>" +
@@ -273,6 +272,22 @@
             });
     }
 
+    /* Indicador de "está digitando": três pontinhos com bounce defasado,
+     * o gesto que todo mundo já reconhece de app de mensagem. Fica só
+     * enquanto a resposta não começou a chegar -- assim que o primeiro
+     * pedaço de texto entra, some e dá lugar ao texto de verdade. */
+    function mostrarDigitando(wrap, bolha) {
+        var pontos = document.createElement("span");
+        pontos.className = "nexo-digitando";
+        pontos.setAttribute("aria-label", "escrevendo");
+        for (var i = 0; i < 3; i++) pontos.appendChild(document.createElement("span"));
+        bolha.appendChild(pontos);
+        // Enquanto são só os pontinhos, a bolha encolhe pra caber neles --
+        // uma bolha larga e vazia com três pontos perdidos no canto fica
+        // estranha. Volta ao normal quando o texto começa a chegar.
+        wrap.classList.add("nexo-aguardando");
+    }
+
     async function consumirStreamSSE(resp, wrap, bolha, mensagens) {
         var reader = resp.body.getReader();
         var decoder = new TextDecoder();
@@ -294,17 +309,24 @@
             if (evento === "inicio") {
                 logId = dados.log_id;
             } else if (evento === "texto") {
-                if (primeiraLinha) { bolha.innerHTML = ""; primeiraLinha = false; }
+                // Primeiro pedaço de texto: tira os pontinhos de "digitando"
+                // e passa a mostrar a resposta em si.
+                if (primeiraLinha) {
+                    bolha.innerHTML = "";
+                    wrap.classList.remove("nexo-aguardando");
+                    primeiraLinha = false;
+                }
                 texto += dados.delta || "";
                 bolha.textContent = texto;
-                var cursor = document.createElement("span");
-                cursor.className = "nexo-cursor";
-                bolha.appendChild(cursor);
+                var caret = document.createElement("span");
+                caret.className = "nexo-caret";
+                bolha.appendChild(caret);
                 mensagens.scrollTop = mensagens.scrollHeight;
             } else if (evento === "fontes") {
                 montarFontes(wrap, dados.fontes);
             } else if (evento === "erro") {
                 wrap.classList.add("nexo-erro");
+                wrap.classList.remove("nexo-aguardando");
                 bolha.textContent = dados.mensagem || "Algo deu errado.";
             } else if (evento === "fim") {
                 bolha.textContent = texto;
@@ -328,7 +350,7 @@
     async function enviarPergunta(pergunta, mensagens) {
         bolhaUsuario(mensagens, pergunta);
         var { wrap, bolha } = bolhaAssistente(mensagens);
-        bolha.innerHTML = '<span class="nexo-cursor"></span>';
+        mostrarDigitando(wrap, bolha);
 
         var headers = { "Content-Type": "application/json" };
         var token = csrfCookie();
@@ -364,7 +386,7 @@
 
     async function iniciarCheckinDiario(mensagens) {
         var { wrap, bolha } = bolhaAssistente(mensagens);
-        bolha.innerHTML = '<span class="nexo-cursor"></span>';
+        mostrarDigitando(wrap, bolha);
 
         var headers = {};
         var token = csrfCookie();
