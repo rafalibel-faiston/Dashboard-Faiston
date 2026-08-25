@@ -32,9 +32,9 @@
     var _avatarSrc = "/assistente/avatar.svg" + _sufixoVersao;
 
     function carregarCss() {
-        if (document.getElementById("nexo-css")) return;
+        if (document.getElementById("ops-css")) return;
         var link = document.createElement("link");
-        link.id = "nexo-css";
+        link.id = "ops-css";
         link.rel = "stylesheet";
         link.href = "/assistente/widget.css" + _sufixoVersao;
         document.head.appendChild(link);
@@ -42,45 +42,45 @@
 
     function montarDom() {
         var launcher = document.createElement("button");
-        launcher.id = "nexo-launcher";
+        launcher.id = "ops-launcher";
         launcher.type = "button";
         launcher.title = "Assistente OPS (Alt+A)";
         launcher.setAttribute("aria-label", "Abrir assistente OPS");
         launcher.innerHTML =
             '<img src="' + _avatarSrc + '" alt="">' +
-            '<span class="nexo-badge" id="nexo-badge"></span>';
+            '<span class="ops-badge" id="ops-badge"></span>';
 
         var painel = document.createElement("div");
-        painel.id = "nexo-panel";
+        painel.id = "ops-panel";
         painel.innerHTML =
-            '<div id="nexo-header">' +
+            '<div id="ops-header">' +
             '  <img src="' + _avatarSrc + '" alt="">' +
-            '  <div><div class="nexo-titulo">OPS</div><div class="nexo-sub">Assistente Faiston</div></div>' +
-            '  <button type="button" id="nexo-sino" title="Sinalizações" aria-label="Sinalizações">' +
-            '    🔔<span class="nexo-badge" id="nexo-sino-badge" hidden></span>' +
+            '  <div><div class="ops-titulo">OPS</div><div class="ops-sub">Assistente Faiston</div></div>' +
+            '  <button type="button" id="ops-sino" title="Sinalizações" aria-label="Sinalizações">' +
+            '    🔔<span class="ops-badge" id="ops-sino-badge" hidden></span>' +
             "  </button>" +
-            '  <a href="/assistente/documentos" id="nexo-gerenciar" title="Gerenciar base de procedimentos" hidden>⚙</a>' +
-            '  <button type="button" id="nexo-fechar" aria-label="Fechar">✕</button>' +
+            '  <a href="/assistente/documentos" id="ops-gerenciar" title="Gerenciar base de procedimentos" hidden>⚙</a>' +
+            '  <button type="button" id="ops-fechar" aria-label="Fechar">✕</button>' +
             "</div>" +
-            '<div id="nexo-mensagens">' +
-            '  <div id="nexo-sugestoes">' +
-            '    <div class="nexo-boas-vindas">' +
-            '      <div class="nexo-boas-vindas-titulo">Como posso ajudar?</div>' +
-            '      <div class="nexo-boas-vindas-sub">Pergunte sobre um procedimento, suas tarefas ou o resumo da sua semana.</div>' +
+            '<div id="ops-mensagens">' +
+            '  <div id="ops-sugestoes">' +
+            '    <div class="ops-boas-vindas">' +
+            '      <div class="ops-boas-vindas-titulo">Como posso ajudar?</div>' +
+            '      <div class="ops-boas-vindas-sub">Pergunte sobre um procedimento, suas tarefas ou o resumo da sua semana.</div>' +
             "    </div>" +
-            '    <div class="nexo-chips-linha">' +
-            '      <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">Resumo da semana</button>' +
-            '      <button type="button" class="nexo-chip" data-pergunta="Quero começar o onboarding">Começar onboarding</button>' +
+            '    <div class="ops-chips-linha">' +
+            '      <button type="button" class="ops-chip" data-pergunta="Resumo da semana">Resumo da semana</button>' +
+            '      <button type="button" class="ops-chip" data-pergunta="Quero começar o onboarding">Começar onboarding</button>' +
             "    </div>" +
             "  </div>" +
             "</div>" +
-            '<div id="nexo-sinalizacoes" hidden>' +
-            '  <div id="nexo-sinalizacoes-lista"></div>' +
-            '  <div id="nexo-sinalizacoes-vazio" hidden>Nada por aqui — nenhuma sinalização até agora.</div>' +
+            '<div id="ops-sinalizacoes" hidden>' +
+            '  <div id="ops-sinalizacoes-lista"></div>' +
+            '  <div id="ops-sinalizacoes-vazio" hidden>Nada por aqui — nenhuma sinalização até agora.</div>' +
             "</div>" +
-            '<form id="nexo-form">' +
-            '  <textarea id="nexo-input" rows="1" placeholder="Pergunte algo..." maxlength="2000"></textarea>' +
-            '  <button type="submit" id="nexo-enviar" aria-label="Enviar">➤</button>' +
+            '<form id="ops-form">' +
+            '  <textarea id="ops-input" rows="1" placeholder="Pergunte algo..." maxlength="2000"></textarea>' +
+            '  <button type="submit" id="ops-enviar" aria-label="Enviar">➤</button>' +
             "</form>";
 
         document.body.appendChild(launcher);
@@ -90,9 +90,9 @@
 
     function bolhaAssistente(mensagens, { erro } = {}) {
         var wrap = document.createElement("div");
-        wrap.className = "nexo-msg nexo-msg-assistente" + (erro ? " nexo-erro" : "");
+        wrap.className = "ops-msg ops-msg-assistente" + (erro ? " ops-erro" : "");
         var bolha = document.createElement("div");
-        bolha.className = "nexo-bolha";
+        bolha.className = "ops-bolha";
         bolha.textContent = "";
         wrap.appendChild(bolha);
         mensagens.appendChild(wrap);
@@ -102,9 +102,9 @@
 
     function bolhaUsuario(mensagens, texto) {
         var wrap = document.createElement("div");
-        wrap.className = "nexo-msg nexo-msg-usuario";
+        wrap.className = "ops-msg ops-msg-usuario";
         var bolha = document.createElement("div");
-        bolha.className = "nexo-bolha";
+        bolha.className = "ops-bolha";
         bolha.textContent = texto;
         wrap.appendChild(bolha);
         mensagens.appendChild(wrap);
@@ -114,21 +114,21 @@
     function montarFontes(wrap, fontes) {
         if (!fontes || !fontes.length) return;
         var box = document.createElement("div");
-        box.className = "nexo-fontes";
+        box.className = "ops-fontes";
         fontes.forEach(function (fonte) {
             var chip = document.createElement("button");
             chip.type = "button";
-            chip.className = "nexo-fonte-chip";
+            chip.className = "ops-fonte-chip";
             chip.textContent = "📄 " + fonte.titulo;
             var previa = document.createElement("div");
-            previa.className = "nexo-fonte-previa";
+            previa.className = "ops-fonte-previa";
             previa.textContent = fonte.trecho || "";
             previa.hidden = true;
             chip.addEventListener("click", function () {
                 previa.hidden = !previa.hidden;
             });
             var item = document.createElement("div");
-            item.className = "nexo-fonte-item";
+            item.className = "ops-fonte-item";
             item.appendChild(chip);
             item.appendChild(previa);
             box.appendChild(item);
@@ -139,7 +139,7 @@
     function montarFeedback(wrap, logId) {
         if (!logId) return;
         var box = document.createElement("div");
-        box.className = "nexo-feedback";
+        box.className = "ops-feedback";
         var up = document.createElement("button");
         up.type = "button";
         up.textContent = "👍";
@@ -151,8 +151,8 @@
 
         function enviar(util) {
             up.disabled = down.disabled = true;
-            up.classList.toggle("nexo-ativo", util);
-            down.classList.toggle("nexo-ativo", !util);
+            up.classList.toggle("ops-ativo", util);
+            down.classList.toggle("ops-ativo", !util);
             var headers = { "Content-Type": "application/json" };
             var token = csrfCookie();
             if (token) headers["X-CSRF-Token"] = token;
@@ -163,7 +163,7 @@
                 body: JSON.stringify({ log_id: logId, util: util }),
             }).catch(function () {});
             var obrigado = document.createElement("span");
-            obrigado.className = "nexo-obrigado";
+            obrigado.className = "ops-obrigado";
             obrigado.textContent = "Obrigado!";
             box.appendChild(obrigado);
         }
@@ -173,6 +173,64 @@
         box.appendChild(up);
         box.appendChild(down);
         wrap.appendChild(box);
+    }
+
+    /* Resposta da capacidade "achar" (buscar_carimbo) sempre chega no
+     * formato 'Carimbo "TÍTULO" (CATEGORIA):\n\n{conteúdo}' — ver
+     * formatar_resposta() em app/assistente/capacidade_achar.py. Copia só
+     * o conteúdo depois dos dois-pontos, nunca o cabeçalho com título/
+     * categoria (isso é metadado nosso, não faz parte do texto que a
+     * pessoa vai colar no atendimento). */
+    var _RE_CARIMBO = /^Carimbo "[^"]*"\s*\([^)]*\):\n\n([\s\S]+)$/;
+
+    function extrairConteudoCarimbo(texto) {
+        var m = _RE_CARIMBO.exec(texto);
+        return m ? m[1] : null;
+    }
+
+    function copiarTexto(texto) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(texto);
+        }
+        // Fallback pra navegador sem Clipboard API (ou contexto não
+        // seguro) -- textarea temporário fora da tela + execCommand.
+        return new Promise(function (resolve, reject) {
+            var ta = document.createElement("textarea");
+            ta.value = texto;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand("copy") ? resolve() : reject();
+            } catch (e) {
+                reject(e);
+            } finally {
+                document.body.removeChild(ta);
+            }
+        });
+    }
+
+    function montarBotaoCopiarCarimbo(wrap, conteudo) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "ops-copiar";
+        btn.textContent = "📋 Copiar carimbo";
+        btn.setAttribute("aria-label", "Copiar texto do carimbo");
+        btn.addEventListener("click", function () {
+            copiarTexto(conteudo).then(function () {
+                btn.textContent = "✓ Copiado!";
+                btn.classList.add("ops-copiado");
+            }, function () {
+                btn.textContent = "Não foi possível copiar";
+            }).then(function () {
+                setTimeout(function () {
+                    btn.textContent = "📋 Copiar carimbo";
+                    btn.classList.remove("ops-copiado");
+                }, 2000);
+            });
+        });
+        wrap.appendChild(btn);
     }
 
     function tempoRelativo(iso) {
@@ -212,10 +270,10 @@
             btn.setAttribute("aria-label", op.titulo);
             btn.addEventListener("click", function () {
                 box.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
-                btn.classList.add("nexo-ativo");
+                btn.classList.add("ops-ativo");
                 postJson("/assistente/sinalizacoes/" + sinalizacaoId + "/feedback", { feedback: op.valor }).catch(function () {});
                 var obrigado = document.createElement("span");
-                obrigado.className = "nexo-obrigado";
+                obrigado.className = "ops-obrigado";
                 obrigado.textContent = "Obrigado!";
                 box.appendChild(obrigado);
             });
@@ -225,15 +283,15 @@
 
     function montarItemSinalizacao(item) {
         var wrap = document.createElement("div");
-        wrap.className = "nexo-sinal-item";
+        wrap.className = "ops-sinal-item";
         var texto = document.createElement("div");
-        texto.className = "nexo-sinal-texto";
+        texto.className = "ops-sinal-texto";
         texto.textContent = item.texto;
         var quando = document.createElement("div");
-        quando.className = "nexo-sinal-quando";
+        quando.className = "ops-sinal-quando";
         quando.textContent = tempoRelativo(item.criado_em);
         var feedback = document.createElement("div");
-        feedback.className = "nexo-feedback";
+        feedback.className = "ops-feedback";
         wrap.appendChild(texto);
         wrap.appendChild(quando);
         if (item.feedback === null || item.feedback === undefined) {
@@ -259,8 +317,8 @@
                         el.style.display = "none";
                     }
                 });
-                var launcher = launcherBadge && launcherBadge.closest("#nexo-launcher");
-                if (launcher) launcher.classList.toggle("nexo-tem-novidade", n > 0);
+                var launcher = launcherBadge && launcherBadge.closest("#ops-launcher");
+                if (launcher) launcher.classList.toggle("ops-tem-novidade", n > 0);
             })
             .catch(function () {});
     }
@@ -295,14 +353,14 @@
      * pedaço de texto entra, some e dá lugar ao texto de verdade. */
     function mostrarDigitando(wrap, bolha) {
         var pontos = document.createElement("span");
-        pontos.className = "nexo-digitando";
+        pontos.className = "ops-digitando";
         pontos.setAttribute("aria-label", "escrevendo");
         for (var i = 0; i < 3; i++) pontos.appendChild(document.createElement("span"));
         bolha.appendChild(pontos);
         // Enquanto são só os pontinhos, a bolha encolhe pra caber neles --
         // uma bolha larga e vazia com três pontos perdidos no canto fica
         // estranha. Volta ao normal quando o texto começa a chegar.
-        wrap.classList.add("nexo-aguardando");
+        wrap.classList.add("ops-aguardando");
     }
 
     /* Tempo mínimo que os pontinhos ficam na tela. Sem isso, resposta
@@ -327,7 +385,7 @@
             bolha.textContent = texto;
             if (comCaret) {
                 var caret = document.createElement("span");
-                caret.className = "nexo-caret";
+                caret.className = "ops-caret";
                 bolha.appendChild(caret);
             }
             mensagens.scrollTop = mensagens.scrollHeight;
@@ -336,7 +394,7 @@
         function trocarPontosPorTexto() {
             if (trocaAgendada) { clearTimeout(trocaAgendada); trocaAgendada = null; }
             bolha.innerHTML = "";
-            wrap.classList.remove("nexo-aguardando");
+            wrap.classList.remove("ops-aguardando");
             mostrandoTexto = true;
         }
 
@@ -370,7 +428,7 @@
                 montarFontes(wrap, dados.fontes);
             } else if (evento === "erro") {
                 trocarPontosPorTexto();
-                wrap.classList.add("nexo-erro");
+                wrap.classList.add("ops-erro");
                 bolha.textContent = dados.mensagem || "Algo deu errado.";
             } else if (evento === "fim") {
                 // Resposta inteira pode chegar antes do tempo mínimo (cache,
@@ -381,7 +439,11 @@
                 function fecharNaTela() {
                     trocarPontosPorTexto();
                     pintar(false);
-                    if (texto) montarFeedback(wrap, logId);
+                    if (texto) {
+                        montarFeedback(wrap, logId);
+                        var conteudoCarimbo = extrairConteudoCarimbo(texto);
+                        if (conteudoCarimbo) montarBotaoCopiarCarimbo(wrap, conteudoCarimbo);
+                    }
                 }
                 var restante = Math.max(0, MIN_DIGITANDO_MS - (Date.now() - comecouEm));
                 if (mostrandoTexto || restante === 0) {
@@ -423,17 +485,17 @@
                 headers: headers,
                 body: JSON.stringify({
                     pergunta: pergunta,
-                    contexto_tela: (document.body && document.body.dataset && document.body.dataset.nexoTela) || location.pathname,
+                    contexto_tela: (document.body && document.body.dataset && document.body.dataset.opsTela) || location.pathname,
                 }),
             });
         } catch (e) {
-            wrap.classList.add("nexo-erro");
+            wrap.classList.add("ops-erro");
             bolha.textContent = "Não consegui falar com o assistente. Verifique sua conexão.";
             return;
         }
 
         if (!resp.ok || !resp.body) {
-            wrap.classList.add("nexo-erro");
+            wrap.classList.add("ops-erro");
             bolha.textContent = resp.status === 403
                 ? "O assistente ainda não está disponível para o seu perfil."
                 : "Não consegui obter resposta agora. Tente de novo em instantes.";
@@ -475,31 +537,31 @@
         carregarCss();
         var mensagens = null;
         var { launcher, painel } = montarDom();
-        mensagens = painel.querySelector("#nexo-mensagens");
-        var form = painel.querySelector("#nexo-form");
-        var input = painel.querySelector("#nexo-input");
-        var enviarBtn = painel.querySelector("#nexo-enviar");
-        var fechar = painel.querySelector("#nexo-fechar");
-        var sugestoes = painel.querySelector("#nexo-sugestoes");
+        mensagens = painel.querySelector("#ops-mensagens");
+        var form = painel.querySelector("#ops-form");
+        var input = painel.querySelector("#ops-input");
+        var enviarBtn = painel.querySelector("#ops-enviar");
+        var fechar = painel.querySelector("#ops-fechar");
+        var sugestoes = painel.querySelector("#ops-sugestoes");
         if (admin) {
-            var gerenciar = painel.querySelector("#nexo-gerenciar");
+            var gerenciar = painel.querySelector("#ops-gerenciar");
             if (gerenciar) gerenciar.hidden = false;
         }
 
-        var sino = painel.querySelector("#nexo-sino");
-        var sinoBadge = painel.querySelector("#nexo-sino-badge");
-        var launcherBadge = launcher.querySelector("#nexo-badge");
-        var painelSinalizacoes = painel.querySelector("#nexo-sinalizacoes");
-        var listaSinalizacoes = painel.querySelector("#nexo-sinalizacoes-lista");
-        var vazioSinalizacoes = painel.querySelector("#nexo-sinalizacoes-vazio");
-        var nexoForm = painel.querySelector("#nexo-form");
+        var sino = painel.querySelector("#ops-sino");
+        var sinoBadge = painel.querySelector("#ops-sino-badge");
+        var launcherBadge = launcher.querySelector("#ops-badge");
+        var painelSinalizacoes = painel.querySelector("#ops-sinalizacoes");
+        var listaSinalizacoes = painel.querySelector("#ops-sinalizacoes-lista");
+        var vazioSinalizacoes = painel.querySelector("#ops-sinalizacoes-vazio");
+        var opsForm = painel.querySelector("#ops-form");
         var vendoSinalizacoes = false;
 
         sino.addEventListener("click", function () {
             vendoSinalizacoes = !vendoSinalizacoes;
             painelSinalizacoes.hidden = !vendoSinalizacoes;
             mensagens.hidden = vendoSinalizacoes;
-            nexoForm.hidden = vendoSinalizacoes;
+            opsForm.hidden = vendoSinalizacoes;
             if (vendoSinalizacoes) {
                 carregarSinalizacoes(listaSinalizacoes, vazioSinalizacoes, launcherBadge, sinoBadge);
             }
@@ -520,7 +582,7 @@
             }
         }
 
-        painel.querySelectorAll(".nexo-chip").forEach(function (chip) {
+        painel.querySelectorAll(".ops-chip").forEach(function (chip) {
             chip.addEventListener("click", function () {
                 enviar(chip.getAttribute("data-pergunta"));
             });

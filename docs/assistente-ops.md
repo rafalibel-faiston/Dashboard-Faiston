@@ -144,7 +144,7 @@ static/
     avatar.svg
     documentos.html        # tela admin de gestão da base (Fase 3)
 docs/
-  assistente-nexo.md      # este arquivo
+  assistente-ops.md      # este arquivo
   assistente-spec.md      # fases e critério de aceite
 ```
 
@@ -153,6 +153,14 @@ Sem pasta `migrations/` separada: o schema do assistente é criado por
 de `setup_banco()` — o mesmo padrão de `CREATE TABLE IF NOT EXISTS` que o
 resto do app já usa, em vez de introduzir um runner de migração novo só
 pra este módulo.
+
+**Renomeação (25/08):** o produto sempre se chamou OPS pro usuário final
+(título já mostrava "OPS" no cabeçalho do widget), mas o namespace
+interno de CSS/JS ainda usava o prefixo `nexo-` (nome de trabalho da
+fase inicial). `static/assistente/widget.css` e `widget.js` foram
+migrados por completo pra `#ops-*`/`.ops-*` (ids, classes, comentários) —
+puramente de nomenclatura, nenhum comportamento mudou. Este arquivo
+também foi renomeado de `assistente-nexo.md` pra `assistente-ops.md`.
 
 ## Piloto atual
 
@@ -209,6 +217,14 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    foram escolhidas pelo domínio, não pelo log real (sem acesso a ele
    neste ambiente) — ajustar depois de ver o que a equipe pergunta de
    verdade.
+   **Melhoria de UX (25/08):** resposta de `buscar_carimbo` (um único
+   resultado) ganhou botão "📋 Copiar carimbo" no widget, logo abaixo da
+   bolha — copia só o conteúdo do carimbo pra área de transferência, sem
+   o cabeçalho `Carimbo "TÍTULO" (CATEGORIA):` que é metadado nosso, não
+   texto pra colar no atendimento. Detecção 100% client-side
+   (`static/assistente/widget.js:extrairConteudoCarimbo`, regex sobre o
+   texto já formatado por `formatar_resposta()`) — nenhuma mudança de
+   contrato entre backend e front, nenhum campo novo na resposta.
 5. **Capacidade D — observar — implementada, desligada por padrão.** Três
    detectores em SQL puro (`repeticao_identica`, `retrabalho`,
    `pendencia_parada`), rodando de `tarefas`/`tarefa_historico` (não

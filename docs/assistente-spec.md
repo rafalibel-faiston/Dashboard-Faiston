@@ -1,7 +1,7 @@
 # Especificação de implementação — Assistente OPS (Dashboard-Faiston)
 
 Adaptação da spec genérica ao schema real deste repositório. Leia junto
-com `docs/assistente-nexo.md`. Implemente fase por fase, na ordem; não
+com `docs/assistente-ops.md`. Implemente fase por fase, na ordem; não
 avance sem cumprir o critério de aceite da fase anterior.
 
 ---
@@ -549,7 +549,7 @@ tiver nada de fato acionável (vira `None`, não grava sinalização).
 de `/pergunta`, agendado via APScheduler em `main.py`
 (`ASSISTENTE_OBSERVAR_ENABLED=1`, `ASSISTENTE_OBSERVAR_HORA`, default
 3h) — **desligado por padrão**, precisa de alinhamento com a liderança
-antes de ligar (ver `assistente-nexo.md`).
+antes de ligar (ver `assistente-ops.md`).
 
 `sinalizacao` (schema na seção 1) é sempre lida/atualizada escopada por
 `usuario_id` (`capacidade_observar/sinalizacoes.py`, endpoints na seção
@@ -742,15 +742,15 @@ agregado.
   o histórico de verdade é `assistente_log` no servidor.
 - Chip de sugestão "Resumo da semana" no estado vazio do painel.
 - **Fase 3:** fontes da capacidade B viram chips clicáveis abaixo da
-  resposta (`.nexo-fonte-chip`) — clicar expande uma prévia curta do
-  trecho (`.nexo-fonte-previa`), sem navegar pra lugar nenhum. O texto
+  resposta (`.ops-fonte-chip`) — clicar expande uma prévia curta do
+  trecho (`.ops-fonte-previa`), sem navegar pra lugar nenhum. O texto
   da resposta em si não cita número de trecho (removido a pedido — lia
   mal, tipo "às terças e quintas [2] [4]"); quem quer conferir a fonte
   clica no chip. Testado visualmente num harness local com stream
   simulado (screenshot do fluxo completo: pergunta → resposta → chips →
   prévia expandida).
-- **Fase 5:** sino no cabeçalho (`#nexo-sino`) com badge de não vistas
-  (também espelhado no ícone flutuante, `#nexo-badge`), poll a cada 2min
+- **Fase 5:** sino no cabeçalho (`#ops-sino`) com badge de não vistas
+  (também espelhado no ícone flutuante, `#ops-badge`), poll a cada 2min
   via `GET /assistente/sinalizacoes/contagem`. Clicar abre a lista
   (`GET /assistente/sinalizacoes`) no lugar do chat; abrir marca as
   sinalizações como vistas (`POST .../visualizar`). Cada item tem três
