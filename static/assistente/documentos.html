@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>
+    // CSRF (double-submit cookie): mesmo patch usado nas outras telas do
+    // OPS -- intercepta fetch() global pra anexar X-CSRF-Token em toda
+    // chamada que muda estado. Precisa rodar antes de qualquer outro
+    // script que chame fetch(), por isso é o primeiro <script>.
+    (function() {
+        var _fetchOriginal = window.fetch;
+        function csrfCookie() {
+            var m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        window.fetch = function(input, init) {
+            init = init || {};
+            var metodo = (init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                var token = csrfCookie();
+                if (token) {
+                    var headers = new Headers(init.headers || {});
+                    headers.set('X-CSRF-Token', token);
+                    init = Object.assign({}, init, { headers: headers });
+                }
+            }
+            return _fetchOriginal(input, init);
+        };
+    })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
+    <title>Base de Procedimentos · Assistente OPS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } }
+            }}
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+        .grad-bg { background: linear-gradient(135deg, #5B2EE0, #B826C9, #EC4899); }
+        .dropzone { border: 2px dashed var(--th-border, #E5E8F0); transition: all .15s; }
+        .dropzone.arrastando { border-color: #5B2EE0; background: rgba(91,46,224,0.05); }
+        .btn-theme { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--th-muted, #5E647A); }
+        .btn-theme:hover { background: var(--th-hover, #ECEEF4); }
+    </style>
+</head>
+<body class="bg-faiston-bg font-sans min-h-screen">
+
+<header class="bg-white border-b border-faiston-border px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2 sticky top-0 z-20">
+    <div class="flex items-center gap-3">
+        <a href="/dashboard" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark transition-colors">
+            <i class="ph ph-arrow-left"></i> Dashboard
+        </a>
+        <span class="w-px h-4 bg-slate-200"></span>
+        <i class="ph ph-book-open-text text-faiston-purple"></i>
+        <span class="text-sm font-bold text-faiston-dark">Base de Procedimentos · Assistente OPS</span>
+    </div>
+    <div class="flex items-center gap-3">
+        <button onclick="toggleTema()" id="btn-tema" class="btn-theme" title="Alternar tema">
+            <i class="ph ph-moon" id="icon-tema"></i>
+        </button>
+        <button onclick="logout()" class="text-faiston-faint hover:text-faiston-pink transition-colors">
+            <i class="ph ph-sign-out text-lg"></i>
+        </button>
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+            <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-av">?</div>
+            <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-6 py-8 space-y-6">
+
+    <div>
+        <h1 class="text-xl font-bold text-faiston-dark" style="font-family:'Space Grotesk',sans-serif">Base de procedimentos</h1>
+        <p class="text-sm text-faiston-muted mt-1">
+            Documentos indexados aqui alimentam a capacidade "explicar" do assistente OPS —
+            toda resposta de procedimento cita a fonte, e sem trecho relevante o assistente recusa
+            em vez de inventar. Formatos aceitos: <code class="text-xs">.md</code>, <code class="text-xs">.docx</code>, <code class="text-xs">.pdf</code>.
+        </p>
+    </div>
+
+    <!-- FORM DE INGESTÃO -->
+    <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91,46,224,0.06)">
+        <form id="form-ingestao" class="space-y-4">
+            <div id="dropzone" class="dropzone rounded-xl p-6 text-center cursor-pointer">
+                <input type="file" id="arquivo" accept=".md,.markdown,.docx,.pdf" class="hidden">
+                <i class="ph ph-upload-simple text-3xl text-faiston-purple"></i>
+                <p class="text-sm text-faiston-dark font-semibold mt-2" id="dropzone-texto">Arraste um arquivo aqui ou clique pra escolher</p>
+                <p class="text-xs text-faiston-faint mt-1">.md, .docx ou .pdf</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input type="text" id="titulo" placeholder="Título do documento *" required
+                    class="sm:col-span-1 px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple">
+                <input type="text" id="origem" placeholder="Origem (opcional)"
+                    class="px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple">
+                <input type="text" id="versao" placeholder="Versão (opcional)"
+                    class="px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <div class="flex items-center gap-3">
+                <button type="submit" id="btn-ingerir" class="grad-bg text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                    <i class="ph ph-brain"></i> Ingerir documento
+                </button>
+                <span id="status-ingestao" class="text-sm"></span>
+            </div>
+        </form>
+    </div>
+
+    <!-- LISTA DE DOCUMENTOS -->
+    <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91,46,224,0.06)">
+        <div class="flex items-center gap-2 mb-4">
+            <i class="ph ph-files text-faiston-purple"></i>
+            <span class="text-sm font-bold text-faiston-dark">Documentos indexados</span>
+        </div>
+        <div id="lista-documentos" class="divide-y divide-faiston-border">
+            <p class="text-sm text-faiston-faint py-4">Carregando...</p>
+        </div>
+    </div>
+
+    <!-- CAPACIDADE D — OBSERVAR (teste manual) -->
+    <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91,46,224,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+            <i class="ph ph-eye text-faiston-purple"></i>
+            <span class="text-sm font-bold text-faiston-dark">Sinalizações proativas (capacidade D)</span>
+        </div>
+        <p class="text-sm text-faiston-muted mb-4">
+            O job de verdade roda sozinho de madrugada. Sem dado real acumulado
+            ainda, use "Gerar dados de teste" pra criar tarefas sintéticas
+            (marcadas com o cliente "Cliente Teste Observar") que disparam os
+            três detectores, depois "Rodar detecção agora" pra ver a sinalização
+            aparecer. "Limpar dados de teste" remove só o que foi gerado aqui —
+            nunca toca em tarefa real. Tudo admin-only, mesmo gate desta tela.
+        </p>
+        <div class="flex items-center gap-2 mb-3">
+            <label for="input-usuario-teste" class="text-xs text-faiston-muted whitespace-nowrap">Gerar/rodar pra (ID do usuário, vazio = eu mesmo):</label>
+            <input type="number" id="input-usuario-teste" placeholder="ex.: 7" class="w-24 px-2 py-1 border border-faiston-border rounded-lg text-xs focus:outline-none focus:border-faiston-purple">
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+            <button onclick="popularDadosTeste()" id="btn-popular-teste" class="bg-white border border-faiston-border text-faiston-dark text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-flask text-faiston-purple"></i> Gerar dados de teste
+            </button>
+            <button onclick="rodarObservarAgora()" id="btn-observar" class="grad-bg text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-play"></i> Rodar detecção agora
+            </button>
+            <button onclick="limparDadosTeste()" id="btn-limpar-teste" class="bg-white border border-faiston-border text-faiston-muted text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-trash text-lg"></i> Limpar dados de teste
+            </button>
+            <button onclick="verDiagnosticoObservar()" id="btn-diagnostico-observar" class="bg-white border border-faiston-border text-faiston-muted text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-magnifying-glass text-lg"></i> Ver diagnóstico
+            </button>
+        </div>
+        <p class="text-xs text-faiston-faint mt-2">
+            "Ver diagnóstico" mostra só contagem e data das sinalizações do ID
+            acima (orçamento usado, cooldown) — nunca o texto gerado nem o
+            feedback dado, isso continua só da pessoa.
+        </p>
+        <span id="status-observar" class="text-sm block mt-2"></span>
+        <pre id="resultado-observar" class="hidden mt-3 text-xs bg-faiston-bg border border-faiston-border rounded-lg p-3 overflow-x-auto"></pre>
+    </div>
+
+    <!-- DADOS DE DEMONSTRAÇÃO (usuários + tarefas variadas) -->
+    <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91,46,224,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+            <i class="ph ph-users-three text-faiston-purple"></i>
+            <span class="text-sm font-bold text-faiston-dark">Dados de demonstração (usuários + tarefas)</span>
+        </div>
+        <p class="text-sm text-faiston-muted mb-4">
+            Cria até 4 funcionários fictícios (login <code class="text-xs">demo.*</code>,
+            senha <code class="text-xs">Demo@1234</code>) e ~7 tarefas variadas pra cada um
+            (feitas, em andamento, abertas — tipos e clientes misturados), pra ver o
+            sistema com cara de uso de verdade. "Limpar" apaga as tarefas geradas e
+            desativa os usuários demo (não apaga a conta, só tira do ar).
+        </p>
+        <div class="flex items-center gap-3 flex-wrap">
+            <button onclick="popularDemo()" id="btn-popular-demo" class="grad-bg text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-magic-wand"></i> Gerar usuários e tarefas de demonstração
+            </button>
+            <button onclick="limparDemo()" id="btn-limpar-demo" class="bg-white border border-faiston-border text-faiston-muted text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-trash text-lg"></i> Limpar demonstração
+            </button>
+        </div>
+        <span id="status-demo" class="text-sm block mt-2"></span>
+        <pre id="resultado-demo" class="hidden mt-3 text-xs bg-faiston-bg border border-faiston-border rounded-lg p-3 overflow-x-auto"></pre>
+    </div>
+
+</main>
+
+<script>
+async function init() {
+    try {
+        const res = await fetch('/api/me');
+        if (!res.ok) { window.location.href = '/'; return; }
+        const me = await res.json();
+        if (me.perfil !== 'admin') { window.location.href = '/dashboard'; return; }
+        document.getElementById('user-nome').textContent = me.nome;
+        document.getElementById('user-av').textContent = me.nome.charAt(0).toUpperCase();
+    } catch (e) { window.location.href = '/'; return; }
+    carregarLista();
+}
+
+async function logout() {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
+}
+
+function toggleTema() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const novo = !isDark;
+    localStorage.setItem('faiston_tema', novo ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', novo ? 'dark' : 'light');
+    const icon = document.getElementById('icon-tema');
+    if (icon) icon.className = novo ? 'ph ph-sun text-faiston-cyan' : 'ph ph-moon';
+}
+(function() {
+    if (localStorage.getItem('faiston_tema') === 'dark') {
+        var icon = document.getElementById('icon-tema');
+        if (icon) icon.className = 'ph ph-sun text-faiston-cyan';
+    }
+})();
+
+// --- Dropzone / seleção de arquivo ---
+var arquivoSelecionado = null;
+var dropzone = document.getElementById('dropzone');
+var inputArquivo = document.getElementById('arquivo');
+var dropzoneTexto = document.getElementById('dropzone-texto');
+
+function selecionarArquivo(arquivo) {
+    arquivoSelecionado = arquivo;
+    dropzoneTexto.textContent = arquivo ? arquivo.name : 'Arraste um arquivo aqui ou clique pra escolher';
+}
+
+dropzone.addEventListener('click', function () { inputArquivo.click(); });
+inputArquivo.addEventListener('change', function () {
+    selecionarArquivo(inputArquivo.files[0] || null);
+});
+['dragenter', 'dragover'].forEach(function (ev) {
+    dropzone.addEventListener(ev, function (e) {
+        e.preventDefault();
+        dropzone.classList.add('arrastando');
+    });
+});
+['dragleave', 'drop'].forEach(function (ev) {
+    dropzone.addEventListener(ev, function (e) {
+        e.preventDefault();
+        dropzone.classList.remove('arrastando');
+    });
+});
+dropzone.addEventListener('drop', function (e) {
+    var arquivo = e.dataTransfer.files[0];
+    if (arquivo) selecionarArquivo(arquivo);
+});
+
+// --- Envio ---
+document.getElementById('form-ingestao').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var status = document.getElementById('status-ingestao');
+    var btn = document.getElementById('btn-ingerir');
+    var titulo = document.getElementById('titulo').value.trim();
+
+    if (!arquivoSelecionado) {
+        status.textContent = 'Escolha um arquivo primeiro.';
+        status.className = 'text-sm text-faiston-pink';
+        return;
+    }
+    if (!titulo) {
+        status.textContent = 'Título é obrigatório.';
+        status.className = 'text-sm text-faiston-pink';
+        return;
+    }
+
+    var formData = new FormData();
+    formData.append('arquivo', arquivoSelecionado);
+    formData.append('titulo', titulo);
+    var origem = document.getElementById('origem').value.trim();
+    var versao = document.getElementById('versao').value.trim();
+    if (origem) formData.append('origem', origem);
+    if (versao) formData.append('versao', versao);
+
+    btn.disabled = true;
+    status.textContent = 'Gerando embedding e indexando... pode levar alguns segundos.';
+    status.className = 'text-sm text-faiston-muted';
+
+    try {
+        var res = await fetch('/assistente/documentos', { method: 'POST', body: formData });
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui ingerir o documento.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = 'Documento "' + dados.titulo + '" indexado com sucesso.';
+            status.className = 'text-sm text-green-600';
+            document.getElementById('form-ingestao').reset();
+            selecionarArquivo(null);
+            carregarLista();
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+// --- Lista ---
+async function carregarLista() {
+    var container = document.getElementById('lista-documentos');
+    try {
+        var res = await fetch('/assistente/documentos/lista');
+        if (!res.ok) throw new Error('falha ao listar');
+        var dados = await res.json();
+        var docs = dados.documentos || [];
+        if (!docs.length) {
+            container.innerHTML = '<p class="text-sm text-faiston-faint py-4">Nenhum documento indexado ainda.</p>';
+            return;
+        }
+        container.innerHTML = docs.map(function (d) {
+            var data = d.atualizado_em ? new Date(d.atualizado_em).toLocaleDateString('pt-BR') : '';
+            return '<div class="py-3 flex items-center justify-between gap-3">' +
+                '<div class="min-w-0">' +
+                    '<div class="text-sm font-semibold text-faiston-dark truncate">' + escapeHtml(d.titulo) + '</div>' +
+                    '<div class="text-xs text-faiston-faint mt-0.5">' +
+                        (d.origem ? escapeHtml(d.origem) + ' · ' : '') +
+                        (d.versao ? 'v' + escapeHtml(d.versao) + ' · ' : '') +
+                        d.blocos + ' bloco' + (d.blocos === 1 ? '' : 's') +
+                        (data ? ' · atualizado em ' + data : '') +
+                    '</div>' +
+                '</div>' +
+                '<div class="flex items-center gap-1 flex-shrink-0" title="Posição na trilha de onboarding (modo professor) -- vazio = fora da trilha">' +
+                    '<i class="ph ph-graduation-cap text-faiston-faint"></i>' +
+                    '<input type="number" min="1" value="' + (d.ordem_onboarding != null ? d.ordem_onboarding : '') + '" placeholder="—" ' +
+                        'class="w-14 px-2 py-1 border border-faiston-border rounded-lg text-xs text-center focus:outline-none focus:border-faiston-purple" ' +
+                        'onchange="salvarOrdemOnboarding(' + d.id + ', this)">' +
+                '</div>' +
+                '<button onclick="removerDocumento(' + d.id + ', this)" class="text-faiston-faint hover:text-faiston-pink transition-colors flex-shrink-0" title="Remover">' +
+                    '<i class="ph ph-trash text-lg"></i>' +
+                '</button>' +
+            '</div>';
+        }).join('');
+    } catch (e) {
+        container.innerHTML = '<p class="text-sm text-faiston-pink py-4">Não consegui carregar a lista.</p>';
+    }
+}
+
+function escapeHtml(s) {
+    var div = document.createElement('div');
+    div.textContent = s || '';
+    return div.innerHTML;
+}
+
+// --- Capacidade D (observar) — disparo manual ---
+async function rodarObservarAgora() {
+    var btn = document.getElementById('btn-observar');
+    var status = document.getElementById('status-observar');
+    var resultado = document.getElementById('resultado-observar');
+
+    btn.disabled = true;
+    status.textContent = 'Rodando detectores e redigindo sinalizações... pode levar um instante.';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var res = await fetch('/assistente/observar/rodar-agora', { method: 'POST' });
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui rodar a detecção agora.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = dados.gravados > 0
+                ? dados.gravados + ' sinalização(ões) nova(s) gravada(s).'
+                : 'Rodou sem gerar sinalização nova (nada acionável, ou tudo em orçamento/cooldown).';
+            status.className = 'text-sm text-green-600';
+            resultado.textContent = JSON.stringify(dados, null, 2);
+            resultado.classList.remove('hidden');
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function verDiagnosticoObservar() {
+    var btn = document.getElementById('btn-diagnostico-observar');
+    var status = document.getElementById('status-observar');
+    var resultado = document.getElementById('resultado-observar');
+    var alvo = _usuarioTesteAlvo();
+
+    btn.disabled = true;
+    status.textContent = 'Consultando...';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var url = '/assistente/observar/diagnostico' + (alvo !== null ? '?usuario_id=' + alvo : '');
+        var res = await fetch(url);
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui consultar o diagnóstico.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = dados.total_historico + ' sinalização(ões) no histórico, ' +
+                dados.essa_semana + ' essa semana (' + dados.vagas_restantes_essa_semana + ' vaga(s) restante(s)).';
+            status.className = 'text-sm text-faiston-muted';
+            resultado.textContent = JSON.stringify(dados, null, 2);
+            resultado.classList.remove('hidden');
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function _usuarioTesteAlvo() {
+    var valor = document.getElementById('input-usuario-teste').value.trim();
+    return valor === '' ? null : parseInt(valor, 10);
+}
+
+async function popularDadosTeste() {
+    var btn = document.getElementById('btn-popular-teste');
+    var status = document.getElementById('status-observar');
+    var resultado = document.getElementById('resultado-observar');
+
+    btn.disabled = true;
+    status.textContent = 'Gerando tarefas sintéticas...';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var res = await fetch('/assistente/observar/popular-dados-teste', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuario_id: _usuarioTesteAlvo() }),
+        });
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui gerar os dados de teste.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = 'Dados de teste gerados. Agora clique em "Rodar detecção agora".';
+            status.className = 'text-sm text-green-600';
+            resultado.textContent = JSON.stringify(dados, null, 2);
+            resultado.classList.remove('hidden');
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function limparDadosTeste() {
+    if (!confirm('Remover os dados sintéticos de teste (tarefas do "Cliente Teste Observar")? Isso não afeta nenhuma tarefa real.')) return;
+    var btn = document.getElementById('btn-limpar-teste');
+    var status = document.getElementById('status-observar');
+    var resultado = document.getElementById('resultado-observar');
+
+    btn.disabled = true;
+    status.textContent = 'Removendo dados de teste...';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var res = await fetch('/assistente/observar/limpar-dados-teste', { method: 'POST' });
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui limpar os dados de teste.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = dados.tarefas_removidas + ' tarefa(s) de teste removida(s).';
+            status.className = 'text-sm text-green-600';
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function popularDemo() {
+    var btn = document.getElementById('btn-popular-demo');
+    var status = document.getElementById('status-demo');
+    var resultado = document.getElementById('resultado-demo');
+
+    btn.disabled = true;
+    status.textContent = 'Criando usuários e tarefas de demonstração...';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var res = await fetch('/assistente/demo/popular', { method: 'POST' });
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui gerar os dados de demonstração.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            var criados = (dados.usuarios && dados.usuarios.criados) || [];
+            var tarefas = (dados.tarefas && dados.tarefas.tarefas_criadas) || 0;
+            status.textContent = criados.length + ' usuário(s) novo(s), ' + tarefas + ' tarefa(s) criada(s).';
+            status.className = 'text-sm text-green-600';
+            resultado.textContent = JSON.stringify(dados, null, 2);
+            resultado.classList.remove('hidden');
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function limparDemo() {
+    if (!confirm('Remover as tarefas de demonstração e desativar os usuários demo.*? Nenhuma conta ou tarefa real é afetada.')) return;
+    var btn = document.getElementById('btn-limpar-demo');
+    var status = document.getElementById('status-demo');
+    var resultado = document.getElementById('resultado-demo');
+
+    btn.disabled = true;
+    status.textContent = 'Removendo dados de demonstração...';
+    status.className = 'text-sm text-faiston-muted';
+    resultado.classList.add('hidden');
+
+    try {
+        var res = await fetch('/assistente/demo/limpar', { method: 'POST' });
+        var dados = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            status.textContent = dados.detail || 'Não consegui limpar os dados de demonstração.';
+            status.className = 'text-sm text-faiston-pink';
+        } else {
+            status.textContent = dados.tarefas_removidas + ' tarefa(s) removida(s), ' + dados.usuarios_desativados + ' usuário(s) desativado(s).';
+            status.className = 'text-sm text-green-600';
+        }
+    } catch (e) {
+        status.textContent = 'Erro de conexão. Tente de novo.';
+        status.className = 'text-sm text-faiston-pink';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function salvarOrdemOnboarding(id, input) {
+    var valor = input.value.trim();
+    var ordem = valor === '' ? null : parseInt(valor, 10);
+    input.disabled = true;
+    try {
+        var res = await fetch('/assistente/documentos/' + id + '/onboarding', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ordem_onboarding: ordem }),
+        });
+        if (!res.ok) {
+            var dados = await res.json().catch(function () { return {}; });
+            alert(dados.detail || 'Não consegui salvar a posição no onboarding.');
+            carregarLista();
+        }
+    } catch (e) {
+        alert('Erro de conexão.');
+        carregarLista();
+    } finally {
+        input.disabled = false;
+    }
+}
+
+async function removerDocumento(id, btn) {
+    if (!confirm('Remover este documento da base? Ele para de ser encontrado nas buscas imediatamente.')) return;
+    btn.disabled = true;
+    try {
+        var res = await fetch('/assistente/documentos/' + id, { method: 'DELETE' });
+        if (res.ok) carregarLista();
+        else alert('Não consegui remover o documento.');
+    } catch (e) {
+        alert('Erro de conexão.');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+init();
+</script>
+</body>
+</html>

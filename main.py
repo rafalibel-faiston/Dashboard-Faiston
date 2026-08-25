@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, Form, BackgroundTasks, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -54,7 +54,7 @@ _CSRF_ISENTAS = {"/api/login", "/api/esqueci-senha", "/api/redefinir-senha"}  # 
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if (request.method in _CSRF_METODOS
-                and request.url.path.startswith("/api/")
+                and (request.url.path.startswith("/api/") or request.url.path.startswith("/assistente/"))
                 and request.url.path not in _CSRF_ISENTAS):
             cookie_token = request.cookies.get("csrf_token")
             header_token = request.headers.get("x-csrf-token")
@@ -861,6 +861,11 @@ def setup_banco():
 
 setup_banco()
 
+from app.assistente.db import setup_schema as _setup_schema_assistente
+from app.assistente.router import router as assistente_router
+_setup_schema_assistente()
+app.include_router(assistente_router)
+
 # --- MODELOS ---
 class LoginRequest(BaseModel):
     usuario: str
@@ -906,9 +911,11 @@ def _perfil_guia(perfil: str, cargo: str = "", perfil_real: str = "") -> str:
     return perfil or ""
 
 def _eh_backoffice(sess: dict) -> bool:
-    """Backoffice (cargo dentro de perfil='funcionario') só arrasta card pra
-    mudar status no Kanban de Cronograma reaproveitado do admin -- não cria,
-    não edita campo, não exclui (2026-08-03)."""
+    """Backoffice (cargo dentro de perfil='funcionario') arrasta card pra
+    mudar status no Kanban de Cronograma reaproveitado do admin, cria
+    atividade nova e importa planilha (2026-08-03, ampliado 2026-08-18) --
+    mas não edita/exclui atividade já existente nem gera escala (isso
+    continua só admin/gestor/demo/diretor)."""
     return bool(sess) and sess.get("perfil") == "funcionario" and sess.get("cargo") == "backoffice"
 
 class NovoUsuario(BaseModel):
@@ -3751,6 +3758,15 @@ def _redirect_login_ou_home(sess):
         return RedirectResponse("/n2")
     return RedirectResponse("/funcionario")
 
+# Telas autenticadas que embarcam o widget do assistente. `no-cache` obriga
+# o navegador a revalidar o HTML, o que garante que uma troca de versão no
+# <script src="...widget.js?v=N"> chegue de fato em quem já tinha a página
+# aberta antes -- sem isso, o navegador podia seguir servindo o HTML antigo
+# (e portanto o widget antigo) por horas. Não é "não cacheia": o ETag do
+# FileResponse continua valendo, então página sem mudança responde 304.
+_HTML_SEM_CACHE = {"Cache-Control": "no-cache"}
+
+
 @app.get("/")
 def root(): return FileResponse("static/login.html")
 
@@ -3769,13 +3785,13 @@ def dashboard(faiston_token: str = Cookie(None)):
     eh_backoffice = sess and sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice"
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice):
         return _redirect_login_ou_home(sess)
-    return FileResponse("static/index.html")
+    return FileResponse("static/index.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/funcionario")
 def funcionario(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: return RedirectResponse("/")
-    return FileResponse("static/funcionario.html")
+    return FileResponse("static/funcionario.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/n2")
 def n2_page(faiston_token: str = Cookie(None)):
@@ -3789,7 +3805,7 @@ def n2_page(faiston_token: str = Cookie(None)):
     # redirect entraria em loop; cai no board de tarefas.
     if not _pode_ver_status_report(sess):
         return RedirectResponse("/funcionario")
-    return FileResponse("static/n2.html")
+    return FileResponse("static/n2.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/admin")
 def admin_page(): return RedirectResponse("/dashboard?go=admin")
@@ -4279,7 +4295,7 @@ def historico_page(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"):
         return _redirect_login_ou_home(sess)
-    return FileResponse("static/historico.html")
+    return FileResponse("static/historico.html", headers=_HTML_SEM_CACHE)
 
 # --- NOTAS PESSOAIS ---
 class NotaModel(BaseModel):
@@ -4639,7 +4655,7 @@ def financeiro_page(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
         return _redirect_login_ou_home(sess)
-    return FileResponse("static/financeiro.html")
+    return FileResponse("static/financeiro.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/api/financeiro/resumo")
 def financeiro_resumo(faiston_token: str = Cookie(None)):
@@ -6320,6 +6336,19 @@ try:
         _scheduler.add_job(_loop_sync_job, "interval", minutes=_loop_minutos,
                            id="loop_sync", replace_existing=True)
         print(f"APScheduler — sync do Microsoft Loop a cada {_loop_minutos}min")
+    # Assistente OPS — capacidade D (observar), job de madrugada: detecta
+    # padrão de repetição/retrabalho/pendência parada, redige e grava
+    # sinalização. Desativado por padrão (ASSISTENTE_OBSERVAR_ENABLED="0")
+    # -- feature nova, precisa de combinado com a liderança antes de ligar
+    # em produção (regra 8 do CLAUDE.md do assistente: a sinalização é da
+    # pessoa, nunca sobe pro gestor -- mas alguém tem que saber que a
+    # capacidade existe antes da equipe ver o primeiro aviso).
+    if os.environ.get("ASSISTENTE_OBSERVAR_ENABLED", "0") == "1":
+        from app.assistente.capacidade_observar.job import rodar_sync as _observar_job
+        _observar_hora = int(os.environ.get("ASSISTENTE_OBSERVAR_HORA", "3"))
+        _scheduler.add_job(_observar_job, "cron", hour=_observar_hora, minute=0,
+                           id="assistente_observar", replace_existing=True)
+        print(f"APScheduler — assistente (capacidade D) agendado às {_observar_hora}h")
     _scheduler.start()
     print("APScheduler iniciado — relatório agendado para dia 1 de cada mês às 08h")
 except ImportError:
@@ -6957,7 +6986,7 @@ def obter_status_campo(aid: int, faiston_token: str = Cookie(None)):
 @app.post("/api/status-campo")
 def criar_status_campo(a: StatusAtividadeModel, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess)): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_n2(sess) and not _eh_backoffice(sess)): raise HTTPException(status_code=403)
     if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
@@ -7630,6 +7659,12 @@ _SC_IMPORT_HEADERS = {
     'ENDERECO': 'endereco', 'CIDADE': 'cidade', 'UF': 'uf',
     'AGENDAMENTO': 'data', 'HORARIO': 'horario_agendado', 'TECNICO': 'tecnico',
     'TICKET ATENDIMENTO': 'ticket', 'STATUS ATIVIDADE': 'status_raw', 'OBSERVACAO': 'observacoes',
+    # Dialeto "cronograma de parceiro" (ex.: VITA/Arcos Dourados) -- é a
+    # planilha que o time já usa no dia a dia, de um único cliente, sem
+    # coluna CLIENTE (o cliente vem do seletor no modal de importar, ver
+    # `cliente_id`) (2026-08-18).
+    'NOME': 'site', 'SIGLA': 'site_sigla', 'DATA': 'data', 'STATUS': 'status_raw',
+    'TICKET': 'ticket', 'ATIVIDADE': 'subprojeto',
 }
 
 def _sc_strip_acentos(s):
@@ -7656,6 +7691,11 @@ def _sc_mapear_status(raw):
     if 'CANCELAD' in u: return 'cancelado'
     if 'ANDAMENTO' in u: return 'em_andamento'
     if 'AGENDAD' in u: return 'agendado'
+    # "REAGENDAR" (sem sufixo -O/-A) e "AGUARD. AGENDAMENTO" não batem com
+    # 'AGENDAD' acima -- planilhas como a da VITA/Arcos Dourados usam essas
+    # variações pra dizer a mesma coisa: atividade pendente de agendamento.
+    if 'REAGENDAR' in u: return 'agendado'
+    if 'AGUARD' in u: return 'agendado'
     return None
 
 def _sc_find_sheet_and_header(wb):
@@ -7674,14 +7714,19 @@ def _sc_find_sheet_and_header(wb):
     return melhor
 
 @app.post("/api/status-campo/importar-planilha")
-async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_token: str = Cookie(None)):
+async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_id: Optional[int] = Form(None),
+                                          somente_pendentes: bool = Form(True),
+                                          faiston_token: str = Cookie(None)):
     """Importa atividades de uma planilha externa (ex.: cronograma geral),
-    mapeando só as colunas que já existem no sistema. Cliente/Projeto da
-    planilha são casados por nome aproximado contra os clientes já
-    cadastrados -- o que não bate fica de fora e é reportado, não cria
-    cliente novo sozinho nem adivinha."""
+    mapeando só as colunas que já existem no sistema. Por padrão, Cliente/
+    Projeto da planilha são casados por nome aproximado contra os clientes
+    já cadastrados -- o que não bate fica de fora e é reportado, não cria
+    cliente novo sozinho nem adivinha. Planilhas de um cliente só (ex.:
+    cronograma de parceiro tipo VITA/Arcos Dourados, sem coluna CLIENTE)
+    passam `cliente_id` explícito no upload -- todas as linhas vão pra esse
+    cliente, sem tentar casar nome nenhum (2026-08-18)."""
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"): raise HTTPException(status_code=403)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_backoffice(sess)): raise HTTPException(status_code=403)
     if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
     global _OPENPYXL_OK, openpyxl
     if not _OPENPYXL_OK:
@@ -7709,7 +7754,15 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
         cur.execute("SELECT id, nome FROM clientes WHERE ativo = TRUE")
         clientes_norm = [(_sc_norm_nome(nome), cid) for cid, nome in cur.fetchall()]
 
+        cliente_fixo = None
+        if cliente_id is not None:
+            if cliente_id not in {cid for _, cid in clientes_norm}:
+                raise HTTPException(status_code=400, detail="Cliente informado não encontrado ou inativo")
+            cliente_fixo = cliente_id
+
         def buscar_cliente(cliente_raw, projeto_raw):
+            if cliente_fixo is not None:
+                return cliente_fixo
             for cand in (cliente_raw, projeto_raw, f"{cliente_raw} {projeto_raw}".strip()):
                 nn = _sc_norm_nome(cand)
                 if not nn: continue
@@ -7717,6 +7770,27 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
                     if norm_nome and (nn == norm_nome or nn in norm_nome or norm_nome in nn):
                         return cid
             return None
+
+        # Cada linha da planilha só traz o nome do técnico digitado por
+        # alguém, igual "Nova atividade" -- sem isso, tecnico_id nunca era
+        # preenchido no import, só o texto solto (2026-08-18, a pedido do
+        # usuário: "colocar o técnico na atividade de acordo com a base").
+        # Nome exato (não substring, ao contrário de cliente) porque nome de
+        # pessoa é fácil de dar falso positivo por trecho em comum.
+        cur.execute("SELECT id, nome, estado FROM tecnicos WHERE ativo = TRUE")
+        tecnicos_norm = [(_sc_norm_nome(nome), (estado or '').strip().upper()[:2], tid)
+                          for tid, nome, estado in cur.fetchall()]
+
+        def buscar_tecnico(nome_raw, uf_raw):
+            nn = _sc_norm_nome(nome_raw)
+            if not nn: return None
+            candidatos = [tid for norm_nome, _uf, tid in tecnicos_norm if norm_nome == nn]
+            if not candidatos: return None
+            uf = (uf_raw or '').strip().upper()[:2]
+            if uf:
+                na_uf = [tid for norm_nome, _uf, tid in tecnicos_norm if norm_nome == nn and _uf == uf]
+                if na_uf: return na_uf[0]
+            return candidatos[0]
 
         def get(r, field):
             idx = col.get(field)
@@ -7730,11 +7804,17 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
         puladas_sem_cliente = {}
         puladas_sem_status = 0
         puladas_sem_data = 0
+        puladas_ja_concluidas = 0
         puladas_erro = 0
+        tecnicos_nao_encontrados = 0
         for r in rows[hi + 1:]:
             cliente_raw = str(get(r, 'cliente') or '').strip()
             projeto_raw = str(get(r, 'projeto') or '').strip()
-            if not cliente_raw and not projeto_raw:
+            site_raw = str(get(r, 'site') or '').strip()
+            # Sem CLIENTE/PROJETO nem SITE a linha está mesmo vazia -- planilhas
+            # de cliente único (cliente_fixo) não têm CLIENTE/PROJETO nunca, então
+            # SITE (NOME/LOCALIDADE) é o único sinal de linha real que sobra.
+            if not cliente_raw and not projeto_raw and not site_raw:
                 continue
             data_raw = get(r, 'data')
             if isinstance(data_raw, datetime): data_val = data_raw.date().isoformat()
@@ -7752,8 +7832,19 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
             if not status_mapeado:
                 puladas_sem_status += 1
                 continue
+            # Planilha de cronograma real vem com o histórico inteiro junto --
+            # sem esse filtro (ligado por padrão), um upload de rotina duplica
+            # no banco milhares de atividades já concluídas/canceladas de novo
+            # (2026-08-18, a pedido do usuário).
+            if somente_pendentes and status_mapeado in ('concluido', 'cancelado'):
+                puladas_ja_concluidas += 1
+                continue
             horario_raw = get(r, 'horario_agendado')
             horario_val = horario_raw.strftime('%H:%M') if hasattr(horario_raw, 'strftime') else None
+            tecnico_raw = get(r, 'tecnico')
+            tid = buscar_tecnico(tecnico_raw, get(r, 'uf'))
+            if tecnico_raw and not tid:
+                tecnicos_nao_encontrados += 1
             # Savepoint por linha -- planilhas reais têm valor fora do
             # padrão de vez em quando (campo longo demais etc.); sem isso,
             # uma linha ruim aborta a transação inteira e nada é salvo.
@@ -7761,11 +7852,12 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
             try:
                 cur.execute("""
                     INSERT INTO status_atividades
-                        (cliente_id, data, horario_agendado, tecnico, n2_responsavel,
-                         site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (cid, data_val, horario_val, corta(get(r, 'tecnico'), 150),
-                      corta(get(r, 'n2_responsavel'), 150), corta(get(r, 'site'), 150),
+                        (cliente_id, data, horario_agendado, tecnico, tecnico_id, n2_responsavel,
+                         site_sigla, site_nome, endereco, cidade, uf, subprojeto, ticket, status, observacoes, criado_por)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (cid, data_val, horario_val, corta(tecnico_raw, 150), tid,
+                      corta(get(r, 'n2_responsavel'), 150), corta(get(r, 'site_sigla'), 50),
+                      corta(get(r, 'site'), 150),
                       str(get(r, 'endereco') or '').strip(), corta(get(r, 'cidade'), 100),
                       corta(get(r, 'uf'), 2), corta(get(r, 'subprojeto'), 150),
                       corta(get(r, 'ticket'), 100), status_mapeado,
@@ -7782,6 +7874,8 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), faiston_t
             "puladas_sem_cliente": [{"nome": k, "ocorrencias": v}
                                      for k, v in sorted(puladas_sem_cliente.items(), key=lambda x: -x[1])],
             "puladas_sem_status": puladas_sem_status, "puladas_sem_data": puladas_sem_data,
+            "puladas_ja_concluidas": puladas_ja_concluidas,
+            "tecnicos_nao_encontrados": tecnicos_nao_encontrados,
         }
     except HTTPException: raise
     except Exception as e:

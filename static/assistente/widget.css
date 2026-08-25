@@ -1,0 +1,391 @@
+/* Widget do assistente OPS. Usa as variáveis --th-* já definidas em
+   /css/style.css, então segue o tema claro/escuro da tela sem esforço
+   extra. Namespace #nexo-* pra nunca colidir com o CSS de cada tela. */
+
+#nexo-launcher {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    z-index: 9998;
+    box-shadow: 0 8px 24px rgba(91, 46, 224, 0.35);
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+    background: transparent;
+}
+#nexo-launcher:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 10px 28px rgba(91, 46, 224, 0.45); }
+#nexo-launcher:active { transform: translateY(0) scale(0.97); }
+#nexo-launcher img { width: 100%; height: 100%; display: block; border-radius: 50%; }
+#nexo-launcher.nexo-tem-novidade { animation: nexo-pulso 2.4s ease-in-out infinite; }
+@keyframes nexo-pulso {
+    0%, 100% { box-shadow: 0 8px 24px rgba(91, 46, 224, 0.35), 0 0 0 0 rgba(236, 72, 153, 0.45); }
+    50%      { box-shadow: 0 8px 24px rgba(91, 46, 224, 0.35), 0 0 0 9px rgba(236, 72, 153, 0); }
+}
+#nexo-launcher .nexo-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: #EC4899;
+    color: #fff;
+    font: 700 10px/17px 'Inter', sans-serif;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--th-bg, #fff);
+    display: none;
+}
+
+#nexo-panel {
+    position: fixed;
+    right: 24px;
+    bottom: 92px;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    height: 560px;
+    max-height: calc(100vh - 140px);
+    background: var(--th-surface, #fff);
+    border: 1px solid var(--th-border, #E5E8F0);
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(11, 13, 31, 0.22), 0 2px 8px rgba(11, 13, 31, 0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 9999;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--th-text, #0B0D1F);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px) scale(0.97);
+    transform-origin: bottom right;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.1), visibility 0s linear 0.2s;
+}
+#nexo-panel.aberto {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.1), visibility 0s linear 0s;
+}
+
+#nexo-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    background: linear-gradient(120deg, #5B2EE0 0%, #B826C9 60%, #EC4899 100%);
+    color: #fff;
+    flex: 0 0 auto;
+    overflow: hidden;
+}
+#nexo-header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 12% 20%, rgba(255, 255, 255, 0.3), transparent 55%);
+    pointer-events: none;
+}
+#nexo-header > * { position: relative; }
+#nexo-header img { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45); }
+#nexo-header .nexo-titulo { font-weight: 700; font-size: 14px; line-height: 1.2; letter-spacing: 0.01em; }
+#nexo-header .nexo-sub { font-size: 11px; opacity: 0.85; }
+#nexo-header button {
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: #fff;
+    width: 27px;
+    height: 27px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: background 0.12s ease, transform 0.12s ease;
+}
+#nexo-header button:hover { background: rgba(255, 255, 255, 0.28); transform: translateY(-1px); }
+#nexo-header a#nexo-gerenciar {
+    margin-left: 6px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    width: 27px;
+    height: 27px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.12s ease, transform 0.12s ease;
+}
+#nexo-header a#nexo-gerenciar:hover { background: rgba(255, 255, 255, 0.28); transform: translateY(-1px); }
+#nexo-header a#nexo-gerenciar[hidden] { display: none; }
+#nexo-header #nexo-fechar { margin-left: 6px; }
+
+#nexo-sino {
+    position: relative;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+#nexo-sino .nexo-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: #EC4899;
+    color: #fff;
+    font: 700 10px/16px 'Inter', sans-serif;
+    text-align: center;
+    box-shadow: 0 0 0 2px #B826C9;
+    display: none;
+}
+
+#nexo-mensagens {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--th-bg, #F4F5FA);
+    scrollbar-width: thin;
+    scrollbar-color: var(--th-border-strong, #D6DAE6) transparent;
+}
+#nexo-mensagens[hidden], #nexo-form[hidden] { display: none; }
+#nexo-mensagens::-webkit-scrollbar { width: 6px; }
+#nexo-mensagens::-webkit-scrollbar-thumb { background: var(--th-border-strong, #D6DAE6); border-radius: 999px; }
+
+/* Estado vazio: sem avatar (ele já está no cabeçalho, repetir dentro do
+   chat só polui), texto alinhado à esquerda como uma conversa de
+   verdade em vez de um cartão centralizado. */
+#nexo-sugestoes { display: flex; flex-direction: column; gap: 16px; padding: 4px 2px; }
+.nexo-boas-vindas { display: flex; flex-direction: column; gap: 6px; }
+.nexo-boas-vindas-titulo {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: -0.015em;
+    color: var(--th-text, #0B0D1F);
+}
+.nexo-boas-vindas-sub {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--th-muted, #5E647A);
+    max-width: 280px;
+}
+
+.nexo-chips-linha { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.nexo-chip {
+    border: 1px solid var(--th-border, #E5E8F0);
+    background: var(--th-surface, #fff);
+    color: var(--th-text, #0B0D1F);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+.nexo-chip:hover {
+    border-color: transparent;
+    background: linear-gradient(120deg, rgba(91, 46, 224, 0.12), rgba(184, 38, 201, 0.12));
+    color: #5B2EE0;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(91, 46, 224, 0.18);
+}
+.nexo-chip:active { transform: translateY(0) scale(0.97); }
+
+@keyframes nexo-surgir { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.nexo-msg { max-width: 88%; font-size: 13.5px; line-height: 1.55; animation: nexo-surgir 0.24s ease both; }
+.nexo-msg-usuario { align-self: flex-end; }
+.nexo-msg-usuario .nexo-bolha {
+    background: linear-gradient(135deg, #5B2EE0, #7C3AED);
+    color: #fff;
+    border-radius: 16px 16px 4px 16px;
+    padding: 10px 13px;
+    box-shadow: 0 6px 16px rgba(91, 46, 224, 0.28);
+}
+.nexo-msg-assistente { align-self: flex-start; width: 100%; }
+/* Enquanto só há os pontinhos de "escrevendo", a bolha encolhe pra
+   caber neles, como bolha de digitação de app de mensagem. */
+.nexo-msg-assistente.nexo-aguardando { width: auto; }
+.nexo-msg-assistente.nexo-aguardando .nexo-bolha { display: inline-block; padding: 11px 14px; }
+.nexo-msg-assistente .nexo-bolha {
+    background: var(--th-surface, #fff);
+    border: 1px solid var(--th-border, #E5E8F0);
+    border-radius: 16px 16px 16px 4px;
+    padding: 10px 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    box-shadow: 0 1px 3px rgba(11, 13, 31, 0.05);
+}
+.nexo-msg-assistente.nexo-erro .nexo-bolha {
+    background: #FEF2F2;
+    border-color: #FCA5A5;
+    color: #991B1B;
+}
+/* "Está escrevendo": três pontinhos com bounce defasado, o gesto que
+   todo mundo já reconhece de app de mensagem. Só aparece enquanto a
+   resposta ainda não começou a chegar. */
+.nexo-digitando { display: inline-flex; align-items: center; gap: 4px; padding: 2px 0; }
+.nexo-digitando span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--th-subtle, #9097AC);
+    animation: nexo-bolinha 1.3s ease-in-out infinite;
+}
+.nexo-digitando span:nth-child(2) { animation-delay: 0.18s; }
+.nexo-digitando span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes nexo-bolinha {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+    30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Enquanto o texto vai chegando: um traço fino que respira junto, em vez
+   de piscar seco -- lê como alguém escrevendo, não como terminal. */
+.nexo-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    border-radius: 1px;
+    background: currentColor;
+    opacity: 0.5;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: nexo-respirar 1.2s ease-in-out infinite;
+}
+@keyframes nexo-respirar { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.08; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .nexo-digitando span, .nexo-caret, .nexo-boas-vindas, #nexo-launcher.nexo-tem-novidade { animation: none; }
+}
+
+.nexo-fontes { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.nexo-fonte-item { display: flex; flex-direction: column; }
+.nexo-fonte-chip {
+    align-self: flex-start;
+    border: 1px solid var(--th-border, #E5E8F0);
+    background: var(--th-hover, #ECEEF4);
+    color: var(--th-muted, #5E647A);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11.5px;
+    cursor: pointer;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: border-color 0.12s ease, color 0.12s ease;
+}
+.nexo-fonte-chip:hover { border-color: #5B2EE0; color: #5B2EE0; }
+.nexo-fonte-previa {
+    margin-top: 4px;
+    padding: 8px 10px;
+    background: var(--th-hover, #ECEEF4);
+    border-left: 2px solid #B826C9;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--th-muted, #5E647A);
+}
+
+#nexo-sinalizacoes {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--th-bg, #F4F5FA);
+    scrollbar-width: thin;
+    scrollbar-color: var(--th-border-strong, #D6DAE6) transparent;
+}
+#nexo-sinalizacoes[hidden] { display: none; }
+#nexo-sinalizacoes::-webkit-scrollbar { width: 6px; }
+#nexo-sinalizacoes::-webkit-scrollbar-thumb { background: var(--th-border-strong, #D6DAE6); border-radius: 999px; }
+#nexo-sinalizacoes-vazio {
+    font-size: 12.5px;
+    color: var(--th-subtle, #9097AC);
+    text-align: center;
+    padding: 24px 0;
+}
+.nexo-sinal-item {
+    background: var(--th-surface, #fff);
+    border: 1px solid var(--th-border, #E5E8F0);
+    border-radius: 14px;
+    padding: 11px 13px;
+    font-size: 13px;
+    box-shadow: 0 1px 3px rgba(11, 13, 31, 0.05);
+    animation: nexo-surgir 0.24s ease both;
+}
+.nexo-sinal-texto { line-height: 1.55; color: var(--th-text, #0B0D1F); }
+.nexo-sinal-quando { font-size: 11px; color: var(--th-subtle, #9097AC); margin-top: 4px; }
+
+.nexo-feedback { display: flex; gap: 6px; margin-top: 8px; }
+.nexo-feedback button {
+    border: 1px solid var(--th-border, #E5E8F0);
+    background: var(--th-surface, #fff);
+    border-radius: 8px;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--th-muted, #5E647A);
+    transition: border-color 0.12s ease, transform 0.12s ease, background 0.12s ease;
+}
+.nexo-feedback button:hover { background: var(--th-hover, #ECEEF4); transform: translateY(-1px); }
+.nexo-feedback button.nexo-ativo { border-color: #5B2EE0; color: #5B2EE0; }
+.nexo-feedback .nexo-obrigado { font-size: 11px; color: var(--th-muted, #5E647A); align-self: center; }
+
+#nexo-form {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid var(--th-border, #E5E8F0);
+    background: var(--th-surface, #fff);
+}
+#nexo-input {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--th-border, #E5E8F0);
+    background: var(--th-input, #fff);
+    color: var(--th-text, #0B0D1F);
+    border-radius: 20px;
+    padding: 10px 16px;
+    font: 13.5px 'Inter', sans-serif;
+    max-height: 90px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+#nexo-input:focus { outline: none; border-color: #5B2EE0; box-shadow: 0 0 0 3px rgba(91, 46, 224, 0.13); }
+#nexo-enviar {
+    flex: 0 0 auto;
+    border: none;
+    background: linear-gradient(135deg, #5B2EE0, #8B2EE0);
+    color: #fff;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(91, 46, 224, 0.3);
+    transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.12s ease, opacity 0.12s ease;
+}
+#nexo-enviar:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+#nexo-enviar:hover:not(:disabled) { transform: scale(1.07); }
+#nexo-enviar:active:not(:disabled) { transform: scale(0.93); }
