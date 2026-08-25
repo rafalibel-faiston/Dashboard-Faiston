@@ -4,6 +4,8 @@ GET/POST /api/avisos-ops e o redirect de /ajuda preservando ?destaque=.
 """
 import uuid
 
+import main
+
 
 class TestAvisoOps:
     def test_get_sem_login_retorna_401(self, app):
@@ -19,7 +21,6 @@ class TestAvisoOps:
         # BREVO_API_KEY/EMAIL_USER). Cria direto no banco de teste pra
         # isolar este teste desse fluxo, que não é o que está sendo
         # testado aqui.
-        import main
         from fastapi.testclient import TestClient
 
         usuario = f"teste_func_{uuid.uuid4().hex[:8]}"
@@ -50,6 +51,17 @@ class TestAvisoOps:
         assert "assistente ops" in aviso["mensagem"].lower() or "Assistente OPS" in aviso["mensagem"]
         assert aviso["link"] == "/ajuda?destaque=assistente"
         assert aviso["disparado_em"]
+
+    def test_disparar_agenda_envio_de_emails_em_background(self, admin_client, monkeypatch):
+        chamadas = []
+        monkeypatch.setattr(main, "_enviar_emails_aviso_ops", lambda system_url: chamadas.append(system_url))
+
+        resp = admin_client.post("/api/avisos-ops/disparar")
+        assert resp.status_code == 200, resp.text
+        # BackgroundTasks do Starlette roda antes do TestClient devolver a
+        # resposta -- não precisa de espera/retry aqui.
+        assert len(chamadas) == 1
+        assert chamadas[0]  # veio uma URL base, não vazio/None
 
     def test_disparar_de_novo_atualiza_o_timestamp(self, admin_client):
         primeiro = admin_client.post("/api/avisos-ops/disparar").json()
