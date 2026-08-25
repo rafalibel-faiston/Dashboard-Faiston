@@ -796,4 +796,6 @@ def widget_css():
 
 @router.get("/avatar.svg")
 def widget_avatar():
-    return FileResponse(_STATIC_DIR / "avatar.svg", media_type="image/svg+xml")
+    return FileResponse(
+        _STATIC_DIR / "avatar.svg", media_type="image/svg+xml", headers=_SEM_CACHE
+    )
