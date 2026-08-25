@@ -47,15 +47,21 @@
             "</div>" +
             '<div id="nexo-mensagens">' +
             '  <div id="nexo-sugestoes">' +
-            '    <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">📊 Resumo da semana</button>' +
-            '    <button type="button" class="nexo-chip" data-pergunta="Quero começar o onboarding">🎓 Começar onboarding</button>' +
+            '    <div class="nexo-boas-vindas">' +
+            '      <img src="/assistente/avatar.svg" alt="" class="nexo-boas-vindas-avatar">' +
+            '      <div class="nexo-boas-vindas-titulo">Oi! Eu sou o OPS.</div>' +
+            '      <div class="nexo-boas-vindas-sub">Pergunte algo, ou escolha uma sugestão:</div>' +
+            "    </div>" +
+            '    <div class="nexo-chips-linha">' +
+            '      <button type="button" class="nexo-chip" data-pergunta="Resumo da semana">📊 Resumo da semana</button>' +
+            '      <button type="button" class="nexo-chip" data-pergunta="Quero começar o onboarding">🎓 Começar onboarding</button>' +
+            "    </div>" +
             "  </div>" +
             "</div>" +
             '<div id="nexo-sinalizacoes" hidden>' +
             '  <div id="nexo-sinalizacoes-lista"></div>' +
             '  <div id="nexo-sinalizacoes-vazio" hidden>Nada por aqui — nenhuma sinalização até agora.</div>' +
             "</div>" +
-            '<div class="nexo-dica">Em construção — monta o resumo semanal e responde dúvida de procedimento se houver documento indexado. Ainda não acessa outros dados do sistema.</div>' +
             '<form id="nexo-form">' +
             '  <textarea id="nexo-input" rows="1" placeholder="Pergunte algo..." maxlength="2000"></textarea>' +
             '  <button type="submit" id="nexo-enviar" aria-label="Enviar">➤</button>' +
@@ -237,6 +243,8 @@
                         el.style.display = "none";
                     }
                 });
+                var launcher = launcherBadge && launcherBadge.closest("#nexo-launcher");
+                if (launcher) launcher.classList.toggle("nexo-tem-novidade", n > 0);
             })
             .catch(function () {});
     }
@@ -404,14 +412,12 @@
         var listaSinalizacoes = painel.querySelector("#nexo-sinalizacoes-lista");
         var vazioSinalizacoes = painel.querySelector("#nexo-sinalizacoes-vazio");
         var nexoForm = painel.querySelector("#nexo-form");
-        var nexoDica = painel.querySelector(".nexo-dica");
         var vendoSinalizacoes = false;
 
         sino.addEventListener("click", function () {
             vendoSinalizacoes = !vendoSinalizacoes;
             painelSinalizacoes.hidden = !vendoSinalizacoes;
             mensagens.hidden = vendoSinalizacoes;
-            if (nexoDica) nexoDica.hidden = vendoSinalizacoes;
             nexoForm.hidden = vendoSinalizacoes;
             if (vendoSinalizacoes) {
                 carregarSinalizacoes(listaSinalizacoes, vazioSinalizacoes, launcherBadge, sinoBadge);
