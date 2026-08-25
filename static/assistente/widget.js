@@ -265,40 +265,7 @@
             });
     }
 
-    async function enviarPergunta(pergunta, mensagens) {
-        bolhaUsuario(mensagens, pergunta);
-        var { wrap, bolha } = bolhaAssistente(mensagens);
-        bolha.innerHTML = '<span class="nexo-cursor"></span>';
-
-        var headers = { "Content-Type": "application/json" };
-        var token = csrfCookie();
-        if (token) headers["X-CSRF-Token"] = token;
-
-        var resp;
-        try {
-            resp = await fetch("/assistente/pergunta", {
-                method: "POST",
-                credentials: "same-origin",
-                headers: headers,
-                body: JSON.stringify({
-                    pergunta: pergunta,
-                    contexto_tela: (document.body && document.body.dataset && document.body.dataset.nexoTela) || location.pathname,
-                }),
-            });
-        } catch (e) {
-            wrap.classList.add("nexo-erro");
-            bolha.textContent = "Não consegui falar com o assistente. Verifique sua conexão.";
-            return;
-        }
-
-        if (!resp.ok || !resp.body) {
-            wrap.classList.add("nexo-erro");
-            bolha.textContent = resp.status === 403
-                ? "O assistente ainda não está disponível para o seu perfil."
-                : "Não consegui obter resposta agora. Tente de novo em instantes.";
-            return;
-        }
-
+    async function consumirStreamSSE(resp, wrap, bolha, mensagens) {
         var reader = resp.body.getReader();
         var decoder = new TextDecoder();
         var buffer = "";
@@ -348,6 +315,71 @@
             }
         }
         if (buffer.trim()) processarEvento(buffer);
+    }
+
+    async function enviarPergunta(pergunta, mensagens) {
+        bolhaUsuario(mensagens, pergunta);
+        var { wrap, bolha } = bolhaAssistente(mensagens);
+        bolha.innerHTML = '<span class="nexo-cursor"></span>';
+
+        var headers = { "Content-Type": "application/json" };
+        var token = csrfCookie();
+        if (token) headers["X-CSRF-Token"] = token;
+
+        var resp;
+        try {
+            resp = await fetch("/assistente/pergunta", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: headers,
+                body: JSON.stringify({
+                    pergunta: pergunta,
+                    contexto_tela: (document.body && document.body.dataset && document.body.dataset.nexoTela) || location.pathname,
+                }),
+            });
+        } catch (e) {
+            wrap.classList.add("nexo-erro");
+            bolha.textContent = "Não consegui falar com o assistente. Verifique sua conexão.";
+            return;
+        }
+
+        if (!resp.ok || !resp.body) {
+            wrap.classList.add("nexo-erro");
+            bolha.textContent = resp.status === 403
+                ? "O assistente ainda não está disponível para o seu perfil."
+                : "Não consegui obter resposta agora. Tente de novo em instantes.";
+            return;
+        }
+
+        await consumirStreamSSE(resp, wrap, bolha, mensagens);
+    }
+
+    async function iniciarCheckinDiario(mensagens) {
+        var { wrap, bolha } = bolhaAssistente(mensagens);
+        bolha.innerHTML = '<span class="nexo-cursor"></span>';
+
+        var headers = {};
+        var token = csrfCookie();
+        if (token) headers["X-CSRF-Token"] = token;
+
+        var resp;
+        try {
+            resp = await fetch("/assistente/checkin/iniciar", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: headers,
+            });
+        } catch (e) {
+            wrap.remove();
+            return;
+        }
+        if (!resp.ok || !resp.body) {
+            // Checkin é proativo -- se falhar, some em silêncio em vez de
+            // abrir com uma bolha de erro sem a pessoa ter pedido nada.
+            wrap.remove();
+            return;
+        }
+        await consumirStreamSSE(resp, wrap, bolha, mensagens);
     }
 
     function iniciar(admin) {
@@ -448,6 +480,19 @@
             input.style.height = "auto";
             enviar(pergunta);
         });
+
+        // Fase 7 (checkin diário): só dispara na 1a vez que a pessoa loga
+        // no dia (o servidor decide isso, não o front -- recarregar a
+        // página nunca reabre sozinho de novo hoje).
+        fetch("/assistente/checkin/pendente", { credentials: "same-origin" })
+            .then(function (r) { return r.ok ? r.json() : { pendente: false }; })
+            .then(function (d) {
+                if (!d || !d.pendente) return;
+                if (sugestoes) { sugestoes.remove(); sugestoes = null; }
+                abrir();
+                iniciarCheckinDiario(mensagens);
+            })
+            .catch(function () { /* checkin é proativo -- falha em silêncio */ });
     }
 
     function verificarElegibilidadeEIniciar() {

@@ -223,6 +223,35 @@ def setup_schema() -> None:
             print(f"[assistente/db] Fase 6 (onboarding) não pôde ser criada: {e}")
             conn.rollback()
 
+        # --- Fase 7: checkin diário (capacidade F) ------------------------
+        # Na 1a vez que a pessoa loga no dia, o assistente resume o que ela
+        # fez ontem (SQL, nunca o modelo) + o que ela tinha dito que ia
+        # fazer (a resposta de ontem, guardada aqui) e pergunta o plano de
+        # hoje. Um registro por (usuario_id, data) -- índice único garante
+        # que só existe um checkin por pessoa por dia.
+        try:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS checkin_diario (
+                    id               BIGSERIAL PRIMARY KEY,
+                    usuario_id       INTEGER NOT NULL REFERENCES usuarios(id),
+                    data             DATE NOT NULL,
+                    resumo_enviado   TEXT,
+                    resposta_usuario TEXT,
+                    criado_em        TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    respondido_em    TIMESTAMPTZ
+                )
+                """
+            )
+            cur.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_checkin_diario_unico "
+                "ON checkin_diario (usuario_id, data)"
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"[assistente/db] Fase 7 (checkin diário) não pôde ser criada: {e}")
+            conn.rollback()
+
         cur.close()
         conn.close()
     except Exception as e:

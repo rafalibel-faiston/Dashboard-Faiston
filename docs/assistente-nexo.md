@@ -25,6 +25,7 @@ Seis capacidades, quatro reativas, uma proativa e uma guiada:
 | **C · Resumir** | Montar relatório semanal (o que hoje já existe parcialmente em `/api/ia/insights`) | Modelo redige em cima de agregado já calculado pelo backend |
 | **D · Observar** | Repetição, retrabalho e pendência esquecida em tarefas/atividades | Job diário detecta o padrão em SQL; o modelo só escreve o aviso |
 | **E · Ensinar** | Onboarding de quem é novo no time — trilha guiada, uma etapa de cada vez | Modelo ensina em cima do conteúdo de um documento já indexado; progresso guardado por pessoa |
+| **F · Checkin diário** | Resumir o dia anterior e perguntar o plano de hoje, na 1ª vez que a pessoa loga | Assistente abre sozinho (uma vez por dia), resume ontem em SQL, guarda a resposta como memória pro checkin de amanhã |
 
 **Todas as fases implementadas** (log + genérico, resumo semanal,
 explicar via documento indexado, achar por catálogo fixo — incluindo
@@ -234,6 +235,19 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    didático, `prompts/sistema_professor.md`), nunca inventa procedimento
    fora do que foi passado. Chip "🎓 Começar onboarding" no estado vazio
    do widget.
+7. **Capacidade F — checkin diário — feito.** Na 1ª vez que a pessoa
+   loga no dia (`GET /assistente/checkin/pendente`, checado uma vez ao
+   carregar o widget), o painel abre sozinho e o assistente resume o
+   que ela concluiu ontem (SQL, `capacidade_checkin.py:contexto_ontem`)
+   junto do que ela tinha dito que ia fazer (a resposta do checkin
+   anterior, guardada em `checkin_diario`), e pergunta o plano de hoje.
+   A próxima mensagem que a pessoa mandar — não importa o texto — vira
+   automaticamente a resposta do checkin (interceptada com prioridade
+   máxima em `POST /assistente/pergunta`, antes de resumo/ensinar/achar/
+   explicar), confirmada com um "Anotado!" fixo, sem gastar chamada de
+   modelo. Mesma regra 8 da capacidade D: a memória é só da pessoa, sem
+   view por gestor. Um registro por (usuario_id, data) garante que só
+   dispara uma vez por dia mesmo recarregando a página várias vezes.
 
 ## Perguntas em aberto (não inventar, confirmar antes de avançar)
 
