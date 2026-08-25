@@ -36,6 +36,62 @@ def test_nenhuma_sql_e_montada_dinamicamente_no_catalogo():
     assert chamadas_execute >= 4, "esperava pelo menos uma query por função do catálogo"
 
 
+def test_catalogo_nao_expoe_tarefa_de_outra_pessoa_pra_nao_admin():
+    """Regressão de um vazamento real: `tarefas_por_cliente` e
+    `atividades_campo_pendentes` liam a base inteira, sem escopo por
+    pessoa -- passava despercebido enquanto o piloto era só admin, mas
+    virou vazamento assim que perfil 'funcionario' ganhou acesso ao
+    assistente (regra 5: a consulta roda com a permissão de quem
+    perguntou).
+
+    Toda query sobre `tarefas`/`status_atividades` no catálogo agora tem
+    que ou escopar por quem perguntou, ou estar num ramo explícito de
+    admin. `escala_n2` fica de fora de propósito: escala de plantão é
+    informação compartilhada por natureza (todo mundo precisa saber quem
+    está de sobreaviso).
+    """
+    codigo = (Path(__file__).resolve().parent.parent / "app" / "assistente" / "catalogo.py").read_text(encoding="utf-8")
+    arvore = ast.parse(codigo)
+
+    def dentro_de_ramo_admin(no, raiz):
+        """True se `no` está dentro de um `if sess["perfil"] == "admin"`."""
+        for pai in ast.walk(raiz):
+            if isinstance(pai, ast.If) and "admin" in ast.dump(pai.test):
+                for filho in ast.walk(pai):
+                    if filho is no:
+                        # só conta se estiver no corpo do if, não no else
+                        for do_corpo in pai.body:
+                            for n in ast.walk(do_corpo):
+                                if n is no:
+                                    return True
+        return False
+
+    verificadas = 0
+    for node in ast.walk(arvore):
+        eh_execute = (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "execute"
+        )
+        if not eh_execute:
+            continue
+        sql = node.args[0].value
+        if "FROM tarefas" not in sql and "FROM status_atividades" not in sql:
+            continue
+        verificadas += 1
+        escopada = (
+            "usuario_id = %s" in sql
+            or "tecnico ILIKE %s" in sql
+            or "n2_responsavel ILIKE %s" in sql
+        )
+        assert escopada or dentro_de_ramo_admin(node, arvore), (
+            f"query na linha {node.lineno} de catalogo.py lê tarefas/status_atividades "
+            "sem escopar por quem perguntou e fora de um ramo de admin -- "
+            "expõe dado de outra pessoa pra perfil não-admin"
+        )
+    assert verificadas >= 4
+
+
 # --- formatar_resposta: nunca o modelo calcula, sempre o código -------
 
 def test_minhas_tarefas_status_especifico():
