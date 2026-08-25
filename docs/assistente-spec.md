@@ -91,7 +91,39 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sinalizacao_unica
     ON sinalizacao (usuario_id, detector, assinatura, (criado_em::date));
 CREATE INDEX IF NOT EXISTS idx_sinalizacao_usuario
     ON sinalizacao (usuario_id, vista_em, criado_em DESC);
+
+ALTER TABLE documento ADD COLUMN IF NOT EXISTS ordem_onboarding INTEGER;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documento_ordem_onboarding
+    ON documento (ordem_onboarding) WHERE ordem_onboarding IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS onboarding_progresso (
+    usuario_id    INTEGER PRIMARY KEY REFERENCES usuarios(id),
+    etapa_atual   INTEGER NOT NULL DEFAULT 1,
+    iniciado_em   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+    concluido_em  TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS checkin_diario (
+    id               BIGSERIAL PRIMARY KEY,
+    usuario_id       INTEGER NOT NULL REFERENCES usuarios(id),
+    data             DATE NOT NULL,
+    resumo_enviado   TEXT,                          -- o que o assistente mandou (resumo de ontem)
+    resposta_usuario TEXT,                          -- o plano que a pessoa disse pra hoje
+    criado_em        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    respondido_em    TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_checkin_diario_unico
+    ON checkin_diario (usuario_id, data);
 ```
+
+Cada uma dessas tabelas (Fase 3, 5, 6, 7) é criada num bloco isolado
+dentro de `setup_schema()`, com commit e tratamento de erro próprios —
+uma fase falhando (ex.: extensão vector indisponível) não desfaz o que
+as outras já conseguiram criar. Isso corrigiu um bug real: até essa
+mudança, tudo dividia um único commit no final, e uma falha na Fase 6
+chegou a apagar silenciosamente a criação da Fase 5 (`sinalizacao`) que
+já tinha rodado antes na mesma transação.
 
 `usuario_id` referencia `usuarios(id)`, a tabela real de usuário deste
 sistema (`perfil` + `cargo` + `time` definem permissão — ver
@@ -631,7 +663,68 @@ do banco estourar como exceção genérica).
 
 ---
 
-## 10. Widget
+## 10. Fase 7 — Capacidade F, checkin diário · **feito**
+
+Na primeira vez que a pessoa loga no dia, o widget consulta
+`GET /assistente/checkin/pendente` — se `true`, abre sozinho e chama
+`POST /assistente/checkin/iniciar`. O servidor monta o contexto (dado
+real de ontem, SQL — regra 3, nunca o modelo calcula) e manda o modelo
+redigir um resumo curto + a pergunta "o que você pretende fazer hoje?".
+A resposta a essa pergunta é a próxima mensagem que a pessoa mandar,
+seja lá qual for o texto — capturada com prioridade máxima em
+`POST /assistente/pergunta`, antes até do gatilho de resumo, então
+nenhuma outra capacidade tenta "entender" essa mensagem. Confirmação é
+um texto fixo ("Anotado! Bom trabalho hoje. 🙂"), sem chamar o modelo
+de novo — mesmo princípio de `capacidade_achar.py`, código decide o
+texto final quando não há nada de fato pra gerar.
+
+**Contratos:**
+
+```
+GET /assistente/checkin/pendente
+→ { "pendente": true }
+```
+Nunca 401/403 (mesmo espírito de `/elegivel`) — sem sessão elegível,
+`pendente` é sempre `false`.
+
+```
+POST /assistente/checkin/iniciar
+```
+Mesmo formato de stream SSE de `/pergunta` (`inicio`/`texto`/`fim`),
+`capacidade: "checkin"`. Marca `checkin_diario` como enviado ao
+terminar — por isso só dispara uma vez por dia, mesmo que a pessoa
+recarregue a página várias vezes.
+
+**Memória fechando o ciclo:** o contexto de amanhã inclui o que a
+pessoa concluiu ontem (`tarefas`, SQL) **e** o que ela tinha dito, no
+checkin de ontem, que pretendia fazer (`checkin_diario.resposta_usuario`
+de dois dias atrás relativo a hoje) — o modelo compara os dois num tom
+de espelho gentil, nunca de cobrança.
+
+Regra 8 do CLAUDE.md do assistente (mesma da capacidade D): a memória é
+da pessoa, nunca sobre a pessoa. Não existe (e não pode existir) uma
+consulta que devolva o plano de mais de uma pessoa — nem pra admin, nem
+agregado.
+
+**Critério de aceite:**
+
+- [x] `capacidade_checkin.py` só usa SQL literal fixo e nunca importa
+      `llm.py` — testes de AST
+      (`test_capacidade_checkin_so_usa_sql_literal_fixa`,
+      `test_capacidade_checkin_nao_importa_nada_de_llm`).
+- [x] A próxima mensagem, qualquer que seja o texto, é capturada como
+      resposta do checkin quando há um resumo enviado sem resposta
+      ainda — testado via `TestClient` na rota de verdade
+      (`test_router_intercepta_resposta_quando_aguardando_checkin`).
+- [x] Um registro por `(usuario_id, data)` (índice único) garante que
+      só dispara uma vez por dia.
+- [ ] Rodar com gente de verdade por alguns dias e ver se o tom do
+      resumo soa natural (não robótico, não de cobrança) — não
+      testável neste ambiente sem uso real acumulado.
+
+---
+
+## 11. Widget
 
 - Botão flutuante com avatar (`static/assistente/avatar.svg`, rosto
   simples em gradiente na paleta da marca — `#5B2EE0` → `#B826C9` →
@@ -671,3 +764,11 @@ do banco estourar como exceção genérica).
   `_eh_pedido_de_ensinar_iniciar`, sem UI dedicada além disso (a aula
   aparece como mensagem normal do assistente, "próxima aula" é só
   digitar como qualquer pergunta).
+- **Fase 7:** ao carregar, consulta `GET /assistente/checkin/pendente`
+  — se `true`, abre o painel sozinho (sem clique), remove os chips de
+  sugestão e chama `POST /assistente/checkin/iniciar`
+  (`iniciarCheckinDiario`), que reaproveita o mesmo parser de stream SSE
+  de `enviarPergunta` (extraído em `consumirStreamSSE`). Falha nesse
+  fetch some em silêncio (sem bolha de erro) — é proativo, a pessoa não
+  pediu nada, não faz sentido incomodar com erro de algo que ela nem
+  sabia que ia acontecer.

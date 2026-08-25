@@ -36,6 +36,13 @@ from starlette.concurrency import run_in_threadpool
 
 from app.assistente import db, log as assistente_log
 from app.assistente.capacidade_achar import formatar_resposta, identificar_e_executar
+from app.assistente.capacidade_checkin import (
+    aguardando_resposta as aguardando_resposta_checkin,
+    contexto_ontem,
+    marcar_enviado as marcar_checkin_enviado,
+    pendente_hoje as checkin_pendente_hoje,
+    registrar_resposta as registrar_resposta_checkin,
+)
 from app.assistente.capacidade_ensinar import (
     avancar as avancar_onboarding,
     etapa_por_ordem,
@@ -63,7 +70,9 @@ _PROMPT_GENERICO = (_DIR / "prompts" / "sistema_generico.md").read_text(encoding
 _PROMPT_RESUMIR = (_DIR / "prompts" / "sistema_resumir.md").read_text(encoding="utf-8")
 _PROMPT_EXPLICAR = (_DIR / "prompts" / "sistema_explicar.md").read_text(encoding="utf-8")
 _PROMPT_PROFESSOR = (_DIR / "prompts" / "sistema_professor.md").read_text(encoding="utf-8")
+_PROMPT_CHECKIN = (_DIR / "prompts" / "sistema_checkin.md").read_text(encoding="utf-8")
 _RECUSA_SEM_DOCUMENTO = "Não encontrei isso na base de procedimentos."
+_ACK_CHECKIN = "Anotado! Bom trabalho hoje. 🙂"
 
 
 def _normalizar(txt: str) -> str:
@@ -162,6 +171,28 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
         log_id = await run_in_threadpool(
             assistente_log.criar_pergunta, sess["id"], body.pergunta, body.contexto_tela
         )
+
+        # Fase 7 (capacidade F, checkin diário): prioridade máxima, antes
+        # de qualquer outra coisa. Se o checkin de hoje já foi mandado mas
+        # ainda não tem resposta, a MENSAGEM QUE FOR (qualquer que seja o
+        # texto) é tratada como o plano do dia, nunca como pergunta normal
+        # -- é assim que "a próxima coisa que a pessoa digitar" vira a
+        # resposta do checkin, sem heurística de palavra-chave.
+        if await run_in_threadpool(aguardando_resposta_checkin, sess["id"]):
+            await run_in_threadpool(registrar_resposta_checkin, sess["id"], body.pergunta)
+            yield _sse("inicio", {"log_id": log_id, "capacidade": "checkin"})
+            yield _sse("texto", {"delta": _ACK_CHECKIN})
+            latencia_ms = int((time.monotonic() - inicio) * 1000)
+            await run_in_threadpool(
+                assistente_log.finalizar,
+                log_id,
+                resposta=_ACK_CHECKIN,
+                respondida=True,
+                latencia_ms=latencia_ms,
+                capacidade="checkin",
+            )
+            yield _sse("fim", {"tokens_entrada": None, "tokens_saida": None, "latencia_ms": latencia_ms})
+            return
 
         pedido_resumo = _eh_pedido_de_resumo(body.pergunta)
 
@@ -396,6 +427,115 @@ async def feedback(body: FeedbackRequest, faiston_token: str = Cookie(None)):
     if not ok:
         raise HTTPException(status_code=404, detail="Pergunta não encontrada")
     return {"sucesso": True}
+
+
+# --- Checkin diário (Fase 7 — capacidade F) -------------------------------
+
+@router.get("/checkin/pendente")
+async def checkin_pendente(faiston_token: str = Cookie(None)):
+    """O widget consulta isto ao carregar pra decidir se abre sozinho.
+    Nunca 401/403 -- sem sessão elegível, simplesmente não é pendente
+    (mesmo espírito de /elegivel)."""
+    sess = await run_in_threadpool(db.get_session, faiston_token)
+    if not sess or sess["perfil"] not in _PERFIS_PILOTO:
+        return {"pendente": False}
+    pendente = await run_in_threadpool(checkin_pendente_hoje, sess["id"])
+    return {"pendente": pendente}
+
+
+@router.post("/checkin/iniciar")
+async def checkin_iniciar(faiston_token: str = Cookie(None)):
+    """Só o widget chama isto, e só quando /checkin/pendente respondeu
+    True -- monta o resumo de ontem (SQL) + o plano que a pessoa tinha
+    dito, manda o modelo redigir, e marca o checkin de hoje como
+    enviado (pra não repetir se a página recarregar)."""
+    sess = await _autenticar(faiston_token)
+
+    async def stream():
+        inicio = time.monotonic()
+        log_id = await run_in_threadpool(
+            assistente_log.criar_pergunta, sess["id"], "[checkin diário]", "checkin"
+        )
+        contexto = await run_in_threadpool(contexto_ontem, sess["id"])
+        yield _sse("inicio", {"log_id": log_id, "capacidade": "checkin"})
+
+        if contexto.get("erro"):
+            latencia_ms = int((time.monotonic() - inicio) * 1000)
+            await run_in_threadpool(
+                assistente_log.finalizar,
+                log_id,
+                resposta=None,
+                respondida=False,
+                motivo_falha="erro_modelo",
+                latencia_ms=latencia_ms,
+                capacidade="checkin",
+            )
+            yield _sse("erro", {"mensagem": "Não consegui montar o resumo de ontem agora."})
+            return
+
+        mensagens = [
+            {"role": "system", "content": _PROMPT_CHECKIN},
+            {"role": "user", "content": json.dumps(contexto, ensure_ascii=False)},
+        ]
+        resposta_completa = []
+        tokens_entrada = None
+        tokens_saida = None
+        try:
+            async for delta, usage in completar_stream(mensagens):
+                if usage is not None:
+                    tokens_entrada = getattr(usage, "prompt_tokens", None)
+                    tokens_saida = getattr(usage, "completion_tokens", None)
+                elif delta:
+                    resposta_completa.append(delta)
+                    yield _sse("texto", {"delta": delta})
+        except ModeloIndisponivel as e:
+            latencia_ms = int((time.monotonic() - inicio) * 1000)
+            await run_in_threadpool(
+                assistente_log.finalizar,
+                log_id,
+                resposta="".join(resposta_completa) or None,
+                respondida=False,
+                motivo_falha=e.motivo,
+                latencia_ms=latencia_ms,
+                capacidade="checkin",
+            )
+            yield _sse("erro", {"mensagem": "O assistente não conseguiu montar o checkin agora."})
+            return
+        except Exception:
+            latencia_ms = int((time.monotonic() - inicio) * 1000)
+            await run_in_threadpool(
+                assistente_log.finalizar,
+                log_id,
+                resposta="".join(resposta_completa) or None,
+                respondida=False,
+                motivo_falha="erro_modelo",
+                latencia_ms=latencia_ms,
+                capacidade="checkin",
+            )
+            yield _sse("erro", {"mensagem": "Algo deu errado ao montar o checkin. Tente de novo em instantes."})
+            return
+
+        texto_final = "".join(resposta_completa)
+        if texto_final:
+            await run_in_threadpool(marcar_checkin_enviado, sess["id"], texto_final)
+        latencia_ms = int((time.monotonic() - inicio) * 1000)
+        await run_in_threadpool(
+            assistente_log.finalizar,
+            log_id,
+            resposta=texto_final,
+            respondida=bool(texto_final),
+            tokens_entrada=tokens_entrada,
+            tokens_saida=tokens_saida,
+            latencia_ms=latencia_ms,
+            capacidade="checkin",
+        )
+        yield _sse("fim", {
+            "tokens_entrada": tokens_entrada,
+            "tokens_saida": tokens_saida,
+            "latencia_ms": latencia_ms,
+        })
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 
 # --- Sinalizações (Fase 5 — capacidade D) ---------------------------------
