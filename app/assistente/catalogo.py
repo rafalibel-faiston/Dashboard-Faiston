@@ -59,7 +59,11 @@ def minhas_tarefas(sess: dict, status: Optional[str] = None) -> dict:
 
 
 def tarefas_por_cliente(sess: dict, cliente: str) -> dict:
-    """Tarefas em aberto/andamento de um cliente específico."""
+    """Tarefas em aberto/andamento da própria pessoa num cliente
+    específico. Admin vê o total do cliente (visão de gestão que ele já
+    tem nas telas normais do OPS); qualquer outro perfil vê só as
+    próprias -- regra 5 (a consulta roda com a permissão de quem
+    perguntou)."""
     cliente = (cliente or "").strip()
     if not cliente:
         raise ValueError("cliente vazio")
@@ -68,14 +72,24 @@ def tarefas_por_cliente(sess: dict, cliente: str) -> dict:
         return {"erro": "banco_offline"}
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT status, COUNT(*) FROM tarefas
-            WHERE cliente ILIKE %s AND status != 'concluido'
-            GROUP BY status
-            """,
-            (cliente,),
-        )
+        if sess["perfil"] == "admin":
+            cur.execute(
+                """
+                SELECT status, COUNT(*) FROM tarefas
+                WHERE cliente ILIKE %s AND status != 'concluido'
+                GROUP BY status
+                """,
+                (cliente,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT status, COUNT(*) FROM tarefas
+                WHERE cliente ILIKE %s AND status != 'concluido' AND usuario_id = %s
+                GROUP BY status
+                """,
+                (cliente, sess["id"]),
+            )
         linhas = cur.fetchall()
         cur.close()
         conn.close()
@@ -129,7 +143,11 @@ def escala_n2_do_dia(sess: dict, data: str) -> dict:
 
 def atividades_campo_pendentes(sess: dict, dias: int = 7) -> dict:
     """status_atividades que não estão concluídas/canceladas há mais de N
-    dias — pendência de despacho técnico esquecida."""
+    dias — pendência de despacho técnico esquecida. Admin vê todas
+    (visão de gestão); os demais veem só as que são delas, como técnico
+    ou como N2 responsável — regra 5. `status_atividades` não tem FK de
+    usuário (`tecnico`/`n2_responsavel` são texto livre preenchido no
+    despacho), então casa pelo nome de quem perguntou."""
     try:
         dias = int(dias)
     except (TypeError, ValueError):
@@ -141,18 +159,33 @@ def atividades_campo_pendentes(sess: dict, dias: int = 7) -> dict:
         return {"erro": "banco_offline"}
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT sa.id, c.nome, sa.site_nome, sa.status, sa.data
-            FROM status_atividades sa
-            LEFT JOIN clientes c ON c.id = sa.cliente_id
-            WHERE sa.status NOT IN ('concluido', 'cancelado')
-              AND sa.data < CURRENT_DATE - (%s || ' days')::interval
-            ORDER BY sa.data
-            LIMIT 20
-            """,
-            (dias,),
-        )
+        if sess["perfil"] == "admin":
+            cur.execute(
+                """
+                SELECT sa.id, c.nome, sa.site_nome, sa.status, sa.data
+                FROM status_atividades sa
+                LEFT JOIN clientes c ON c.id = sa.cliente_id
+                WHERE sa.status NOT IN ('concluido', 'cancelado')
+                  AND sa.data < CURRENT_DATE - (%s || ' days')::interval
+                ORDER BY sa.data
+                LIMIT 20
+                """,
+                (dias,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT sa.id, c.nome, sa.site_nome, sa.status, sa.data
+                FROM status_atividades sa
+                LEFT JOIN clientes c ON c.id = sa.cliente_id
+                WHERE sa.status NOT IN ('concluido', 'cancelado')
+                  AND sa.data < CURRENT_DATE - (%s || ' days')::interval
+                  AND (sa.tecnico ILIKE %s OR sa.n2_responsavel ILIKE %s)
+                ORDER BY sa.data
+                LIMIT 20
+                """,
+                (dias, sess["nome"], sess["nome"]),
+            )
         linhas = cur.fetchall()
         cur.close()
         conn.close()

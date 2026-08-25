@@ -190,6 +190,17 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    `minhas_tarefas`, `tarefas_por_cliente`, `escala_n2_do_dia`,
    `atividades_campo_pendentes`, `buscar_carimbo`), function calling
    decide se a pergunta é do tipo achar, texto final montado por código.
+   **Correção de segurança (25/08):** `tarefas_por_cliente` e
+   `atividades_campo_pendentes` liam a base inteira, sem escopo por
+   pessoa — mesma causa raiz da correção da capacidade C, e mesma
+   janela (invisível enquanto o piloto era só `admin`, vazamento real
+   assim que `funcionario` entrou). Agora não-admin vê só o que é dele
+   (tarefa por `usuario_id`; atividade de campo por `tecnico`/
+   `n2_responsavel`, que são texto livre — `status_atividades` não tem
+   FK de usuário), e admin mantém a visão de gestão que já tem nas
+   telas normais. `escala_n2_do_dia` fica de fora de propósito: escala
+   de plantão é informação compartilhada por natureza. Coberto por
+   `test_catalogo_nao_expoe_tarefa_de_outra_pessoa_pra_nao_admin`.
    `buscar_carimbo` busca na tabela `carimbos` que já existia no OPS
    (textos prontos de atendimento/acionamento cadastrados pelos próprios
    funcionários, `/api/carimbos` em `main.py`) — mesma regra de
