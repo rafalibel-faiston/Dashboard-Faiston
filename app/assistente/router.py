@@ -322,7 +322,7 @@ async def pergunta(body: PerguntaRequest, faiston_token: str = Cookie(None)):
                 },
             ]
         elif pedido_resumo:
-            agregado = await run_in_threadpool(montar_agregado_semana)
+            agregado = await run_in_threadpool(montar_agregado_semana, sess["id"], sess["nome"])
             if agregado is None:
                 latencia_ms = int((time.monotonic() - inicio) * 1000)
                 await run_in_threadpool(

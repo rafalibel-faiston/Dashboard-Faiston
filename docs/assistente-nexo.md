@@ -171,6 +171,15 @@ Não pule fases. Cada uma tem critério de aceite em `assistente-spec.md`.
    classificação de intenção de verdade ainda), agregado semanal em SQL,
    texto redigido em cima do JSON. Falta validar com a equipe se os
    números escolhidos são os certos.
+   **Correção de segurança (25/08):** a versão original devolvia o
+   agregado da equipe inteira (nome e número de todo mundo) pra quem
+   perguntasse — passou despercebido enquanto o piloto era só `admin`,
+   mas violava a regra 5 (a consulta roda com a permissão de quem
+   perguntou) assim que um perfil `funcionario` ganhou acesso ao
+   assistente. `montar_agregado_semana()` agora exige `usuario_id`/`nome`
+   e escopa toda query por quem perguntou — testado com AST
+   (`test_capacidade_resumir_toda_query_de_tarefas_escopada_por_usuario`)
+   pra não voltar a acontecer sem que o teste quebre.
 3. **Capacidade B — explicar — pipeline pronto, sem conteúdo real ainda.**
    Ingestão (`.md`/`.docx`/`.pdf`), embedding local, busca híbrida com
    RRF e recusa honesta sem fonte, tudo implementado e testado com
