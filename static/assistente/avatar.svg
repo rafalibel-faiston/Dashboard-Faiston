@@ -1,21 +1,81 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Mascote do assistente OPS. Tudo cabe DENTRO do círculo de propósito:
+       o launcher é um botão redondo (border-radius: 50%), então qualquer
+       coisa que vazasse do círculo seria cortada. Vetor em vez de PNG
+       porque o mesmo arquivo é usado a 28px (cabeçalho) e 56px (botão
+       flutuante); em bitmap um dos dois sairia borrado. -->
   <defs>
     <linearGradient id="ops-grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#5B2EE0"/>
       <stop offset="55%" stop-color="#B826C9"/>
       <stop offset="100%" stop-color="#EC4899"/>
     </linearGradient>
-    <radialGradient id="ops-glow" cx="32%" cy="24%" r="70%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+    <radialGradient id="ops-glow" cx="30%" cy="22%" r="72%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="ops-visor" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#312a63"/>
+      <stop offset="100%" stop-color="#1a1140"/>
+    </linearGradient>
+    <linearGradient id="ops-balao" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#C026D3"/>
+    </linearGradient>
+    <linearGradient id="ops-orelha" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C026D3"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <clipPath id="ops-circulo">
+      <circle cx="60" cy="60" r="60"/>
+    </clipPath>
+    <filter id="ops-brilho" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="1.7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
 
-  <circle cx="20" cy="20" r="20" fill="url(#ops-grad)"/>
-  <circle cx="20" cy="20" r="20" fill="url(#ops-glow)"/>
+  <circle cx="60" cy="60" r="60" fill="url(#ops-grad)"/>
+  <circle cx="60" cy="60" r="60" fill="url(#ops-glow)"/>
 
-  <!-- rosto simples e amigável: dois olhos arredondados + sorriso -->
-  <rect x="12.5" y="16" width="4.4" height="6.4" rx="2.2" fill="#ffffff"/>
-  <rect x="23.1" y="16" width="4.4" height="6.4" rx="2.2" fill="#ffffff"/>
-  <path d="M13.5 25.5 Q20 30 26.5 25.5" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <g clip-path="url(#ops-circulo)">
+    <!-- risquinhos de "novidade" acima do balão -->
+    <path d="M88 20.5l1.5-6M98.5 23l4.5-4" stroke="#F0D5FF" stroke-width="3"
+          stroke-linecap="round" fill="none" opacity="0.9"/>
+
+    <!-- balão de fala com os três pontinhos -->
+    <g>
+      <path d="M79 27h20a8.5 8.5 0 0 1 8.5 8.5v9A8.5 8.5 0 0 1 99 53h-8l-5 6.5V53h-7a8.5 8.5 0 0 1-8.5-8.5v-9A8.5 8.5 0 0 1 79 27z"
+            fill="url(#ops-balao)"/>
+      <circle cx="83.5" cy="40" r="2.9" fill="#ffffff"/>
+      <circle cx="92" cy="40" r="2.9" fill="#ffffff" opacity="0.92"/>
+      <circle cx="100.5" cy="40" r="2.9" fill="#ffffff" opacity="0.84"/>
+    </g>
+
+    <!-- corpo / ombros -->
+    <path d="M58 84c16 0 29.5 11.5 32 26.8A59.8 59.8 0 0 1 58 120a59.8 59.8 0 0 1-32-9.2C28.5 95.5 42 84 58 84z"
+          fill="#ffffff"/>
+    <path d="M51.5 82h13v7.5a6.5 6.5 0 0 1-13 0V82z" fill="#A78BFA" opacity="0.5"/>
+
+    <!-- orelha / fone lateral -->
+    <g>
+      <rect x="17.5" y="53" width="14" height="20" rx="7" fill="#ffffff"/>
+      <ellipse cx="23" cy="63" rx="4.6" ry="7" fill="url(#ops-orelha)"/>
+    </g>
+
+    <!-- cabeça -->
+    <rect x="27" y="34" width="62" height="51" rx="20" fill="#ffffff"/>
+    <!-- visor -->
+    <rect x="34" y="40" width="48" height="38" rx="14" fill="url(#ops-visor)"/>
+    <!-- reflexo no canto do visor -->
+    <path d="M41 46a10 10 0 0 1 7.5-3.2h8.5c-6.6 1.4-11.8 5.2-15 10.4-1.4-2.4-1.7-4.9-1-7.2z"
+          fill="#ffffff" opacity="0.10"/>
+
+    <!-- olhos: arcos sorridentes, com brilho suave -->
+    <g filter="url(#ops-brilho)" stroke="#F3E8FF" stroke-width="4"
+       stroke-linecap="round" fill="none">
+      <path d="M40.5 63a7 7 0 0 1 13 0"/>
+      <path d="M62.5 63a7 7 0 0 1 13 0"/>
+    </g>
+  </g>
 </svg>

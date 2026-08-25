@@ -26,12 +26,17 @@
         return m ? m[1] : "";
     })();
 
+    /* Mesma versão do CSS vale pro avatar: trocar o mascote sem isso
+     * deixaria o ícone antigo em cache no navegador de quem já usou. */
+    var _sufixoVersao = _versao ? "?v=" + encodeURIComponent(_versao) : "";
+    var _avatarSrc = "/assistente/avatar.svg" + _sufixoVersao;
+
     function carregarCss() {
         if (document.getElementById("nexo-css")) return;
         var link = document.createElement("link");
         link.id = "nexo-css";
         link.rel = "stylesheet";
-        link.href = "/assistente/widget.css" + (_versao ? "?v=" + encodeURIComponent(_versao) : "");
+        link.href = "/assistente/widget.css" + _sufixoVersao;
         document.head.appendChild(link);
     }
 
@@ -42,14 +47,14 @@
         launcher.title = "Assistente OPS (Alt+A)";
         launcher.setAttribute("aria-label", "Abrir assistente OPS");
         launcher.innerHTML =
-            '<img src="/assistente/avatar.svg" alt="">' +
+            '<img src="' + _avatarSrc + '" alt="">' +
             '<span class="nexo-badge" id="nexo-badge"></span>';
 
         var painel = document.createElement("div");
         painel.id = "nexo-panel";
         painel.innerHTML =
             '<div id="nexo-header">' +
-            '  <img src="/assistente/avatar.svg" alt="">' +
+            '  <img src="' + _avatarSrc + '" alt="">' +
             '  <div><div class="nexo-titulo">OPS</div><div class="nexo-sub">Assistente Faiston</div></div>' +
             '  <button type="button" id="nexo-sino" title="Sinalizações" aria-label="Sinalizações">' +
             '    🔔<span class="nexo-badge" id="nexo-sino-badge" hidden></span>' +
