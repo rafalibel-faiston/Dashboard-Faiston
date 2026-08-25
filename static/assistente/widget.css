@@ -166,32 +166,26 @@
 #nexo-mensagens::-webkit-scrollbar { width: 6px; }
 #nexo-mensagens::-webkit-scrollbar-thumb { background: var(--th-border-strong, #D6DAE6); border-radius: 999px; }
 
-#nexo-sugestoes { display: flex; flex-direction: column; gap: 24px; padding: 28px 14px 8px; }
-.nexo-boas-vindas { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 0 16px; }
-.nexo-boas-vindas-avatar {
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    box-shadow: 0 10px 26px rgba(91, 46, 224, 0.24);
-    animation: nexo-flutuar 3.6s ease-in-out infinite;
-    margin-bottom: 2px;
-}
-@keyframes nexo-flutuar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+/* Estado vazio: sem avatar (ele já está no cabeçalho, repetir dentro do
+   chat só polui), texto alinhado à esquerda como uma conversa de
+   verdade em vez de um cartão centralizado. */
+#nexo-sugestoes { display: flex; flex-direction: column; gap: 16px; padding: 4px 2px; }
+.nexo-boas-vindas { display: flex; flex-direction: column; gap: 6px; }
 .nexo-boas-vindas-titulo {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 600;
-    font-size: 15px;
-    letter-spacing: -0.01em;
+    font-size: 16px;
+    letter-spacing: -0.015em;
     color: var(--th-text, #0B0D1F);
 }
 .nexo-boas-vindas-sub {
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--th-subtle, #9097AC);
-    max-width: 230px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--th-muted, #5E647A);
+    max-width: 280px;
 }
 
-.nexo-chips-linha { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.nexo-chips-linha { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .nexo-chip {
     border: 1px solid var(--th-border, #E5E8F0);
     background: var(--th-surface, #fff);
@@ -223,6 +217,10 @@
     box-shadow: 0 6px 16px rgba(91, 46, 224, 0.28);
 }
 .nexo-msg-assistente { align-self: flex-start; width: 100%; }
+/* Enquanto só há os pontinhos de "escrevendo", a bolha encolhe pra
+   caber neles, como bolha de digitação de app de mensagem. */
+.nexo-msg-assistente.nexo-aguardando { width: auto; }
+.nexo-msg-assistente.nexo-aguardando .nexo-bolha { display: inline-block; padding: 11px 14px; }
 .nexo-msg-assistente .nexo-bolha {
     background: var(--th-surface, #fff);
     border: 1px solid var(--th-border, #E5E8F0);
@@ -237,17 +235,42 @@
     border-color: #FCA5A5;
     color: #991B1B;
 }
-.nexo-cursor {
-    display: inline-block;
-    width: 3px;
-    height: 13px;
-    border-radius: 2px;
-    background: linear-gradient(180deg, #5B2EE0, #B826C9);
-    margin-left: 2px;
-    vertical-align: -2px;
-    animation: nexo-piscar 1s ease-in-out infinite;
+/* "Está escrevendo": três pontinhos com bounce defasado, o gesto que
+   todo mundo já reconhece de app de mensagem. Só aparece enquanto a
+   resposta ainda não começou a chegar. */
+.nexo-digitando { display: inline-flex; align-items: center; gap: 4px; padding: 2px 0; }
+.nexo-digitando span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--th-subtle, #9097AC);
+    animation: nexo-bolinha 1.3s ease-in-out infinite;
 }
-@keyframes nexo-piscar { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
+.nexo-digitando span:nth-child(2) { animation-delay: 0.18s; }
+.nexo-digitando span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes nexo-bolinha {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+    30%           { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Enquanto o texto vai chegando: um traço fino que respira junto, em vez
+   de piscar seco -- lê como alguém escrevendo, não como terminal. */
+.nexo-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    border-radius: 1px;
+    background: currentColor;
+    opacity: 0.5;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: nexo-respirar 1.2s ease-in-out infinite;
+}
+@keyframes nexo-respirar { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.08; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .nexo-digitando span, .nexo-caret, .nexo-boas-vindas, #nexo-launcher.nexo-tem-novidade { animation: none; }
+}
 
 .nexo-fontes { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .nexo-fonte-item { display: flex; flex-direction: column; }
