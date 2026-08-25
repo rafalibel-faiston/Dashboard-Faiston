@@ -166,24 +166,30 @@
 #nexo-mensagens::-webkit-scrollbar { width: 6px; }
 #nexo-mensagens::-webkit-scrollbar-thumb { background: var(--th-border-strong, #D6DAE6); border-radius: 999px; }
 
-#nexo-sugestoes { display: flex; flex-direction: column; gap: 18px; padding-top: 6px; }
-.nexo-boas-vindas { display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; padding: 4px 8px; }
+#nexo-sugestoes { display: flex; flex-direction: column; gap: 24px; padding: 28px 14px 8px; }
+.nexo-boas-vindas { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 0 16px; }
 .nexo-boas-vindas-avatar {
-    width: 52px;
-    height: 52px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
-    box-shadow: 0 10px 26px rgba(91, 46, 224, 0.28);
+    box-shadow: 0 10px 26px rgba(91, 46, 224, 0.24);
     animation: nexo-flutuar 3.6s ease-in-out infinite;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 @keyframes nexo-flutuar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 .nexo-boas-vindas-titulo {
-    font-family: 'Space Grotesk', 'Inter', sans-serif;
-    font-weight: 700;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
     font-size: 15px;
+    letter-spacing: -0.01em;
     color: var(--th-text, #0B0D1F);
 }
-.nexo-boas-vindas-sub { font-size: 12px; color: var(--th-subtle, #9097AC); }
+.nexo-boas-vindas-sub {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--th-subtle, #9097AC);
+    max-width: 230px;
+}
 
 .nexo-chips-linha { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .nexo-chip {
