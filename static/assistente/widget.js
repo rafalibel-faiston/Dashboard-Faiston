@@ -14,12 +14,24 @@
         return m ? decodeURIComponent(m[1]) : null;
     }
 
+    /* Versão do próprio <script src="...widget.js?v=N"> que carregou este
+     * arquivo, repassada pro CSS. Assim os dois sobem juntos: bumpar o ?v=
+     * no HTML troca JS e CSS de uma vez, e nunca acontece de o navegador
+     * ficar com um novo e outro velho -- combinação que já deu bolha vazia
+     * na tela (JS antigo criava um elemento que o CSS novo não estilizava
+     * mais). */
+    var _versao = (function () {
+        var src = (document.currentScript && document.currentScript.src) || "";
+        var m = src.match(/[?&]v=([^&]+)/);
+        return m ? m[1] : "";
+    })();
+
     function carregarCss() {
         if (document.getElementById("nexo-css")) return;
         var link = document.createElement("link");
         link.id = "nexo-css";
         link.rel = "stylesheet";
-        link.href = "/assistente/widget.css";
+        link.href = "/assistente/widget.css" + (_versao ? "?v=" + encodeURIComponent(_versao) : "");
         document.head.appendChild(link);
     }
 

@@ -3850,6 +3850,15 @@ def _redirect_login_ou_home(sess):
         return RedirectResponse("/n2")
     return RedirectResponse("/funcionario")
 
+# Telas autenticadas que embarcam o widget do assistente. `no-cache` obriga
+# o navegador a revalidar o HTML, o que garante que uma troca de versão no
+# <script src="...widget.js?v=N"> chegue de fato em quem já tinha a página
+# aberta antes -- sem isso, o navegador podia seguir servindo o HTML antigo
+# (e portanto o widget antigo) por horas. Não é "não cacheia": o ETag do
+# FileResponse continua valendo, então página sem mudança responde 304.
+_HTML_SEM_CACHE = {"Cache-Control": "no-cache"}
+
+
 @app.get("/")
 def root(): return FileResponse("static/login.html")
 
@@ -3868,13 +3877,13 @@ def dashboard(faiston_token: str = Cookie(None)):
     eh_backoffice = sess and sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice"
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice):
         return _redirect_login_ou_home(sess)
-    return FileResponse("static/index.html")
+    return FileResponse("static/index.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/funcionario")
 def funcionario(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: return RedirectResponse("/")
-    return FileResponse("static/funcionario.html")
+    return FileResponse("static/funcionario.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/n2")
 def n2_page(faiston_token: str = Cookie(None)):
@@ -3882,7 +3891,7 @@ def n2_page(faiston_token: str = Cookie(None)):
     if not sess: return RedirectResponse("/")
     if sess["perfil"] != "admin" and sess.get("cargo") != "n2":
         return _redirect_login_ou_home(sess)
-    return FileResponse("static/n2.html")
+    return FileResponse("static/n2.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/admin")
 def admin_page(): return RedirectResponse("/dashboard?go=admin")
@@ -4372,7 +4381,7 @@ def historico_page(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo", "diretor"):
         return _redirect_login_ou_home(sess)
-    return FileResponse("static/historico.html")
+    return FileResponse("static/historico.html", headers=_HTML_SEM_CACHE)
 
 # --- NOTAS PESSOAIS ---
 class NotaModel(BaseModel):
@@ -4730,7 +4739,7 @@ def financeiro_page(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
         return _redirect_login_ou_home(sess)
-    return FileResponse("static/financeiro.html")
+    return FileResponse("static/financeiro.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/api/financeiro/resumo")
 def financeiro_resumo(faiston_token: str = Cookie(None)):
