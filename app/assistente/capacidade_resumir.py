@@ -3,8 +3,12 @@ nunca calcula número. Tudo aqui é SQL puro contra as tabelas que já
 existem (`tarefas`, `status_atividades`); o router só pega o resultado e
 pede ao modelo pra virar texto corrido em cima dele.
 
-Reaproveita a mesma base de dados que `/api/ia/insights` (main.py) já usa,
-adicionando o recorte por semana que faltava lá.
+Regra 5 (a consulta roda com a permissão de quem perguntou): o resumo é
+sempre da própria pessoa, nunca da equipe inteira — sem lista de nome
+nem número de mais ninguém, nem pra admin. Reaproveita a mesma base de
+dados que `/api/ia/insights` (main.py) já usa, mas escopado por
+usuario_id, que aquele endpoint (visão de gestão) não tem por não
+precisar.
 """
 import re
 from datetime import date, timedelta
@@ -20,10 +24,14 @@ def periodo_semana_atual() -> tuple[date, date]:
 
 
 def montar_agregado_semana(
-    data_inicio: Optional[date] = None, data_fim: Optional[date] = None
+    usuario_id: int,
+    nome: str,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
 ) -> Optional[dict]:
-    """Devolve o agregado já calculado, ou None se o banco estiver fora
-    (o router trata isso como falha do assistente, não inventa número)."""
+    """Devolve o agregado já calculado da própria pessoa, ou None se o
+    banco estiver fora (o router trata isso como falha do assistente,
+    não inventa número)."""
     if data_inicio is None or data_fim is None:
         data_inicio, data_fim = periodo_semana_atual()
 
@@ -35,28 +43,16 @@ def montar_agregado_semana(
 
         cur.execute(
             """
-            SELECT u.nome,
-                COUNT(*) FILTER (WHERE t.status = 'concluido' AND t.concluido_em::date BETWEEN %s AND %s) AS concluidas_semana,
-                ROUND(COALESCE(SUM(t.segundos) FILTER (WHERE t.status = 'concluido' AND t.concluido_em::date BETWEEN %s AND %s), 0) / 3600.0, 1) AS horas_concluidas_semana,
-                COUNT(*) FILTER (WHERE t.status IN ('aberto', 'em_andamento')) AS abertas_hoje
-            FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
-            WHERE u.perfil = 'funcionario' AND u.ativo = TRUE
-            GROUP BY u.nome
-            HAVING COUNT(*) FILTER (WHERE t.status = 'concluido' AND t.concluido_em::date BETWEEN %s AND %s) > 0
-                OR COUNT(*) FILTER (WHERE t.status IN ('aberto', 'em_andamento')) > 0
-            ORDER BY concluidas_semana DESC, abertas_hoje DESC
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'concluido' AND concluido_em::date BETWEEN %s AND %s) AS concluidas_semana,
+                ROUND(COALESCE(SUM(segundos) FILTER (WHERE status = 'concluido' AND concluido_em::date BETWEEN %s AND %s), 0) / 3600.0, 1) AS horas_concluidas_semana,
+                COUNT(*) FILTER (WHERE status IN ('aberto', 'em_andamento')) AS abertas_hoje
+            FROM tarefas
+            WHERE usuario_id = %s
             """,
-            (data_inicio, data_fim, data_inicio, data_fim, data_inicio, data_fim),
+            (data_inicio, data_fim, data_inicio, data_fim, usuario_id),
         )
-        por_funcionario = [
-            {
-                "nome": r[0],
-                "concluidas_semana": r[1],
-                "horas_concluidas_semana": float(r[2]),
-                "abertas_hoje": r[3],
-            }
-            for r in cur.fetchall()
-        ]
+        concluidas_semana, horas_concluidas_semana, abertas_hoje = cur.fetchone()
 
         cur.execute(
             """
@@ -64,14 +60,14 @@ def montar_agregado_semana(
                 COUNT(*) FILTER (WHERE status = 'concluido' AND concluido_em::date BETWEEN %s AND %s) AS concluidas_semana,
                 COUNT(*) FILTER (WHERE status IN ('aberto', 'em_andamento')) AS abertas_hoje
             FROM tarefas
-            WHERE cliente IS NOT NULL AND cliente != ''
+            WHERE usuario_id = %s AND cliente IS NOT NULL AND cliente != ''
             GROUP BY cliente
             HAVING COUNT(*) FILTER (WHERE status = 'concluido' AND concluido_em::date BETWEEN %s AND %s) > 0
                 OR COUNT(*) FILTER (WHERE status IN ('aberto', 'em_andamento')) > 0
             ORDER BY concluidas_semana DESC
             LIMIT 10
             """,
-            (data_inicio, data_fim, data_inicio, data_fim),
+            (data_inicio, data_fim, usuario_id, data_inicio, data_fim),
         )
         por_cliente = [
             {"cliente": r[0], "concluidas_semana": r[1], "abertas_hoje": r[2]}
@@ -79,16 +75,21 @@ def montar_agregado_semana(
         ]
 
         cur.execute(
-            "SELECT COUNT(*) FROM tarefas WHERE status = 'aberto' AND criado_em < NOW() - INTERVAL '7 days'"
+            "SELECT COUNT(*) FROM tarefas WHERE usuario_id = %s AND status = 'aberto' AND criado_em < NOW() - INTERVAL '7 days'",
+            (usuario_id,),
         )
         tickets_atrasados = cur.fetchone()[0]
 
+        # status_atividades não referencia usuario_id (campo `tecnico` é
+        # texto livre, preenchido na hora do despacho) -- casa pelo nome
+        # de quem perguntou. Sem correspondência exata, o número vem 0
+        # (nunca conta atendimento de outra pessoa por engano).
         cur.execute(
             """
             SELECT COUNT(*) FROM status_atividades
-            WHERE status = 'concluido' AND data BETWEEN %s AND %s
+            WHERE status = 'concluido' AND data BETWEEN %s AND %s AND tecnico ILIKE %s
             """,
-            (data_inicio, data_fim),
+            (data_inicio, data_fim, nome),
         )
         atendimentos_campo_semana = cur.fetchone()[0]
 
@@ -98,7 +99,9 @@ def montar_agregado_semana(
         return {
             "periodo_inicio": data_inicio.isoformat(),
             "periodo_fim": data_fim.isoformat(),
-            "por_funcionario": por_funcionario,
+            "concluidas_semana": concluidas_semana,
+            "horas_concluidas_semana": float(horas_concluidas_semana),
+            "abertas_hoje": abertas_hoje,
             "por_cliente": por_cliente,
             # limite_dias_atraso vai explícito como valor (não só no nome do
             # campo) pra que "mais de 7 dias" no texto gerado bata com um
