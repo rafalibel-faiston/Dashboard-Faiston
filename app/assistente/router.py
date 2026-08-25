@@ -771,15 +771,27 @@ async def limpar_demo_endpoint(faiston_token: str = Cookie(None)):
 # Rotas explícitas em vez de StaticFiles mount, mesmo padrão já usado pelo
 # main.py para /faiston-ops-mark.svg — evita qualquer conflito de path com
 # os endpoints /assistente/pergunta e /assistente/feedback acima.
+#
+# `no-cache` obriga o navegador a revalidar widget.js/css a cada carga em
+# vez de servir da memória sem perguntar. Não é "não cacheia": o ETag do
+# FileResponse continua valendo, então quando o arquivo não mudou a
+# resposta é um 304 vazio, barato. Sem isso, uma correção no widget podia
+# demorar dias pra chegar em quem já tinha a versão antiga em cache —
+# aconteceu de verdade (mudança no indicador de digitação que não
+# aparecia pra quem já tinha o widget carregado).
+_SEM_CACHE = {"Cache-Control": "no-cache"}
+
 
 @router.get("/widget.js")
 def widget_js():
-    return FileResponse(_STATIC_DIR / "widget.js", media_type="application/javascript")
+    return FileResponse(
+        _STATIC_DIR / "widget.js", media_type="application/javascript", headers=_SEM_CACHE
+    )
 
 
 @router.get("/widget.css")
 def widget_css():
-    return FileResponse(_STATIC_DIR / "widget.css", media_type="text/css")
+    return FileResponse(_STATIC_DIR / "widget.css", media_type="text/css", headers=_SEM_CACHE)
 
 
 @router.get("/avatar.svg")
