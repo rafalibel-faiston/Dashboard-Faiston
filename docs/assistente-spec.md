@@ -13,7 +13,7 @@ LLM_BASE_URL=https://api.groq.com/openai/v1     # default já embutido em llm.py
 LLM_API_KEY=gsk_...                              # se ausente, cai para GROQ_API_KEY (já usada por /api/ia/insights)
 LLM_MODEL=openai/gpt-oss-20b                     # default já embutido em llm.py
 LLM_TIMEOUT_S=30
-ASSISTENTE_PERFIS_PILOTO=admin                   # lista separada por vírgula; controla quem vê e quem pode usar
+ASSISTENTE_PERFIS_PILOTO=admin                   # lista separada por vírgula; controla quem vê e quem pode usar. `*` = todos os perfis
 EMBEDDING_MODEL=intfloat/multilingual-e5-small   # default já embutido em embeddings.py (Fase 3)
 EMBEDDING_DIM=384                                # tem que bater com VECTOR(N) no schema — não troca sem reindexar tudo
 ```

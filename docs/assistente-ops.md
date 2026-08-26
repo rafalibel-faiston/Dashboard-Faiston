@@ -165,9 +165,22 @@ também foi renomeado de `assistente-nexo.md` pra `assistente-ops.md`.
 ## Piloto atual
 
 O widget só aparece (client-side, `GET /assistente/elegivel`) **e** só
-responde (server-side, checado em toda rota) para `perfil = 'admin'`.
-Ampliar o piloto é mudar a env var `ASSISTENTE_PERFIS_PILOTO` (lista
-separada por vírgula, ex.: `admin,gestor`) — não precisa alterar código.
+responde (server-side, checado em toda rota) para os perfis listados na env
+var `ASSISTENTE_PERFIS_PILOTO` — lista separada por vírgula (ex.:
+`admin,gestor`). Ampliar ou fechar o piloto é mexer só nessa variável, sem
+alterar código.
+
+`ASSISTENTE_PERFIS_PILOTO=*` libera para **todos** os perfis (`funcionario`,
+`gestor`, `diretor`, `demo`, `admin`, `dev`) — é o valor de quando o piloto
+acaba e o assistente vira feature de todo mundo. Sem o `*`, ampliar exigiria
+listar cada perfil e lembrar de atualizar a variável a cada perfil novo.
+
+Se a variável não existir, o default é `admin` — some a config, o assistente
+fecha em vez de abrir pra geral.
+
+O `*` amplia quem **pergunta**, nunca quem **gerencia a base**: ingestão e
+remoção de documento passam por `_exigir_admin`, que exige `perfil='admin'`
+de verdade em qualquer configuração de piloto.
 
 ## Ordem de implementação
 
