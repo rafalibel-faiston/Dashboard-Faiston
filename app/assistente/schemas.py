@@ -27,3 +27,9 @@ class OrdemOnboardingRequest(BaseModel):
 class PopularDadosTesteRequest(BaseModel):
     # usuario_id alvo dos dados sintéticos; None = quem está chamando
     usuario_id: Optional[int] = None
+
+
+class AnuncioEnvioRequest(BaseModel):
+    # quantidade de destinatários que o admin viu na tela; o servidor
+    # recusa o envio se a lista mudou desde então (ver router)
+    confirmar_total: int

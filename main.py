@@ -1582,8 +1582,12 @@ def enviar_alerta_pendencias(dia=None, system_url: str = "") -> dict:
         return {"sucesso": False, "erro": str(e)}
 
 
-def _shell_email(titulo: str, subtitulo: str, corpo_html: str) -> str:
-    """Envelope visual padrão (header da marca + footer) para e-mails do OPS."""
+def _shell_email(titulo: str, subtitulo: str, corpo_html: str,
+                 rodape: str = "Resumo automático de fim de expediente · por favor não responda.") -> str:
+    """Envelope visual padrão (header da marca + footer) para e-mails do OPS.
+    `rodape` é sobrescrevível porque nem todo e-mail é o resumo diário (o
+    anúncio do assistente, por exemplo, é avulso e aceita resposta); o
+    default mantém o texto que os e-mails existentes já usavam."""
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head>
 <body style="margin:0;padding:0;background:#0E0B1F;-webkit-font-smoothing:antialiased;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
@@ -1614,7 +1618,7 @@ def _shell_email(titulo: str, subtitulo: str, corpo_html: str) -> str:
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #EEF0F6;padding-top:20px;text-align:center">
           <span style="display:inline-block;width:28px;height:28px;background:#F2EEFE;border-radius:8px;text-align:center;line-height:28px;font-size:14px">🛰️</span>
           <p style="color:#6B7280;font-size:12px;font-weight:700;margin:9px 0 3px;letter-spacing:.2px">Faiston OPS · Torre de Controle</p>
-          <p style="color:#AEB3C2;font-size:11px;margin:0;line-height:1.5">Resumo automático de fim de expediente · por favor não responda.</p>
+          <p style="color:#AEB3C2;font-size:11px;margin:0;line-height:1.5">{rodape}</p>
         </td></tr></table>
       </td></tr>
 

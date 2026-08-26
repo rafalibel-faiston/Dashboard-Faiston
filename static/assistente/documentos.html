@@ -196,6 +196,40 @@
         <pre id="resultado-demo" class="hidden mt-3 text-xs bg-faiston-bg border border-faiston-border rounded-lg p-3 overflow-x-auto"></pre>
     </div>
 
+    <!-- ANÚNCIO DO ASSISTENTE POR E-MAIL -->
+    <div class="bg-white rounded-2xl border border-faiston-border p-5" style="box-shadow:0 2px 12px rgba(91,46,224,0.06)">
+        <div class="flex items-center gap-2 mb-2">
+            <i class="ph ph-megaphone text-faiston-purple"></i>
+            <span class="text-sm font-bold text-faiston-dark">Anunciar o assistente por e-mail</span>
+        </div>
+        <p class="text-sm text-faiston-muted mb-4">
+            Manda um e-mail apresentando o assistente para quem já consegue usá-lo.
+            O texto se adapta ao que está de fato ligado hoje — se a base de
+            procedimentos estiver vazia, por exemplo, ele não promete responder
+            dúvida de procedimento.
+            <strong>E-mail enviado não volta</strong>: veja a prévia e mande um teste
+            pra você antes de disparar.
+        </p>
+
+        <div id="anuncio-situacao" class="text-sm text-faiston-muted mb-4">Carregando...</div>
+
+        <div class="flex items-center gap-3 flex-wrap">
+            <a href="/assistente/anuncio/previa" target="_blank" rel="noopener"
+               class="bg-white border border-faiston-border text-faiston-dark text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2">
+                <i class="ph ph-eye text-faiston-purple"></i> Ver prévia
+            </a>
+            <button onclick="anuncioTeste()" id="btn-anuncio-teste"
+                    class="bg-white border border-faiston-border text-faiston-dark text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-paper-plane-tilt text-faiston-purple"></i> Mandar teste pra mim
+            </button>
+            <button onclick="anuncioEnviar()" id="btn-anuncio-enviar"
+                    class="grad-bg text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50">
+                <i class="ph ph-megaphone"></i> Enviar para a equipe
+            </button>
+        </div>
+        <span id="status-anuncio" class="text-sm block mt-2"></span>
+    </div>
+
 </main>
 
 <script>
@@ -209,6 +243,7 @@ async function init() {
         document.getElementById('user-av').textContent = me.nome.charAt(0).toUpperCase();
     } catch (e) { window.location.href = '/'; return; }
     carregarLista();
+    carregarSituacaoAnuncio();
 }
 
 async function logout() {
@@ -492,6 +527,94 @@ async function limparDadosTeste() {
     } finally {
         btn.disabled = false;
     }
+}
+
+// --- Anúncio por e-mail ---
+var _anuncioTotal = null;   // quantos destinatários a tela mostrou; o servidor
+                            // confere contra a lista real na hora do envio
+
+async function carregarSituacaoAnuncio() {
+    var el = document.getElementById('anuncio-situacao');
+    try {
+        var res = await fetch('/assistente/anuncio/situacao');
+        if (!res.ok) throw new Error('falha');
+        var d = await res.json();
+        _anuncioTotal = d.total;
+
+        var cap = d.capacidades || {};
+        var vaiFalarDe = ['resumo da semana', 'suas tarefas', 'check-in diário'];
+        if (cap.carimbos > 0) vaiFalarDe.push('carimbos');
+        if (cap.documentos > 0) vaiFalarDe.push('procedimentos');
+        if (cap.etapas_onboarding > 0) vaiFalarDe.push('onboarding');
+
+        var nomes = (d.destinatarios || []).map(function (p) { return escapeHtml(p.nome); });
+        var listaCurta = nomes.slice(0, 6).join(', ') + (nomes.length > 6 ? ' e mais ' + (nomes.length - 6) : '');
+
+        var avisoJaEnviado = '';
+        if (d.ultimo_envio) {
+            var q = new Date(d.ultimo_envio.enviado_em).toLocaleString('pt-BR');
+            avisoJaEnviado = '<div class="mt-2 text-faiston-pink font-semibold">⚠ Já foi enviado em ' + q +
+                             ' para ' + d.ultimo_envio.quantidade + ' pessoa(s)' +
+                             (d.ultimo_envio.por ? ' por ' + escapeHtml(d.ultimo_envio.por) : '') + '.</div>';
+        }
+
+        el.innerHTML =
+            '<div><strong>' + d.total + ' destinatário(s)</strong>' +
+            (nomes.length ? ' — ' + listaCurta : '') + '</div>' +
+            '<div class="text-xs text-faiston-faint mt-1">Perfis incluídos: ' +
+            (d.perfis_incluidos || []).join(', ') + ' (quem de fato vê o widget)</div>' +
+            '<div class="text-xs text-faiston-faint mt-1">O e-mail vai falar de: ' + vaiFalarDe.join(' · ') + '</div>' +
+            avisoJaEnviado;
+    } catch (e) {
+        el.textContent = 'Não consegui carregar a lista de destinatários.';
+        el.className = 'text-sm text-faiston-pink mb-4';
+    }
+}
+
+async function anuncioTeste() {
+    var btn = document.getElementById('btn-anuncio-teste');
+    var st = document.getElementById('status-anuncio');
+    btn.disabled = true;
+    st.textContent = 'Enviando teste...'; st.className = 'text-sm block mt-2 text-faiston-muted';
+    try {
+        var res = await fetch('/assistente/anuncio/teste', { method: 'POST' });
+        var d = await res.json().catch(function () { return {}; });
+        if (!res.ok) { st.textContent = d.detail || 'Não consegui enviar o teste.'; st.className = 'text-sm block mt-2 text-faiston-pink'; }
+        else { st.textContent = 'Teste enviado para ' + d.enviado_para + '. Confira sua caixa de entrada.'; st.className = 'text-sm block mt-2 text-green-600'; }
+    } catch (e) {
+        st.textContent = 'Erro de conexão.'; st.className = 'text-sm block mt-2 text-faiston-pink';
+    } finally { btn.disabled = false; }
+}
+
+async function anuncioEnviar() {
+    if (_anuncioTotal === null) { alert('Espere a lista de destinatários carregar.'); return; }
+    if (_anuncioTotal === 0) { alert('Nenhum destinatário elegível.'); return; }
+    if (!confirm('Enviar o anúncio para ' + _anuncioTotal + ' pessoa(s)?\n\nE-mail enviado não pode ser desfeito. Você já conferiu a prévia e o teste?')) return;
+
+    var btn = document.getElementById('btn-anuncio-enviar');
+    var st = document.getElementById('status-anuncio');
+    btn.disabled = true;
+    st.textContent = 'Enviando para ' + _anuncioTotal + ' pessoa(s)...'; st.className = 'text-sm block mt-2 text-faiston-muted';
+    try {
+        var res = await fetch('/assistente/anuncio/enviar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirmar_total: _anuncioTotal }),
+        });
+        var d = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+            st.textContent = d.detail || 'Não consegui enviar.';
+            st.className = 'text-sm block mt-2 text-faiston-pink';
+            carregarSituacaoAnuncio();
+        } else {
+            st.textContent = d.enviados + ' e-mail(s) enviado(s).' +
+                (d.falhas && d.falhas.length ? ' Falharam: ' + d.falhas.join(', ') : '');
+            st.className = 'text-sm block mt-2 text-green-600';
+            carregarSituacaoAnuncio();
+        }
+    } catch (e) {
+        st.textContent = 'Erro de conexão.'; st.className = 'text-sm block mt-2 text-faiston-pink';
+    } finally { btn.disabled = false; }
 }
 
 async function popularDemo() {

@@ -55,6 +55,7 @@ from app.assistente.capacidade_observar import sinalizacoes
 from app.assistente.capacidade_resumir import montar_agregado_semana
 from app.assistente.llm import ModeloIndisponivel, completar_stream
 from app.assistente.schemas import (
+    AnuncioEnvioRequest,
     FeedbackRequest,
     OrdemOnboardingRequest,
     PerguntaRequest,
@@ -765,6 +766,102 @@ async def limpar_demo_endpoint(faiston_token: str = Cookie(None)):
     if resultado.get("erro"):
         raise HTTPException(status_code=500, detail=resultado["erro"])
     return resultado
+
+
+# --- Anúncio do assistente por e-mail (admin) ---------------------------
+# Única parte do módulo que manda coisa pra fora do sistema, e e-mail
+# enviado não volta -- por isso o caminho é: ver a prévia → mandar um
+# teste pra si mesmo → só então disparar pra equipe, e o disparo real
+# exige confirmar a quantidade exata de destinatários.
+
+def _montar_email_anuncio(nome: str) -> tuple:
+    """(assunto, html) do anúncio pra uma pessoa. Import de main é tardio
+    de propósito: main.py importa este router na subida, então importar
+    main no topo daria circular -- aqui já está tudo carregado."""
+    import main
+
+    from app.assistente.anuncio import estado_das_capacidades, montar_corpo
+
+    estado = estado_das_capacidades()
+    corpo = montar_corpo(nome, estado, os.environ.get("SYSTEM_URL", ""))
+    html = main._shell_email(
+        "Seu novo assistente no OPS",
+        "Pergunte com suas palavras, ele responde",
+        corpo,
+        rodape="Faiston OPS · pode responder este e-mail com dúvidas ou sugestões.",
+    )
+    return "Novidade no Faiston OPS: seu assistente chegou", html
+
+
+@router.get("/anuncio/previa")
+async def anuncio_previa(faiston_token: str = Cookie(None)):
+    """Prévia do e-mail exatamente como a pessoa vai receber."""
+    sess = await _exigir_admin(faiston_token)
+    _assunto, html = await run_in_threadpool(_montar_email_anuncio, sess["nome"])
+    from fastapi.responses import HTMLResponse
+
+    return HTMLResponse(html)
+
+
+@router.get("/anuncio/situacao")
+async def anuncio_situacao(faiston_token: str = Cookie(None)):
+    """Quem receberia, o que o e-mail vai prometer, e se já foi enviado."""
+    await _exigir_admin(faiston_token)
+    from app.assistente.anuncio import destinatarios, estado_das_capacidades, ultimo_envio
+
+    lista = await run_in_threadpool(destinatarios, _PERFIS_PILOTO)
+    return {
+        "total": len(lista),
+        "perfis_incluidos": sorted(_PERFIS_PILOTO),
+        "destinatarios": [{"nome": d["nome"], "email": d["email"]} for d in lista],
+        "capacidades": await run_in_threadpool(estado_das_capacidades),
+        "ultimo_envio": await run_in_threadpool(ultimo_envio),
+    }
+
+
+@router.post("/anuncio/teste")
+async def anuncio_teste(faiston_token: str = Cookie(None)):
+    """Manda o anúncio só pra quem está pedindo, pra conferir no cliente
+    de e-mail de verdade antes de disparar pra equipe."""
+    sess = await _exigir_admin(faiston_token)
+    import main
+
+    if not (sess.get("email") or "").strip():
+        raise HTTPException(status_code=400, detail="Sua conta não tem e-mail cadastrado")
+    assunto, html = await run_in_threadpool(_montar_email_anuncio, sess["nome"])
+    ok = await run_in_threadpool(main._brevo_send, sess["email"], "[TESTE] " + assunto, html)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Não consegui enviar (verifique BREVO_API_KEY/EMAIL_USER)")
+    return {"sucesso": True, "enviado_para": sess["email"]}
+
+
+@router.post("/anuncio/enviar")
+async def anuncio_enviar(body: AnuncioEnvioRequest, faiston_token: str = Cookie(None)):
+    """Disparo real. Exige `confirmar_total` igual à quantidade atual de
+    destinatários -- se a lista mudou entre a conferência e o clique, o
+    envio para em vez de sair pra mais gente do que a pessoa viu."""
+    sess = await _exigir_admin(faiston_token)
+    import main
+
+    from app.assistente.anuncio import destinatarios, registrar_envio
+
+    lista = await run_in_threadpool(destinatarios, _PERFIS_PILOTO)
+    if not lista:
+        raise HTTPException(status_code=400, detail="Nenhum destinatário elegível")
+    if body.confirmar_total != len(lista):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A lista mudou: agora são {len(lista)} destinatários, não {body.confirmar_total}. Confira de novo.",
+        )
+
+    enviados, falhas = [], []
+    for pessoa in lista:
+        assunto, html = await run_in_threadpool(_montar_email_anuncio, pessoa["nome"])
+        ok = await run_in_threadpool(main._brevo_send, pessoa["email"], assunto, html)
+        (enviados if ok else falhas).append(pessoa["email"])
+
+    await run_in_threadpool(registrar_envio, len(enviados), sess["id"])
+    return {"sucesso": True, "enviados": len(enviados), "falhas": falhas}
 
 
 # --- Arquivos estáticos do widget ---------------------------------------
