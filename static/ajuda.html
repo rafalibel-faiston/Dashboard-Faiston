@@ -2153,8 +2153,11 @@ document.getElementById('ano').textContent = new Date().getFullYear();
         demo: 'gestor', admin: 'gestor', diretor: 'diretor', n2: 'n2', dev: 'dev'
     };
 
-    // Sem perfil conhecido → mostra tudo (fallback para acesso anônimo)
-    const permitidas = perfilAbas[perfil] || TODAS;
+    // Sem perfil conhecido (visita anônima, sem o ?perfil= do e-mail de
+    // primeiro acesso) → guia do analista, nunca o de todas as funções:
+    // quem está logado já chega aqui com o perfil resolvido pela sessão
+    // (ver /ajuda em main.py), então cair no fallback é caso de borda.
+    const permitidas = perfilAbas[perfil] || ['func'];
 
     // Esconde os botões das abas que não pertencem ao perfil
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -2162,12 +2165,22 @@ document.getElementById('ano').textContent = new Date().getFullYear();
         if (!permitidas.includes(id)) b.style.display = 'none';
     });
 
-    // Se o perfil só tem uma aba, a barra de navegação não faz sentido
+    // Uma aba só: a barra de navegação não faz sentido
     if (permitidas.length === 1) {
         const nav = document.getElementById('tab-nav');
         if (nav) nav.style.display = 'none';
-        const sub = document.getElementById('hero-sub');
-        if (sub) sub.textContent = 'Tudo que você precisa para dominar o Faiston OPS.';
+    }
+
+    // O subtítulo do topo mandava "selecione seu perfil abaixo" — só faz
+    // sentido pra quem tem várias abas. admin e dev são os únicos assim
+    // (veem o guia das outras funções de propósito, porque dão suporte a
+    // todo mundo), e pra eles vale dizer por quê.
+    const sub = document.getElementById('hero-sub');
+    if (sub) {
+        sub.textContent = (perfil === 'admin' || perfil === 'dev')
+            ? 'Você vê o guia de todas as funções porque seu acesso é de ' +
+              (perfil === 'dev' ? 'equipe dev' : 'administrador') + '.'
+            : 'Tudo que você precisa para dominar o Faiston OPS.';
     }
 
     // Escolhe a aba ativa: parâmetro tab (se permitido) → padrão do perfil → primeira permitida

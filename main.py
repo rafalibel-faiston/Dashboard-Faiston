@@ -4729,18 +4729,25 @@ def deletar_cliente(cid: int, faiston_token: str = Cookie(None)):
 
 @app.get("/ajuda")
 def ajuda_page(perfil: str = "", faiston_token: str = Cookie(None), request: Request = None):
-    # Se o perfil não veio na URL, descobre pela sessão e redireciona —
-    # assim cada perfil vê só a aba do guia correspondente à sua função,
-    # independente de como o guia foi aberto (login, email ou link direto).
+    # Quem manda é a SESSÃO, não a URL: com cookie válido o ?perfil= é
+    # sempre recalculado a partir do perfil+cargo do banco, mesmo que já
+    # tenha vindo preenchido. Antes o parâmetro era aceito como veio, então
+    # /ajuda?perfil=dev na barra do navegador abria o guia de qualquer
+    # função — e o link do login mandava o perfil cru, fazendo um N2 cair
+    # na aba de Analista.
+    # O ?perfil= sozinho só vale sem sessão, que é o caso do e-mail de
+    # primeiro acesso (link aberto antes de logar).
     # Preserva os demais parâmetros (ex.: ?destaque=assistente do aviso de
     # novidade) -- senão o redirect os descarta e o link do aviso perde o
     # scroll/abertura automática do widget.
-    if not perfil:
-        sess = get_session(faiston_token)
-        if sess and sess.get("perfil"):
-            destino = _perfil_guia(sess["perfil"], sess.get("cargo", ""),
-                                   sess.get("perfil_real", ""))
-            outros = "&".join(f"{k}={v}" for k, v in request.query_params.items()) if request else ""
+    sess = get_session(faiston_token)
+    if sess and sess.get("perfil"):
+        destino = _perfil_guia(sess["perfil"], sess.get("cargo", ""),
+                               sess.get("perfil_real", ""))
+        if destino and destino != perfil:
+            outros = "&".join(
+                f"{k}={v}" for k, v in request.query_params.items() if k != "perfil"
+            ) if request else ""
             return RedirectResponse(f"/ajuda?perfil={destino}" + (f"&{outros}" if outros else ""))
     return FileResponse("static/ajuda.html")
 

@@ -114,7 +114,33 @@ class TestAjudaPreservaDestaque:
         assert "perfil=" in location
 
     def test_ajuda_com_perfil_no_url_no_redireciona(self, app):
+        """Sem sessão (link do e-mail de primeiro acesso), o ?perfil= da URL
+        é tudo que existe — aí ele vale."""
         from fastapi.testclient import TestClient
         client = TestClient(app)
         resp = client.get("/ajuda?perfil=func&destaque=assistente", follow_redirects=False)
         assert resp.status_code == 200
+
+
+class TestAjudaSegueOPerfilDaSessao:
+    """Com sessão, o guia mostra a função de quem abriu — a URL não decide."""
+
+    def test_perfil_da_url_e_reescrito_pelo_da_sessao(self, admin_client):
+        """Trocar /ajuda?perfil=X na barra do navegador não abre o guia de
+        outra função: quem está logado é redirecionado pro seu."""
+        resp = admin_client.get("/ajuda?perfil=funcionario", follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        location = resp.headers["location"]
+        assert "perfil=admin" in location
+        assert location.count("perfil=") == 1, f"perfil duplicado no redirect: {location}"
+
+    def test_perfil_certo_na_url_serve_a_pagina(self, admin_client):
+        """Já no destino, serve o HTML — senão o redirect entraria em laço."""
+        resp = admin_client.get("/ajuda?perfil=admin", follow_redirects=False)
+        assert resp.status_code == 200
+
+    def test_reescrita_preserva_os_outros_parametros(self, admin_client):
+        resp = admin_client.get("/ajuda?perfil=dev&destaque=assistente", follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        location = resp.headers["location"]
+        assert "perfil=admin" in location and "destaque=assistente" in location
