@@ -13,7 +13,6 @@ LLM_BASE_URL=https://api.groq.com/openai/v1     # default já embutido em llm.py
 LLM_API_KEY=gsk_...                              # se ausente, cai para GROQ_API_KEY (já usada por /api/ia/insights)
 LLM_MODEL=openai/gpt-oss-20b                     # default já embutido em llm.py
 LLM_TIMEOUT_S=30
-ASSISTENTE_PERFIS_PILOTO=admin                   # lista separada por vírgula; controla quem vê e quem pode usar. `*` = todos os perfis
 EMBEDDING_MODEL=intfloat/multilingual-e5-small   # default já embutido em embeddings.py (Fase 3)
 EMBEDDING_DIM=384                                # tem que bater com VECTOR(N) no schema — não troca sem reindexar tudo
 ```
@@ -156,9 +155,8 @@ widget consulta pra decidir se aparece):
 
 ### `POST /assistente/pergunta`
 
-Requer sessão válida (`faiston_token`) com `perfil` em
-`ASSISTENTE_PERFIS_PILOTO`; senão 401 (sem sessão) ou 403 (perfil fora do
-piloto). Requer também `X-CSRF-Token` batendo com o cookie `csrf_token`
+Requer sessão válida (`faiston_token`) — qualquer perfil serve; sem
+sessão, 401. Requer também `X-CSRF-Token` batendo com o cookie `csrf_token`
 (mesmo middleware de `/api/*`, estendido pra cobrir `/assistente/*`).
 
 Entrada:
@@ -377,8 +375,8 @@ Implementado conforme a spec original, sem mudança de desenho:
   (comportamento inalterado até a primeira ingestão).
 - `POST /assistente/documentos` — endpoint de ingestão (upload
   multipart: `arquivo` + `titulo` + `origem`/`versao` opcionais), restrito
-  a `perfil == 'admin'` sempre (independente de `ASSISTENTE_PERFIS_PILOTO`
-  — gestão de conteúdo é mais sensível que só perguntar).
+  a `perfil == 'admin'` sempre (o assistente é aberto a todos os perfis,
+  mas gestão de conteúdo é mais sensível que só perguntar).
 - `GET /assistente/documentos` — tela de admin
   (`static/assistente/documentos.html`): arrastar/escolher arquivo,
   título/origem/versão, lista dos documentos já indexados com contagem

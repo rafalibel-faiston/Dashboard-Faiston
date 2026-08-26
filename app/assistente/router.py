@@ -24,7 +24,6 @@ main.py) detecta padrão, redige e grava sinalização; os endpoints
 escopado à pessoa que pergunta.
 """
 import json
-import os
 import time
 import unicodedata
 from pathlib import Path
@@ -115,27 +114,10 @@ def _eh_pedido_de_ensinar_continuar(pergunta: str) -> bool:
     p = _normalizar(pergunta)
     return "proxima aula" in p or "continuar aula" in p or "proxima etapa" in p
 
-# Piloto: só estes perfis veem o widget (servidor e front concordam nisso —
-# o front esconde o botão, mas o servidor é quem de fato barra). Lista
-# ampliável via env var sem precisar editar código, ex.:
-# ASSISTENTE_PERFIS_PILOTO="admin,gestor"
-# `*` libera para todos os perfis — é o que se usa quando o piloto acaba e o
-# assistente vira feature de todo mundo. Sem isso, ampliar exigiria lembrar
-# de listar cada perfil (funcionario, gestor, diretor, demo, admin, dev) e
-# atualizar a env var toda vez que um perfil novo aparecesse no sistema.
-_PERFIS_PILOTO = {
-    p.strip()
-    for p in os.environ.get("ASSISTENTE_PERFIS_PILOTO", "admin").split(",")
-    if p.strip()
-}
-_PILOTO_TODOS = "*" in _PERFIS_PILOTO
-
-
-def _no_piloto(perfil: Optional[str]) -> bool:
-    """Único lugar que decide se um perfil entra no piloto. Gate de conteúdo
-    (`_exigir_admin`) não passa por aqui de propósito: gerenciar a base é
-    sempre só admin, mesmo com o piloto aberto pra todos."""
-    return bool(perfil) and (_PILOTO_TODOS or perfil in _PERFIS_PILOTO)
+# O piloto acabou: o assistente é feature de todo mundo que tem sessão, sem
+# lista de perfis nem env var pra manter (era ASSISTENTE_PERFIS_PILOTO).
+# Estar logado é o único requisito pra perguntar; gerenciar a base de
+# procedimentos continua só admin, via _exigir_admin.
 
 
 def _sse(evento: str, data: dict) -> str:
@@ -146,15 +128,13 @@ async def _autenticar(faiston_token: Optional[str]) -> dict:
     sess = await run_in_threadpool(db.get_session, faiston_token)
     if not sess:
         raise HTTPException(status_code=401, detail="Não autenticado")
-    if not _no_piloto(sess["perfil"]):
-        raise HTTPException(status_code=403, detail="Assistente ainda não disponível para seu perfil")
     return sess
 
 
 async def _exigir_admin(faiston_token: Optional[str]) -> dict:
-    """Gestão de conteúdo é mais sensível que só perguntar: sempre exige
-    perfil='admin' de verdade, independente de quem mais estiver no
-    piloto via ASSISTENTE_PERFIS_PILOTO."""
+    """Gestão de conteúdo é mais sensível que só perguntar: exige
+    perfil='admin' de verdade, mesmo com o assistente aberto a todos os
+    perfis."""
     sess = await run_in_threadpool(db.get_session, faiston_token)
     if not sess:
         raise HTTPException(status_code=401, detail="Não autenticado")
@@ -170,7 +150,7 @@ async def elegivel(faiston_token: str = Cookie(None)):
     `admin` vai junto pra o widget decidir se mostra o atalho de gestão
     da base de procedimentos, sem precisar de uma segunda chamada."""
     sess = await run_in_threadpool(db.get_session, faiston_token)
-    elegivel_ = bool(sess and _no_piloto(sess["perfil"]))
+    elegivel_ = bool(sess)
     return {"elegivel": elegivel_, "admin": bool(elegivel_ and sess["perfil"] == "admin")}
 
 
@@ -449,7 +429,7 @@ async def checkin_pendente(faiston_token: str = Cookie(None)):
     Nunca 401/403 -- sem sessão elegível, simplesmente não é pendente
     (mesmo espírito de /elegivel)."""
     sess = await run_in_threadpool(db.get_session, faiston_token)
-    if not sess or not _no_piloto(sess["perfil"]):
+    if not sess:
         return {"pendente": False}
     pendente = await run_in_threadpool(checkin_pendente_hoje, sess["id"])
     return {"pendente": pendente}
@@ -568,7 +548,7 @@ async def contar_sinalizacoes_nao_vistas(faiston_token: str = Cookie(None)):
     """O widget consulta isto pra decidir o número do badge. Nunca
     401/403 — sem sessão elegível, devolve 0, igual /elegivel."""
     sess = await run_in_threadpool(db.get_session, faiston_token)
-    if not sess or not _no_piloto(sess["perfil"]):
+    if not sess:
         return {"nao_vistas": 0}
     total = await run_in_threadpool(sinalizacoes.contar_nao_vistas, sess["id"])
     return {"nao_vistas": total}
@@ -690,7 +670,7 @@ async def remover_documento_endpoint(documento_id: int, faiston_token: str = Coo
 # O job de verdade roda sozinho, de madrugada, via APScheduler (main.py).
 # Este endpoint existe só pra não precisar esperar até 3h da manhã pra
 # validar a capacidade D no ambiente de teste — mesmo gate de admin dos
-# outros endpoints de gestão, nunca exposto no piloto geral.
+# outros endpoints de gestão, nunca exposto aos demais perfis.
 
 @router.post("/observar/rodar-agora")
 async def rodar_observar_agora(faiston_token: str = Cookie(None)):

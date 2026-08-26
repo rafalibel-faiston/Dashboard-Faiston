@@ -162,25 +162,22 @@ migrados por completo pra `#ops-*`/`.ops-*` (ids, classes, comentários) —
 puramente de nomenclatura, nenhum comportamento mudou. Este arquivo
 também foi renomeado de `assistente-nexo.md` pra `assistente-ops.md`.
 
-## Piloto atual
+## Quem tem acesso
 
-O widget só aparece (client-side, `GET /assistente/elegivel`) **e** só
-responde (server-side, checado em toda rota) para os perfis listados na env
-var `ASSISTENTE_PERFIS_PILOTO` — lista separada por vírgula (ex.:
-`admin,gestor`). Ampliar ou fechar o piloto é mexer só nessa variável, sem
-alterar código.
+O piloto acabou: o assistente é feature de todo mundo. O widget aparece
+(client-side, `GET /assistente/elegivel`) e responde (server-side, checado
+em toda rota) para **qualquer perfil com sessão válida** — `funcionario`,
+`gestor`, `diretor`, `demo`, `admin`, `dev`. Estar logado é o único
+requisito; sem sessão, 401.
 
-`ASSISTENTE_PERFIS_PILOTO=*` libera para **todos** os perfis (`funcionario`,
-`gestor`, `diretor`, `demo`, `admin`, `dev`) — é o valor de quando o piloto
-acaba e o assistente vira feature de todo mundo. Sem o `*`, ampliar exigiria
-listar cada perfil e lembrar de atualizar a variável a cada perfil novo.
+Não existe mais a env var `ASSISTENTE_PERFIS_PILOTO` (nem a lista de perfis
+que ela alimentava). O gate saiu do código: perfil novo no sistema já nasce
+com acesso, sem ninguém precisar lembrar de atualizar variável de ambiente
+na Railway.
 
-Se a variável não existir, o default é `admin` — some a config, o assistente
-fecha em vez de abrir pra geral.
-
-O `*` amplia quem **pergunta**, nunca quem **gerencia a base**: ingestão e
+Isso amplia quem **pergunta**, nunca quem **gerencia a base**: ingestão e
 remoção de documento passam por `_exigir_admin`, que exige `perfil='admin'`
-de verdade em qualquer configuração de piloto.
+de verdade — coberto por `tests/test_assistente_acesso.py`.
 
 ## Ordem de implementação
 
@@ -317,7 +314,6 @@ não a Fase 1:
   sinalização não sobe pro gestor precisa estar acordada antes de ligar
   `ASSISTENTE_OBSERVAR_ENABLED=1` de verdade — está implementada e
   testada, mas desligada até esse alinhamento acontecer.
-- Ampliar o piloto (hoje só `admin`) pra quais perfis/cargos, e quando?
 - Quais documentos (e em que ordem) formam a trilha de onboarding da
   capacidade E? Hoje nenhum documento está marcado — a trilha fica vazia
   até o admin escolher pela tela `/assistente/documentos`.
