@@ -40,6 +40,35 @@ class TestAvisoOps:
         resp = client.post("/api/avisos-ops/disparar")
         assert resp.status_code == 403
 
+    def test_previa_sem_login_retorna_401(self, app):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        resp = client.get("/api/avisos-ops/previa")
+        assert resp.status_code == 401
+
+    def test_previa_devolve_o_email_montado_sem_enviar_nada(self, admin_client, monkeypatch):
+        """A prévia existe justamente pra conferir antes de disparar -- se ela
+        mandasse e-mail, o botão de conferir viraria um segundo disparo."""
+        enviados = []
+        monkeypatch.setattr(main, "_brevo_send", lambda *a, **k: enviados.append(a))
+
+        resp = admin_client.get("/api/avisos-ops/previa")
+        assert resp.status_code == 200, resp.text
+        assert enviados == []
+        html = resp.text
+        assert "Assistente OPS" in html
+        assert "/ajuda?destaque=assistente" in html
+        # Rodapé próprio: o texto padrão do envelope fala de "resumo de fim de
+        # expediente", que não faz sentido num aviso pontual.
+        assert "Resumo automático de fim de expediente" not in html
+
+    def test_email_nao_promete_consulta_a_procedimento(self):
+        """Os POPs ainda não estão indexados; prometer procedimento no e-mail
+        de lançamento faria a pessoa perguntar e o assistente recusar (Regra 2:
+        sem fonte, não responde)."""
+        corpo = main._corpo_email_aviso_ops("https://exemplo/ajuda?destaque=assistente")
+        assert "procedimento" not in corpo.lower()
+
     def test_disparar_e_ler_de_volta(self, admin_client):
         resp = admin_client.post("/api/avisos-ops/disparar")
         assert resp.status_code == 200, resp.text

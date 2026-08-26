@@ -1584,8 +1584,11 @@ def enviar_alerta_pendencias(dia=None, system_url: str = "") -> dict:
         return {"sucesso": False, "erro": str(e)}
 
 
-def _shell_email(titulo: str, subtitulo: str, corpo_html: str) -> str:
-    """Envelope visual padrão (header da marca + footer) para e-mails do OPS."""
+def _shell_email(titulo: str, subtitulo: str, corpo_html: str, rodape: str = None) -> str:
+    """Envelope visual padrão (header da marca + footer) para e-mails do OPS.
+    `rodape` troca a linha final -- o texto padrão fala de "resumo de fim de
+    expediente", que não faz sentido em e-mail de aviso pontual."""
+    rodape = rodape or "Resumo automático de fim de expediente · por favor não responda."
     return f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head>
 <body style="margin:0;padding:0;background:#0E0B1F;-webkit-font-smoothing:antialiased;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
@@ -1616,7 +1619,7 @@ def _shell_email(titulo: str, subtitulo: str, corpo_html: str) -> str:
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #EEF0F6;padding-top:20px;text-align:center">
           <span style="display:inline-block;width:28px;height:28px;background:#F2EEFE;border-radius:8px;text-align:center;line-height:28px;font-size:14px">🛰️</span>
           <p style="color:#6B7280;font-size:12px;font-weight:700;margin:9px 0 3px;letter-spacing:.2px">Faiston OPS · Torre de Controle</p>
-          <p style="color:#AEB3C2;font-size:11px;margin:0;line-height:1.5">Resumo automático de fim de expediente · por favor não responda.</p>
+          <p style="color:#AEB3C2;font-size:11px;margin:0;line-height:1.5">{rodape}</p>
         </td></tr></table>
       </td></tr>
 
@@ -4097,7 +4100,7 @@ def get_aviso_ops(faiston_token: str = Cookie(None)):
 
 def _corpo_email_aviso_ops(link_absoluto: str) -> str:
     return f"""
-        <p style="color:#3D4152;font-size:14.5px;margin:0 0 18px;line-height:1.6">Tem novidade no Faiston OPS: o <strong>Assistente OPS</strong> já está no ar. É o ícone roxo flutuante no canto da tela — pergunte sobre suas tarefas, um procedimento, um carimbo de atendimento ou o resumo da sua semana.</p>
+        <p style="color:#3D4152;font-size:14.5px;margin:0 0 18px;line-height:1.6">Tem novidade no Faiston OPS: o <strong>Assistente OPS</strong> já está no ar. É o ícone roxo flutuante no canto da tela — pergunte sobre as suas tarefas, um carimbo de atendimento ou o resumo da sua semana.</p>
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
           <tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">
             <a href="{link_absoluto}" style="display:block;color:#ffffff;text-decoration:none;padding:15px 24px;font-weight:700;font-size:15px;border-radius:12px">Conhecer o Assistente OPS &nbsp;&rarr;</a>
@@ -4122,11 +4125,25 @@ def _enviar_emails_aviso_ops(system_url: str):
         emails = [r[0] for r in cur.fetchall()]
         cur.close(); conn.close()
         link_absoluto = f"{system_url.rstrip('/')}/ajuda?destaque=assistente"
-        html = _shell_email("Novidade no Faiston OPS", "Conheça o Assistente OPS", _corpo_email_aviso_ops(link_absoluto))
+        html = _shell_email("Novidade no Faiston OPS", "Conheça o Assistente OPS",
+                            _corpo_email_aviso_ops(link_absoluto),
+                            rodape="Aviso automático do Faiston OPS · por favor não responda.")
         enviados = sum(1 for email in emails if _brevo_send(email, "🤖 Novidade no Faiston OPS — conheça o Assistente OPS", html))
         print(f"[aviso-ops] {enviados}/{len(emails)} e-mail(s) enviado(s)")
     except Exception as e:
         print(f"[aviso-ops] erro ao enviar e-mails: {e}")
+
+@app.get("/api/avisos-ops/previa")
+def previa_aviso_ops(request: Request, faiston_token: str = Cookie(None)):
+    """Renderiza o e-mail de aviso exatamente como ele sai, pra conferir antes
+    de disparar pra todo mundo -- só abre a página, não envia nada."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    link_absoluto = f"{_resolver_system_url(request).rstrip('/')}/ajuda?destaque=assistente"
+    html = _shell_email("Novidade no Faiston OPS", "Conheça o Assistente OPS",
+                        _corpo_email_aviso_ops(link_absoluto),
+                        rodape="Aviso automático do Faiston OPS · por favor não responda.")
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-store"})
 
 @app.post("/api/avisos-ops/disparar")
 def disparar_aviso_ops(bg: BackgroundTasks, request: Request, faiston_token: str = Cookie(None)):
@@ -4144,7 +4161,7 @@ def disparar_aviso_ops(bg: BackgroundTasks, request: Request, faiston_token: str
         import json as _json
         from datetime import datetime as _dt
         valor = _json.dumps({
-            "mensagem": "🤖 Novidade: conheça o Assistente OPS! Ele acha carimbo, tira dúvida de procedimento e resume sua semana.",
+            "mensagem": "🤖 Novidade: conheça o Assistente OPS! Ele acha carimbo, mostra suas tarefas e resume a sua semana.",
             "link": "/ajuda?destaque=assistente",
             "disparado_em": _dt.utcnow().isoformat(),
         })

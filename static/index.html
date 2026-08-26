@@ -2380,6 +2380,10 @@
                     <option value="backoffice">Backoffice</option>
                     <option value="desenvolvedor">Desenvolvedor</option>
                 </select>
+                <button onclick="window.open('/api/avisos-ops/previa','_blank')" title="Abre o e-mail exatamente como ele sai, sem enviar nada"
+                    class="px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-border bg-white text-faiston-muted hover:border-faiston-purple hover:text-faiston-purple transition-colors flex items-center gap-2">
+                    <i class="ph ph-eye"></i> Ver prévia do e-mail
+                </button>
                 <button onclick="dispararAvisoAssistenteOps()" title="Banner no widget + e-mail pra quem tem endereço cadastrado, avisando sobre o Assistente OPS"
                     class="px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-border bg-white text-faiston-muted hover:border-faiston-purple hover:text-faiston-purple transition-colors flex items-center gap-2">
                     <i class="ph ph-megaphone"></i> Avisar sobre o Assistente OPS
@@ -8672,7 +8676,7 @@ function adminAtualizarCargo() {
 }
 
 async function dispararAvisoAssistenteOps() {
-    if (!confirm('Isso mostra um banner de novidade sobre o Assistente OPS (link pra página de Ajuda) e manda um e-mail pra todo mundo com endereço cadastrado -- inclusive quem já tinha fechado um aviso anterior. Confirma?')) return;
+    if (!confirm('Isso mostra um banner de novidade sobre o Assistente OPS (link pra página de Ajuda) e manda um e-mail pra todo mundo com endereço cadastrado -- inclusive quem já tinha fechado um aviso anterior. Dá pra conferir o e-mail antes no botão "Ver prévia do e-mail". Confirma?')) return;
     try {
         const res = await fetch('/api/avisos-ops/disparar', { method: 'POST' });
         if (!res.ok) { alert('Não consegui disparar o aviso agora. Tente de novo em instantes.'); return; }
