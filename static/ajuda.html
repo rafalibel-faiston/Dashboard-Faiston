@@ -345,6 +345,32 @@
             </div>
         </div>
 
+        <!-- Sinalização de carga -->
+        <div class="card" style="padding:20px;margin-bottom:16px;border:1.5px solid #EF444425">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <div style="width:38px;height:38px;border-radius:11px;background:#EF444412;display:flex;align-items:center;justify-content:center"><i class="ph ph-gauge" style="color:#EF4444;font-size:19px"></i></div>
+                <div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Sua carga agora</p>
+                    <p style="font-size:12px;color:#9097AC">A faixa logo acima do quadro mostra o quanto você tem na fila</p>
+                </div>
+            </div>
+            <p style="font-size:13px;color:#5E647A;line-height:1.6;margin-bottom:12px">
+                O sistema soma o <strong style="color:#0B0D1F">peso</strong> (1 a 4) das suas tarefas em <strong style="color:#0B0D1F">aberto</strong> e <strong style="color:#0B0D1F">em andamento</strong> — concluída sai da conta.
+                Tarefa <strong style="color:#0B0D1F">atrasada</strong> conta 1,5x e a que vence hoje ou amanhã conta 1,25x, porque é o que realmente aperta o seu dia.
+                O resultado vira um nível:
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:#0E9F6E15;color:#0E9F6E"><i class="ph ph-smiley"></i> Tranquilo</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:#06D7E615;color:#0891a3"><i class="ph ph-gauge"></i> Fluindo</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:#F59E0B15;color:#B45309"><i class="ph ph-warning"></i> Carga alta</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:#EF444415;color:#EF4444"><i class="ph ph-fire"></i> Atolado</span>
+            </div>
+            <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025">
+                <i class="ph ph-eye" style="color:#5B2EE0;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                <p style="font-size:12px;color:#5E647A;line-height:1.55">Seu líder vê a mesma sinalização no Kanban da equipe — não é para cobrar, é para <strong style="color:#0B0D1F">redistribuir</strong>. Se você aparecer como <strong style="color:#0B0D1F">Atolado</strong>, vale combinar prioridades com ele.</p>
+            </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
             <!-- Criar tarefa -->
             <div class="acc-item" onclick="toggleAcc(this)">
@@ -902,6 +928,29 @@
                     <div class="info-row"><i class="ph ph-columns" style="color:#5B2EE0"></i><div>Colunas <strong>Aberto · Em Andamento · Concluído</strong> com total de horas</div></div>
                     <div class="info-row"><i class="ph ph-users" style="color:#06D7E6"></i><div>Agrupe por <strong>Responsável</strong> ou por <strong>Projeto</strong></div></div>
                     <div class="info-row"><i class="ph ph-hand" style="color:#B826C9"></i><div>Arraste cards entre colunas para mudar o status</div></div>
+                    <div class="info-row"><i class="ph ph-fire" style="color:#EF4444"></i><div>Painel <strong>Carga da equipe</strong> no topo: quem está atolado</div></div>
+                </div>
+            </div>
+            <div class="fcard">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                    <div style="width:38px;height:38px;border-radius:11px;background:#EF444412;display:flex;align-items:center;justify-content:center"><i class="ph ph-gauge" style="color:#EF4444;font-size:19px"></i></div>
+                    <p style="font-size:14px;font-weight:700;color:#0B0D1F">Carga da equipe</p>
+                </div>
+                <p style="font-size:12.5px;color:#5E647A;line-height:1.55;margin-bottom:10px">
+                    Soma o <strong style="color:#0B0D1F">peso</strong> das tarefas que cada pessoa tem na fila (aberto + em andamento).
+                    Atrasada conta <strong style="color:#0B0D1F">1,5x</strong>, vencendo hoje/amanhã <strong style="color:#0B0D1F">1,25x</strong>.
+                </p>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:#0E9F6E15;color:#0E9F6E"><i class="ph ph-smiley"></i> Tranquilo</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:#06D7E615;color:#0891a3"><i class="ph ph-gauge"></i> Fluindo</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:#F59E0B15;color:#B45309"><i class="ph ph-warning"></i> Carga alta</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;background:#EF444415;color:#EF4444"><i class="ph ph-fire"></i> Atolado</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                    <div class="info-row"><i class="ph ph-clock-countdown" style="color:#EF4444"></i><div><strong>3 tarefas vencidas</strong> já marcam atolado, mesmo com poucos pontos</div></div>
+                    <div class="info-row"><i class="ph ph-cursor-click" style="color:#5B2EE0"></i><div>Clique no card da pessoa para <strong>filtrar o quadro</strong> por ela</div></div>
+                    <div class="info-row"><i class="ph ph-sliders-horizontal" style="color:#06D7E6"></i><div><strong>Calibrar</strong> ajusta a régua do seu time — cada operação tem seu ritmo</div></div>
+                    <div class="info-row"><i class="ph ph-hand-waving" style="color:#0E9F6E"></i><div>Quem está <strong>sem fila</strong> aparece também: é para onde redistribuir</div></div>
                 </div>
             </div>
             <div class="fcard">

@@ -72,6 +72,26 @@
         [data-theme="dark"] .gk-func-header { background-color: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
         [data-theme="dark"] .gk-func-header p { color: #F1F2F8 !important; }
         [data-theme="dark"] .gk-func-header { box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; }
+        /* ── Sinalização de carga (painel "quem está atolado") ── */
+        .carga-painel { background:#fff; border:1px solid #E5E8F0; border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+        [data-theme="dark"] .carga-painel { background:#11111E !important; border-color:rgba(255,255,255,0.08) !important; }
+        [data-theme="dark"] .carga-painel .carga-titulo { color:#F1F2F8 !important; }
+        [data-theme="dark"] .carga-painel .carga-legenda { color:#6A718A !important; }
+        .carga-card { background:#FAFBFF; border:1px solid #E5E8F0; border-radius:14px; cursor:pointer;
+                      transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+        .carga-card:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(11,13,31,.10); }
+        .carga-card.sel { box-shadow:0 0 0 2px rgba(91,46,224,.18); }
+        [data-theme="dark"] .carga-card { background:#0C0C18 !important; border-color:rgba(255,255,255,0.08) !important; }
+        [data-theme="dark"] .carga-card .carga-nome { color:#F1F2F8 !important; }
+        .carga-trilho { background:#EEF0F6; }
+        [data-theme="dark"] .carga-trilho { background:rgba(255,255,255,0.08) !important; }
+        .carga-btn { display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700;
+                     padding:4px 9px; border-radius:8px; border:1px solid #E5E8F0; background:#fff;
+                     color:#5E647A; cursor:pointer; transition:border-color .15s ease, color .15s ease; }
+        .carga-btn:hover { border-color:#5B2EE0; color:#5B2EE0; }
+        [data-theme="dark"] .carga-btn { background:#11111E !important; border-color:rgba(255,255,255,0.1) !important; color:#9097AC !important; }
+        @keyframes cargaPulso { 0%,100% { opacity:1 } 50% { opacity:.5 } }
+        .carga-fogo { animation: cargaPulso 1.8s ease-in-out infinite; }
         /* ── Dark mode: dropdowns / selects ── */
         [data-theme="dark"] select,
         [data-theme="dark"] .filter-drop { background-color: #11111E !important; color: #F1F2F8 !important; border-color: rgba(255,255,255,0.1) !important; }
@@ -633,6 +653,9 @@
                 </button>
             </div>
         </div>
+        <!-- Sinalização de sobrecarga: quem está atolado (montado por renderCargaEquipe) -->
+        <div id="gk-carga-wrap" class="mb-4"></div>
+
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
 
             <!-- ABERTO -->
@@ -5234,6 +5257,8 @@ document.addEventListener('click', e => {
     if (mia && !mia.classList.contains('hidden') && e.target === mia && docMousedownTarget === mia) fecharModalIA();
     const mrp = document.getElementById('modal-resumo-pessoa');
     if (mrp && !mrp.classList.contains('hidden') && e.target === mrp && docMousedownTarget === mrp) fecharResumoPessoa();
+    const mcl = document.getElementById('modal-carga-limites');
+    if (mcl && !mcl.classList.contains('hidden') && e.target === mcl && docMousedownTarget === mcl) fecharCargaLimites();
 });
 
 // ── KANBAN GESTOR ─────────────────────────────────────────────────────
@@ -5294,6 +5319,7 @@ async function carregarTarefasKanban() {
         if (!res.ok) return;
         todasTarefasKanban = await res.json();
         popularDropdownProjetos();
+        await carregarCargaEquipe();      // sinalização de sobrecarga antes de desenhar os grupos
         setGkAgrupamento(gkAgrupamento);  // sincroniza toggle + renderiza
     } catch(e) { console.error(e); }
 }
@@ -5317,6 +5343,19 @@ function gkMontarGrupos(tasks, status, porProjeto, PRIO_COLOR, sufixoId) {
         const totalSecs = funcTasks.reduce((a,t) => a+(t.segundos||0), 0);
         const fH = Math.floor(totalSecs/3600), fM = Math.floor((totalSecs%3600)/60);
         const horasLabel = totalSecs > 0 ? `${fH}h${String(fM).padStart(2,'0')}m` : '0h';
+
+        // Selo de sobrecarga no cabeçalho da pessoa. Só nas colunas de fila
+        // (em "Concluído" a carga da pessoa não diz nada sobre o que já saiu)
+        // e só quando o agrupamento é por responsável.
+        const carga = (!porProjeto && !isDone) ? cargaPorNome[func] : null;
+        const cargaSelo = (carga && carga.nivel !== 'tranquilo') ? (() => {
+            const info = cargaNivelInfo(carga.nivel);
+            const pulso = carga.nivel === 'atolado' ? ' carga-fogo' : '';
+            return `<span class="${pulso}" title="${cargaAttr(cargaResumoTexto(carga))}"
+                style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;
+                       padding:3px 7px;border-radius:20px;background:${info.cor}1A;color:${info.cor};flex-shrink:0">
+                <i class="ph ${info.icone}"></i>${info.rotulo}</span>`;
+        })() : '';
 
         gkGruposCache[groupId] = {
             nome: func,
@@ -5367,6 +5406,7 @@ function gkMontarGrupos(tasks, status, porProjeto, PRIO_COLOR, sufixoId) {
                     <p style="font-size:12px;font-weight:700;color:#0B0D1F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${porProjeto ? func : func.split(' ').slice(0,2).join(' ')}</p>
                     <p style="font-size:10px;color:#9097AC;margin-top:1px">${horasLabel} &middot; ${funcTasks.length} tarefa${funcTasks.length>1?'s':''}</p>
                 </div>
+                ${cargaSelo}
                 <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${fColor}15;color:${fColor}">${funcTasks.length}</span>
                 <button onclick="event.stopPropagation();abrirResumoPessoa('${groupId}')" title="Ver resumo completo"
                     style="width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:transparent;color:#9097AC;flex-shrink:0;border:none;cursor:pointer;transition:background .15s ease"
@@ -5498,6 +5538,187 @@ function setGkAgrupamento(modo) {
     if (br) br.style.cssText = (modo==='responsavel'?ACTIVE:INACTIVE);
     if (bp) bp.style.cssText = (modo==='projeto'?ACTIVE:INACTIVE);
     renderKanbanGestor();
+}
+
+
+// ── SINALIZAÇÃO DE CARGA: quem está atolado ──────────────────────────
+// O quadro mostra tarefa por tarefa; isso aqui mostra a PESSOA. O placar é
+// a soma do peso do que ela tem na fila (aberto + em andamento), com as
+// atrasadas contando mais -- vem pronto do /api/carga-equipe.
+let cargaEquipe = null;       // resposta crua do endpoint
+let cargaPorNome = {};        // nome -> pessoa (usado nos cabeçalhos do kanban)
+let cargaSoSinalizados = true;
+
+function cargaAttr(txt) {
+    return String(txt == null ? '' : txt).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+function cargaNivelInfo(nivel) {
+    return (cargaEquipe && cargaEquipe.niveis && cargaEquipe.niveis[nivel])
+        || { rotulo: nivel || '—', cor: '#9097AC', icone: 'ph-circle' };
+}
+
+function cargaResumoTexto(p) {
+    const partes = [`${p.pontos} pts de carga`, `${p.tarefas} tarefa${p.tarefas===1?'':'s'} na fila`,
+                    `peso somado ${p.peso_total}`];
+    if (p.atrasadas) partes.push(`${p.atrasadas} atrasada${p.atrasadas===1?'':'s'}`);
+    if (p.vence_ja)  partes.push(`${p.vence_ja} vencendo`);
+    if (p.indisponivel) partes.push(p.indisponivel);
+    return partes.join(' · ') + '\nConta todas as tarefas abertas da pessoa, sem os filtros da tela. Clique pra filtrar o quadro por ela.';
+}
+
+async function carregarCargaEquipe() {
+    try {
+        const res = await fetch('/api/carga-equipe');
+        if (!res.ok) return;
+        cargaEquipe = await res.json();
+        cargaPorNome = {};
+        (cargaEquipe.equipe || []).forEach(p => { cargaPorNome[p.nome] = p; });
+        renderCargaEquipe();
+    } catch (e) { console.error(e); }
+}
+
+function renderCargaEquipe() {
+    const wrap = document.getElementById('gk-carga-wrap');
+    if (!wrap) return;
+    if (!cargaEquipe || !(cargaEquipe.equipe || []).length) { wrap.innerHTML = ''; return; }
+
+    const equipe = cargaEquipe.equipe;
+    const resumo = cargaEquipe.resumo || {};
+    const sinalizados = equipe.filter(p => p.nivel === 'pesado' || p.nivel === 'atolado');
+    // Por padrão o painel mostra só quem está pesado/atolado -- é o que o
+    // gestor precisa ver. Sem ninguém nessa faixa, mostra a fila inteira.
+    const visiveis = (cargaSoSinalizados && sinalizados.length) ? sinalizados : equipe;
+
+    const cards = visiveis.map(p => {
+        const info = cargaNivelInfo(p.nivel);
+        const teto = Math.max(1, p.limite_atolado || 1);
+        const pct  = Math.min(100, Math.round((p.pontos / teto) * 100));
+        const sel  = (funcionarioFiltro === p.nome) ? ' sel' : '';
+        const nomeCurto = (p.nome || '').split(' ').slice(0, 2).join(' ');
+        const inicial = (p.nome || '?').charAt(0).toUpperCase();
+        const pulso = p.nivel === 'atolado' ? ' carga-fogo' : '';
+        const badges = [];
+        if (p.atrasadas) badges.push(`<span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:5px;background:#EF444418;color:#EF4444">${p.atrasadas} atrasada${p.atrasadas===1?'':'s'}</span>`);
+        if (p.indisponivel) badges.push(`<span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:5px;background:#F59E0B18;color:#B45309" title="${cargaAttr(p.indisponivel)}"><i class="ph ph-airplane-takeoff"></i> fora</span>`);
+        if (!p.tarefas) badges.push('<span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:5px;background:#0E9F6E18;color:#0E9F6E">livre</span>');
+
+        return `<div class="carga-card${sel}" onclick="cargaFiltrarPessoa(${p.usuario_id})"
+            title="${cargaAttr(cargaResumoTexto(p))}"
+            style="padding:10px 12px;min-width:198px;flex:0 0 auto;border-left:3px solid ${info.cor}">
+            <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:28px;height:28px;border-radius:50%;background:${info.cor}1F;color:${info.cor};font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${inicial}</div>
+                <div style="min-width:0;flex:1">
+                    <p class="carga-nome" style="font-size:12px;font-weight:700;color:#0B0D1F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cargaAttr(nomeCurto)}</p>
+                    <p class="${pulso}" style="font-size:10px;font-weight:800;color:${info.cor};display:flex;align-items:center;gap:3px;margin-top:1px"><i class="ph ${info.icone}"></i>${info.rotulo}</p>
+                </div>
+                <span style="font-family:monospace;font-size:14px;font-weight:800;color:${info.cor};flex-shrink:0">${p.pontos}</span>
+            </div>
+            <div class="carga-trilho" style="height:6px;border-radius:4px;margin:9px 0 7px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;border-radius:4px;background:linear-gradient(90deg,${info.cor}88,${info.cor})"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:10px;font-weight:600;color:#9097AC">
+                <span>${p.tarefas} tarefa${p.tarefas===1?'':'s'}</span><span>·</span><span>peso ${p.peso_total}</span>
+                ${badges.join('')}
+            </div>
+        </div>`;
+    }).join('');
+
+    const chips = [];
+    if (resumo.atolados) {
+        const nomes = equipe.filter(p => p.nivel === 'atolado').map(p => (p.nome||'').split(' ')[0]).join(', ');
+        chips.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;background:#EF444418;color:#EF4444"><i class="ph ph-fire"></i>${resumo.atolados} atolado${resumo.atolados===1?'':'s'}: ${nomes}</span>`);
+    }
+    if (resumo.pesados) {
+        chips.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;background:#F59E0B18;color:#B45309"><i class="ph ph-warning"></i>${resumo.pesados} com carga alta</span>`);
+    }
+    if (!resumo.atolados && !resumo.pesados) {
+        chips.push('<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;background:#0E9F6E18;color:#0E9F6E"><i class="ph ph-check-circle"></i>Ninguém atolado agora</span>');
+    }
+    if (resumo.livres) {
+        chips.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(148,163,184,0.14);color:#5E647A"><i class="ph ph-hand-waving"></i>${resumo.livres} sem fila</span>`);
+    }
+
+    const podeCalibrar = ['admin','gestor','diretor'].includes((window.ME && window.ME.perfil) || '');
+    const btnTodos = sinalizados.length
+        ? `<button onclick="cargaAlternarLista()" class="carga-btn" title="Alternar entre a equipe toda e só quem está sinalizado">
+               <i class="ph ${cargaSoSinalizados ? 'ph-users' : 'ph-funnel'}"></i>${cargaSoSinalizados ? `Ver equipe (${equipe.length})` : 'Só os sinalizados'}</button>`
+        : '';
+
+    wrap.innerHTML = `<div class="carga-painel" style="padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <i class="ph ph-gauge" style="font-size:16px;color:#5B2EE0"></i>
+            <span class="carga-titulo" style="font-size:12px;font-weight:800;color:#0B0D1F">Carga da equipe</span>
+            <span class="carga-legenda" style="font-size:10px;color:#9097AC" title="Pontos = soma do peso (1 a 4) das tarefas em aberto e em andamento. Atrasada conta 1,5x e o que vence hoje/amanhã conta 1,25x.">
+                pontos = peso das tarefas na fila · atrasada conta 1,5x</span>
+            ${chips.join('')}
+            <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
+                ${btnTodos}
+                ${podeCalibrar ? '<button onclick="abrirCargaLimites()" class="carga-btn" title="Calibrar a régua de sobrecarga deste time"><i class="ph ph-sliders-horizontal"></i>Calibrar</button>' : ''}
+            </span>
+        </div>
+        <div class="flex gap-2 overflow-x-auto custom-scrollbar" style="padding-bottom:4px">${cards}</div>
+    </div>`;
+}
+
+// Clicar no card joga o filtro de funcionário do topo -- o quadro inteiro
+// (e os gráficos) passa a mostrar só aquela pessoa.
+function cargaFiltrarPessoa(uid) {
+    const p = ((cargaEquipe && cargaEquipe.equipe) || []).find(x => x.usuario_id === uid);
+    if (p) filtrarFuncionario(p.nome);
+}
+
+function cargaAlternarLista() {
+    cargaSoSinalizados = !cargaSoSinalizados;
+    renderCargaEquipe();
+}
+
+// ── Calibragem da régua (por time) ───────────────────────────────────
+async function abrirCargaLimites() {
+    const modal = document.getElementById('modal-carga-limites');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    try {
+        const res = await fetch('/api/config/carga-limites');
+        if (!res.ok) return;
+        const cfg = await res.json();
+        document.getElementById('cl-time').textContent = cfg.time || '';
+        document.getElementById('cl-moderado').value = cfg.limites.moderado;
+        document.getElementById('cl-pesado').value = cfg.limites.pesado;
+        document.getElementById('cl-atolado').value = cfg.limites.atolado;
+        document.getElementById('cl-atrasadas').value = cfg.limites.atrasadas_atolado;
+    } catch (e) { console.error(e); }
+}
+
+function fecharCargaLimites() {
+    document.getElementById('modal-carga-limites').classList.add('hidden');
+}
+
+async function salvarCargaLimites() {
+    const body = {
+        moderado: parseInt(document.getElementById('cl-moderado').value, 10),
+        pesado: parseInt(document.getElementById('cl-pesado').value, 10),
+        atolado: parseInt(document.getElementById('cl-atolado').value, 10),
+        atrasadas_atolado: parseInt(document.getElementById('cl-atrasadas').value, 10),
+    };
+    if (!(body.moderado > 0 && body.moderado < body.pesado && body.pesado < body.atolado)) {
+        alert('Os limites precisam ser crescentes: moderado < carga alta < atolado.');
+        return;
+    }
+    try {
+        const res = await fetch('/api/config/carga-limites', {
+            method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            alert(err.detail || 'Não foi possível salvar a régua.');
+            return;
+        }
+        fecharCargaLimites();
+        await carregarCargaEquipe();
+        renderKanbanGestor();
+        if (typeof mostrarToastFiltro === 'function') mostrarToastFiltro('Régua de carga atualizada', '⚖️');
+    } catch (e) { console.error(e); }
 }
 
 // ── Resumo diário de alterações ─────────────────────────────────────
@@ -10730,6 +10951,51 @@ async function pn2SalvarDistribuicao() {
             </div>
         </div>
         <div id="rp-lista" class="p-5 overflow-y-auto custom-scrollbar" style="flex:1"></div>
+    </div>
+</div>
+<!-- Calibragem da régua de sobrecarga (por time) -->
+<div id="modal-carga-limites" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-faiston-border" style="max-height:88vh;overflow-y:auto">
+        <div class="grad-bg px-6 py-4 flex items-center gap-3 relative overflow-hidden" style="border-radius:16px 16px 0 0">
+            <div class="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/15 pointer-events-none"></div>
+            <div style="min-width:0">
+                <p class="text-white font-bold text-sm">Régua de sobrecarga</p>
+                <p class="text-white/80 text-xs mt-0.5">Time <span id="cl-time" class="font-semibold"></span></p>
+            </div>
+            <button onclick="fecharCargaLimites()" class="ml-auto w-8 h-8 rounded-lg bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-colors flex-shrink-0">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+        <div class="p-6 flex flex-col gap-4">
+            <p class="text-xs text-faiston-muted leading-relaxed">
+                A carga de cada pessoa vira <b>pontos</b>: soma do peso (1 a 4) das tarefas em aberto e em
+                andamento, com as atrasadas contando 1,5x e as que vencem hoje/amanhã 1,25x.
+                Cada time tem seu ritmo — o que atola o Backoffice não é o mesmo que atola o N2.
+            </p>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Fluindo a partir de</label>
+                    <input type="number" min="1" id="cl-moderado" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Carga alta</label>
+                    <input type="number" min="2" id="cl-pesado" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-purple">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Atolado</label>
+                    <input type="number" min="3" id="cl-atolado" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-purple">
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Atrasadas que já marcam "atolado"</label>
+                <input type="number" min="1" id="cl-atrasadas" class="w-full text-sm border border-faiston-border rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-faiston-purple">
+                <p class="text-[10px] text-faiston-faint mt-1.5">Independente dos pontos: quem acumula essa quantidade de tarefas vencidas aparece como atolado.</p>
+            </div>
+            <div class="flex items-center gap-2 justify-end pt-1">
+                <button onclick="fecharCargaLimites()" class="px-4 py-2 rounded-lg text-xs font-semibold border border-faiston-border text-faiston-muted hover:border-faiston-purple transition-colors">Cancelar</button>
+                <button onclick="salvarCargaLimites()" class="px-4 py-2 rounded-lg text-xs font-semibold btn-grad text-white">Salvar régua</button>
+            </div>
+        </div>
     </div>
 </div>
 <div id="modal-ticket" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
