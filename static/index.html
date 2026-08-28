@@ -1426,12 +1426,8 @@
                 </div>
                 <div class="col-span-2 hidden" id="np-time-wrap">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Time</label>
-                    <select id="np-time" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white">
-                        <option value="Projetos">Projetos</option>
-                        <option value="Logística">Logística</option>
-                        <option value="Rede Credenciada">Rede Credenciada</option>
-                        <option value="Desenvolvimento">Desenvolvimento</option>
-                    </select>
+                    <!-- Só áreas que trabalham por projeto -- ver carregarAreasSelects() -->
+                    <select id="np-time" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple bg-white"></select>
                 </div>
                 <div class="col-span-2">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome do Projeto *</label>
@@ -2340,6 +2336,9 @@
                 <button onclick="adminSetTab('pesos')" id="tab-pesos" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
             <i class="ph ph-scales mr-1.5"></i>Pesos das Atividades
         </button>
+        <button onclick="adminSetTab('areas')" id="tab-areas" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+            <i class="ph ph-squares-four mr-1.5"></i>Áreas
+        </button>
         <button onclick="adminSetTab('bloqueios')" id="tab-bloqueios" class="bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all">
             <i class="ph ph-calendar-x mr-1.5"></i>Bloqueios de Agenda
         </button>
@@ -2374,12 +2373,7 @@
         <div class="bg-white rounded-xl border border-faiston-border p-4 flex flex-wrap items-end gap-3 mb-5">
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Área (time)</label>
-                <select id="nova-frente-area" class="border border-faiston-border rounded-lg px-3 py-2 text-sm">
-                    <option value="Projetos">Projetos</option>
-                    <option value="Logística">Logística</option>
-                    <option value="Rede Credenciada">Rede Credenciada</option>
-                    <option value="Desenvolvimento">Desenvolvimento</option>
-                </select>
+                <select id="nova-frente-area" class="border border-faiston-border rounded-lg px-3 py-2 text-sm"></select>
             </div>
             <div class="flex-1 min-w-[160px]">
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome da frente/cargo</label>
@@ -2390,6 +2384,39 @@
             </button>
         </div>
         <div id="lista-pesos" class="space-y-6"></div>
+    </div>
+    <!-- PAINEL ÁREAS -->
+    <div id="painel-areas" class="hidden">
+        <div class="mb-5">
+            <h2 class="text-lg font-bold text-faiston-dark">Áreas</h2>
+            <p class="text-xs text-faiston-muted mt-0.5">As áreas (times) da operação. Cada uma tem seu próprio catálogo de tipos de atividade, em <span class="font-semibold">Pesos das Atividades</span>. Desmarcar <span class="font-semibold">Trabalha por projeto</span> tira o projeto do fluxo da área: a tarefa vira sempre demanda avulsa e a área deixa de aparecer como dona de projeto.</p>
+        </div>
+        <div class="bg-white rounded-xl border border-faiston-border p-4 flex flex-wrap items-end gap-3 mb-5">
+            <div class="flex-1 min-w-[200px]">
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nome da área</label>
+                <input id="nova-area-nome" maxlength="50" placeholder="Ex: Financeiro" class="w-full border border-faiston-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-faiston-purple">
+            </div>
+            <label class="flex items-center gap-2 text-sm text-slate-600 pb-2">
+                <input type="checkbox" id="nova-area-projetos" checked> Trabalha por projeto
+            </label>
+            <button onclick="adminCriarArea()" class="bg-faiston-purple text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-faiston-purple/90 transition-all">
+                <i class="ph ph-plus-circle mr-1"></i>Nova área
+            </button>
+        </div>
+        <div class="bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-faiston-border bg-slate-50">
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Área</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Trabalha por projeto</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Usuários</th>
+                        <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Projetos ativos</th>
+                        <th class="px-5 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-areas"></tbody>
+            </table>
+        </div>
     </div>
     <!-- PAINEL USUÁRIOS -->
     <div id="painel-usuarios">
@@ -2651,12 +2678,7 @@
             </div>
             <div>
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Time</label>
-                <select id="u-time" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all">
-                    <option value="Projetos">Projetos</option>
-                    <option value="Logística">Logística</option>
-                    <option value="Rede Credenciada">Rede Credenciada</option>
-                    <option value="Desenvolvimento">Desenvolvimento</option>
-                </select>
+                <select id="u-time" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-cyan bg-white transition-all"></select>
             </div>
             <div id="wrap-senha">
                 <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Senha <span id="senha-hint" class="normal-case font-normal text-faiston-faint">(deixe em branco para não alterar)</span></label>
@@ -3107,6 +3129,9 @@ async function suporteEnviar() {
 <script>
 let clienteAtivo = '';
 let projetoFiltro = '';
+// Cadastro de áreas (/api/areas). Declarado aqui, e não junto das funções lá
+// embaixo, porque `let` não é içado com valor e init() roda antes daquele ponto.
+let _areasCache = [];
 let charts = {};
 let vistaAtiva = 'metricas';
 let todasTarefasKanban = [];
@@ -3805,6 +3830,10 @@ async function init() {
         const me = await res.json();
         window.ME = me;
         if (me.perfil === 'funcionario' && me.cargo === 'n2') { window.location.href = '/n2'; return; }
+        // Áreas antes de qualquer select de time: o modal de usuário seta
+        // u-time por valor, e sem as options o valor não "pega".
+        await carregarAreas();
+        carregarAreasSelects();
         // Backoffice entra aqui só pra ver/arrastar o Kanban de Cronograma
         // do Status Report -- reaproveita a tela do admin em vez de duplicar
         // (2026-08-03), mas não deve enxergar mais nada do painel.
@@ -5115,6 +5144,18 @@ async function carregarDadosModal() {
             const sel = document.getElementById('nt-projeto');
             sel.innerHTML = '<option value="">— Sem projeto (demanda avulsa) —</option>' +
                 _ntProjetos.map(p => `<option value="${p.id}" data-cliente="${(p.cliente||'').replace(/"/g,'&quot;')}">${p.nome} · ${p.cliente}</option>`).join('');
+        }
+    } catch(e) {}
+    // Área sem projeto: o campo some e a tarefa nasce sempre como demanda
+    // avulsa. O backend recusa projeto_id nesse caso -- aqui é só não oferecer.
+    try {
+        if (!_areasCache.length) await carregarAreas();
+        const me = window.ME || {};
+        const semProjeto = me.perfil !== 'admin' && !areaUsaProjetos(me.time || 'Projetos');
+        document.getElementById('nt-projeto-wrap').classList.toggle('hidden', semProjeto);
+        if (semProjeto) {
+            document.getElementById('nt-projeto').value = '';
+            ntSelecionarProjeto('');
         }
     } catch(e) {}
     // Responsável + ajudantes: todos os usuários ativos, com (Eu) destacado
@@ -8583,6 +8624,134 @@ async function adminDesativarFrente(id, nome) {
     if (!res.ok) { alert('Erro ao desativar'); return; }
     adminCarregarPesos();
 }
+// ── ÁREAS (times) ────────────────────────────────────────────────────────────
+// A área virou cadastro (/api/areas): todo select de time é montado daqui, e
+// `usa_projetos` é o que decide se o fluxo de projeto existe pra ela.
+async function carregarAreas() {
+    try {
+        const res = await fetch('/api/areas');
+        if (res.ok) _areasCache = await res.json();
+    } catch (e) { console.error('Erro ao carregar áreas', e); }
+    return _areasCache;
+}
+
+function areaUsaProjetos(nome) {
+    const a = _areasCache.find(x => x.nome === nome);
+    // Área fora do cadastro conta como "usa projetos" -- mesma regra do backend
+    // (_area_usa_projetos_cur), pra tela e API nunca discordarem.
+    return a ? !!a.usa_projetos : true;
+}
+
+// Preenche os selects de time a partir do cadastro. Preserva o valor que já
+// estava selecionado -- o modal de usuário chama isso antes de setar u-time,
+// mas uma recarga no meio da edição não pode zerar a escolha.
+function carregarAreasSelects() {
+    const alvos = [
+        {id: 'u-time', soComProjeto: false},
+        {id: 'nova-frente-area', soComProjeto: false},
+        // Novo projeto: área sem projeto não pode ser dona de um.
+        {id: 'np-time', soComProjeto: true},
+    ];
+    alvos.forEach(({id, soComProjeto}) => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const anterior = sel.value;
+        const lista = _areasCache.filter(a => !soComProjeto || a.usa_projetos);
+        sel.innerHTML = lista.map(a => `<option value="${escHtml(a.nome)}">${escHtml(a.nome)}</option>`).join('');
+        if (anterior && lista.some(a => a.nome === anterior)) sel.value = anterior;
+    });
+}
+
+async function adminCarregarAreas() {
+    const res = await fetch('/api/areas?todas=1');
+    if (!res.ok) return;
+    const areas = await res.json();
+    _areasCache = areas.filter(a => a.ativo);
+    carregarAreasSelects();
+    const tb = document.getElementById('tabela-areas');
+    if (!areas.length) {
+        tb.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-400 text-sm">Nenhuma área cadastrada</td></tr>';
+        return;
+    }
+    tb.innerHTML = areas.map(a => {
+        const nome = escHtml(a.nome);
+        const badge = a.usa_projetos
+            ? '<span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-faiston-purple/10 text-faiston-purple">Sim</span>'
+            : '<span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Não — só demanda</span>';
+        const inativa = a.ativo ? '' : '<span class="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">inativa</span>';
+        return `<tr class="border-b border-faiston-border hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3 font-semibold text-slate-700">${nome}${inativa}</td>
+            <td class="px-5 py-3">${badge}</td>
+            <td class="px-5 py-3 text-slate-600">${a.usuarios}</td>
+            <td class="px-5 py-3 text-slate-600">${a.projetos}</td>
+            <td class="px-5 py-3 text-right whitespace-nowrap">
+                <button onclick="adminRenomearArea(${a.id}, '${nome.replace(/'/g, "\\'")}', ${!!a.usa_projetos})" class="text-xs font-semibold text-faiston-purple hover:underline mr-3">Renomear</button>
+                <button onclick="adminAlternarProjetosArea(${a.id}, '${nome.replace(/'/g, "\\'")}', ${!!a.usa_projetos})" class="text-xs font-semibold text-faiston-purple hover:underline mr-3">${a.usa_projetos ? 'Tirar projetos' : 'Habilitar projetos'}</button>
+                ${a.ativo ? `<button onclick="adminDesativarArea(${a.id}, '${nome.replace(/'/g, "\\'")}')" class="text-xs font-semibold text-faiston-magenta hover:underline">Desativar</button>` : ''}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+async function _areaSalvar(id, corpo, erroPadrao) {
+    const res = await fetch('/api/areas/' + id, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(corpo)
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || erroPadrao);
+        return false;
+    }
+    await adminCarregarAreas();
+    return true;
+}
+
+async function adminCriarArea() {
+    const nome = document.getElementById('nova-area-nome').value.trim();
+    if (!nome) { alert('Informe o nome da área'); return; }
+    const res = await fetch('/api/areas', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({nome, usa_projetos: document.getElementById('nova-area-projetos').checked})
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || 'Erro ao criar área');
+        return;
+    }
+    document.getElementById('nova-area-nome').value = '';
+    document.getElementById('nova-area-projetos').checked = true;
+    adminCarregarAreas();
+}
+
+async function adminRenomearArea(id, nome, usaProjetos) {
+    const novo = (prompt('Novo nome da área:', nome) || '').trim();
+    if (!novo || novo === nome) return;
+    // O backend propaga o rename pra usuários, clientes, projetos e frentes.
+    await _areaSalvar(id, {nome: novo, usa_projetos: usaProjetos, ativo: true}, 'Erro ao renomear');
+}
+
+async function adminAlternarProjetosArea(id, nome, usaProjetos) {
+    const msg = usaProjetos
+        ? `Tirar os projetos da área "${nome}"?\n\nAs tarefas dela passam a ser sempre demanda avulsa e a área deixa de aparecer como dona de projeto.`
+        : `Habilitar projetos na área "${nome}"?`;
+    if (!confirm(msg)) return;
+    await _areaSalvar(id, {nome, usa_projetos: !usaProjetos, ativo: true}, 'Erro ao alterar a área');
+}
+
+async function adminDesativarArea(id, nome) {
+    if (!confirm(`Desativar a área "${nome}"?\n\nEla some dos selects de time. O histórico já registrado é preservado.`)) return;
+    const res = await fetch('/api/areas/' + id, {method: 'DELETE'});
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || 'Erro ao desativar');
+        return;
+    }
+    adminCarregarAreas();
+}
+
 function adminSetTab(tab) {
     adminCurrentTab = tab;
     document.getElementById('painel-usuarios').classList.toggle('hidden', tab !== 'usuarios');
@@ -8590,7 +8759,8 @@ function adminSetTab(tab) {
     document.getElementById('painel-online').classList.toggle('hidden', tab !== 'online');
     document.getElementById('painel-pesos').classList.toggle('hidden', tab !== 'pesos');
     document.getElementById('painel-bloqueios-admin').classList.toggle('hidden', tab !== 'bloqueios');
-    ['usuarios','tarefas','online','pesos','bloqueios'].forEach(t => {
+    document.getElementById('painel-areas').classList.toggle('hidden', tab !== 'areas');
+    ['usuarios','tarefas','online','pesos','bloqueios','areas'].forEach(t => {
         document.getElementById('tab-' + t).className = tab === t
             ? 'tab-active px-5 py-2 rounded-lg text-sm font-semibold transition-all'
             : 'bg-white border border-faiston-border px-5 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all';
@@ -8599,6 +8769,7 @@ function adminSetTab(tab) {
     if (tab === 'online') adminCarregarAtividade();
     if (tab === 'pesos') adminCarregarPesos();
     if (tab === 'bloqueios') carregarBloqueiosAtivosHoje().then(() => adminRenderBloqueios(adminUsuariosCache));
+    if (tab === 'areas') adminCarregarAreas();
 }
 
 // Reaproveita o mesmo modal/endpoints já usados em Minha Equipe
@@ -11024,7 +11195,7 @@ async function pn2SalvarDistribuicao() {
                     <option value="">Selecionar...</option>
                 </select>
             </div>
-            <div>
+            <div id="nt-projeto-wrap">
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
                 <select id="nt-projeto" onchange="ntSelecionarProjeto(this.value)"
                         class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">

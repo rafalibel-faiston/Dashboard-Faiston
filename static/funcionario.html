@@ -615,7 +615,7 @@
                 </select>
                 <p class="text-[10px] text-faiston-faint mt-1">Atribua a você mesmo ou a um assistente de Backoffice.</p>
             </div>
-            <div>
+            <div id="projeto-wrap">
                 <label class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em] mb-1.5 block">Projeto</label>
                 <select id="input-projeto" onchange="selecionarProjeto(this.value)"
                         class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple transition-all bg-white">
@@ -994,6 +994,17 @@ async function init() {
             document.getElementById('tab-projetos').classList.add('hidden');
             document.getElementById('tab-statusreport').classList.add('hidden');
             if (tabAtiva === 'projetos' || tabAtiva === 'statusreport') switchTab('kanban');
+        }
+        // Área marcada como "não trabalha por projeto" no cadastro (/api/areas):
+        // o campo Projeto some do modal e a tarefa é sempre demanda avulsa. O
+        // backend recusa projeto_id nesse caso -- aqui é só não oferecer.
+        await carregarAreaDoUsuario();
+        if (!_areaUsaProjetos) {
+            document.getElementById('projeto-wrap').classList.add('hidden');
+            document.getElementById('input-projeto').value = '';
+            document.getElementById('demanda-wrap').classList.remove('hidden');
+            document.getElementById('tab-projetos').classList.add('hidden');
+            if (tabAtiva === 'projetos') switchTab('kanban');
         }
     } catch(e) { window.location.href = '/'; return; }
 
@@ -1685,6 +1696,22 @@ function editTask(taskId) {
     document.getElementById('modal').classList.remove('hidden');
 }
 
+// --- ÁREA DO USUÁRIO ---
+// A área virou cadastro (/api/areas) e traz `usa_projetos`, que é o que decide
+// se o fluxo de projeto existe pra quem está logado.
+let _areaUsaProjetos = true;
+
+async function carregarAreaDoUsuario() {
+    try {
+        const res = await fetch('/api/areas');
+        if (!res.ok) return;
+        const area = (await res.json()).find(a => a.nome === MEU_TIME);
+        // Área fora do cadastro conta como "usa projetos" -- mesma regra do
+        // backend (_area_usa_projetos_cur), pra tela e API não discordarem.
+        _areaUsaProjetos = area ? !!area.usa_projetos : true;
+    } catch (e) { console.error('Erro ao carregar áreas', e); }
+}
+
 // --- TIPO DE ATIVIDADE / TABELA DE PESOS ---
 let _tiposAtividade = [];
 
@@ -1805,6 +1832,9 @@ async function criarProjetoRapido() {
 }
 
 function selecionarProjeto(projetoId) {
+    // Área sem projeto: ignora qualquer vínculo, inclusive o de tarefa criada
+    // antes de a área ser marcada assim.
+    if (!_areaUsaProjetos) projetoId = '';
     const proj = _todosProjetos.find(p => p.id == projetoId);
     const clienteHidden = document.getElementById('input-cliente');
     const resolvido = document.getElementById('cliente-resolvido');
@@ -1875,7 +1905,7 @@ function popularDemandas() {
 async function saveTask() {
     const descricao  = document.getElementById('input-descricao').value.trim();
     const cliente    = document.getElementById('input-cliente').value;
-    const projeto_id = parseInt(document.getElementById('input-projeto').value) || null;
+    const projeto_id = _areaUsaProjetos ? (parseInt(document.getElementById('input-projeto').value) || null) : null;
     // Resolve o nome do projeto a partir da lista já carregada, para a tarefa
     // aparecer no grupo certo imediatamente (sem precisar recarregar a página).
     const _proj = (_todosProjetos || []).find(p => p.id == projeto_id);

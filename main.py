@@ -209,6 +209,12 @@ def get_session(token: str, page: str = ""):
         print(f"Erro get_session: {e}")
         return None
 
+# Áreas (times) da operação. Isto aqui é só a CARGA INICIAL da tabela `areas`:
+# a lista de verdade vem do banco (times_validos()), porque desde 2026-08-28 a
+# área é cadastro editável na tela de admin -- abrir uma área nova deixou de
+# exigir deploy.
+TIMES_PADRAO = ('Projetos', 'Logística', 'Rede Credenciada', 'Desenvolvimento')
+
 # Régua inicial de complexidade (planilha "Performance projetos — Peso das
 # atividades"). Serve só como carga inicial: o INSERT usa ON CONFLICT DO
 # NOTHING, então peso ajustado na tela de admin não é sobrescrito quando o
@@ -807,6 +813,23 @@ def setup_banco():
         # Peso de esforço por tipo de atividade, por frente (N2, Backoffice...)
         # dentro da área (Projetos, Logística, Rede Credenciada). Cadastro em
         # vez de planilha: o gestor ajusta a régua pela tela de admin.
+        # Cadastro de áreas (2026-08-28). `usa_projetos=FALSE` é a área que não
+        # trabalha por projeto: a tarefa dela é sempre demanda avulsa, ela não
+        # aparece como dona de projeto e a API recusa os dois caminhos (ver
+        # _exigir_area_com_projeto). Antes disso a lista era fixa no código.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS areas (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(50) UNIQUE NOT NULL,
+                usa_projetos BOOLEAN NOT NULL DEFAULT TRUE,
+                ativo BOOLEAN NOT NULL DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        # ON CONFLICT DO NOTHING: banco já existente mantém o que o admin ajustou.
+        for _area_seed in TIMES_PADRAO:
+            cur.execute("INSERT INTO areas (nome) VALUES (%s) ON CONFLICT (nome) DO NOTHING",
+                        (_area_seed,))
         cur.execute("""
             CREATE TABLE IF NOT EXISTS frentes (
                 id SERIAL PRIMARY KEY,
@@ -879,7 +902,38 @@ class LoginRequest(BaseModel):
     usuario: str
     senha: str
 
-TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada', 'Desenvolvimento']
+# A área virou cadastro (tabela `areas`), então a lista de times válidos e a
+# regra de "essa área trabalha por projeto?" saem do banco, não de constante.
+# Quem já tem cursor aberto usa a variante _cur, pra não abrir uma segunda
+# conexão no meio da transação.
+def _times_validos_cur(cur) -> list:
+    cur.execute("SELECT nome FROM areas WHERE ativo=TRUE ORDER BY nome")
+    return [r[0] for r in cur.fetchall()]
+
+def times_validos() -> list:
+    """Nomes das áreas ativas. Cai pra TIMES_PADRAO com o banco fora -- validar
+    cadastro não pode virar 500 por causa disso."""
+    conn = get_db()
+    if not conn: return list(TIMES_PADRAO)
+    try:
+        cur = conn.cursor()
+        nomes = _times_validos_cur(cur)
+        cur.close(); conn.close()
+        return nomes or list(TIMES_PADRAO)
+    except Exception:
+        return list(TIMES_PADRAO)
+
+def _area_usa_projetos_cur(cur, nome: str) -> bool:
+    """Área fora do cadastro conta como 'usa projetos' -- é o comportamento de
+    sempre, e evita travar dado legado cujo time saiu da lista."""
+    cur.execute("SELECT usa_projetos FROM areas WHERE nome=%s", (nome or 'Projetos',))
+    row = cur.fetchone()
+    return True if not row else bool(row[0])
+
+def _exigir_area_com_projeto(cur, nome: str):
+    if not _area_usa_projetos_cur(cur, nome):
+        raise HTTPException(status_code=400,
+                            detail=f"A área {nome} não trabalha por projeto — registre como demanda")
 
 CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor')
 
@@ -2037,7 +2091,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, request: Request, faiston
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
     if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
     if not (u.email or "").strip(): raise HTTPException(status_code=400, detail="Email é obrigatório — é por ele que a pessoa recebe o acesso.")
-    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
+    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in times_validos() else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -2080,7 +2134,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
     if u.senha:
         erro = _senha_fraca(u.senha)
         if erro: raise HTTPException(status_code=400, detail=erro)
-    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
+    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in times_validos() else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -2275,6 +2329,130 @@ class NovaFrente(BaseModel):
     area: str
     nome: str
 
+class AreaModel(BaseModel):
+    nome: str
+    usa_projetos: bool = True
+    ativo: bool = True
+
+@app.get("/api/areas")
+def listar_areas(todas: bool = False, faiston_token: str = Cookie(None)):
+    """Leitura liberada pra qualquer logado: o front monta com isto todo select
+    de time e descobre se a área trabalha por projeto. `todas=1` (só admin)
+    inclui as inativas -- é o que a tela de cadastro precisa."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    incluir_inativas = todas and sess["perfil"] == "admin"
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT a.id, a.nome, a.usa_projetos, a.ativo,
+                   (SELECT COUNT(*) FROM usuarios u
+                     WHERE COALESCE(u.time,'Projetos') = a.nome AND u.ativo = TRUE),
+                   (SELECT COUNT(*) FROM projetos p
+                     WHERE COALESCE(p.time,'Projetos') = a.nome AND p.ativo = TRUE)
+            FROM areas a
+            {'' if incluir_inativas else 'WHERE a.ativo = TRUE'}
+            ORDER BY a.nome
+        """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return [{"id": r[0], "nome": r[1], "usa_projetos": r[2], "ativo": r[3],
+                 "usuarios": r[4], "projetos": r[5]} for r in rows]
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/areas")
+def criar_area(a: AreaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    nome = (a.nome or "").strip()
+    if not nome: raise HTTPException(status_code=400, detail="Informe o nome da área")
+    if len(nome) > 50: raise HTTPException(status_code=400, detail="Nome da área: no máximo 50 caracteres")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO areas (nome, usa_projetos) VALUES (%s,%s) "
+                    "ON CONFLICT (nome) DO NOTHING RETURNING id", (nome, a.usa_projetos))
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=400, detail="Já existe uma área com esse nome")
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": row[0]}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/areas/{aid}")
+def atualizar_area(aid: int, a: AreaModel, faiston_token: str = Cookie(None)):
+    """Renomear propaga pras tabelas que guardam o NOME da área (usuarios,
+    clientes, projetos, frentes): `time` nunca foi chave estrangeira, então sem
+    a cascata o rename deixaria todo mundo apontando pro nome antigo. Tudo na
+    mesma transação."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    nome = (a.nome or "").strip()
+    if not nome: raise HTTPException(status_code=400, detail="Informe o nome da área")
+    if len(nome) > 50: raise HTTPException(status_code=400, detail="Nome da área: no máximo 50 caracteres")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome, usa_projetos FROM areas WHERE id=%s", (aid,))
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=404, detail="Área não encontrada")
+        nome_antigo, usava_projetos = row[0], bool(row[1])
+        # Desligar o projeto de uma área que ainda tem projeto ativo deixaria
+        # tarefa apontando pra projeto que nenhuma tela mostra mais. Barra e diz
+        # quantos são, pro admin arquivar antes.
+        if usava_projetos and not a.usa_projetos:
+            cur.execute("SELECT COUNT(*) FROM projetos WHERE COALESCE(time,'Projetos')=%s AND ativo=TRUE",
+                        (nome_antigo,))
+            n_proj = cur.fetchone()[0]
+            if n_proj:
+                raise HTTPException(status_code=400, detail=(
+                    f"A área {nome_antigo} tem {n_proj} projeto(s) ativo(s) — "
+                    "arquive antes de marcá-la como área sem projetos"))
+        if nome != nome_antigo:
+            cur.execute("SELECT 1 FROM areas WHERE nome=%s AND id<>%s", (nome, aid))
+            if cur.fetchone(): raise HTTPException(status_code=400, detail="Já existe uma área com esse nome")
+            for tabela, coluna in (("usuarios", "time"), ("clientes", "time"),
+                                   ("projetos", "time"), ("frentes", "area")):
+                cur.execute(f"UPDATE {tabela} SET {coluna}=%s WHERE {coluna}=%s", (nome, nome_antigo))
+        cur.execute("UPDATE areas SET nome=%s, usa_projetos=%s, ativo=%s WHERE id=%s",
+                    (nome, a.usa_projetos, a.ativo, aid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/areas/{aid}")
+def desativar_area(aid: int, faiston_token: str = Cookie(None)):
+    """Desativa em vez de apagar: usuário, cliente e projeto guardam o NOME da
+    área, então um DELETE de verdade deixaria esse dado apontando pro vazio.
+    Área com gente dentro não desativa -- esses usuários sumiriam de todo filtro
+    por time."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM areas WHERE id=%s", (aid,))
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=404, detail="Área não encontrada")
+        cur.execute("SELECT COUNT(*) FROM usuarios WHERE COALESCE(time,'Projetos')=%s AND ativo=TRUE",
+                    (row[0],))
+        n_users = cur.fetchone()[0]
+        if n_users:
+            raise HTTPException(status_code=400, detail=(
+                f"A área {row[0]} tem {n_users} usuário(s) ativo(s) — "
+                "mova essas pessoas para outra área antes de desativar"))
+        cur.execute("UPDATE areas SET ativo=FALSE WHERE id=%s", (aid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/frentes")
 def listar_frentes(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -2297,12 +2475,15 @@ def criar_frente(f: NovaFrente, faiston_token: str = Cookie(None)):
     peso do time de Projetos)."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
-    if f.area not in TIMES_VALIDOS: raise HTTPException(status_code=400, detail="Área inválida")
     if not f.nome.strip(): raise HTTPException(status_code=400, detail="Informe o nome da frente")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        # Valida contra o cadastro de áreas, não contra lista fixa -- é o que
+        # permite montar o catálogo de atividades de uma área recém-criada.
+        if f.area not in _times_validos_cur(cur):
+            raise HTTPException(status_code=400, detail="Área inválida")
         cur.execute(
             "INSERT INTO frentes (area, nome) VALUES (%s,%s) ON CONFLICT (area, nome) DO NOTHING RETURNING id",
             (f.area, f.nome.strip())
@@ -2669,6 +2850,14 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
         bloqueio = _bloqueio_ativo(cur, uid, data_checar, t.hora_prazo)
         if bloqueio:
             raise HTTPException(status_code=400, detail=f"Funcionário indisponível nesta data: {bloqueio}")
+        # Área sem projeto (cadastro em /api/areas): a tarefa é sempre demanda
+        # avulsa. Olha o time do DONO da tarefa (uid), não o de quem cria --
+        # gestor de outra área atribuindo tarefa cai na mesma regra.
+        if t.projeto_id:
+            cur.execute("SELECT COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (uid,))
+            row_area = cur.fetchone()
+            if row_area:
+                _exigir_area_com_projeto(cur, row_area[0])
         # 2A: campo ainda opcional. Quando vier preenchido, o peso da régua é
         # copiado pra tarefa. A obrigatoriedade entra no 2B, junto com o campo
         # no modal -- senão o frontend antigo pararia de criar tarefa.
@@ -2714,6 +2903,10 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
     try:
         cur = conn.cursor()
         snap_old = _snapshot_tarefa(cur, tid)
+        # Mesma regra da criação -- o UPDATE abaixo é escopado em usuario_id =
+        # sess["id"], então o dono da tarefa é quem está editando.
+        if t.projeto_id:
+            _exigir_area_com_projeto(cur, sess.get("time", "Projetos"))
         peso_upd = None
         if t.tipo_atividade_id:
             cur.execute("SELECT peso FROM tipos_atividade WHERE id=%s AND ativo=TRUE", (t.tipo_atividade_id,))
@@ -4970,7 +5163,7 @@ def criar_cliente(c: ClienteModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        time_val = c.time if (sess["perfil"] == "admin" and c.time in TIMES_VALIDOS) else sess.get("time", "Projetos")
+        time_val = c.time if (sess["perfil"] == "admin" and c.time in _times_validos_cur(cur)) else sess.get("time", "Projetos")
         cur.execute("INSERT INTO clientes (nome, contato, email, time) VALUES (%s,%s,%s,%s) RETURNING id",
                     (c.nome, c.contato, c.email, time_val))
         new_id = cur.fetchone()[0]
@@ -5393,6 +5586,10 @@ def opcoes_tarefa(faiston_token: str = Cookie(None)):
             ORDER BY c.nome NULLS FIRST, p.nome
         """, (tf, tf))
         projetos = [{"id": r[0], "nome": r[1], "cliente": r[2]} for r in cur.fetchall()]
+        # Área sem projeto: o modal esconde o campo, e aqui a API não oferece o
+        # que ela não pode usar. Admin atravessa áreas, então segue vendo tudo.
+        if sess["perfil"] != "admin" and not _area_usa_projetos_cur(cur, sess.get("time", "Projetos")):
+            projetos = []
         cur.close(); conn.close()
         return {"clientes": clientes, "projetos": projetos}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -5439,7 +5636,8 @@ def criar_projeto_simples(p: NovoProjetoSimples, faiston_token: str = Cookie(Non
             if sess["perfil"] != "admin" and time_val != sess.get("time", "Projetos"):
                 raise HTTPException(status_code=403, detail="Cliente não pertence ao seu time")
         else:
-            time_val = p.time if (sess["perfil"] == "admin" and p.time in TIMES_VALIDOS) else sess.get("time", "Projetos")
+            time_val = p.time if (sess["perfil"] == "admin" and p.time in _times_validos_cur(cur)) else sess.get("time", "Projetos")
+        _exigir_area_com_projeto(cur, time_val)
         cur.execute("""
             INSERT INTO projetos (cliente_id, nome, descricao, orcamento, escopo,
                                   responsavel_id, status_gestao, data_inicio, data_termino, time, ativo)
@@ -5583,6 +5781,12 @@ def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         _ensure_financeiro_tables(cur)
+        # O projeto criado aqui pertence à área do cliente -- se ela não trabalha
+        # por projeto, esta porta também fica fechada.
+        cur.execute("SELECT COALESCE(time,'Projetos') FROM clientes WHERE id=%s", (cid,))
+        row_cli = cur.fetchone()
+        if row_cli:
+            _exigir_area_com_projeto(cur, row_cli[0])
         status = p.status_gestao if p.status_gestao in ('EM ANDAMENTO', 'FINALIZAÇÃO', 'EM FREEZING') else 'EM ANDAMENTO'
         cur.execute("""
             INSERT INTO projetos (cliente_id, nome, descricao, orcamento, escopo,
@@ -5593,6 +5797,7 @@ def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/projetos/{pid}")
