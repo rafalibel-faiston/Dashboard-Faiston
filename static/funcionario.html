@@ -1705,7 +1705,7 @@ async function carregarAreaDoUsuario() {
     try {
         const res = await fetch('/api/areas');
         if (!res.ok) return;
-        const area = (await res.json()).find(a => a.nome === MEU_TIME);
+        const area = ((await res.json()).areas || []).find(a => a.nome === MEU_TIME);
         // Área fora do cadastro conta como "usa projetos" -- mesma regra do
         // backend (_area_usa_projetos_cur), pra tela e API não discordarem.
         _areaUsaProjetos = area ? !!area.usa_projetos : true;

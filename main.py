@@ -215,6 +215,14 @@ def get_session(token: str, page: str = ""):
 # exigir deploy.
 TIMES_PADRAO = ('Projetos', 'Logística', 'Rede Credenciada', 'Desenvolvimento')
 
+# Catálogo de cargos e perfis. Fixo de propósito: cada um destes tem
+# comportamento preso no código (o N2 tem tela própria, o Backoffice arrasta
+# card no Cronograma, o Analista atribui tarefa pro Backoffice...), então
+# inventar um nome novo aqui daria um rótulo sem efeito nenhum. O que é
+# configurável por área é QUAIS deles ela aceita -- ver a tabela `areas`.
+CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor')
+PERFIL_VALIDOS = ('funcionario', 'gestor', 'diretor', 'demo', 'admin', 'dev')
+
 # Régua inicial de complexidade (planilha "Performance projetos — Peso das
 # atividades"). Serve só como carga inicial: o INSERT usa ON CONFLICT DO
 # NOTHING, então peso ajustado na tela de admin não é sobrescrito quando o
@@ -830,6 +838,15 @@ def setup_banco():
         for _area_seed in TIMES_PADRAO:
             cur.execute("INSERT INTO areas (nome) VALUES (%s) ON CONFLICT (nome) DO NOTHING",
                         (_area_seed,))
+        # Quais cargos e perfis a área aceita (2026-08-28). Guardado como lista
+        # explícita, não como "NULL = todos": assim o admin enxerga na tela
+        # exatamente o que está ligado, e um cargo novo no catálogo do código
+        # não entra sozinho em área nenhuma.
+        import json as _json
+        cur.execute("ALTER TABLE areas ADD COLUMN IF NOT EXISTS cargos JSONB")
+        cur.execute("ALTER TABLE areas ADD COLUMN IF NOT EXISTS perfis JSONB")
+        cur.execute("UPDATE areas SET cargos=%s WHERE cargos IS NULL", (_json.dumps(list(CARGO_VALIDOS)),))
+        cur.execute("UPDATE areas SET perfis=%s WHERE perfis IS NULL", (_json.dumps(list(PERFIL_VALIDOS)),))
         cur.execute("""
             CREATE TABLE IF NOT EXISTS frentes (
                 id SERIAL PRIMARY KEY,
@@ -930,12 +947,26 @@ def _area_usa_projetos_cur(cur, nome: str) -> bool:
     row = cur.fetchone()
     return True if not row else bool(row[0])
 
+def _area_lista_cur(cur, coluna: str, nome: str, catalogo) -> list:
+    """Cargos ou perfis habilitados na área. Área fora do cadastro devolve o
+    catálogo inteiro -- mesma regra de _area_usa_projetos_cur: dado legado não
+    pode ficar travado por causa de um nome que saiu da lista."""
+    cur.execute(f"SELECT {coluna} FROM areas WHERE nome=%s", (nome or 'Projetos',))
+    row = cur.fetchone()
+    if not row or row[0] is None:
+        return list(catalogo)
+    return [v for v in row[0] if v in catalogo]
+
+def _area_cargos_cur(cur, nome: str) -> list:
+    return _area_lista_cur(cur, "cargos", nome, CARGO_VALIDOS)
+
+def _area_perfis_cur(cur, nome: str) -> list:
+    return _area_lista_cur(cur, "perfis", nome, PERFIL_VALIDOS)
+
 def _exigir_area_com_projeto(cur, nome: str):
     if not _area_usa_projetos_cur(cur, nome):
         raise HTTPException(status_code=400,
                             detail=f"A área {nome} não trabalha por projeto — registre como demanda")
-
-CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor')
 
 def _eh_n2(sess: dict) -> bool:
     """N2 deixou de ser perfil próprio e virou cargo dentro de
@@ -2089,7 +2120,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, request: Request, faiston
     is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
-    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in PERFIL_VALIDOS: raise HTTPException(status_code=400, detail="Perfil inválido")
     if not (u.email or "").strip(): raise HTTPException(status_code=400, detail="Email é obrigatório — é por ele que a pessoa recebe o acesso.")
     time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in times_validos() else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
@@ -2097,6 +2128,14 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, request: Request, faiston
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        # Cargo e perfil habilitados por área (cadastro em /api/areas): o admin
+        # liga em cada área só o que faz sentido nela.
+        if u.perfil not in _area_perfis_cur(cur, time_val):
+            raise HTTPException(status_code=400,
+                                detail=f"O perfil {u.perfil} não está habilitado na área {time_val}")
+        if cargo_val and cargo_val not in _area_cargos_cur(cur, time_val):
+            raise HTTPException(status_code=400,
+                                detail=f"O cargo {cargo_val} não está habilitado na área {time_val}")
         # Sem senha definida pelo admin (2026-08-10): a coluna senha_hash ainda
         # não aceita NULL, então preenche com uma senha aleatória que nunca é
         # exibida nem enviada -- a pessoa define a própria senha pelo link de
@@ -2112,6 +2151,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, request: Request, faiston
         bg.add_task(enviar_email_boas_vindas, u.email, u.nome, link)
         return {"sucesso": True, "id": new_id, "email_enviado": True}
     except psycopg2.errors.UniqueViolation: raise HTTPException(status_code=400, detail="Usuário já existe")
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/usuarios/{uid}")
@@ -2140,6 +2180,19 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("SELECT perfil, COALESCE(cargo,''), COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (uid,))
+        atual = cur.fetchone()
+        if not atual: raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        # Só checa o que mudou: alguém cadastrado antes de a área restringir
+        # cargo/perfil continua editável (mudar o nome não pode dar 400) -- mas
+        # trocar o perfil, o cargo ou a área passa pela regra da área de destino.
+        if (u.perfil, time_val) != (atual[0], atual[2]) and u.perfil not in _area_perfis_cur(cur, time_val):
+            raise HTTPException(status_code=400,
+                                detail=f"O perfil {u.perfil} não está habilitado na área {time_val}")
+        if cargo_val and (cargo_val, time_val) != (atual[1], atual[2]) \
+                and cargo_val not in _area_cargos_cur(cur, time_val):
+            raise HTTPException(status_code=400,
+                                detail=f"O cargo {cargo_val} não está habilitado na área {time_val}")
         if u.senha:
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE, time=%s, cargo=%s WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), time_val, cargo_val, uid))
@@ -2156,6 +2209,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
                     (u.nome, u.perfil, time_val, cargo_val, uid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/usuarios/{uid}/reenviar-email")
@@ -2333,6 +2387,17 @@ class AreaModel(BaseModel):
     nome: str
     usa_projetos: bool = True
     ativo: bool = True
+    # None = não mexer (o PUT de renomear/ligar projetos não manda estas duas).
+    # Lista vazia é tratada como "todos", pra não deixar área que não aceita
+    # ninguém -- o admin tira o que não quer, não esvazia.
+    cargos: Optional[List[str]] = None
+    perfis: Optional[List[str]] = None
+
+def _normalizar_lista_area(valores, catalogo):
+    if valores is None:
+        return None
+    filtrada = [v for v in catalogo if v in valores]
+    return filtrada or list(catalogo)
 
 @app.get("/api/areas")
 def listar_areas(todas: bool = False, faiston_token: str = Cookie(None)):
@@ -2351,15 +2416,24 @@ def listar_areas(todas: bool = False, faiston_token: str = Cookie(None)):
                    (SELECT COUNT(*) FROM usuarios u
                      WHERE COALESCE(u.time,'Projetos') = a.nome AND u.ativo = TRUE),
                    (SELECT COUNT(*) FROM projetos p
-                     WHERE COALESCE(p.time,'Projetos') = a.nome AND p.ativo = TRUE)
+                     WHERE COALESCE(p.time,'Projetos') = a.nome AND p.ativo = TRUE),
+                   a.cargos, a.perfis
             FROM areas a
             {'' if incluir_inativas else 'WHERE a.ativo = TRUE'}
             ORDER BY a.nome
         """)
         rows = cur.fetchall()
         cur.close(); conn.close()
-        return [{"id": r[0], "nome": r[1], "usa_projetos": r[2], "ativo": r[3],
-                 "usuarios": r[4], "projetos": r[5]} for r in rows]
+        return {
+            # Catálogo junto da lista: a tela monta as caixas de seleção com
+            # ele, e assim não repete os nomes em JavaScript.
+            "catalogo": {"cargos": list(CARGO_VALIDOS), "perfis": list(PERFIL_VALIDOS)},
+            "areas": [{"id": r[0], "nome": r[1], "usa_projetos": r[2], "ativo": r[3],
+                       "usuarios": r[4], "projetos": r[5],
+                       "cargos": [c for c in CARGO_VALIDOS if r[6] is None or c in r[6]],
+                       "perfis": [pf for pf in PERFIL_VALIDOS if r[7] is None or pf in r[7]]}
+                      for r in rows],
+        }
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/areas")
@@ -2372,9 +2446,13 @@ def criar_area(a: AreaModel, faiston_token: str = Cookie(None)):
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
+        import json as _json
+        cargos = _normalizar_lista_area(a.cargos, CARGO_VALIDOS) or list(CARGO_VALIDOS)
+        perfis = _normalizar_lista_area(a.perfis, PERFIL_VALIDOS) or list(PERFIL_VALIDOS)
         cur = conn.cursor()
-        cur.execute("INSERT INTO areas (nome, usa_projetos) VALUES (%s,%s) "
-                    "ON CONFLICT (nome) DO NOTHING RETURNING id", (nome, a.usa_projetos))
+        cur.execute("INSERT INTO areas (nome, usa_projetos, cargos, perfis) VALUES (%s,%s,%s,%s) "
+                    "ON CONFLICT (nome) DO NOTHING RETURNING id",
+                    (nome, a.usa_projetos, _json.dumps(cargos), _json.dumps(perfis)))
         row = cur.fetchone()
         if not row: raise HTTPException(status_code=400, detail="Já existe uma área com esse nome")
         conn.commit(); cur.close(); conn.close()
@@ -2418,8 +2496,15 @@ def atualizar_area(aid: int, a: AreaModel, faiston_token: str = Cookie(None)):
             for tabela, coluna in (("usuarios", "time"), ("clientes", "time"),
                                    ("projetos", "time"), ("frentes", "area")):
                 cur.execute(f"UPDATE {tabela} SET {coluna}=%s WHERE {coluna}=%s", (nome, nome_antigo))
-        cur.execute("UPDATE areas SET nome=%s, usa_projetos=%s, ativo=%s WHERE id=%s",
-                    (nome, a.usa_projetos, a.ativo, aid))
+        import json as _json
+        cargos = _normalizar_lista_area(a.cargos, CARGO_VALIDOS)
+        perfis = _normalizar_lista_area(a.perfis, PERFIL_VALIDOS)
+        cur.execute("""UPDATE areas SET nome=%s, usa_projetos=%s, ativo=%s,
+                              cargos=COALESCE(%s, cargos), perfis=COALESCE(%s, perfis)
+                        WHERE id=%s""",
+                    (nome, a.usa_projetos, a.ativo,
+                     _json.dumps(cargos) if cargos is not None else None,
+                     _json.dumps(perfis) if perfis is not None else None, aid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except HTTPException: raise

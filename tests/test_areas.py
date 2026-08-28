@@ -19,9 +19,10 @@ def area_factory(admin_client):
     """Cria áreas temporárias e derruba tudo no teardown."""
     criadas = []
 
-    def criar(usa_projetos=True, nome=None):
+    def criar(usa_projetos=True, nome=None, **extra):
         nome = nome or f"TESTE-AREA-{uuid.uuid4().hex[:6]}"
-        resp = admin_client.post("/api/areas", json={"nome": nome, "usa_projetos": usa_projetos})
+        resp = admin_client.post("/api/areas",
+                                 json={"nome": nome, "usa_projetos": usa_projetos, **extra})
         assert resp.status_code == 200, resp.text
         criadas.append(resp.json()["id"])
         return {"id": resp.json()["id"], "nome": nome}
@@ -78,7 +79,7 @@ class TestCadastro:
         assert TestClient(app).get("/api/areas").status_code == 401
 
     def test_areas_padrao_vem_do_seed(self, admin_client):
-        nomes = [a["nome"] for a in admin_client.get("/api/areas").json()]
+        nomes = [a["nome"] for a in admin_client.get("/api/areas").json()["areas"]]
         for esperada in ("Projetos", "Logística", "Rede Credenciada", "Desenvolvimento"):
             assert esperada in nomes
 
@@ -89,7 +90,7 @@ class TestCadastro:
 
     def test_criar_e_listar(self, admin_client, area_factory):
         area = area_factory(usa_projetos=False)
-        listada = next(a for a in admin_client.get("/api/areas").json() if a["id"] == area["id"])
+        listada = next(a for a in admin_client.get("/api/areas").json()["areas"] if a["id"] == area["id"])
         assert listada["nome"] == area["nome"]
         assert listada["usa_projetos"] is False
 
@@ -151,9 +152,9 @@ class TestDesativar:
     def test_area_vazia_desativa_e_some_da_listagem(self, admin_client, area_factory):
         area = area_factory()
         assert admin_client.delete(f"/api/areas/{area['id']}").status_code == 200
-        assert area["id"] not in [a["id"] for a in admin_client.get("/api/areas").json()]
+        assert area["id"] not in [a["id"] for a in admin_client.get("/api/areas").json()["areas"]]
         # admin ainda enxerga a inativa com ?todas=1 (é o que a tela de cadastro usa)
-        todas = admin_client.get("/api/areas", params={"todas": True}).json()
+        todas = admin_client.get("/api/areas", params={"todas": True}).json()["areas"]
         assert area["id"] in [a["id"] for a in todas]
 
 
@@ -237,3 +238,81 @@ class TestAreaSemProjetos:
         resp = client.post("/api/projetos", json={"nome": f"TESTE-PROJ-{uuid.uuid4().hex[:6]}"})
         assert resp.status_code == 200, resp.text
         admin_client.delete(f"/api/projetos/{resp.json()['id']}")
+
+
+class TestCargosEPerfisPorArea:
+    """Quais cargos e perfis a área aceita é configurável -- e a API cobra."""
+
+    def test_area_nova_nasce_com_o_catalogo_inteiro(self, admin_client, area_factory):
+        area = area_factory()
+        dados = admin_client.get("/api/areas").json()
+        listada = next(a for a in dados["areas"] if a["id"] == area["id"])
+        assert listada["cargos"] == dados["catalogo"]["cargos"]
+        assert listada["perfis"] == dados["catalogo"]["perfis"]
+
+    def test_criar_area_ja_com_a_lista_restrita(self, admin_client, area_factory):
+        area = area_factory(cargos=["analista", "backoffice"], perfis=["funcionario", "gestor"])
+        listada = next(a for a in admin_client.get("/api/areas").json()["areas"]
+                       if a["id"] == area["id"])
+        assert listada["cargos"] == ["analista", "backoffice"]
+        assert listada["perfis"] == ["funcionario", "gestor"]
+
+    def test_cargo_desligado_recusa_o_cadastro(self, admin_client, area_factory):
+        area = area_factory(cargos=["analista"])
+        resp = admin_client.post("/api/usuarios", json={
+            "usuario": f"teste_cargo_{uuid.uuid4().hex[:8]}", "nome": "Fulano",
+            "email": "fulano@exemplo.test", "perfil": "funcionario",
+            "cargo": "n2", "time": area["nome"],
+        })
+        assert resp.status_code == 400
+        assert "não está habilitado" in resp.json()["detail"]
+
+    def test_perfil_desligado_recusa_o_cadastro(self, admin_client, area_factory):
+        area = area_factory(perfis=["funcionario"])
+        resp = admin_client.post("/api/usuarios", json={
+            "usuario": f"teste_perfil_{uuid.uuid4().hex[:8]}", "nome": "Fulano",
+            "email": "fulano@exemplo.test", "perfil": "gestor", "time": area["nome"],
+        })
+        assert resp.status_code == 400
+        assert "não está habilitado" in resp.json()["detail"]
+
+    def test_cargo_ligado_passa(self, admin_client, area_factory, usuario_factory):
+        area = area_factory(cargos=["analista"], perfis=["funcionario"])
+        assert usuario_factory(area["nome"], cargo="analista")["id"]
+
+    def test_editar_nome_nao_esbarra_em_cargo_legado(self, admin_client, area_factory, usuario_factory):
+        """Restringir a área depois não pode travar quem já estava dentro."""
+        area = area_factory()  # nasce com tudo ligado
+        uid = usuario_factory(area["nome"], cargo="n2")["id"]
+        assert admin_client.put(f"/api/areas/{area['id']}", json={
+            "nome": area["nome"], "usa_projetos": True, "ativo": True, "cargos": ["analista"],
+        }).status_code == 200
+        # o cargo continua o mesmo, então só o nome muda -- tem que passar
+        resp = admin_client.put(f"/api/usuarios/{uid}", json={
+            "nome": "Nome Novo", "perfil": "funcionario", "ativo": True,
+            "email": "x@exemplo.test", "time": area["nome"], "cargo": "n2",
+        })
+        assert resp.status_code == 200, resp.text
+        # mas TROCAR pra outro cargo desligado é recusado
+        resp = admin_client.put(f"/api/usuarios/{uid}", json={
+            "nome": "Nome Novo", "perfil": "funcionario", "ativo": True,
+            "email": "x@exemplo.test", "time": area["nome"], "cargo": "backoffice",
+        })
+        assert resp.status_code == 400
+
+    def test_lista_vazia_vira_catalogo_inteiro(self, admin_client, area_factory):
+        """Área sem perfil nenhum não aceitaria ninguém -- vazio = todos."""
+        area = area_factory(perfis=[], cargos=[])
+        dados = admin_client.get("/api/areas").json()
+        listada = next(a for a in dados["areas"] if a["id"] == area["id"])
+        assert listada["perfis"] == dados["catalogo"]["perfis"]
+
+    def test_put_sem_as_listas_nao_apaga_o_que_estava(self, admin_client, area_factory):
+        area = area_factory(cargos=["analista"])
+        # o PUT de renomear não manda cargos/perfis
+        assert admin_client.put(f"/api/areas/{area['id']}", json={
+            "nome": area["nome"], "usa_projetos": True, "ativo": True,
+        }).status_code == 200
+        listada = next(a for a in admin_client.get("/api/areas").json()["areas"]
+                       if a["id"] == area["id"])
+        assert listada["cargos"] == ["analista"]
