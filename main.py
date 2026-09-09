@@ -8977,7 +8977,7 @@ def _suporte_enviar_email_resposta(email, nome, titulo, mensagem, autor_nome, li
           </td></tr>
         </table>
         {_suporte_botao_email(link, "Ver e responder")}
-        <p style="color:#8A8FA3;font-size:12.5px;margin:0;line-height:1.6">Responda direto pelo sistema: o botão acima já abre "Minhas solicitações" com este chamado.</p>
+        <p style="color:#8A8FA3;font-size:12.5px;margin:0;line-height:1.6">Responda direto pelo sistema: o botão acima já abre "Minhas solicitações" com este chamado. Se preferir entrar por conta própria, é só clicar em <strong>"Falar com o suporte"</strong> (ícone de boia no menu) e depois na aba <strong>"Minhas solicitações"</strong> — lá ficam todos os seus chamados e as respostas.</p>
     """
     _brevo_send(email, f"💬 Resposta no seu chamado — {titulo}",
                 _shell_email("Resposta do suporte", titulo, corpo))
