@@ -671,6 +671,15 @@ async function init() {
 
     mostrarAbaN2('minhas');
 
+    // Link do e-mail de resposta de suporte (?suporte=<id>) — abre direto o
+    // modal "Minhas solicitações" com o chamado em destaque.
+    const suporteId = new URLSearchParams(location.search).get('suporte');
+    if (suporteId) {
+        window._suporteDestaqueId = parseInt(suporteId, 10);
+        suporteAbrirModal();
+        suporteTrocarAba('minhas');
+    }
+
     try {
         const resTut = await fetch('/api/tutorial-n2/status');
         if (resTut.ok) {
@@ -1842,22 +1851,50 @@ async function suporteCarregarMinhas() {
         const itens = await res.json();
         if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
         box.innerHTML = itens.map(s => `
-            <div class="bg-slate-50 rounded-xl border border-faiston-border p-3 mb-2">
+            <div id="suporte-item-${s.id}" class="bg-slate-50 rounded-xl border p-3 mb-2 ${window._suporteDestaqueId === s.id ? 'border-faiston-purple ring-2 ring-faiston-purple/25' : 'border-faiston-border'}">
                 <div class="flex items-start justify-between gap-2 flex-wrap">
                     <p class="text-sm font-bold text-faiston-dark">${esc(s.titulo)}</p>
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
                 </div>
                 <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
                 <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${esc(s.descricao)}</p>
-                ${s.resposta ? `
-                <div class="mt-2 p-2.5 bg-white border border-faiston-purple/20 rounded-lg">
-                    <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${esc(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
-                    <p class="text-xs text-slate-600 whitespace-pre-line">${esc(s.resposta)}</p>
+                ${(s.mensagens || []).length ? `
+                <div class="mt-2 flex flex-col gap-1.5">
+                    ${s.mensagens.map(m => `
+                    <div class="p-2.5 rounded-lg border ${m.autor_tipo === 'dev' ? 'bg-white border-faiston-purple/20' : 'bg-faiston-purple/5 border-faiston-purple/10 ml-4'}">
+                        <p class="text-[10px] font-bold uppercase tracking-wide mb-1 ${m.autor_tipo === 'dev' ? 'text-faiston-purple' : 'text-faiston-muted'}">${m.autor_tipo === 'dev' ? 'Suporte' : 'Você'} · ${esc(m.autor_nome || '')} · ${m.criado_em}</p>
+                        <p class="text-xs text-slate-600 whitespace-pre-line">${esc(m.mensagem)}</p>
+                    </div>`).join('')}
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <textarea id="suporte-resposta-${s.id}" rows="1" placeholder="Responder pro suporte..." class="flex-1 border border-faiston-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                    <button onclick="suporteResponderMinhas(${s.id})" class="text-xs font-semibold text-white btn-grad rounded-lg px-3">Enviar</button>
                 </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
             </div>
         `).join('');
+        if (window._suporteDestaqueId) {
+            const alvo = document.getElementById('suporte-item-' + window._suporteDestaqueId);
+            if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            window._suporteDestaqueId = null;
+        }
     } catch (e) {
         box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
+}
+async function suporteResponderMinhas(id) {
+    const campo = document.getElementById(`suporte-resposta-${id}`);
+    const mensagem = campo.value.trim();
+    if (!mensagem) return;
+    campo.disabled = true;
+    try {
+        const res = await fetch(`/api/suporte/${id}/mensagens`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mensagem })
+        });
+        if (!res.ok) { alert('Erro ao enviar resposta.'); campo.disabled = false; return; }
+        suporteCarregarMinhas();
+    } catch (e) {
+        alert('Erro de rede ao enviar.'); campo.disabled = false;
     }
 }
 

@@ -771,6 +771,30 @@ def setup_banco():
         cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta TEXT")
         cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta_por_nome VARCHAR(150)")
         cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta_em TIMESTAMP")
+        # Thread de mensagens do chamado (2026-09-09) -- substitui a resposta
+        # única acima por um vai-e-vem de verdade: dev responde, quem abriu
+        # recebe por e-mail e responde de volta pelo sistema. Migra em toda
+        # subida (idempotente via NOT EXISTS) a resposta única já registrada
+        # pra virar a primeira mensagem da thread, sem perder histórico.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS suporte_mensagens (
+                id SERIAL PRIMARY KEY,
+                solicitacao_id INTEGER NOT NULL REFERENCES suporte_solicitacoes(id) ON DELETE CASCADE,
+                autor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                autor_nome VARCHAR(150) NOT NULL,
+                autor_tipo VARCHAR(10) NOT NULL DEFAULT 'dev',
+                mensagem TEXT NOT NULL,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_suporte_mensagens_solicitacao ON suporte_mensagens(solicitacao_id)")
+        cur.execute("""
+            INSERT INTO suporte_mensagens (solicitacao_id, autor_nome, autor_tipo, mensagem, criado_em)
+            SELECT s.id, s.resposta_por_nome, 'dev', s.resposta, COALESCE(s.resposta_em, s.atualizado_em)
+            FROM suporte_solicitacoes s
+            WHERE s.resposta IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM suporte_mensagens m WHERE m.solicitacao_id = s.id)
+        """)
         # Reset de senha por e-mail (2026-07-30). Guarda o HASH do token, não
         # o token em si -- mesmo princípio de senha_hash: se o banco vazar, o
         # hash sozinho não deixa ninguém reutilizar o link. sha256 (sem salt)
@@ -8874,8 +8898,10 @@ def loop_obter_snapshot(chave: str, faiston_token: str = Cookie(None)):
 
 # ══════════════════════════════════════════════════════════════════
 # SUPORTE: qualquer usuário logado abre uma solicitação (bug, dúvida,
-# pedido de melhoria); só a equipe dev vê/gerencia. Canal de envio --
-# quem abre não acompanha status depois (decidido explicitamente).
+# pedido de melhoria); só a equipe dev vê/gerencia. É uma thread de
+# mensagens (suporte_mensagens) -- dev responde, quem abriu recebe um
+# e-mail avisando e responde de volta pelo sistema (2026-09-09; antes
+# era um campo de resposta único, sem volta pro usuário).
 # ══════════════════════════════════════════════════════════════════
 SUPORTE_CATEGORIA_VALIDAS = ('bug', 'duvida', 'melhoria')
 SUPORTE_STATUS_VALIDOS = ('aberto', 'em_andamento', 'resolvido')
@@ -8889,6 +8915,20 @@ class SuporteSolicitacaoModel(BaseModel):
     anexo_nome: Optional[str] = None
 
 SUPORTE_NOTIFICAR_EMAILS = ["vinicios75soares165@gmail.com", "rafael.libel@gmail.com"]
+
+def _esc_html_email(s):
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+def _suporte_home_path(perfil, cargo):
+    """Mesmo mapeamento perfil/cargo → home usado no pós-login (login.html) e
+    em _redirect_login_ou_home -- usado aqui pra montar, no e-mail, o link
+    que leva quem abriu o chamado direto pra tela onde ele está (dashboard,
+    funcionario ou n2), já logado."""
+    if perfil in ("admin", "gestor", "demo", "diretor"):
+        return "/dashboard"
+    if cargo == "n2":
+        return "/n2"
+    return "/funcionario"
 
 def _suporte_enviar_notificacao(titulo, descricao, categoria, autor_nome, anexo_base64, anexo_nome):
     """Dispara em background (não atrasa a resposta pra quem abriu a
@@ -8913,8 +8953,68 @@ def _suporte_enviar_notificacao(titulo, descricao, categoria, autor_nome, anexo_
     _brevo_send(SUPORTE_NOTIFICAR_EMAILS, f"🎫 Nova solicitação de suporte — {titulo}",
                 _shell_email("Nova solicitação", categoria_label, corpo), anexos=anexos)
 
-def _esc_html_email(s):
-    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+def _suporte_botao_email(link, texto):
+    return f"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <a href="{link}" style="display:block;color:#ffffff;text-decoration:none;padding:15px 24px;font-weight:700;font-size:15px;border-radius:12px">{texto} &nbsp;&rarr;</a>
+          </td></tr>
+        </table>
+    """
+
+def _suporte_enviar_email_resposta(email, nome, titulo, mensagem, autor_nome, link):
+    """Avisa quem abriu o chamado quando o suporte responde, com um link que
+    já leva pra 'Minhas solicitações' pra responder de volta pelo sistema
+    (2026-09-09) -- antes a resposta só aparecia se a pessoa voltasse a abrir
+    o modal por conta própria, sem nenhum aviso."""
+    if not email: return
+    corpo = f"""
+        <p style="color:#3D4152;font-size:14.5px;margin:0 0 14px;line-height:1.6">Olá, {_esc_html_email(nome)}. <strong>{_esc_html_email(autor_nome)}</strong> respondeu seu chamado de suporte.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td style="background:#F7F7FB;border:1px solid #E5E8F0;border-radius:12px;padding:16px 18px">
+            <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#0B0D1F">{_esc_html_email(titulo)}</p>
+            <p style="margin:0;font-size:14px;color:#3D4152;white-space:pre-line">{_esc_html_email(mensagem)}</p>
+          </td></tr>
+        </table>
+        {_suporte_botao_email(link, "Ver e responder")}
+        <p style="color:#8A8FA3;font-size:12.5px;margin:0;line-height:1.6">Responda direto pelo sistema: o botão acima já abre "Minhas solicitações" com este chamado.</p>
+    """
+    _brevo_send(email, f"💬 Resposta no seu chamado — {titulo}",
+                _shell_email("Resposta do suporte", titulo, corpo))
+
+def _suporte_notificar_devs_nova_mensagem(titulo, mensagem, autor_nome, link):
+    """Avisa a equipe dev quando quem abriu o chamado responde de volta
+    (2026-09-09) -- simetria com _suporte_enviar_notificacao, que já avisa a
+    equipe na abertura."""
+    corpo = f"""
+        <p style="color:#3D4152;font-size:14.5px;margin:0 0 14px;line-height:1.6"><strong>{_esc_html_email(autor_nome)}</strong> respondeu no chamado de suporte.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td style="background:#F7F7FB;border:1px solid #E5E8F0;border-radius:12px;padding:16px 18px">
+            <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#0B0D1F">{_esc_html_email(titulo)}</p>
+            <p style="margin:0;font-size:14px;color:#3D4152;white-space:pre-line">{_esc_html_email(mensagem)}</p>
+          </td></tr>
+        </table>
+        {_suporte_botao_email(link, "Ver na Área de Dev")}
+    """
+    _brevo_send(SUPORTE_NOTIFICAR_EMAILS, f"💬 Nova resposta no chamado — {titulo}",
+                _shell_email("Resposta de quem abriu", titulo, corpo))
+
+def _suporte_buscar_mensagens(cur, ids):
+    """Busca as mensagens de uma leva de solicitações de uma vez só (evita
+    N+1 nas telas de listagem) e devolve agrupado por solicitacao_id, da
+    mais antiga pra mais nova."""
+    if not ids: return {}
+    cur.execute("""
+        SELECT solicitacao_id, autor_nome, autor_tipo, mensagem, criado_em
+        FROM suporte_mensagens WHERE solicitacao_id = ANY(%s) ORDER BY criado_em ASC
+    """, (ids,))
+    agrupado = {}
+    for sid_, autor_nome, autor_tipo, mensagem, criado_em in cur.fetchall():
+        agrupado.setdefault(sid_, []).append({
+            "autor_nome": autor_nome, "autor_tipo": autor_tipo, "mensagem": mensagem,
+            "criado_em": criado_em.strftime("%d/%m/%Y %H:%M") if criado_em else "",
+        })
+    return agrupado
 
 @app.post("/api/suporte")
 def criar_suporte(s: SuporteSolicitacaoModel, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
@@ -8954,15 +9054,16 @@ def dev_listar_suporte(faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         cur.execute("""
             SELECT id, titulo, descricao, categoria, status, criado_por_nome, criado_em,
-                   (anexo_base64 IS NOT NULL) AS tem_anexo, resposta, resposta_por_nome, resposta_em
+                   (anexo_base64 IS NOT NULL) AS tem_anexo
             FROM suporte_solicitacoes ORDER BY criado_em DESC
         """)
+        rows = cur.fetchall()
+        mensagens = _suporte_buscar_mensagens(cur, [r[0] for r in rows])
         out = [{
             "id": r[0], "titulo": r[1], "descricao": r[2], "categoria": r[3], "status": r[4],
             "criado_por_nome": r[5], "criado_em": r[6].strftime("%d/%m/%Y %H:%M") if r[6] else "",
-            "tem_anexo": r[7], "resposta": r[8], "resposta_por_nome": r[9],
-            "resposta_em": r[10].strftime("%d/%m/%Y %H:%M") if r[10] else None,
-        } for r in cur.fetchall()]
+            "tem_anexo": r[7], "mensagens": mensagens.get(r[0], []),
+        } for r in rows]
         cur.close(); conn.close()
         return out
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -8971,29 +9072,49 @@ class SuporteRespostaModel(BaseModel):
     resposta: str
 
 @app.put("/api/dev-suporte/{sid}/resposta")
-def dev_responder_suporte(sid: int, s: SuporteRespostaModel, faiston_token: str = Cookie(None)):
-    """Resposta pra quem abriu a solicitação (2026-08-11) -- antes era só um
-    canal de envio, sem volta nenhuma pro usuário. Não muda o status
-    sozinha -- quem responde ainda decide separadamente se marca
-    em_andamento/resolvido."""
+def dev_responder_suporte(sid: int, s: SuporteRespostaModel, bg: BackgroundTasks, request: Request,
+                           faiston_token: str = Cookie(None)):
+    """Resposta pra quem abriu a solicitação -- vira uma mensagem na thread
+    (2026-09-09; antes era um campo único que se sobrescrevia a cada
+    resposta) e dispara um e-mail avisando quem abriu, com link pra
+    responder de volta pelo próprio sistema. Não muda o status sozinha --
+    quem responde ainda decide separadamente se marca em_andamento/resolvido."""
     sess = get_session(faiston_token)
     if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
-    if not s.resposta.strip(): raise HTTPException(status_code=400, detail="Resposta vazia")
+    resposta = s.resposta.strip()
+    if not resposta: raise HTTPException(status_code=400, detail="Resposta vazia")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("""
+            SELECT s.titulo, u.email, u.nome, u.perfil, u.cargo
+            FROM suporte_solicitacoes s LEFT JOIN usuarios u ON u.id = s.criado_por
+            WHERE s.id=%s
+        """, (sid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+        titulo, email_dest, nome_dest, perfil_dest, cargo_dest = row
         cur.execute(
-            "UPDATE suporte_solicitacoes SET resposta=%s, resposta_por_nome=%s, resposta_em=NOW(), atualizado_em=NOW() WHERE id=%s",
-            (s.resposta.strip(), sess["nome"], sid))
+            "INSERT INTO suporte_mensagens (solicitacao_id, autor_id, autor_nome, autor_tipo, mensagem) VALUES (%s,%s,%s,'dev',%s)",
+            (sid, sess["id"], sess["nome"], resposta))
+        cur.execute("UPDATE suporte_solicitacoes SET atualizado_em=NOW() WHERE id=%s", (sid,))
         conn.commit(); cur.close(); conn.close()
+        if email_dest:
+            system_url = _resolver_system_url(request)
+            link = f"{system_url}{_suporte_home_path(perfil_dest, cargo_dest)}?suporte={sid}"
+            bg.add_task(_suporte_enviar_email_resposta, email_dest, nome_dest, titulo, resposta, sess["nome"], link)
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/suporte/minhas")
 def listar_minhas_suporte(faiston_token: str = Cookie(None)):
-    """Solicitações que EU abri, com a resposta do dev se já tiver vindo --
-    complemento do POST /api/suporte, que antes era só de ida (2026-08-11)."""
+    """Solicitações que EU abri, com a thread de mensagens se já tiver vindo
+    resposta -- complemento do POST /api/suporte, que antes era só de ida
+    (2026-08-11)."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -9001,17 +9122,57 @@ def listar_minhas_suporte(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT id, titulo, descricao, categoria, status, criado_em, resposta, resposta_por_nome, resposta_em
+            SELECT id, titulo, descricao, categoria, status, criado_em
             FROM suporte_solicitacoes WHERE criado_por=%s ORDER BY criado_em DESC
         """, (sess["id"],))
+        rows = cur.fetchall()
+        mensagens = _suporte_buscar_mensagens(cur, [r[0] for r in rows])
         out = [{
             "id": r[0], "titulo": r[1], "descricao": r[2], "categoria": r[3], "status": r[4],
             "criado_em": r[5].strftime("%d/%m/%Y %H:%M") if r[5] else "",
-            "resposta": r[6], "resposta_por_nome": r[7],
-            "resposta_em": r[8].strftime("%d/%m/%Y %H:%M") if r[8] else None,
-        } for r in cur.fetchall()]
+            "mensagens": mensagens.get(r[0], []),
+        } for r in rows]
         cur.close(); conn.close()
         return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class SuporteMensagemModel(BaseModel):
+    mensagem: str
+
+@app.post("/api/suporte/{sid}/mensagens")
+def suporte_responder_usuario(sid: int, s: SuporteMensagemModel, bg: BackgroundTasks, request: Request,
+                               faiston_token: str = Cookie(None)):
+    """Quem abriu o chamado responde de volta pelo sistema (2026-09-09) --
+    contrapartida de dev_responder_suporte, fecha o vai-e-vem que antes só
+    existia numa direção (dev → usuário, sem volta). Só quem abriu pode
+    responder aqui -- a equipe dev responde pelo endpoint acima."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    mensagem = s.mensagem.strip()
+    if not mensagem: raise HTTPException(status_code=400, detail="Mensagem vazia")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT titulo, criado_por FROM suporte_solicitacoes WHERE id=%s", (sid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+        titulo, criado_por = row
+        if criado_por != sess["id"]:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=403, detail="Essa solicitação não é sua")
+        cur.execute(
+            "INSERT INTO suporte_mensagens (solicitacao_id, autor_id, autor_nome, autor_tipo, mensagem) VALUES (%s,%s,%s,'usuario',%s)",
+            (sid, sess["id"], sess["nome"], mensagem))
+        cur.execute("UPDATE suporte_solicitacoes SET atualizado_em=NOW() WHERE id=%s", (sid,))
+        conn.commit(); cur.close(); conn.close()
+        system_url = _resolver_system_url(request)
+        bg.add_task(_suporte_notificar_devs_nova_mensagem, titulo, mensagem, sess["nome"],
+                    f"{system_url}/dashboard?go=areaDev&suporte={sid}")
+        return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dev-suporte/{sid}/anexo")
