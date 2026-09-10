@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, Form, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, Response, Cookie, UploadFile, File, Form, BackgroundTasks, Request, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
@@ -49,7 +49,8 @@ app = FastAPI(title="Faiston Ops - API", version="1.0")
 from starlette.middleware.base import BaseHTTPMiddleware
 
 _CSRF_METODOS = {"POST", "PUT", "PATCH", "DELETE"}
-_CSRF_ISENTAS = {"/api/login", "/api/esqueci-senha", "/api/redefinir-senha"}  # fluxos de pré-login, sem cookie de csrf ainda
+_CSRF_ISENTAS = {"/api/login", "/api/esqueci-senha", "/api/redefinir-senha",
+                  "/api/integracoes/tiflux/atividades"}  # pré-login (sem cookie de csrf) + ingestão por API key (sem sessão de navegador)
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -664,6 +665,45 @@ def setup_banco():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_escala_n2_data ON escala_n2(data)")
+
+        # ── Conector Tiflux -> horas acompanhadas do N2 (2026-09-10) ────────
+        # Landing/staging das atividades extraídas do Tiflux (entidade "Fluxo
+        # de atendimento": chegada/início/término do atendimento em campo).
+        # Fica separada de status_atividades de propósito -- cliente/técnico
+        # aqui vêm como texto livre do Tiflux, sem o casamento por nome contra
+        # tecnicos/clientes que o import de planilha já faz (ver
+        # importar_planilha_status_campo); a reconciliação pra virar atividade
+        # de verdade é etapa seguinte, não desta migração. ticket_number é a
+        # chave de idempotência (reimportar o mesmo ticket atualiza, não
+        # duplica) -- payload_bruto guarda os entity_fields crus do ticket
+        # pra nunca perder informação por causa de um mapeamento incompleto.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tiflux_atividades_n2 (
+                id SERIAL PRIMARY KEY,
+                ticket_number VARCHAR(20) UNIQUE NOT NULL,
+                desk_id INTEGER,
+                desk_nome VARCHAR(100) DEFAULT '',
+                cliente VARCHAR(200) DEFAULT '',
+                tecnico VARCHAR(200) DEFAULT '',
+                titulo TEXT DEFAULT '',
+                status_tiflux VARCHAR(50) DEFAULT '',
+                tipo_atendimento VARCHAR(100) DEFAULT '',
+                data_agendamento DATE,
+                hora_agendamento TIME,
+                data_chegada DATE,
+                hora_chegada TIME,
+                data_inicio_atividade DATE,
+                hora_inicio_atividade TIME,
+                data_termino DATE,
+                hora_termino TIME,
+                horas_acompanhadas NUMERIC(6,2),
+                payload_bruto JSONB,
+                importado_em TIMESTAMP DEFAULT NOW(),
+                atualizado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tiflux_ativ_data_termino ON tiflux_atividades_n2(data_termino)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tiflux_ativ_tecnico ON tiflux_atividades_n2(tecnico)")
 
         # ── Bloqueios de agenda (férias, afastamento, recorrência semanal) ──
         # Vale pra qualquer funcionário do sistema -- usado tanto pra
@@ -8300,6 +8340,184 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_i
     except HTTPException: raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao importar planilha: {str(e)}")
+
+# ── Conector Tiflux -> horas acompanhadas do N2 ───────────────────────────
+# Extração hoje é manual (Claude lê os tickets via Tiflux MCP, que é
+# somente-leitura, e chama esta rota com o resultado); o formato do body já
+# fica pronto pra uma automação futura (n8n etc.) empurrar do mesmo jeito.
+# ticket_number é a chave de idempotência -- reimportar o mesmo ticket
+# atualiza a linha existente em vez de duplicar (decisão do usuário,
+# 2026-09-10). Datas/horas seguem os nomes de campo da entidade Tiflux
+# "Fluxo de atendimento" (chegada do técnico / início da atividade / término
+# do atendimento), que mapeiam 1:1 com hora_chegada/hora_inicio_atividade/
+# hora_termino já usados em status_atividades -- mas a gravação aqui NÃO
+# toca status_atividades: cliente/técnico chegam como texto livre do
+# Tiflux, sem o casamento por nome que o import de planilha já faz (ver
+# importar_planilha_status_campo). Virar atividade de campo de verdade é
+# reconciliação de uma etapa seguinte, não desta.
+
+def _tiflux_hora_valida(v):
+    """'10:00', '04:22 ', None, '' -> 'HH:MM:00' ou None. Os campos do
+    Tiflux são texto livre ("Ex: 10:00"), não um tipo hora de verdade."""
+    if not v: return None
+    m = re.match(r'^\s*([01]?\d|2[0-3]):([0-5]\d)', str(v))
+    if not m: return None
+    return f"{int(m.group(1)):02d}:{m.group(2)}:00"
+
+def _tiflux_calcular_horas(data_chegada, hora_chegada, data_inicio, hora_inicio, data_termino, hora_termino):
+    """Duração real da atividade: chegada -> término (preferencial) ou,
+    faltando chegada, início da atividade -> término. None quando não dá
+    pra calcular ou o resultado é implausível (negativo ou > 24h -- ticket
+    com dado incompleto/errado no Tiflux não deve virar número inventado)."""
+    def _dt(d, h):
+        if not d or not h: return None
+        try: return datetime.strptime(f"{d} {h}", "%Y-%m-%d %H:%M:%S")
+        except Exception: return None
+    fim = _dt(data_termino, hora_termino)
+    if not fim: return None
+    inicio = _dt(data_chegada, hora_chegada) or _dt(data_inicio, hora_inicio)
+    if not inicio: return None
+    horas = (fim - inicio).total_seconds() / 3600
+    if horas < 0 or horas > 24: return None
+    return round(horas, 2)
+
+class TifluxAtividadeItem(BaseModel):
+    ticket_number: str
+    desk_id: Optional[int] = None
+    desk_nome: str = ""
+    cliente: str = ""
+    tecnico: str = ""
+    titulo: str = ""
+    status_tiflux: str = ""
+    tipo_atendimento: str = ""
+    data_agendamento: Optional[str] = None
+    hora_agendamento: Optional[str] = None
+    data_chegada: Optional[str] = None
+    hora_chegada: Optional[str] = None
+    data_inicio_atividade: Optional[str] = None
+    hora_inicio_atividade: Optional[str] = None
+    data_termino: Optional[str] = None
+    hora_termino: Optional[str] = None
+    payload_bruto: Optional[dict] = None
+
+class TifluxImportarBody(BaseModel):
+    atividades: List[TifluxAtividadeItem]
+
+@app.post("/api/integracoes/tiflux/atividades")
+async def importar_atividades_tiflux(body: TifluxImportarBody, x_api_key: str = Header(None)):
+    """Ingestão em lote. Autenticado por API key própria (TIFLUX_IMPORT_API_KEY
+    no ambiente), não por sessão de usuário -- por isso a rota está isenta do
+    middleware de CSRF (ver _CSRF_ISENTAS): quem chama é a integração, não um
+    navegador logado."""
+    chave_esperada = os.environ.get("TIFLUX_IMPORT_API_KEY", "")
+    if not chave_esperada:
+        raise HTTPException(status_code=500, detail="TIFLUX_IMPORT_API_KEY não configurada no ambiente")
+    if not x_api_key or not secrets.compare_digest(x_api_key, chave_esperada):
+        raise HTTPException(status_code=401, detail="API key inválida")
+    if not body.atividades:
+        return {"sucesso": True, "importados": 0, "atualizados": 0, "erros": []}
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        import json as _json
+        cur = conn.cursor()
+        importados = atualizados = 0
+        erros = []
+        for item in body.atividades:
+            ticket = (item.ticket_number or "").strip()
+            if not ticket:
+                erros.append({"ticket_number": None, "erro": "ticket_number vazio"})
+                continue
+            hora_ag = _tiflux_hora_valida(item.hora_agendamento)
+            hora_ch = _tiflux_hora_valida(item.hora_chegada)
+            hora_in = _tiflux_hora_valida(item.hora_inicio_atividade)
+            hora_te = _tiflux_hora_valida(item.hora_termino)
+            horas = _tiflux_calcular_horas(item.data_chegada, hora_ch, item.data_inicio_atividade, hora_in,
+                                            item.data_termino, hora_te)
+            cur.execute("SAVEPOINT tiflux_item")
+            try:
+                cur.execute("""
+                    INSERT INTO tiflux_atividades_n2
+                        (ticket_number, desk_id, desk_nome, cliente, tecnico, titulo, status_tiflux,
+                         tipo_atendimento, data_agendamento, hora_agendamento, data_chegada, hora_chegada,
+                         data_inicio_atividade, hora_inicio_atividade, data_termino, hora_termino,
+                         horas_acompanhadas, payload_bruto)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (ticket_number) DO UPDATE SET
+                        desk_id=EXCLUDED.desk_id, desk_nome=EXCLUDED.desk_nome, cliente=EXCLUDED.cliente,
+                        tecnico=EXCLUDED.tecnico, titulo=EXCLUDED.titulo, status_tiflux=EXCLUDED.status_tiflux,
+                        tipo_atendimento=EXCLUDED.tipo_atendimento, data_agendamento=EXCLUDED.data_agendamento,
+                        hora_agendamento=EXCLUDED.hora_agendamento, data_chegada=EXCLUDED.data_chegada,
+                        hora_chegada=EXCLUDED.hora_chegada, data_inicio_atividade=EXCLUDED.data_inicio_atividade,
+                        hora_inicio_atividade=EXCLUDED.hora_inicio_atividade, data_termino=EXCLUDED.data_termino,
+                        hora_termino=EXCLUDED.hora_termino, horas_acompanhadas=EXCLUDED.horas_acompanhadas,
+                        payload_bruto=EXCLUDED.payload_bruto, atualizado_em=NOW()
+                    RETURNING (xmax = 0) AS inserido
+                """, (ticket, item.desk_id, item.desk_nome.strip()[:100], item.cliente.strip()[:200],
+                      item.tecnico.strip()[:200], item.titulo.strip(), item.status_tiflux.strip()[:50],
+                      item.tipo_atendimento.strip()[:100], item.data_agendamento or None, hora_ag,
+                      item.data_chegada or None, hora_ch, item.data_inicio_atividade or None, hora_in,
+                      item.data_termino or None, hora_te, horas,
+                      _json.dumps(item.payload_bruto) if item.payload_bruto is not None else None))
+                inserido = cur.fetchone()[0]
+                cur.execute("RELEASE SAVEPOINT tiflux_item")
+                if inserido: importados += 1
+                else: atualizados += 1
+            except Exception as e:
+                cur.execute("ROLLBACK TO SAVEPOINT tiflux_item")
+                erros.append({"ticket_number": ticket, "erro": str(e)})
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "importados": importados, "atualizados": atualizados, "erros": erros}
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao importar atividades do Tiflux: {str(e)}")
+
+@app.get("/api/integracoes/tiflux/atividades")
+def listar_atividades_tiflux(ticket_number: Optional[str] = None, tecnico: Optional[str] = None,
+                              data_de: Optional[str] = None, data_ate: Optional[str] = None,
+                              limit: int = 50, offset: int = 0, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and sess.get("cargo") != "n2"):
+        raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        where, params = [], []
+        if ticket_number:
+            where.append("ticket_number = %s"); params.append(ticket_number.strip())
+        if tecnico:
+            where.append("tecnico ILIKE %s"); params.append(f"%{tecnico.strip()}%")
+        if data_de:
+            where.append("data_termino >= %s"); params.append(data_de)
+        if data_ate:
+            where.append("data_termino <= %s"); params.append(data_ate)
+        clausula = f"WHERE {' AND '.join(where)}" if where else ""
+        limit = max(1, min(limit, 200))
+        cur.execute(f"""
+            SELECT ticket_number, desk_nome, cliente, tecnico, titulo, status_tiflux, tipo_atendimento,
+                   data_chegada, hora_chegada, data_inicio_atividade, hora_inicio_atividade,
+                   data_termino, hora_termino, horas_acompanhadas, importado_em, atualizado_em
+            FROM tiflux_atividades_n2
+            {clausula}
+            ORDER BY atualizado_em DESC
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
+        cols = ["ticket_number", "desk_nome", "cliente", "tecnico", "titulo", "status_tiflux", "tipo_atendimento",
+                "data_chegada", "hora_chegada", "data_inicio_atividade", "hora_inicio_atividade",
+                "data_termino", "hora_termino", "horas_acompanhadas", "importado_em", "atualizado_em"]
+        itens = [dict(zip(cols, r)) for r in cur.fetchall()]
+        cur.execute(f"SELECT COUNT(*) FROM tiflux_atividades_n2 {clausula}", params)
+        total = cur.fetchone()[0]
+        cur.close(); conn.close()
+        for it in itens:
+            for k in ("data_chegada", "data_inicio_atividade", "data_termino", "importado_em", "atualizado_em"):
+                if it[k] is not None: it[k] = it[k].isoformat()
+            for k in ("hora_chegada", "hora_inicio_atividade", "hora_termino"):
+                if it[k] is not None: it[k] = str(it[k])[:5]
+        return {"itens": itens, "total": total}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ── Importação da mesma planilha, agora pra Escala N2 ────────────────────
 # TECNICO (instalador de campo) e N2 (suporte remoto) são papéis sem
