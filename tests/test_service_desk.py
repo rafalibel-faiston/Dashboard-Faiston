@@ -293,3 +293,31 @@ class TestAreaServiceDesk:
             "usuario": usuario, "senha": SENHA, "nome": "Fora da Área", "perfil": "funcionario",
             "cargo": "sd_operador", "time": "Projetos", "email": f"{usuario}@teste.local"})
         assert resp.status_code == 400
+
+
+class TestMudancaDeAreaSemRelogin:
+    """A sessão guarda cargo/área do login; o SD lê do cadastro pra mudança
+    valer na hora (caso real: usuário movido pro SD continuava no Kanban)."""
+
+    @staticmethod
+    def _mover(uid, time_, cargo):
+        import main
+        conn = main.get_db(); cur = conn.cursor()
+        cur.execute("UPDATE usuarios SET time = %s, cargo = %s WHERE id = %s", (time_, cargo, uid))
+        conn.commit(); cur.close(); conn.close()
+
+    def test_movido_pro_sd_depois_do_login_cai_no_service_desk(self, de_fora):
+        c = de_fora["client"]
+        assert c.get("/api/sd/me").status_code == 403
+        self._mover(de_fora["id"], "Service Desk", "sd_operador")
+        resp = c.get("/funcionario", follow_redirects=False)
+        assert resp.status_code in (302, 307)
+        assert resp.headers["location"] == "/service-desk"
+        assert c.get("/api/sd/me").status_code == 200
+
+    def test_tirado_do_sd_perde_acesso_na_hora(self, operador):
+        c = operador["client"]
+        assert c.get("/api/sd/me").status_code == 200
+        self._mover(operador["id"], "Projetos", "analista")
+        assert c.get("/api/sd/me").status_code == 403
+        assert c.get("/funcionario", follow_redirects=False).status_code == 200

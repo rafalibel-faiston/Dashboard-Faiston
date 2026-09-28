@@ -30,7 +30,11 @@ def get_conn():
 
 def get_session(token: Optional[str]) -> Optional[dict]:
     """Lê a sessão pelo cookie faiston_token (mesma tabela `sessoes` do
-    resto do sistema). 'dev' vira 'admin' em `perfil`, igual ao main.py."""
+    resto do sistema). 'dev' vira 'admin' em `perfil`, igual ao main.py.
+
+    Perfil, área e cargo vêm do cadastro (`usuarios`), não da cópia gravada
+    na sessão no login: quem é movido pro Service Desk (ou tirado dele) já
+    vale na próxima tela, sem precisar sair e entrar de novo."""
     if not token:
         return None
     conn = get_conn()
@@ -39,9 +43,10 @@ def get_session(token: Optional[str]) -> Optional[dict]:
     try:
         cur = conn.cursor()
         cur.execute("""
-            UPDATE sessoes SET last_seen = NOW()
-            WHERE token = %s AND expira_em > NOW()
-            RETURNING usuario_id, nome, perfil, time_usuario, cargo
+            UPDATE sessoes s SET last_seen = NOW()
+            FROM usuarios u
+            WHERE s.token = %s AND s.expira_em > NOW() AND u.id = s.usuario_id AND u.ativo
+            RETURNING s.usuario_id, u.nome, u.perfil, u.time, u.cargo
         """, (token,))
         row = cur.fetchone()
         conn.commit(); cur.close(); conn.close()
