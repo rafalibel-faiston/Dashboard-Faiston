@@ -47,321 +47,345 @@
     <script>
         tailwind.config = {
             theme: { extend: {
-                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'], display: ['Space Grotesk','sans-serif'] },
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
                 colors: { faiston: {
                     bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
-                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899', blue:'#1463FF'
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
                 } }
             }}
         }
     </script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
     <style>
-        body { background:#F4F5FA; }
-        /* :where() zera a especificidade: utilitário do Tailwind (py-1.5, pl-9...) sempre ganha. */
-        :where(.card) { background:#fff; border:1px solid #E5E8F0; border-radius:14px; }
-        :where(.lbl) { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#5E647A; }
-        :where(.inp) { width:100%; border:1px solid #E5E8F0; border-radius:8px; padding:9px 12px; font-size:14px; background:#fff; outline:none; transition:border-color .15s, box-shadow .15s; }
-        .inp:focus { border-color:#1463FF; box-shadow:0 0 0 3px rgba(20,99,255,.12); }
-        :where(.chip) { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; border:1px solid #E5E8F0; background:#fff; font-size:13px; font-weight:600; color:#334155; cursor:pointer; user-select:none; transition:all .12s; }
-        .chip:hover { border-color:#1463FF; }
-        .chip.ativo { background:#1463FF; border-color:#1463FF; color:#fff; }
-        .chip kbd { font-family:'JetBrains Mono',monospace; font-size:10px; opacity:.6; }
-        .nav-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; font-size:14px; color:#334155; cursor:pointer; }
-        .nav-item:hover { background:#F1F5F9; }
-        .nav-item.ativo { background:#EEF4FF; color:#1463FF; font-weight:600; }
-        .seg button { padding:6px 12px; font-size:13px; font-weight:600; color:#5E647A; border-radius:7px; }
-        .seg button.ativo { background:#fff; color:#0B0D1F; box-shadow:0 1px 2px rgba(0,0,0,.08); }
-        .dot { width:8px; height:8px; border-radius:99px; display:inline-block; }
-        .sug { position:absolute; z-index:30; left:0; right:0; top:100%; margin-top:4px; background:#fff; border:1px solid #E5E8F0; border-radius:10px; box-shadow:0 10px 30px rgba(15,23,42,.12); overflow:hidden; }
+        /* Mesma passada visual do Painel N2 / Minhas Tarefas */
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
+        .titulo-pagina { font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
+        .card-sd { box-shadow: 0 2px 12px rgba(91,46,224,0.06); }
+        .lbl { font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#9097AC; }
+        .inp { width:100%; border:1px solid var(--th-border); border-radius:8px; padding:9px 12px; font-size:14px; background:var(--th-input); color:var(--th-text); outline:none; transition:border-color .15s, box-shadow .15s; }
+        .inp:focus { border-color:#5B2EE0; box-shadow:0 0 0 3px rgba(91,46,224,.10); }
+        .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; border:1px solid var(--th-border); background:var(--th-surface); font-size:13px; font-weight:600; color:var(--th-muted); cursor:pointer; user-select:none; transition:all .12s; }
+        .chip:hover { border-color:rgba(91,46,224,.45); color:#5B2EE0; }
+        .chip.ativo { background:rgba(91,46,224,.08); border-color:#5B2EE0; color:#5B2EE0; box-shadow:0 0 0 3px rgba(91,46,224,.08); }
+        [data-theme="dark"] .chip.ativo { background:rgba(91,46,224,.25); color:#C4B5FD; }
+        .chip kbd { font-family:'JetBrains Mono',monospace; font-size:10px; opacity:.55; }
+        .dot { width:8px; height:8px; border-radius:99px; display:inline-block; flex-shrink:0; }
+        .sug { position:absolute; z-index:30; left:0; right:0; top:100%; margin-top:4px; background:var(--th-surface); border:1px solid var(--th-border); border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,.12); overflow:hidden; }
         .sug div { padding:8px 12px; font-size:13px; cursor:pointer; }
-        .sug div.sel, .sug div:hover { background:#EEF4FF; }
-        tr.linha:hover { background:#F8FAFF; cursor:pointer; }
-        .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:60; }
+        .sug div.sel, .sug div:hover { background:rgba(91,46,224,.06); }
+        tr.linha:hover { background:rgba(91,46,224,.03); cursor:pointer; }
+        .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:80; }
         [hidden] { display:none !important; }
     </style>
 </head>
-<body class="font-sans text-faiston-dark">
-<div class="flex min-h-screen">
-    <!-- Rail escuro -->
-    <aside class="hidden md:flex w-16 bg-faiston-dark flex-col items-center py-4 gap-3 shrink-0">
-        <a href="/service-desk" class="w-10 h-10 rounded-xl bg-faiston-blue text-white flex items-center justify-center font-display font-bold text-sm">SD</a>
-        <button data-view="jornada" class="rail w-10 h-10 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center" title="Minha jornada"><i class="ph ph-squares-four text-xl"></i></button>
-        <button data-view="atendimentos" class="rail w-10 h-10 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center" title="Atendimentos"><i class="ph ph-ticket text-xl"></i></button>
-        <button data-view="escalas" class="rail w-10 h-10 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center" title="Escalas"><i class="ph ph-calendar-blank text-xl"></i></button>
-        <button data-view="equipe" class="rail so-sup w-10 h-10 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center" title="Equipe" hidden><i class="ph ph-users-three text-xl"></i></button>
-    </aside>
-    <!-- Navegação -->
-    <nav class="hidden lg:flex w-60 bg-white border-r border-faiston-border flex-col p-4 shrink-0">
-        <div class="lbl text-[10px]">Workspace</div>
-        <div class="font-display font-bold text-lg leading-tight mt-1">Service Desk</div>
-        <div class="text-xs text-faiston-muted">Faiston OPS · Painel do operador</div>
-        <div class="border-t border-faiston-border my-4"></div>
-        <div class="lbl text-[10px] mb-2">Navegação</div>
-        <div class="nav-item" data-view="jornada"><i class="ph ph-squares-four"></i> Minha jornada <span class="ml-auto text-[10px] font-mono border border-faiston-blue/40 text-faiston-blue rounded px-1.5">Live</span></div>
-        <div class="nav-item" data-view="atendimentos"><i class="ph ph-ticket"></i> Atendimentos <span id="nav-qtd" class="ml-auto text-[10px] font-mono border border-faiston-border rounded px-1.5">0</span></div>
-        <div class="nav-item" data-view="escalas"><i class="ph ph-calendar-blank"></i> Escalas</div>
-        <div class="nav-item so-sup" data-view="equipe" hidden><i class="ph ph-users-three"></i> Equipe <span class="ml-auto text-[10px] font-mono border border-faiston-border rounded px-1.5">Sup</span></div>
-        <div class="mt-auto space-y-3">
-            <div class="rounded-xl border border-faiston-blue/20 bg-[#F5F8FF] p-3 text-xs text-faiston-muted">
-                <div class="font-semibold text-faiston-blue mb-1"><i class="ph ph-keyboard"></i> Atalhos</div>
-                <div><b class="font-mono">Ctrl+Enter</b> salva o atendimento</div>
-                <div><b class="font-mono">Ctrl+K</b> busca</div>
-                <div><b class="font-mono">Alt+1..9</b> canal · <b class="font-mono">Esc</b> limpa</div>
-            </div>
-            <button id="btn-sair" class="w-full text-xs text-faiston-muted hover:text-faiston-dark border border-faiston-border rounded-lg py-2"><i class="ph ph-sign-out"></i> Sair</button>
+<body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
+
+<!-- HEADER (mesmo padrão do /funcionario) -->
+<header class="bg-white border-b border-faiston-border px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sticky top-0 z-20">
+    <div class="flex items-center gap-3 shrink-0">
+        <img src="/faiston-ops-mark.svg" alt="" class="w-9 h-9 rounded-[10px] shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
+        <span class="font-extrabold tracking-tight text-faiston-dark text-[15px]">FAISTON <span class="grad-text">OPS</span></span>
+        <span class="w-px h-4 bg-slate-200 mx-1"></span>
+        <span class="text-sm text-slate-500 font-medium whitespace-nowrap">Service Desk</span>
+    </div>
+    <div class="flex flex-wrap lg:flex-nowrap items-center gap-2 sm:gap-3">
+        <!-- Status do operador, visível em qualquer aba (igual ao timer global) -->
+        <button id="hdr-status" data-view="jornada" class="flex items-center gap-2 bg-white border border-faiston-purple/30 rounded-lg px-3 py-1.5 shadow-[0_0_0_4px_rgba(91,46,224,0.06)]" title="Meu status">
+            <span id="hdr-dot" class="dot bg-slate-400"></span>
+            <span id="hdr-rotulo" class="text-[11px] font-semibold text-faiston-muted uppercase tracking-wider">Offline</span>
+            <span id="hdr-timer" class="font-mono text-sm font-bold text-faiston-purple">00:00:00</span>
+        </button>
+        <button id="btn-novo" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+            <i class="ph ph-plus-circle text-lg"></i> <span class="whitespace-nowrap">Registrar atendimento</span>
+        </button>
+        <div class="relative hidden xl:block">
+            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-faiston-faint"></i>
+            <input id="busca-global" class="text-xs border border-faiston-border rounded-lg pl-8 pr-12 py-2 bg-white text-faiston-dark w-56 focus:outline-none focus:border-faiston-purple" placeholder="Buscar atendimento…">
+            <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-mono text-faiston-faint border border-faiston-border rounded px-1">Ctrl K</span>
         </div>
-    </nav>
+        <button onclick="toggleTema()" id="btn-tema" class="btn-theme" title="Alternar tema">
+            <i class="ph ph-moon" id="icon-tema"></i>
+        </button>
+        <a href="/novidades" data-novidades-link title="Novidades do sistema" class="h-9 px-2.5 flex items-center gap-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple text-sm font-medium">
+            <i class="ph ph-megaphone-simple text-lg"></i><span class="hidden 2xl:inline">Novidades</span>
+        </a>
+        <button onclick="suporteAbrirModal()" title="Falar com o suporte" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple">
+            <i class="ph ph-lifebuoy text-lg"></i>
+        </button>
+        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap">
+            <i class="ph ph-sign-out"></i> Sair
+        </button>
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+            <div class="w-9 h-9 rounded-full grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-avatar">?</div>
+            <span class="text-sm font-semibold text-faiston-dark whitespace-nowrap" id="user-nome">...</span>
+        </div>
+    </div>
+</header>
 
-    <main class="flex-1 min-w-0">
-        <!-- Topo -->
-        <header class="bg-white border-b border-faiston-border px-4 md:px-6 py-3 flex items-center gap-3 sticky top-0 z-20">
-            <div class="text-sm text-faiston-faint hidden sm:block">OPS <span class="mx-1">/</span> <b class="text-faiston-dark">Service Desk</b></div>
-            <div class="relative flex-1 max-w-md">
-                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-faiston-faint"></i>
-                <input id="busca-global" class="inp pl-9 pr-16 py-2 text-sm" placeholder="Buscar por solicitante, problema, chamado...">
-                <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono border border-faiston-border rounded px-1.5 text-faiston-muted">Ctrl K</span>
-            </div>
-            <button id="btn-exportar" class="hidden sm:flex items-center gap-2 text-sm font-semibold border border-faiston-border rounded-lg px-3 py-2 hover:border-faiston-blue"><i class="ph ph-microsoft-excel-logo"></i> Exportar</button>
-            <button id="btn-novo" class="flex items-center gap-2 text-sm font-semibold bg-faiston-blue text-white rounded-lg px-3 py-2 hover:brightness-110"><i class="ph ph-plus"></i> <span class="hidden sm:inline">Registrar chamado</span></button>
-            <div id="avatar" class="w-9 h-9 rounded-full bg-[#EEF4FF] text-faiston-blue font-bold text-sm flex items-center justify-center">--</div>
-        </header>
+<main class="px-4 sm:px-6 py-5 max-w-[1400px] mx-auto">
 
-        <div class="p-4 md:p-6 space-y-4 max-w-[1400px]">
-        <!-- ═════════ MINHA JORNADA ═════════ -->
-        <section id="view-jornada" class="view space-y-4">
-            <!-- Perfil + status -->
-            <div class="card p-5 flex flex-col xl:flex-row xl:items-center gap-4">
-                <div class="flex items-center gap-4 flex-1 min-w-0">
-                    <div id="op-iniciais" class="w-14 h-14 rounded-xl bg-faiston-blue text-white font-bold text-lg flex items-center justify-center shrink-0">--</div>
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <h1 id="op-nome" class="font-display font-bold text-2xl">Carregando…</h1>
-                            <span id="op-nivel" class="text-xs font-semibold text-faiston-blue bg-[#EEF4FF] border border-faiston-blue/20 rounded-full px-2.5 py-0.5"></span>
-                            <span id="op-matricula" class="text-xs font-mono text-faiston-muted"></span>
-                        </div>
-                        <div class="text-sm text-faiston-muted mt-1 flex flex-wrap gap-x-3">
-                            <span id="op-site"></span>
-                            <span class="font-mono"><i class="ph ph-clock"></i> Jornada: <span id="op-jornada">—</span></span>
-                        </div>
+    <!-- Tab bar (mesmo padrão do /funcionario) -->
+    <div class="flex flex-wrap items-center gap-1 mb-5 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+        <button data-view="jornada" class="sd-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"><i class="ph ph-headset text-base"></i> Minha jornada</button>
+        <button data-view="atendimentos" class="sd-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"><i class="ph ph-ticket text-base"></i> Atendimentos <span id="nav-qtd" class="text-[10px] font-bold bg-faiston-purple/10 text-faiston-purple rounded-full px-1.5">0</span></button>
+        <button data-view="escalas" class="sd-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"><i class="ph ph-calendar-blank text-base"></i> Escalas</button>
+        <button data-view="equipe" class="sd-tab so-sup flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all" hidden><i class="ph ph-users-three text-base"></i> Equipe</button>
+    </div>
+
+    <!-- ═════════ MINHA JORNADA ═════════ -->
+    <section id="view-jornada" class="view space-y-5">
+        <!-- Perfil + status -->
+        <div class="bg-white rounded-2xl border border-faiston-border p-5 card-sd flex flex-col xl:flex-row xl:items-center gap-4">
+            <div class="flex items-center gap-4 flex-1 min-w-0">
+                <div id="op-iniciais" class="w-14 h-14 rounded-2xl grad-bg glow-soft text-white font-bold text-lg flex items-center justify-center shrink-0">--</div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h1 id="op-nome" class="titulo-pagina text-xl font-bold text-faiston-dark">Carregando…</h1>
+                        <span id="op-nivel" class="text-[11px] font-bold text-faiston-purple bg-faiston-purple/10 rounded-full px-2.5 py-0.5"></span>
+                        <span id="op-matricula" class="text-xs font-mono text-faiston-faint"></span>
                     </div>
-                </div>
-                <div class="rounded-xl border border-faiston-border bg-faiston-bg/60 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div class="min-w-[170px]">
-                        <div class="lbl text-[10px]">Status atual <span id="st-timer" class="font-mono normal-case">(00:00:00)</span></div>
-                        <div class="flex items-center gap-2 mt-1 font-semibold text-sm"><span id="st-dot" class="dot bg-slate-400"></span> <span id="st-rotulo">Offline</span></div>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                        <button class="st-btn chip" data-st="online"><span class="dot bg-emerald-500"></span> Online</button>
-                        <div class="relative">
-                            <button class="st-btn chip" data-st="pausa" id="btn-pausa"><span class="dot bg-amber-500"></span> Pausa <i class="ph ph-caret-down text-xs"></i></button>
-                            <div id="menu-pausa" class="sug w-48 right-0 left-auto" hidden></div>
-                        </div>
-                        <button class="st-btn chip" data-st="indisponivel"><span class="dot bg-rose-500"></span> Indisponível</button>
+                    <div class="text-xs text-faiston-muted mt-1 flex flex-wrap gap-x-3">
+                        <span id="op-site"></span>
+                        <span><i class="ph ph-clock"></i> Jornada: <span id="op-jornada" class="font-mono">—</span></span>
                     </div>
                 </div>
             </div>
+            <div class="rounded-xl border border-faiston-border bg-slate-50 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div class="min-w-[170px]">
+                    <p class="lbl">Status atual <span id="st-timer" class="font-mono normal-case tracking-normal timer-display">(00:00:00)</span></p>
+                    <div class="flex items-center gap-2 mt-1 font-semibold text-sm text-faiston-dark"><span id="st-dot" class="dot bg-slate-400"></span> <span id="st-rotulo">Offline</span></div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="st-btn chip" data-st="online"><span class="dot bg-emerald-500"></span> Online</button>
+                    <div class="relative">
+                        <button class="st-btn chip" data-st="pausa" id="btn-pausa"><span class="dot bg-amber-500"></span> Pausa <i class="ph ph-caret-down text-xs"></i></button>
+                        <div id="menu-pausa" class="sug w-48 right-0 left-auto" hidden></div>
+                    </div>
+                    <button class="st-btn chip" data-st="indisponivel"><span class="dot bg-rose-500"></span> Indisponível</button>
+                </div>
+            </div>
+        </div>
 
-            <!-- KPIs -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div class="card p-4">
-                    <div class="lbl">Produtividade do turno</div>
-                    <div class="mt-2"><span id="k-total" class="font-mono font-bold text-3xl">0</span> <span class="text-faiston-muted text-sm">/ meta <span id="k-meta">20</span></span></div>
-                    <div class="h-1.5 rounded bg-slate-100 mt-3 overflow-hidden"><div id="k-barra" class="h-full bg-faiston-blue rounded" style="width:0%"></div></div>
-                    <div id="k-total-obs" class="text-xs text-faiston-muted mt-2"></div>
+        <!-- KPIs (mesmo formato dos cards do /funcionario) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="bg-white rounded-2xl p-4 border border-faiston-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center flex-shrink-0"><i class="ph ph-ticket text-lg text-faiston-purple"></i></div>
+                    <div><p class="lbl">Produtividade do turno</p>
+                        <p class="text-2xl font-bold text-faiston-purple"><span id="k-total">0</span> <span class="text-sm font-semibold text-faiston-faint">/ meta <span id="k-meta">20</span></span></p></div>
                 </div>
-                <div class="card p-4">
-                    <div class="lbl">Resolução no 1º contato</div>
-                    <div id="k-fcr" class="font-bold text-3xl mt-2">—</div>
-                    <div id="k-fcr-obs" class="text-xs text-faiston-muted mt-2"></div>
+                <div class="h-1.5 rounded-full bg-slate-100 mt-3 overflow-hidden"><div id="k-barra" class="h-full grad-bg rounded-full" style="width:0%"></div></div>
+                <p id="k-total-obs" class="text-[11px] text-faiston-muted mt-1.5"></p>
+            </div>
+            <div class="bg-white rounded-2xl p-4 border border-faiston-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center flex-shrink-0"><i class="ph ph-check-circle text-lg text-faiston-cyan"></i></div>
+                    <div><p class="lbl">Resolução no 1º contato</p><p id="k-fcr" class="text-2xl font-bold text-faiston-cyan">—</p></div>
                 </div>
-                <div class="card p-4">
-                    <div class="lbl">Escala de hoje</div>
-                    <div id="k-escala" class="font-mono font-bold text-xl mt-2">—</div>
-                    <div id="k-escala-obs" class="text-xs text-faiston-muted mt-2"></div>
+                <p id="k-fcr-obs" class="text-[11px] text-faiston-muted mt-3"></p>
+            </div>
+            <div class="bg-white rounded-2xl p-4 border border-faiston-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-magenta/10 flex items-center justify-center flex-shrink-0"><i class="ph ph-calendar-check text-lg text-faiston-magenta"></i></div>
+                    <div><p class="lbl">Escala de hoje</p><p id="k-escala" class="text-2xl font-bold text-faiston-magenta font-mono">—</p></div>
                 </div>
-                <div class="card p-4">
-                    <div class="lbl">Fila com maior demanda</div>
-                    <div id="k-fila" class="font-mono text-sm text-faiston-blue font-semibold mt-2 break-all">—</div>
-                    <div id="k-fila-obs" class="text-xs text-faiston-muted mt-2"></div>
+                <p id="k-escala-obs" class="text-[11px] text-faiston-muted mt-3"></p>
+            </div>
+            <div class="bg-white rounded-2xl p-4 border border-faiston-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0"><i class="ph ph-stack text-lg text-faiston-muted"></i></div>
+                    <div class="min-w-0"><p class="lbl">Fila com maior demanda</p><p id="k-fila" class="text-sm font-bold text-faiston-dark font-mono break-all mt-1">—</p></div>
+                </div>
+                <p id="k-fila-obs" class="text-[11px] text-faiston-muted mt-3"></p>
+            </div>
+        </div>
+
+        <!-- Registro rápido -->
+        <form id="form-atend" class="bg-white rounded-2xl border border-faiston-border p-5 card-sd" autocomplete="off">
+            <div class="flex flex-wrap items-start justify-between gap-3 pb-4 mb-4 border-b border-faiston-border">
+                <div>
+                    <h2 id="form-titulo" class="titulo-pagina text-lg font-bold text-faiston-dark">Registrar atendimento</h2>
+                    <p class="text-xs text-faiston-muted mt-0.5"><b class="font-mono">Ctrl+Enter</b> salva · <b class="font-mono">Alt+1..9</b> troca o canal · <b class="font-mono">Esc</b> limpa</p>
+                </div>
+                <div id="form-editando" class="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5" hidden>
+                    Editando <b id="form-edit-id"></b> · <button type="button" id="btn-cancelar-edit" class="underline">cancelar</button>
                 </div>
             </div>
 
-            <!-- Registro rápido -->
-            <form id="form-atend" class="card p-5" autocomplete="off">
-                <div class="flex items-center justify-between gap-3 border-b border-faiston-border pb-3 mb-4">
-                    <div>
-                        <div class="lbl text-[10px]">Entrada rápida <span class="ml-1 font-mono normal-case text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5">Ctrl + Enter</span></div>
-                        <h2 id="form-titulo" class="font-display font-bold text-xl mt-1">Registrar atendimento</h2>
-                    </div>
-                    <div id="form-editando" class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5" hidden>
-                        Editando <b id="form-edit-id"></b> · <button type="button" id="btn-cancelar-edit" class="underline">cancelar</button>
-                    </div>
-                </div>
-
-                <!-- Modelos rápidos (saem do próprio histórico) -->
-                <div id="modelos-wrap" class="mb-4" hidden>
-                    <div class="lbl text-[10px] mb-2"><i class="ph ph-lightning"></i> Seus atendimentos mais repetidos — um clique preenche problema e tratativa</div>
-                    <div id="modelos" class="flex flex-wrap gap-2"></div>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                    <div class="lg:col-span-5 relative">
-                        <label class="text-sm font-semibold">Solicitante *</label>
-                        <input id="f-nome" class="inp mt-1" placeholder="Nome ou login — sugere quem já foi atendido" required maxlength="150">
-                        <div id="sug-nome" class="sug" hidden></div>
-                    </div>
-                    <div class="lg:col-span-3">
-                        <label class="text-sm font-semibold">Login de rede</label>
-                        <input id="f-login" class="inp mt-1 font-mono" placeholder="carlos.oliveira" maxlength="80">
-                    </div>
-                    <div class="lg:col-span-4">
-                        <label class="text-sm font-semibold">Nº do chamado <span class="text-faiston-faint font-normal">(opcional)</span></label>
-                        <input id="f-chamado" class="inp mt-1 font-mono" placeholder="INC0012345" maxlength="60">
-                    </div>
-
-                    <div class="lg:col-span-12">
-                        <label class="text-sm font-semibold">Canal</label>
-                        <div id="f-canais" class="flex flex-wrap gap-2 mt-1"></div>
-                    </div>
-
-                    <div class="lg:col-span-6">
-                        <div class="flex items-center justify-between">
-                            <label class="text-sm font-semibold">Fila de recebimento *</label>
-                            <button type="button" id="btn-redirecionar" class="text-xs font-semibold text-faiston-blue">+ Redirecionar para outra fila</button>
-                        </div>
-                        <input id="f-fila" class="inp mt-1 font-mono text-[13px]" list="dl-filas" required maxlength="120" placeholder="Digite ou escolha — fila nova é criada na hora">
-                    </div>
-                    <div class="lg:col-span-6" id="wrap-destino" hidden>
-                        <label class="text-sm font-semibold text-amber-700">Redirecionado para</label>
-                        <input id="f-destino" class="inp mt-1 font-mono text-[13px]" list="dl-filas" maxlength="120" placeholder="Fila de destino">
-                    </div>
-
-                    <div class="lg:col-span-4">
-                        <label class="text-sm font-semibold"><i class="ph ph-tag"></i> Categoria</label>
-                        <input id="f-categoria" class="inp mt-1" list="dl-categorias" maxlength="120" placeholder="Acesso, SAP, VPN, Hardware…">
-                    </div>
-                    <div class="lg:col-span-8">
-                        <label class="text-sm font-semibold">Problema *</label>
-                        <input id="f-problema" class="inp mt-1" required maxlength="300" placeholder="Resumo objetivo — ex.: Bloqueio de conta AD">
-                    </div>
-                    <div class="lg:col-span-12">
-                        <label class="text-sm font-semibold">Tratativa *</label>
-                        <textarea id="f-tratativa" class="inp mt-1" rows="2" required placeholder="O que foi feito — ex.: Reset de senha via console AD e teste com o colaborador"></textarea>
-                    </div>
-
-                    <div class="lg:col-span-12 flex flex-col md:flex-row md:items-end gap-3">
-                        <div class="flex-1">
-                            <label class="text-sm font-semibold">Status</label>
-                            <div id="f-status" class="flex flex-wrap gap-2 mt-1"></div>
-                        </div>
-                        <div class="flex gap-2">
-                            <button type="button" id="btn-limpar" class="px-4 py-2.5 rounded-lg border border-faiston-border text-sm font-semibold text-faiston-muted hover:text-faiston-dark">Limpar</button>
-                            <button type="submit" id="btn-salvar" class="px-5 py-2.5 rounded-lg bg-faiston-blue text-white text-sm font-semibold hover:brightness-110 flex items-center gap-2"><i class="ph ph-check"></i> Salvar <span class="font-mono text-[10px] opacity-70">Ctrl+↵</span></button>
-                        </div>
-                    </div>
-                </div>
-                <datalist id="dl-filas"></datalist>
-                <datalist id="dl-categorias"></datalist>
-            </form>
-
-            <!-- Lista do turno -->
-            <div class="card overflow-hidden">
-                <div class="flex flex-wrap items-center gap-3 p-4 border-b border-faiston-border">
-                    <div class="lbl">Meus atendimentos do turno</div>
-                    <span id="turno-qtd" class="text-xs font-mono font-semibold text-faiston-blue bg-[#EEF4FF] border border-faiston-blue/20 rounded-full px-2.5 py-0.5">0 tratados</span>
-                    <div class="ml-auto seg bg-slate-100 rounded-lg p-1 flex" id="turno-abas">
-                        <button data-aba="" class="ativo">Todos</button>
-                        <button data-aba="concluido">Concluídos</button>
-                        <button data-aba="redirecionado">Redirecionados</button>
-                        <button data-aba="abertos">Em aberto</button>
-                    </div>
-                    <input id="turno-filtro" class="inp w-full sm:w-56 py-1.5 text-sm" placeholder="Filtrar nesta lista…">
-                </div>
-                <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-slate-50 text-left"><tr class="lbl text-[10px]">
-                    <th class="px-4 py-2.5">Horário</th><th class="px-4">Solicitante</th><th class="px-4">Canal</th><th class="px-4">Fila de entrada</th><th class="px-4">Problema / tratativa</th><th class="px-4">Status</th>
-                </tr></thead><tbody id="turno-tbody"></tbody></table></div>
-                <div id="turno-vazio" class="p-8 text-center text-sm text-faiston-muted" hidden>Nenhum atendimento neste turno ainda. Registre o primeiro acima.</div>
+            <!-- Modelos rápidos (saem do próprio histórico) -->
+            <div id="modelos-wrap" class="mb-4" hidden>
+                <p class="lbl mb-2"><i class="ph ph-lightning"></i> Seus atendimentos mais repetidos — um clique preenche</p>
+                <div id="modelos" class="flex flex-wrap gap-2"></div>
             </div>
-        </section>
 
-        <!-- ═════════ ATENDIMENTOS ═════════ -->
-        <section id="view-atendimentos" class="view space-y-4" hidden>
-            <div class="card p-5 flex flex-wrap items-center gap-3">
-                <div class="flex-1 min-w-[240px]">
-                    <div class="lbl text-[10px]" id="at-escopo-lbl">Meus atendimentos <span class="ml-1 normal-case text-faiston-blue bg-[#EEF4FF] rounded px-1.5"><i class="ph ph-lock"></i> só você vê</span></div>
-                    <h2 class="font-display font-bold text-2xl mt-1">Chamados registrados</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div class="lg:col-span-5 relative">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Solicitante *</label>
+                    <input id="f-nome" class="inp" placeholder="Nome ou login — sugere quem já foi atendido" required maxlength="150">
+                    <div id="sug-nome" class="sug" hidden></div>
                 </div>
-                <button id="at-exportar" class="flex items-center gap-2 text-sm font-semibold border border-faiston-border rounded-lg px-3 py-2 hover:border-faiston-blue"><i class="ph ph-microsoft-excel-logo"></i> Exportar Excel</button>
-                <button id="at-novo" class="flex items-center gap-2 text-sm font-semibold bg-faiston-blue text-white rounded-lg px-3 py-2"><i class="ph ph-plus"></i> Novo atendimento</button>
+                <div class="lg:col-span-3">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Login de rede</label>
+                    <input id="f-login" class="inp font-mono" placeholder="carlos.oliveira" maxlength="80">
+                </div>
+                <div class="lg:col-span-4">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nº do chamado <span class="normal-case font-normal text-faiston-faint">(opcional)</span></label>
+                    <input id="f-chamado" class="inp font-mono" placeholder="INC0012345" maxlength="60">
+                </div>
+
+                <div class="lg:col-span-12">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Canal</label>
+                    <div id="f-canais" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <div class="lg:col-span-6">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Fila de recebimento *</label>
+                        <button type="button" id="btn-redirecionar" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta">+ Redirecionar para outra fila</button>
+                    </div>
+                    <input id="f-fila" class="inp font-mono text-[13px]" list="dl-filas" required maxlength="120" placeholder="Digite ou escolha — fila nova é criada na hora">
+                </div>
+                <div class="lg:col-span-6" id="wrap-destino" hidden>
+                    <label class="text-xs font-semibold text-amber-700 uppercase tracking-wide block mb-1.5">Redirecionado para</label>
+                    <input id="f-destino" class="inp font-mono text-[13px]" list="dl-filas" maxlength="120" placeholder="Fila de destino">
+                </div>
+
+                <div class="lg:col-span-4">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Categoria</label>
+                    <input id="f-categoria" class="inp" list="dl-categorias" maxlength="120" placeholder="Acesso, SAP, VPN, Hardware…">
+                </div>
+                <div class="lg:col-span-8">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Problema *</label>
+                    <input id="f-problema" class="inp" required maxlength="300" placeholder="Resumo objetivo — ex.: Bloqueio de conta AD">
+                </div>
+                <div class="lg:col-span-12">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Tratativa *</label>
+                    <textarea id="f-tratativa" class="inp" rows="2" required placeholder="O que foi feito — ex.: Reset de senha via console AD e teste com o colaborador"></textarea>
+                </div>
+
+                <div class="lg:col-span-12 flex flex-col md:flex-row md:items-end gap-3">
+                    <div class="flex-1">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                        <div id="f-status" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" id="btn-limpar" class="px-4 py-2.5 rounded-lg border border-faiston-border text-sm font-semibold text-slate-500 hover:bg-slate-50">Limpar</button>
+                        <button type="submit" id="btn-salvar" class="btn-grad text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2"><i class="ph ph-check-circle text-base"></i> Salvar <span class="font-mono text-[10px] opacity-75">Ctrl+↵</span></button>
+                    </div>
+                </div>
             </div>
-            <div class="card p-3 flex flex-wrap gap-2">
-                <select id="at-escopo" class="inp w-auto py-1.5 text-sm">
+            <datalist id="dl-filas"></datalist>
+            <datalist id="dl-categorias"></datalist>
+        </form>
+
+        <!-- Lista do turno -->
+        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden card-sd">
+            <div class="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-faiston-border">
+                <span class="text-sm font-bold text-faiston-dark">Meus atendimentos do turno</span>
+                <span id="turno-qtd" class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">0 tratados</span>
+                <div class="ml-auto flex items-center gap-1 p-1 rounded-lg" style="background:rgba(148,163,184,0.1)" id="turno-abas">
+                    <button data-aba="" class="turno-aba px-3 py-1 rounded-md text-xs font-semibold">Todos</button>
+                    <button data-aba="concluido" class="turno-aba px-3 py-1 rounded-md text-xs font-semibold">Concluídos</button>
+                    <button data-aba="redirecionado" class="turno-aba px-3 py-1 rounded-md text-xs font-semibold">Redirecionados</button>
+                    <button data-aba="abertos" class="turno-aba px-3 py-1 rounded-md text-xs font-semibold">Em aberto</button>
+                </div>
+                <input id="turno-filtro" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs bg-white w-full sm:w-52 focus:outline-none focus:border-faiston-purple" placeholder="Filtrar nesta lista…">
+            </div>
+            <div class="overflow-x-auto custom-scrollbar"><table class="w-full text-sm"><thead class="text-left"><tr class="lbl border-b border-faiston-border">
+                <th class="px-5 py-2.5">Horário</th><th class="px-4">Solicitante</th><th class="px-4">Canal</th><th class="px-4">Fila de entrada</th><th class="px-4">Problema / tratativa</th><th class="px-4">Status</th>
+            </tr></thead><tbody id="turno-tbody"></tbody></table></div>
+            <p id="turno-vazio" class="text-sm text-slate-400 text-center py-10" hidden>Nenhum atendimento neste turno ainda. Registre o primeiro acima.</p>
+        </div>
+    </section>
+
+    <!-- ═════════ ATENDIMENTOS ═════════ -->
+    <section id="view-atendimentos" class="view space-y-5" hidden>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="titulo-pagina text-xl font-bold text-faiston-dark">Chamados registrados</h2>
+                <p class="text-xs text-faiston-muted mt-0.5" id="at-subtitulo"><i class="ph ph-lock-simple"></i> Só você vê os seus atendimentos</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="at-exportar" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors bg-white"><i class="ph ph-microsoft-excel-logo text-sm"></i> Exportar Excel</button>
+                <button id="at-novo" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="ph ph-plus text-base"></i> Novo atendimento</button>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-faiston-border p-5 card-sd">
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <select id="at-escopo" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
                     <option value="turno">Turno atual</option><option value="hoje">Hoje</option><option value="7d">Últimos 7 dias</option><option value="30d" selected>Últimos 30 dias</option><option value="tudo">Tudo</option>
                 </select>
-                <select id="at-status" class="inp w-auto py-1.5 text-sm"><option value="">Todos os status</option></select>
-                <select id="at-fila" class="inp w-auto py-1.5 text-sm font-mono"><option value="">Todas as filas</option></select>
-                <select id="at-operador" class="inp w-auto py-1.5 text-sm so-sup" hidden><option value="">Toda a equipe</option><option value="eu">Só os meus</option></select>
-                <input id="at-q" class="inp flex-1 min-w-[200px] py-1.5 text-sm" placeholder="Buscar solicitante, problema, tratativa…">
+                <select id="at-status" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple"><option value="">Todos os status</option></select>
+                <select id="at-fila" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple"><option value="">Todas as filas</option></select>
+                <select id="at-operador" class="so-sup border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple" hidden><option value="">Toda a equipe</option><option value="eu">Só os meus</option></select>
+                <input id="at-q" class="col-span-2 lg:col-span-1 flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple" placeholder="Buscar solicitante, problema…">
             </div>
-            <div class="card overflow-hidden">
-                <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-slate-50 text-left"><tr class="lbl text-[10px]">
-                    <th class="px-4 py-2.5">Data / horário</th><th class="px-4 so-sup-col" hidden>Operador</th><th class="px-4">Solicitante</th><th class="px-4">Canal</th><th class="px-4">Fila de entrada</th><th class="px-4">Categoria / problema</th><th class="px-4">Status</th>
-                </tr></thead><tbody id="at-tbody"></tbody></table></div>
-                <div id="at-vazio" class="p-8 text-center text-sm text-faiston-muted" hidden>Nada encontrado com esses filtros.</div>
-            </div>
-        </section>
-
-        <!-- ═════════ ESCALAS ═════════ -->
-        <section id="view-escalas" class="view space-y-4" hidden>
-            <div class="card p-5 flex flex-wrap items-center gap-3">
-                <div class="flex-1 min-w-[240px]">
-                    <div class="lbl text-[10px]">Workforce planning</div>
-                    <h2 class="font-display font-bold text-2xl mt-1">Escalas & turnos</h2>
-                    <div class="text-sm text-faiston-muted">Rodízio 12x36, plantões e sobreavisos.</div>
-                </div>
-                <div class="flex items-center gap-1">
-                    <button id="es-ant" class="w-9 h-9 border border-faiston-border rounded-lg"><i class="ph ph-caret-left"></i></button>
-                    <button id="es-hoje" class="px-3 h-9 border border-faiston-border rounded-lg text-sm font-semibold">Esta semana</button>
-                    <button id="es-prox" class="w-9 h-9 border border-faiston-border rounded-lg"><i class="ph ph-caret-right"></i></button>
-                </div>
-                <button id="es-gerar" class="so-sup flex items-center gap-2 text-sm font-semibold bg-faiston-blue text-white rounded-lg px-3 py-2" hidden><i class="ph ph-magic-wand"></i> Gerar 12x36</button>
-            </div>
-            <div id="es-grade" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3"></div>
-        </section>
-
-        <!-- ═════════ EQUIPE (supervisor) ═════════ -->
-        <section id="view-equipe" class="view space-y-4" hidden>
-            <div class="card p-5 flex flex-wrap items-center gap-3">
-                <div class="flex-1">
-                    <div class="lbl text-[10px]">Supervisão · tempo real</div>
-                    <h2 class="font-display font-bold text-2xl mt-1">Equipe no turno</h2>
-                    <div id="eq-resumo" class="text-sm text-faiston-muted"></div>
-                </div>
-                <button id="eq-atualizar" class="text-sm font-semibold border border-faiston-border rounded-lg px-3 py-2"><i class="ph ph-arrows-clockwise"></i> Atualizar</button>
-            </div>
-            <div id="eq-grade" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
-            <div class="text-xs text-faiston-muted">Operador aparece aqui quando o usuário tem time <b>Service Desk</b> ou cargo <b>Service Desk — Operador/Supervisor</b> (cadastro em Gerenciar Usuários).</div>
-        </section>
         </div>
-    </main>
-</div>
-
-<!-- Modal genérico -->
-<div id="modal" class="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" hidden>
-    <div class="card w-full max-w-md p-5 shadow-2xl">
-        <div class="flex items-center justify-between mb-4">
-            <h3 id="modal-titulo" class="font-display font-bold text-lg"></h3>
-            <button id="modal-fechar" class="text-faiston-muted"><i class="ph ph-x text-lg"></i></button>
+        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden card-sd">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+                <span class="text-sm font-bold text-faiston-dark">Atendimentos</span>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="at-count">carregando...</span>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar"><table class="w-full text-sm"><thead class="text-left"><tr class="lbl border-b border-faiston-border">
+                <th class="px-5 py-2.5">Data / horário</th><th class="px-4 so-sup-col" hidden>Operador</th><th class="px-4">Solicitante</th><th class="px-4">Canal</th><th class="px-4">Fila de entrada</th><th class="px-4">Categoria / problema</th><th class="px-4">Status</th>
+            </tr></thead><tbody id="at-tbody"></tbody></table></div>
+            <p id="at-vazio" class="text-sm text-slate-400 text-center py-10" hidden>Nada encontrado com esses filtros.</p>
         </div>
-        <div id="modal-corpo" class="space-y-3"></div>
-        <div class="flex justify-end gap-2 mt-5">
-            <button id="modal-cancelar" class="px-4 py-2 rounded-lg border border-faiston-border text-sm font-semibold">Cancelar</button>
-            <button id="modal-ok" class="px-4 py-2 rounded-lg bg-faiston-blue text-white text-sm font-semibold">Salvar</button>
+    </section>
+
+    <!-- ═════════ ESCALAS ═════════ -->
+    <section id="view-escalas" class="view space-y-5" hidden>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="titulo-pagina text-xl font-bold text-faiston-dark">Escalas & turnos</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Rodízio 12x36, plantões e sobreavisos</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1 bg-white border border-faiston-border rounded-lg p-1">
+                    <button id="es-ant" class="w-8 h-8 rounded-md hover:bg-slate-100 text-faiston-muted"><i class="ph ph-caret-left"></i></button>
+                    <button id="es-hoje" class="px-3 h-8 rounded-md hover:bg-slate-100 text-xs font-semibold text-faiston-dark">Esta semana</button>
+                    <button id="es-prox" class="w-8 h-8 rounded-md hover:bg-slate-100 text-faiston-muted"><i class="ph ph-caret-right"></i></button>
+                </div>
+                <button id="es-gerar" class="so-sup flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold" hidden><i class="ph ph-magic-wand text-base"></i> Gerar 12x36</button>
+            </div>
+        </div>
+        <div id="es-grade" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3"></div>
+    </section>
+
+    <!-- ═════════ EQUIPE (supervisor) ═════════ -->
+    <section id="view-equipe" class="view space-y-5" hidden>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="titulo-pagina text-xl font-bold text-faiston-dark">Equipe no turno</h2>
+                <p class="text-xs text-faiston-muted mt-0.5" id="eq-resumo"></p>
+            </div>
+            <button id="eq-atualizar" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 bg-white"><i class="ph ph-arrows-clockwise text-sm"></i> Atualizar</button>
+        </div>
+        <div id="eq-grade" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        <p class="text-xs text-faiston-faint">Operador aparece aqui quando o usuário tem time <b>Service Desk</b> ou cargo <b>Service Desk — Operador/Supervisor</b> (cadastro em Gerenciar Usuários).</p>
+    </section>
+</main>
+
+<!-- Modal genérico (mesmo visual dos modais do sistema) -->
+<div id="modal" class="fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[60] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)" hidden>
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-faiston-border">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-faiston-border">
+            <span id="modal-titulo" class="font-bold text-faiston-dark text-sm"></span>
+            <button id="modal-fechar" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="modal-corpo" class="p-6 space-y-3"></div>
+        <div class="flex justify-end gap-2 px-6 pb-6">
+            <button id="modal-cancelar" class="px-4 py-2 rounded-lg border border-faiston-border text-sm font-semibold text-slate-500 hover:bg-slate-50">Cancelar</button>
+            <button id="modal-ok" class="btn-grad text-white px-5 py-2 rounded-lg text-sm font-semibold">Salvar</button>
         </div>
     </div>
 </div>
 <div id="toast" class="toast" hidden></div>
+
+<script src="/js/faiston-erros.js"></script>
 
 <script>
 // ─── utilitários ──────────────────────────────────────────────────────────
@@ -390,7 +414,7 @@ async function api(url, opts = {}) {
 
 function toast(msg, tipo = 'ok') {
     const t = $('#toast');
-    const cor = tipo === 'erro' ? 'bg-rose-600' : 'bg-faiston-dark';
+    const cor = tipo === 'erro' ? 'bg-rose-600' : 'grad-bg';
     t.innerHTML = `<div class="${cor} text-white text-sm font-semibold rounded-xl px-4 py-3 shadow-xl flex items-center gap-2"><i class="ph ${tipo === 'erro' ? 'ph-warning' : 'ph-check-circle'}"></i>${esc(msg)}</div>`;
     t.hidden = false;
     clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2600);
@@ -418,10 +442,18 @@ function celulaFila(a) {
 }
 
 // ─── navegação ────────────────────────────────────────────────────────────
+// Mesmo estilo de aba do /funcionario (switchTab), com variante pro tema escuro.
+function estiloAba(ativo) {
+    const escuro = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (!ativo) return 'background:transparent;color:#9097AC;box-shadow:none';
+    return escuro ? 'background:#11111E;color:#F1F2F8;box-shadow:0 1px 4px rgba(0,0,0,0.5)'
+                  : 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+}
+let VIEW = 'jornada';
 function irPara(view) {
+    VIEW = view;
     $$('.view').forEach(v => v.hidden = v.id !== 'view-' + view);
-    $$('[data-view]').forEach(n => n.classList.toggle('ativo', n.dataset.view === view));
-    $$('.rail').forEach(n => n.classList.toggle('bg-white/10', n.dataset.view === view));
+    $$('.sd-tab').forEach(n => n.style.cssText = estiloAba(n.dataset.view === view));
     try { localStorage.setItem('sd_view', view); } catch (e) {}
     if (view === 'atendimentos') carregarAtendimentos();
     if (view === 'escalas') carregarEscalas();
@@ -435,7 +467,8 @@ async function carregarMe() {
     const op = ME.operador;
     $('#op-nome').textContent = op.nome;
     $('#op-iniciais').textContent = iniciais(op.nome);
-    $('#avatar').textContent = iniciais(op.nome);
+    $('#user-avatar').textContent = iniciais(op.nome);
+    $('#user-nome').textContent = op.nome;
     $('#op-nivel').textContent = 'Service Desk ' + (op.nivel || 'N1');
     $('#op-matricula').textContent = op.matricula ? 'Matrícula: ' + op.matricula : '';
     $('#op-site').innerHTML = op.site ? `<i class="ph ph-map-pin"></i> ${esc(op.site)}` : '';
@@ -443,7 +476,7 @@ async function carregarMe() {
     $('#op-jornada').textContent = t.hora_inicio ? `${t.hora_inicio}–${t.hora_fim}${op.regime ? ' · ' + op.regime : ''}` : 'não cadastrada';
     $$('.so-sup').forEach(e => e.hidden = !ME.supervisor);
     $$('.so-sup-col').forEach(e => e.hidden = !ME.supervisor);
-    if (ME.supervisor) $('#at-escopo-lbl').innerHTML = 'Atendimentos <span class="ml-1 normal-case text-faiston-blue bg-[#EEF4FF] rounded px-1.5"><i class="ph ph-eye"></i> visão de supervisor</span>';
+    if (ME.supervisor) $('#at-subtitulo').innerHTML = '<i class="ph ph-eye"></i> Visão de supervisor — atendimentos de toda a equipe';
     renderStatus(ME.status);
     renderKpis();
 }
@@ -454,13 +487,17 @@ function renderStatus(st) {
     const [rot, cor] = ST_OPERADOR[st.status] || ST_OPERADOR.offline;
     $('#st-rotulo').textContent = rot + (st.motivo ? ' · ' + st.motivo : '');
     $('#st-dot').className = 'dot ' + cor;
+    $('#hdr-dot').className = 'dot ' + cor + (st.status === 'online' ? ' pulse-dot' : '');
+    $('#hdr-rotulo').textContent = rot;
     $$('.st-btn').forEach(b => b.classList.toggle('ativo', b.dataset.st === st.status));
     tickTimer();
 }
 function tickTimer() {
     if (!ME) return;
     const s = ME.status.status === 'offline' ? 0 : statusBase.seg + Math.floor((Date.now() - statusBase.em) / 1000);
-    $('#st-timer').textContent = `(${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)})`;
+    const txt = `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+    $('#st-timer').textContent = `(${txt})`;
+    $('#hdr-timer').textContent = txt;
 }
 setInterval(tickTimer, 1000);
 
@@ -521,7 +558,7 @@ async function carregarOpcoes() {
 function renderCanais() {
     $('#f-canais').innerHTML = OPC.canais.map((c, i) =>
         `<span class="chip ${c === CANAL ? 'ativo' : ''}" data-canal="${esc(c)}">${esc(c)}${i < 9 ? ` <kbd>Alt+${i + 1}</kbd>` : ''}</span>`).join('') +
-        `<span class="chip text-faiston-blue" data-canal-novo>+ outro</span>`;
+        `<span class="chip text-faiston-purple" data-canal-novo>+ outro</span>`;
 }
 $('#f-canais').addEventListener('click', async ev => {
     const c = ev.target.closest('[data-canal]');
@@ -536,7 +573,7 @@ $('#f-canais').addEventListener('click', async ev => {
 function renderStatusChips() {
     $('#f-status').innerHTML = OPC.status.map(s =>
         `<span class="chip ${s.chave === STATUS ? 'ativo' : ''}" data-status="${esc(s.chave)}"><span class="dot ${COR_STATUS[s.cor] || 'bg-slate-400'}"></span>${esc(s.rotulo)}</span>`).join('') +
-        (ME?.supervisor ? `<span class="chip text-faiston-blue" data-status-novo>+ novo status</span>` : '');
+        (ME?.supervisor ? `<span class="chip text-faiston-purple" data-status-novo>+ novo status</span>` : '');
 }
 $('#f-status').addEventListener('click', async ev => {
     const c = ev.target.closest('[data-status]');
@@ -677,19 +714,19 @@ function renderTurno() {
     });
     $('#turno-vazio').hidden = !!lista.length;
     $('#turno-tbody').innerHTML = lista.map(a => `
-        <tr class="linha border-t border-faiston-border" data-id="${a.id}">
-            <td class="px-4 py-3 font-mono text-[13px] text-faiston-muted">${hhmm(a.criado_em)}</td>
-            <td class="px-4"><div class="font-semibold">${esc(a.solicitante_nome)}</div><div class="font-mono text-[11px] text-faiston-faint">${esc(a.solicitante_login)}</div></td>
-            <td class="px-4"><span class="text-xs bg-slate-100 border border-faiston-border rounded px-2 py-1">${esc(a.canal || '—')}</span></td>
+        <tr class="linha border-b border-faiston-border last:border-0" data-id="${a.id}">
+            <td class="px-5 py-3 font-mono text-[13px] text-faiston-muted">${hhmm(a.criado_em)}</td>
+            <td class="px-4"><div class="font-semibold text-faiston-dark">${esc(a.solicitante_nome)}</div><div class="font-mono text-[11px] text-faiston-faint">${esc(a.solicitante_login)}</div></td>
+            <td class="px-4"><span class="text-[11px] font-semibold text-faiston-muted bg-slate-100 rounded-full px-2 py-0.5">${esc(a.canal || '—')}</span></td>
             <td class="px-4">${celulaFila(a)}</td>
-            <td class="px-4 max-w-[340px]"><div class="font-semibold truncate">${esc(a.problema)}</div><div class="text-xs text-faiston-faint truncate">${esc(a.tratativa)}</div></td>
+            <td class="px-4 max-w-[340px]"><div class="font-semibold text-faiston-dark truncate">${esc(a.problema)}</div><div class="text-xs text-faiston-faint truncate">${esc(a.tratativa)}</div></td>
             <td class="px-4 whitespace-nowrap">${badgeStatus(a.status)}</td>
         </tr>`).join('');
 }
 $('#turno-tbody').addEventListener('click', ev => { const tr = ev.target.closest('tr[data-id]'); if (tr) editar(TURNO.find(a => a.id == tr.dataset.id)); });
-$$('#turno-abas button').forEach(b => b.addEventListener('click', () => {
-    ABA = b.dataset.aba; $$('#turno-abas button').forEach(x => x.classList.toggle('ativo', x === b)); renderTurno();
-}));
+const estiloAbasTurno = () => $$('#turno-abas button').forEach(x => x.style.cssText = estiloAba(x.dataset.aba === ABA));
+$$('#turno-abas button').forEach(b => b.addEventListener('click', () => { ABA = b.dataset.aba; estiloAbasTurno(); renderTurno(); }));
+estiloAbasTurno();
 $('#turno-filtro').addEventListener('input', renderTurno);
 
 // ─── atendimentos (histórico) ─────────────────────────────────────────────
@@ -702,14 +739,15 @@ function paramsAt() {
 async function carregarAtendimentos() {
     try { AT = await api('/api/sd/atendimentos?' + paramsAt()); } catch (e) { toast(e.message, 'erro'); return; }
     $('#at-vazio').hidden = !!AT.length;
+    $('#at-count').textContent = AT.length + ' atendimento' + (AT.length === 1 ? '' : 's');
     $('#at-tbody').innerHTML = AT.map(a => `
-        <tr class="linha border-t border-faiston-border" data-id="${a.id}">
-            <td class="px-4 py-3 font-mono text-[13px] text-faiston-muted whitespace-nowrap">${ddmm(a.criado_em)} ${hhmm(a.criado_em)}</td>
+        <tr class="linha border-b border-faiston-border last:border-0" data-id="${a.id}">
+            <td class="px-5 py-3 font-mono text-[13px] text-faiston-muted whitespace-nowrap">${ddmm(a.criado_em)} ${hhmm(a.criado_em)}</td>
             ${ME?.supervisor ? `<td class="px-4 text-sm">${esc(a.operador)}</td>` : ''}
-            <td class="px-4"><div class="font-semibold">${esc(a.solicitante_nome)}</div><div class="font-mono text-[11px] text-faiston-faint">${esc(a.solicitante_login)}</div></td>
-            <td class="px-4"><span class="text-xs bg-slate-100 border border-faiston-border rounded px-2 py-1">${esc(a.canal || '—')}</span></td>
+            <td class="px-4"><div class="font-semibold text-faiston-dark">${esc(a.solicitante_nome)}</div><div class="font-mono text-[11px] text-faiston-faint">${esc(a.solicitante_login)}</div></td>
+            <td class="px-4"><span class="text-[11px] font-semibold text-faiston-muted bg-slate-100 rounded-full px-2 py-0.5">${esc(a.canal || '—')}</span></td>
             <td class="px-4">${celulaFila(a)}</td>
-            <td class="px-4 max-w-[340px]">${a.categoria ? `<span class="text-[11px] font-semibold text-faiston-blue bg-[#EEF4FF] rounded px-1.5">${esc(a.categoria)}</span>` : ''}<div class="font-semibold truncate">${esc(a.problema)}</div><div class="text-xs text-faiston-faint truncate">${esc(a.tratativa)}</div></td>
+            <td class="px-4 max-w-[340px]">${a.categoria ? `<span class="text-[11px] font-semibold text-faiston-purple bg-faiston-purple/10 rounded px-1.5">${esc(a.categoria)}</span>` : ''}<div class="font-semibold text-faiston-dark truncate">${esc(a.problema)}</div><div class="text-xs text-faiston-faint truncate">${esc(a.tratativa)}</div></td>
             <td class="px-4 whitespace-nowrap">${badgeStatus(a.status)}</td>
         </tr>`).join('');
 }
@@ -718,7 +756,6 @@ $('#at-tbody').addEventListener('click', ev => { const tr = ev.target.closest('t
 $('#at-q').addEventListener('input', debounce(carregarAtendimentos, 250));
 const exportar = () => { location.href = '/api/sd/atendimentos/exportar?' + paramsAt(); };
 $('#at-exportar').addEventListener('click', exportar);
-$('#btn-exportar').addEventListener('click', exportar);
 $('#at-novo').addEventListener('click', () => { irPara('jornada'); limparForm(); $('#form-atend').scrollIntoView({ behavior: 'smooth' }); });
 $('#btn-novo').addEventListener('click', () => { irPara('jornada'); limparForm(); $('#form-atend').scrollIntoView({ behavior: 'smooth' }); });
 $('#busca-global').addEventListener('keydown', e => {
@@ -727,6 +764,7 @@ $('#busca-global').addEventListener('keydown', e => {
 });
 
 // ─── escalas ──────────────────────────────────────────────────────────────
+const TIPO_ESCALA = { turno: 'Turno', plantao: 'Plantão', sobreaviso: 'Sobreaviso' };
 const DIAS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 let esInicio = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; })();
 let OPERADORES = null;
@@ -740,20 +778,20 @@ async function carregarEscalas() {
         const iso = isoDia(d);
         const itens = r.itens.filter(x => x.data === iso);
         cols.push(`
-        <div class="card p-3 ${iso === hoje ? 'ring-2 ring-faiston-blue/40' : ''}">
+        <div class="bg-white rounded-2xl border border-faiston-border p-3 card-sd ${iso === hoje ? 'ring-2 ring-faiston-purple/30' : ''}">
             <div class="flex flex-wrap items-baseline justify-between gap-x-2 border-b border-faiston-border pb-2 mb-2">
-                <div class="text-xs font-bold whitespace-nowrap">${DIAS[d.getDay()]} · ${pad(d.getDate())}/${pad(d.getMonth() + 1)}</div>
+                <div class="text-xs font-bold text-faiston-dark whitespace-nowrap">${DIAS[d.getDay()]} · ${pad(d.getDate())}/${pad(d.getMonth() + 1)}</div>
                 <div class="text-[10px] font-mono text-faiston-muted whitespace-nowrap">${itens.length} pessoa${itens.length === 1 ? '' : 's'}</div>
             </div>
             <div class="space-y-2">
             ${itens.map(x => `
-                <div class="group relative rounded-lg bg-slate-50 border-l-[3px] ${x.noturno ? 'border-faiston-purple bg-[#F4F2FF]' : 'border-faiston-blue'} px-2.5 py-2">
-                    <div class="text-sm font-semibold flex items-center gap-1">${esc(x.nome)} ${x.noturno ? '<i class="ph ph-moon text-faiston-purple ml-auto"></i>' : ''}</div>
-                    <div class="text-[11px] font-mono text-faiston-muted">${x.hora_inicio}–${x.hora_fim}${x.tipo !== 'turno' ? ' · ' + esc(x.tipo) : ''}</div>
+                <div class="group relative rounded-lg border-l-[3px] ${x.noturno ? 'border-faiston-purple bg-faiston-purple/5' : 'border-faiston-cyan bg-faiston-cyan/5'} px-2.5 py-2">
+                    <div class="text-sm font-semibold text-faiston-dark flex items-center gap-1">${esc(x.nome)} ${x.noturno ? '<i class="ph ph-moon text-faiston-purple ml-auto"></i>' : ''}</div>
+                    <div class="text-[11px] font-mono text-faiston-muted">${x.hora_inicio}–${x.hora_fim}${x.tipo !== 'turno' ? ' · ' + (TIPO_ESCALA[x.tipo] || esc(x.tipo)) : ''}</div>
                     ${ME?.supervisor ? `<button data-del-escala="${x.id}" class="absolute top-1 right-1 hidden group-hover:block text-rose-500 text-xs" title="Remover"><i class="ph ph-trash"></i></button>` : ''}
                 </div>`).join('') || '<div class="text-xs text-faiston-faint py-2">Ninguém escalado</div>'}
             </div>
-            ${ME?.supervisor ? `<button data-add-escala="${iso}" class="mt-2 w-full text-xs text-faiston-blue font-semibold border border-dashed border-faiston-blue/40 rounded-lg py-1.5">+ adicionar</button>` : ''}
+            ${ME?.supervisor ? `<button data-add-escala="${iso}" class="mt-2 w-full text-xs text-faiston-purple font-semibold border border-dashed border-faiston-purple/40 rounded-lg py-1.5">+ adicionar</button>` : ''}
         </div>`);
     }
     $('#es-grade').innerHTML = cols.join('');
@@ -823,18 +861,18 @@ async function carregarEquipe() {
         const [rot, cor] = ST_OPERADOR[o.status.status] || ST_OPERADOR.offline;
         const k = o.kpis, pct = k.meta ? Math.min(100, 100 * k.total / k.meta) : 0;
         return `
-        <div class="card p-4">
+        <div class="bg-white rounded-2xl border border-faiston-border p-4 card-sd">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-[#EEF4FF] text-faiston-blue font-bold flex items-center justify-center">${esc(iniciais(o.nome))}</div>
-                <div class="min-w-0 flex-1"><div class="font-semibold truncate">${esc(o.nome)}</div>
+                <div class="w-10 h-10 rounded-full grad-bg text-white text-xs font-bold flex items-center justify-center">${esc(iniciais(o.nome))}</div>
+                <div class="min-w-0 flex-1"><div class="font-semibold text-faiston-dark truncate">${esc(o.nome)}</div>
                 <div class="text-xs text-faiston-muted font-mono">${esc(o.nivel)}${o.matricula ? ' · ' + esc(o.matricula) : ''}${o.jornada_inicio ? ' · ' + o.jornada_inicio + '–' + o.jornada_fim : ''}</div></div>
-                <button data-cfg="${o.id}" class="text-faiston-muted hover:text-faiston-blue" title="Configurar operador"><i class="ph ph-gear"></i></button>
+                <button data-cfg="${o.id}" class="text-faiston-muted hover:text-faiston-purple" title="Configurar operador"><i class="ph ph-gear"></i></button>
             </div>
-            <div class="flex items-center gap-2 mt-3 text-sm font-semibold"><span class="dot ${cor}"></span>${rot}${o.status.motivo ? ' · ' + esc(o.status.motivo) : ''}
+            <div class="flex items-center gap-2 mt-3 text-sm font-semibold text-faiston-dark"><span class="dot ${cor}"></span>${rot}${o.status.motivo ? ' · ' + esc(o.status.motivo) : ''}
                 ${o.status.status !== 'offline' ? `<span class="ml-auto font-mono text-xs text-faiston-muted">${dur(o.status.segundos)}</span>` : ''}</div>
-            <div class="mt-3 flex items-end justify-between text-sm"><span><b class="font-mono text-lg">${k.total}</b> <span class="text-faiston-muted">/ ${k.meta}</span></span>
+            <div class="mt-3 flex items-end justify-between text-sm"><span><b class="text-lg text-faiston-purple">${k.total}</b> <span class="text-faiston-muted">/ ${k.meta}</span></span>
                 <span class="text-xs text-faiston-muted">FCR ${k.fcr_pct == null ? '—' : k.fcr_pct + '%'}</span></div>
-            <div class="h-1.5 rounded bg-slate-100 mt-1 overflow-hidden"><div class="h-full bg-faiston-blue" style="width:${pct}%"></div></div>
+            <div class="h-1.5 rounded bg-slate-100 mt-1 overflow-hidden"><div class="h-full grad-bg rounded-full" style="width:${pct}%"></div></div>
         </div>`;
     }).join('') || '<div class="text-sm text-faiston-muted">Nenhum operador cadastrado ainda.</div>';
     if ($('#at-operador').options.length <= 2) $('#at-operador').innerHTML += optsOperadores(EQ);
@@ -888,7 +926,19 @@ document.addEventListener('keydown', e => {
     }
 });
 
-$('#btn-sair').addEventListener('click', async () => { try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {} location.href = '/'; });
+async function logout() {
+    try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+    location.href = '/';
+}
+// Tema claro/escuro -- mesma chave de localStorage do resto do sistema.
+function toggleTema() {
+    const novo = document.documentElement.getAttribute('data-theme') !== 'dark';
+    try { localStorage.setItem('faiston_tema', novo ? 'dark' : 'light'); } catch (e) {}
+    document.documentElement.setAttribute('data-theme', novo ? 'dark' : 'light');
+    $('#icon-tema').className = novo ? 'ph ph-sun text-faiston-cyan' : 'ph ph-moon';
+    irPara(VIEW); estiloAbasTurno();
+}
+if (document.documentElement.getAttribute('data-theme') === 'dark') $('#icon-tema').className = 'ph ph-sun text-faiston-cyan';
 
 // ─── boot ─────────────────────────────────────────────────────────────────
 (async function init() {
@@ -906,6 +956,181 @@ $('#btn-sair').addEventListener('click', async () => { try { await fetch('/api/l
     setInterval(() => { carregarMe().catch(() => {}); if (!$('#view-equipe').hidden) carregarEquipe(); }, 60000);
 })();
 </script>
+
+
+<!-- MODAL: abrir solicitação de suporte (visível pra qualquer usuário logado) -->
+<div id="modal-suporte-criar" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[70] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-faiston-border" style="max-height:92vh;overflow-y:auto">
+        <div class="px-6 py-4 border-b border-faiston-border flex items-center justify-between">
+            <div>
+                <span class="font-bold text-faiston-dark text-sm flex items-center gap-2"><i class="ph ph-lifebuoy text-faiston-purple"></i> Falar com o suporte</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">Reporte um bug, tire uma dúvida ou peça uma melhoria</p>
+            </div>
+            <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="px-6 pt-3 flex gap-2 border-b border-faiston-border">
+            <button id="suporte-tab-nova" onclick="suporteTrocarAba('nova')" class="text-xs font-semibold px-3 py-2 border-b-2 border-faiston-purple text-faiston-purple">Nova solicitação</button>
+            <button id="suporte-tab-minhas" onclick="suporteTrocarAba('minhas')" class="text-xs font-semibold px-3 py-2 border-b-2 border-transparent text-faiston-muted hover:text-faiston-dark">Minhas solicitações</button>
+        </div>
+        <div id="suporte-aba-nova" class="p-6 flex flex-col gap-3">
+            <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="duvida">Dúvida</option>
+                <option value="bug">Bug / algo não funciona</option>
+                <option value="melhoria">Pedido de melhoria</option>
+            </select>
+            <input type="text" id="suporte-titulo" placeholder="Título — resuma em uma frase" maxlength="200"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            <textarea id="suporte-descricao" rows="4" placeholder="Descreva o que aconteceu ou o que você precisa"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Anexar print (opcional)</label>
+                <input type="file" id="suporte-arquivo" accept="image/*" onchange="suporteSelecionarArquivo(this)"
+                    class="w-full text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white">
+                <div id="suporte-preview" class="hidden mt-2 relative inline-block">
+                    <img id="suporte-preview-img" src="" class="max-h-32 rounded-lg border border-faiston-border">
+                    <button onclick="suporteRemoverAnexo()" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-faiston-dark text-white flex items-center justify-center text-xs"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            <p id="suporte-msg" class="text-xs"></p>
+            <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
+        </div>
+        <div id="suporte-aba-minhas" class="hidden p-6 flex flex-col gap-3" style="max-height:60vh;overflow-y:auto">
+            <div id="suporte-minhas-lista"></div>
+        </div>
+    </div>
+</div>
+<script>
+let suporteAnexoBase64 = null, suporteAnexoNome = null;
+
+const SUPORTE_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', resolvido: 'Resolvido' };
+const SUPORTE_STATUS_COR = { aberto: 'bg-slate-100 text-slate-600', em_andamento: 'bg-faiston-purple/10 text-faiston-purple', resolvido: 'bg-faiston-cyan/10 text-faiston-cyan' };
+
+function suporteTrocarAba(aba) {
+    const ehNova = aba === 'nova';
+    document.getElementById('suporte-aba-nova').classList.toggle('hidden', !ehNova);
+    document.getElementById('suporte-aba-minhas').classList.toggle('hidden', ehNova);
+    document.getElementById('suporte-tab-nova').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    document.getElementById('suporte-tab-minhas').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (!ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    if (!ehNova) suporteCarregarMinhas();
+}
+async function suporteCarregarMinhas() {
+    const box = document.getElementById('suporte-minhas-lista');
+    box.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Carregando...</p>';
+    try {
+        const res = await fetch('/api/suporte/minhas');
+        if (!res.ok) throw new Error();
+        const itens = await res.json();
+        if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
+        box.innerHTML = itens.map(s => `
+            <div id="suporte-item-${s.id}" class="bg-slate-50 rounded-xl border p-3 mb-2 ${window._suporteDestaqueId === s.id ? 'border-faiston-purple ring-2 ring-faiston-purple/25' : 'border-faiston-border'}">
+                <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <p class="text-sm font-bold text-faiston-dark">${esc(s.titulo)}</p>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
+                </div>
+                <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
+                <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${esc(s.descricao)}</p>
+                ${(s.mensagens || []).length ? `
+                <div class="mt-2 flex flex-col gap-1.5">
+                    ${s.mensagens.map(m => `
+                    <div class="p-2.5 rounded-lg border ${m.autor_tipo === 'dev' ? 'bg-white border-faiston-purple/20' : 'bg-faiston-purple/5 border-faiston-purple/10 ml-4'}">
+                        <p class="text-[10px] font-bold uppercase tracking-wide mb-1 ${m.autor_tipo === 'dev' ? 'text-faiston-purple' : 'text-faiston-muted'}">${m.autor_tipo === 'dev' ? 'Suporte' : 'Você'} · ${esc(m.autor_nome || '')} · ${m.criado_em}</p>
+                        <p class="text-xs text-slate-600 whitespace-pre-line">${esc(m.mensagem)}</p>
+                    </div>`).join('')}
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <textarea id="suporte-resposta-${s.id}" rows="1" placeholder="Responder pro suporte..." class="flex-1 border border-faiston-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                    <button onclick="suporteResponderMinhas(${s.id})" class="text-xs font-semibold text-white btn-grad rounded-lg px-3">Enviar</button>
+                </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
+            </div>
+        `).join('');
+        if (window._suporteDestaqueId) {
+            const alvo = document.getElementById('suporte-item-' + window._suporteDestaqueId);
+            if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            window._suporteDestaqueId = null;
+        }
+    } catch (e) {
+        box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
+}
+async function suporteResponderMinhas(id) {
+    const campo = document.getElementById(`suporte-resposta-${id}`);
+    const mensagem = campo.value.trim();
+    if (!mensagem) return;
+    campo.disabled = true;
+    try {
+        const res = await fetch(`/api/suporte/${id}/mensagens`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mensagem })
+        });
+        if (!res.ok) { alert('Erro ao enviar resposta.'); campo.disabled = false; return; }
+        suporteCarregarMinhas();
+    } catch (e) {
+        alert('Erro de rede ao enviar.'); campo.disabled = false;
+    }
+}
+
+function suporteAbrirModal() {
+    document.getElementById('suporte-categoria').value = 'duvida';
+    document.getElementById('suporte-titulo').value = '';
+    document.getElementById('suporte-descricao').value = '';
+    document.getElementById('suporte-arquivo').value = '';
+    document.getElementById('suporte-msg').textContent = '';
+    suporteRemoverAnexo();
+    suporteTrocarAba('nova');
+    document.getElementById('modal-suporte-criar').classList.remove('hidden');
+}
+function suporteFecharModal() {
+    document.getElementById('modal-suporte-criar').classList.add('hidden');
+}
+function suporteSelecionarArquivo(input) {
+    const file = input.files[0];
+    const msg = document.getElementById('suporte-msg');
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+        msg.textContent = 'Imagem muito grande (máximo 5MB).'; msg.className = 'text-xs text-red-500';
+        input.value = ''; return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+        suporteAnexoBase64 = reader.result;
+        suporteAnexoNome = file.name;
+        document.getElementById('suporte-preview-img').src = suporteAnexoBase64;
+        document.getElementById('suporte-preview').classList.remove('hidden');
+        msg.textContent = '';
+    };
+    reader.readAsDataURL(file);
+}
+function suporteRemoverAnexo() {
+    suporteAnexoBase64 = null; suporteAnexoNome = null;
+    document.getElementById('suporte-preview').classList.add('hidden');
+    document.getElementById('suporte-preview-img').src = '';
+}
+async function suporteEnviar() {
+    const titulo = document.getElementById('suporte-titulo').value.trim();
+    const descricao = document.getElementById('suporte-descricao').value.trim();
+    const categoria = document.getElementById('suporte-categoria').value;
+    const msg = document.getElementById('suporte-msg');
+    if (!titulo) { msg.textContent = 'Preencha o título.'; msg.className = 'text-xs text-red-500'; return; }
+    if (!descricao) { msg.textContent = 'Preencha a descrição.'; msg.className = 'text-xs text-red-500'; return; }
+    const btn = document.getElementById('suporte-btn-enviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    try {
+        const res = await fetch('/api/suporte', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ titulo, descricao, categoria, anexo_base64: suporteAnexoBase64, anexo_nome: suporteAnexoNome })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = err.detail || 'Erro ao enviar.'; msg.className = 'text-xs text-red-500'; return; }
+        msg.textContent = 'Enviado! O suporte vai dar uma olhada.'; msg.className = 'text-xs text-emerald-600 font-semibold';
+        setTimeout(suporteFecharModal, 1400);
+    } catch (e) {
+        msg.textContent = 'Erro de rede ao enviar.'; msg.className = 'text-xs text-red-500';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Enviar solicitação';
+    }
+}
+</script>
+
+<script src="/js/novidades.js?v=1"></script>
 <script src="/assistente/widget.js?v=2"></script>
 </body>
 </html>
