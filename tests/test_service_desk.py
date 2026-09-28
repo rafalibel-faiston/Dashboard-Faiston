@@ -321,3 +321,35 @@ class TestMudancaDeAreaSemRelogin:
         self._mover(operador["id"], "Projetos", "analista")
         assert c.get("/api/sd/me").status_code == 403
         assert c.get("/funcionario", follow_redirects=False).status_code == 200
+
+
+class TestVisaoGerencial:
+    def test_supervisor_entra_no_dashboard(self, supervisor):
+        c = supervisor["client"]
+        assert c.get("/dashboard", follow_redirects=False).status_code == 200
+        resp = c.get("/funcionario", follow_redirects=False)
+        assert resp.headers["location"] == "/dashboard"
+
+    def test_operador_nao_entra_no_dashboard(self, operador):
+        resp = operador["client"].get("/dashboard", follow_redirects=False)
+        assert resp.headers["location"] == "/service-desk"
+        assert operador["client"].get("/api/sd/dashboard").status_code == 403
+
+    def test_metricas_do_periodo(self, supervisor, operador):
+        c = operador["client"]
+        c.post("/api/sd/atendimentos", json=_atend(categoria="VPN Teste Dash"))
+        c.post("/api/sd/atendimentos", json=_atend(categoria="VPN Teste Dash", fila_destino="NOW_ATENDIMENTO_SAP"))
+        c.post("/api/sd/status", json={"status": "pausa", "motivo": "Almoço/Lanche"})
+        d = supervisor["client"].get("/api/sd/dashboard?periodo=hoje").json()
+        assert d["periodo"]["dias"] == 1
+        assert len(d["por_hora"]) == 24 and len(d["por_dia"]) == 1
+        op = next(o for o in d["por_operador"] if o["id"] == operador["id"])
+        assert (op["total"], op["fcr_pct"], op["redirecionados"], op["status"]) == (2, 50, 1, "pausa")
+        assert any(x["nome"] == "VPN Teste Dash" and x["total"] == 2 for x in d["categorias"])
+        assert d["kpis"]["agora"]["pausa"] >= 1
+        assert supervisor["client"].get("/api/sd/dashboard?periodo=1ano").status_code == 400
+
+
+def test_financeiro_saiu_do_menu(admin_client):
+    assert admin_client.get("/financeiro", follow_redirects=False).headers["location"] == "/dashboard"
+    assert admin_client.get("/financeiro/1", follow_redirects=False).headers["location"] == "/dashboard"

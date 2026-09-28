@@ -617,6 +617,119 @@ def exportar_atendimentos(escopo: str = "30d", status: str = "", fila: str = "",
                              headers={"Content-Disposition": f'attachment; filename="{nome}"'})
 
 
+# ── Visão gerencial (dashboard do supervisor) ────────────────────────────
+PERIODOS_DASHBOARD = {"hoje": 1, "7d": 7, "30d": 30, "90d": 90}
+
+
+@router.get("/api/sd/dashboard")
+def dashboard(periodo: str = "7d", faiston_token: str = Cookie(None)):
+    """Métricas agregadas da operação pro supervisor (aba Service Desk do
+    /dashboard). Período em dias corridos terminando hoje."""
+    _supervisor(faiston_token)
+    dias = PERIODOS_DASHBOARD.get(periodo)
+    if not dias:
+        raise HTTPException(status_code=400, detail="Período inválido")
+    hoje = agora().date()
+    d0 = hoje - timedelta(days=dias - 1)
+    ini, fim = datetime.combine(d0, time(0)), datetime.combine(hoje + timedelta(days=1), time(0))
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        _encerrar_esquecidos(cur)
+        conn.commit()
+        janela = "a.criado_em >= %s AND a.criado_em < %s"
+        resolvido = "(a.status = 'concluido' AND COALESCE(a.fila_destino,'') = '')"
+        cur.execute(f"""
+            SELECT COUNT(*),
+                   COUNT(*) FILTER (WHERE t.finaliza),
+                   COUNT(*) FILTER (WHERE {resolvido}),
+                   COUNT(*) FILTER (WHERE COALESCE(a.fila_destino,'') <> ''),
+                   COUNT(*) FILTER (WHERE NOT COALESCE(t.finaliza, FALSE)),
+                   COUNT(DISTINCT a.usuario_id)
+            FROM sd_atendimentos a LEFT JOIN sd_status_tipos t ON t.chave = a.status
+            WHERE {janela}
+        """, (ini, fim))
+        total, finalizados, resolvidos, redirecionados, em_aberto, operadores = cur.fetchone()
+
+        cur.execute(f"""
+            SELECT a.criado_em::date, COUNT(*), COUNT(*) FILTER (WHERE {resolvido})
+            FROM sd_atendimentos a WHERE {janela} GROUP BY 1 ORDER BY 1
+        """, (ini, fim))
+        por_data = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
+        por_dia = []
+        for i in range(dias):
+            d = d0 + timedelta(days=i)
+            t, r = por_data.get(d, (0, 0))
+            por_dia.append({"data": d.isoformat(), "total": t, "resolvidos": r})
+
+        cur.execute(f"""
+            SELECT EXTRACT(HOUR FROM a.criado_em)::int, COUNT(*)
+            FROM sd_atendimentos a WHERE {janela} GROUP BY 1
+        """, (ini, fim))
+        horas = dict(cur.fetchall())
+        por_hora = [{"hora": h, "total": horas.get(h, 0)} for h in range(24)]
+
+        def top(coluna, limite=8):
+            cur.execute(f"""
+                SELECT COALESCE(NULLIF(a.{coluna}, ''), '(sem)'), COUNT(*)
+                FROM sd_atendimentos a WHERE {janela}
+                GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT %s
+            """, (ini, fim, limite))
+            return [{"nome": r[0], "total": r[1]} for r in cur.fetchall()]
+
+        # Pausa: soma do tempo em pausa dentro do período (evento aberto conta até agora).
+        cur.execute("""
+            SELECT usuario_id,
+                   SUM(EXTRACT(EPOCH FROM (LEAST(COALESCE(fim, NOW()::timestamp), %s) - GREATEST(inicio, %s))))
+            FROM sd_status_eventos
+            WHERE status = 'pausa' AND inicio < %s AND COALESCE(fim, NOW()::timestamp) > %s
+            GROUP BY usuario_id
+        """, (fim, ini, fim, ini))
+        pausa_seg = {r[0]: float(r[1] or 0) for r in cur.fetchall()}
+
+        cur.execute(f"""
+            SELECT a.usuario_id, COUNT(*), COUNT(*) FILTER (WHERE {resolvido}),
+                   COUNT(*) FILTER (WHERE t.finaliza),
+                   COUNT(*) FILTER (WHERE COALESCE(a.fila_destino,'') <> ''),
+                   COUNT(DISTINCT a.criado_em::date)
+            FROM sd_atendimentos a LEFT JOIN sd_status_tipos t ON t.chave = a.status
+            WHERE {janela} GROUP BY a.usuario_id
+        """, (ini, fim))
+        producao = {r[0]: r[1:] for r in cur.fetchall()}
+        agora_status = {"online": 0, "pausa": 0, "indisponivel": 0, "offline": 0}
+        por_operador = []
+        for uid in _ids_equipe(cur):
+            op = _operador(cur, uid)
+            st = _status_atual(cur, uid)["status"]
+            agora_status[st] = agora_status.get(st, 0) + 1
+            n, res, fin, redir, dias_trab = producao.get(uid, (0, 0, 0, 0, 0))
+            por_operador.append({
+                "id": uid, "nome": op["nome"], "nivel": op["nivel"], "status": st,
+                "total": n, "fcr_pct": round(100 * res / fin) if fin else None,
+                "redirecionados": redir, "dias_com_atendimento": dias_trab,
+                "media_por_dia": round(n / dias_trab, 1) if dias_trab else 0,
+                "pausa_min": round(pausa_seg.get(uid, 0) / 60),
+            })
+        por_operador.sort(key=lambda o: (-o["total"], o["nome"]))
+        categorias, filas, canais = top("categoria"), top("fila_entrada"), top("canal", 6)
+        cur.close()
+        return {
+            "periodo": {"chave": periodo, "inicio": d0.isoformat(), "fim": hoje.isoformat(), "dias": dias},
+            "kpis": {
+                "total": total, "media_dia": round(total / dias, 1),
+                "fcr_pct": round(100 * resolvidos / finalizados) if finalizados else None,
+                "redirecionados_pct": round(100 * redirecionados / total) if total else None,
+                "em_aberto": em_aberto, "operadores_com_atendimento": operadores,
+                "pausa_horas": round(sum(pausa_seg.values()) / 3600, 1),
+                "agora": agora_status,
+            },
+            "por_dia": por_dia, "por_hora": por_hora, "por_operador": por_operador,
+            "categorias": categorias, "filas": filas, "canais": canais,
+        }
+    finally:
+        conn.close()
+
+
 # ── Equipe (supervisor) ──────────────────────────────────────────────────
 def _ids_equipe(cur) -> List[int]:
     cur.execute("""

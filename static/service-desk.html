@@ -98,6 +98,9 @@
             <span id="hdr-rotulo" class="text-[11px] font-semibold text-faiston-muted uppercase tracking-wider">Offline</span>
             <span id="hdr-timer" class="font-mono text-sm font-bold text-faiston-purple">00:00:00</span>
         </button>
+        <a href="/dashboard" class="so-sup flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 bg-white whitespace-nowrap" hidden title="Dashboard gerencial do Service Desk">
+            <i class="ph ph-chart-line-up text-base"></i> Visão gerencial
+        </a>
         <button id="btn-novo" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
             <i class="ph ph-plus-circle text-lg"></i> <span class="whitespace-nowrap">Registrar atendimento</span>
         </button>
@@ -946,6 +949,9 @@ if (document.documentElement.getAttribute('data-theme') === 'dark') $('#icon-tem
     } catch (e) { toast(e.message, 'erro'); }
     let v = 'jornada';
     try { v = localStorage.getItem('sd_view') || 'jornada'; } catch (e) {}
+    // Links do menu gerencial (/dashboard) abrem direto a aba: /service-desk#equipe
+    const alvo = location.hash.replace('#', '');
+    if (['jornada', 'atendimentos', 'escalas', 'equipe'].includes(alvo)) v = alvo;
     if (v === 'equipe' && !ME?.supervisor) v = 'jornada';
     irPara(v);
     if (v === 'jornada') $('#f-nome').focus();

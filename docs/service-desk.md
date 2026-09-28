@@ -12,8 +12,8 @@ jornada do operador, registro rápido de atendimento, histórico e escalas.
 
 | Quem | Como cadastrar | O que vê |
 |---|---|---|
-| Operador | Gerenciar Usuários → perfil Funcionário, cargo **Service Desk — Operador**, time **Service Desk** | Minha jornada, os próprios atendimentos, escalas |
-| Supervisor | cargo **Service Desk — Supervisor** (ou gestor do time Service Desk) | + Equipe em tempo real, atendimentos de todos, edita escala, cadastra status |
+| Operador | Gerenciar Usuários → perfil Funcionário, cargo **Service Desk — Operador**, time **Service Desk** | Painel do operador (`/service-desk`): jornada, os próprios atendimentos, escalas |
+| Supervisor | cargo **Service Desk — Supervisor** (ou gestor do time Service Desk) | Entra no `/dashboard` só com o menu do Service Desk (visão gerencial) + Equipe em tempo real, atendimentos de todos, edita escala, cadastra status |
 | admin / diretor / dev | — | tudo |
 
 A área **Service Desk** é criada sozinha no cadastro de Áreas (Admin → Áreas)
@@ -26,6 +26,17 @@ O login do operador cai direto em `/service-desk`.
 
 Matrícula, nível (N1/N2/N3), site, jornada padrão e meta por turno são
 configurados pelo supervisor na aba **Equipe** (ícone de engrenagem).
+
+## Visão gerencial (`/dashboard` → Service Desk)
+
+Supervisor, gestor da área e admin/diretor. Dados de `GET /api/sd/dashboard?periodo=hoje|7d|30d|90d`:
+
+- KPIs: atendimentos (e média/dia), resolução no 1º contato, % redirecionados,
+  em aberto, quem está online/em pausa agora, tempo total em pausa.
+- Atendimentos por dia, volume por hora do dia (dimensionar escala),
+  principais categorias e filas de entrada.
+- Produção por operador: atendimentos, média por dia trabalhado, 1º contato,
+  redirecionados e pausa no período, com o status de agora.
 
 ## Registro rápido (premissa: mais rápido que bloco de notas)
 
