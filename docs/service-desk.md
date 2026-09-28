@@ -38,6 +38,17 @@ Supervisor, gestor da área e admin/diretor. Dados de `GET /api/sd/dashboard?per
 - Produção por operador: atendimentos, média por dia trabalhado, 1º contato,
   redirecionados e pausa no período, com o status de agora.
 
+Mesmo formato do Visão Geral: KPIs com selo e abas **Métricas | Kanban**.
+
+**Kanban** (`GET /api/sd/kanban?periodo=...`): colunas Em aberto (tudo que não
+finalizou, de qualquer data) · Redirecionado · Concluído (no período),
+agrupadas por operador ou por fila. Por operador, quem está mais carregado
+sobe. Arrastar o card troca só o status (`PATCH /api/sd/atendimentos/{id}/status`).
+
+**Carga da equipe** (mesmo painel do Kanban de tarefas): pontos = atendimentos
+em aberto, parado há mais de 4h conta 1,5x. Régua: Fluindo a partir de 2,
+Carga alta a partir de 5, Atolado a partir de 8 (`CARGA_SD_LIMITES` no router).
+
 ## Registro rápido (premissa: mais rápido que bloco de notas)
 
 - **Ctrl+Enter** salva; o formulário limpa mantendo canal e fila, com o foco de volta no nome.
