@@ -220,7 +220,10 @@ TIMES_PADRAO = ('Projetos', 'Logística', 'Rede Credenciada', 'Desenvolvimento')
 # card no Cronograma, o Analista atribui tarefa pro Backoffice...), então
 # inventar um nome novo aqui daria um rótulo sem efeito nenhum. O que é
 # configurável por área é QUAIS deles ela aceita -- ver a tabela `areas`.
-CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor')
+CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor', 'sd_operador', 'sd_supervisor')
+# Cargos do Service Desk só valem na área Service Desk (criada pelo próprio
+# módulo, app/service_desk/db.py) -- não entram na carga inicial das outras.
+CARGOS_SERVICE_DESK = ('sd_operador', 'sd_supervisor')
 PERFIL_VALIDOS = ('funcionario', 'gestor', 'diretor', 'demo', 'admin', 'dev')
 
 # Régua inicial de complexidade (planilha "Performance projetos — Peso das
@@ -845,7 +848,8 @@ def setup_banco():
         import json as _json
         cur.execute("ALTER TABLE areas ADD COLUMN IF NOT EXISTS cargos JSONB")
         cur.execute("ALTER TABLE areas ADD COLUMN IF NOT EXISTS perfis JSONB")
-        cur.execute("UPDATE areas SET cargos=%s WHERE cargos IS NULL", (_json.dumps(list(CARGO_VALIDOS)),))
+        cur.execute("UPDATE areas SET cargos=%s WHERE cargos IS NULL",
+                    (_json.dumps([c for c in CARGO_VALIDOS if c not in CARGOS_SERVICE_DESK]),))
         cur.execute("UPDATE areas SET perfis=%s WHERE perfis IS NULL", (_json.dumps(list(PERFIL_VALIDOS)),))
         cur.execute("""
             CREATE TABLE IF NOT EXISTS frentes (
@@ -913,6 +917,12 @@ from app.assistente.db import setup_schema as _setup_schema_assistente
 from app.assistente.router import router as assistente_router
 _setup_schema_assistente()
 app.include_router(assistente_router)
+
+# Service Desk (operação SGB): módulo isolado, só mexe nas tabelas sd_*.
+from app.service_desk.db import setup_schema as _setup_schema_service_desk
+from app.service_desk.router import router as service_desk_router
+_setup_schema_service_desk()
+app.include_router(service_desk_router)
 
 # --- MODELOS ---
 class LoginRequest(BaseModel):
@@ -4317,6 +4327,8 @@ def _redirect_login_ou_home(sess):
         return RedirectResponse("/dashboard")
     if sess.get("cargo") == "n2":
         return RedirectResponse("/n2")
+    if sess.get("cargo") in ("sd_operador", "sd_supervisor"):
+        return RedirectResponse("/service-desk")
     return RedirectResponse("/funcionario")
 
 # Telas autenticadas que embarcam o widget do assistente. `no-cache` obriga
@@ -7035,6 +7047,12 @@ try:
         _scheduler.add_job(_observar_job, "cron", hour=_observar_hora, minute=0,
                            id="assistente_observar", replace_existing=True)
         print(f"APScheduler — assistente (capacidade D) agendado às {_observar_hora}h")
+    # Service Desk: fecha status (pausa/online) esquecido aberto depois do
+    # fim do turno -- sem isso o painel chegava a mostrar 96h de pausa.
+    from app.service_desk.router import job_encerrar_status_esquecidos
+    _scheduler.add_job(job_encerrar_status_esquecidos, "interval", minutes=5,
+                       id="sd_encerrar_status", replace_existing=True,
+                       max_instances=1, coalesce=True)
     _scheduler.start()
     print("APScheduler iniciado — relatório agendado para dia 1 de cada mês às 08h")
 except ImportError:

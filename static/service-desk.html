@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script>
+    // CSRF (double-submit cookie): mesmo patch global de fetch das outras
+    // telas -- anexa X-CSRF-Token em toda chamada que muda estado.
+    (function() {
+        var _fetchOriginal = window.fetch;
+        function csrfCookie() {
+            var m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+        window.fetch = function(input, init) {
+            init = init || {};
+            var metodo = (init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                var token = csrfCookie();
+                if (token) {
+                    var headers = new Headers(init.headers || {});
+                    headers.set('X-CSRF-Token', token);
+                    init = Object.assign({}, init, { headers: headers });
+                }
+            }
+            return _fetchOriginal(input, init).then(function(res) {
+                if (res.status === 403) {
+                    return res.clone().text().then(function(corpo) {
+                        if (corpo.indexOf('CSRF') !== -1) {
+                            window.location.href = '/';
+                            return new Promise(function() {});
+                        }
+                        return res;
+                    });
+                }
+                return res;
+            });
+        };
+    })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
+    <title>Service Desk — Faiston OPS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                fontFamily: { sans: ['Inter','sans-serif'], mono: ['JetBrains Mono','ui-monospace','monospace'] },
+                colors: { faiston: {
+                    bg:'#F4F5FA', dark:'#0B0D1F', border:'#E5E8F0', muted:'#5E647A', faint:'#9097AC',
+                    cyan:'#06D7E6', purple:'#5B2EE0', magenta:'#B826C9', pink:'#EC4899'
+                } }
+            }}
+        }
+    </script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>(function(){var t=localStorage.getItem('faiston_tema');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
+    <style>
+        /* Mesma passada visual do Painel N2 / Minhas Tarefas */
+        body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
+        [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
+        .titulo-pagina { font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
+        .card-sd { box-shadow: 0 2px 12px rgba(91,46,224,0.06); }
+        .lbl { font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#9097AC; }
+        .inp { width:100%; border:1px solid var(--th-border); border-radius:8px; padding:9px 12px; font-size:14px; background:var(--th-input); color:var(--th-text); outline:none; transition:border-color .15s, box-shadow .15s; }
+        .inp:focus { border-color:#5B2EE0; box-shadow:0 0 0 3px rgba(91,46,224,.10); }
+        .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; border:1px solid var(--th-border); background:var(--th-surface); font-size:13px; font-weight:600; color:var(--th-muted); cursor:pointer; user-select:none; transition:all .12s; }
+        .chip:hover { border-color:rgba(91,46,224,.45); color:#5B2EE0; }
+        .chip.ativo { background:rgba(91,46,224,.08); border-color:#5B2EE0; color:#5B2EE0; box-shadow:0 0 0 3px rgba(91,46,224,.08); }
+        [data-theme="dark"] .chip.ativo { background:rgba(91,46,224,.25); color:#C4B5FD; }
+        .chip kbd { font-family:'JetBrains Mono',monospace; font-size:10px; opacity:.55; }
+        .dot { width:8px; height:8px; border-radius:99px; display:inline-block; flex-shrink:0; }
+        .sug { position:absolute; z-index:30; left:0; right:0; top:100%; margin-top:4px; background:var(--th-surface); border:1px solid var(--th-border); border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,.12); overflow:hidden; }
+        .sug div { padding:8px 12px; font-size:13px; cursor:pointer; }
+        .sug div.sel, .sug div:hover { background:rgba(91,46,224,.06); }
+        tr.linha:hover { background:rgba(91,46,224,.03); cursor:pointer; }
+        .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:80; }
+        [hidden] { display:none !important; }
+    </style>
+</head>
+<body class="bg-faiston-bg text-slate-800 font-sans min-h-screen">
+
+<!-- HEADER (mesmo padrão do /funcionario) -->
+<header class="bg-white border-b border-faiston-border px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sticky top-0 z-20">
+    <div class="flex items-center gap-3 shrink-0">
+        <img src="/faiston-ops-mark.svg" alt="" class="w-9 h-9 rounded-[10px] shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
+        <span class="font-extrabold tracking-tight text-faiston-dark text-[15px]">FAISTON <span class="grad-text">OPS</span></span>
+        <span class="w-px h-4 bg-slate-200 mx-1"></span>
+        <span class="text-sm text-slate-500 font-medium whitespace-nowrap">Service Desk</span>
+    </div>
+    <div class="flex flex-wrap lg:flex-nowrap items-center gap-2 sm:gap-3">
+        <!-- Status do operador, visível em qualquer aba (igual ao timer global) -->
+        <button id="hdr-status" data-view="jornada" class="flex items-center gap-2 bg-white border border-faiston-purple/30 rounded-lg px-3 py-1.5 shadow-[0_0_0_4px_rgba(91,46,224,0.06)]" title="Meu status">
+            <span id="hdr-dot" class="dot bg-slate-400"></span>
+            <span id="hdr-rotulo" class="text-[11px] font-semibold text-faiston-muted uppercase tracking-wider">Offline</span>
+            <span id="hdr-timer" class="font-mono text-sm font-bold text-faiston-purple">00:00:00</span>
+        </button>
+        <button id="btn-novo" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+            <i class="ph ph-plus-circle text-lg"></i> <span class="whitespace-nowrap">Registrar atendimento</span>
+        </button>
+        <div class="relative hidden xl:block">
+            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-faiston-faint"></i>
+            <input id="busca-global" class="text-xs border border-faiston-border rounded-lg pl-8 pr-12 py-2 bg-white text-faiston-dark w-56 focus:outline-none focus:border-faiston-purple" placeholder="Buscar atendimento…">
+            <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-mono text-faiston-faint border border-faiston-border rounded px-1">Ctrl K</span>
+        </div>
+        <button onclick="toggleTema()" id="btn-tema" class="btn-theme" title="Alternar tema">
+            <i class="ph ph-moon" id="icon-tema"></i>
+        </button>
+        <button onclick="suporteAbrirModal()" title="Falar com o suporte" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple">
+            <i class="ph ph-lifebuoy text-lg"></i>
+        </button>
+        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap">
+            <i class="ph ph-sign-out"></i> Sair
+        </button>
+        <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
+            <div class="w-9 h-9 rounded-full grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-avatar">?</div>
+            <span class="text-sm font-semibold text-faiston-dark whitespace-nowrap" id="user-nome">...</span>
+        </div>
+    </div>
+</header>
+
+<main class="px-4 sm:px-6 py-5 max-w-[1400px] mx-auto">
+
+    <!-- Tab bar (mesmo padrão do /funcionario) -->
+    <div class="flex flex-wrap items-center gap-1 mb-5 p-1 rounded-xl w-fit" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+        <button data-view="jornada" class="sd-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"><i class="ph ph-headset text-base"></i> Minha jornada</button>
+        <button data-view="atendimentos" class="sd-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"><i class="ph ph-ticket text-base"></i> Atendimentos <span id="nav-qtd" class="text-[10px] font-bold bg-faiston-purple/10 text-faiston-purple rounded-full px-1.5">0</span></button>
+        <button data-view="escalas" class="sd-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"><i class="ph ph-calendar-blank text-base"></i> Escalas</button>
+        <button data-view="equipe" class="sd-tab so-sup flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all" hidden><i class="ph ph-users-three text-base"></i> Equipe</button>
+    </div>
+
+    <!-- ═════════ MINHA JORNADA ═════════ -->
+    <section id="view-jornada" class="view space-y-5">
+        <!-- Perfil + status -->
+        <div class="bg-white rounded-2xl border border-faiston-border p-5 card-sd flex flex-col xl:flex-row xl:items-center gap-4">
+            <div class="flex items-center gap-4 flex-1 min-w-0">
+                <div id="op-iniciais" class="w-14 h-14 rounded-2xl grad-bg glow-soft text-white font-bold text-lg flex items-center justify-center shrink-0">--</div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h1 id="op-nome" class="titulo-pagina text-xl font-bold text-faiston-dark">Carregando…</h1>
+                        <span id="op-nivel" class="text-[11px] font-bold text-faiston-purple bg-faiston-purple/10 rounded-full px-2.5 py-0.5"></span>
+                        <span id="op-matricula" class="text-xs font-mono text-faiston-faint"></span>
+                    </div>
+                    <div class="text-xs text-faiston-muted mt-1 flex flex-wrap gap-x-3">
+                        <span id="op-site"></span>
+                        <span><i class="ph ph-clock"></i> Jornada: <span id="op-jornada" class="font-mono">—</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-xl border border-faiston-border bg-slate-50 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div class="min-w-[170px]">
+                    <p class="lbl">Status atual <span id="st-timer" class="font-mono normal-case tracking-normal timer-display">(00:00:00)</span></p>
+                    <div class="flex items-center gap-2 mt-1 font-semibold text-sm text-faiston-dark"><span id="st-dot" class="dot bg-slate-400"></span> <span id="st-rotulo">Offline</span></div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="st-btn chip" data-st="online"><span class="dot bg-emerald-500"></span> Online</button>
+                    <div class="relative">
+                        <button class="st-btn chip" data-st="pausa" id="btn-pausa"><span class="dot bg-amber-500"></span> Pausa <i class="ph ph-caret-down text-xs"></i></button>
+                        <div id="menu-pausa" class="sug w-48 right-0 left-auto" hidden></div>
+                    </div>
+                    <button class="st-btn chip" data-st="indisponivel"><span class="dot bg-rose-500"></span> Indisponível</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPIs (mesmo formato dos cards do /funcionario) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="bg-white rounded-2xl p-4 border border-faiston-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center flex-shrink-0"><i class="ph ph-ticket text-lg text-faiston-purple"></i></div>
+                    <div><p class="lbl">Produtividade do turno</p>
+                        <p class="text-2xl font-bold text-faiston-purple"><span id="k-total">0</span> <span class="text-sm font-semibold text-faiston-faint">/ meta <span id="k-meta">20</span></span></p></div>
+                </div>
+                <div class="h-1.5 rounded-full bg-slate-100 mt-3 overflow-hidden"><div id="k-barra" class="h-full grad-bg rounded-full" style="width:0%"></div></div>
+                <p id="k-total-obs" class="text-[11px] text-faiston-muted mt-1.5"></p>
+            </div>
+            <div class="bg-white rounded-2xl p-4 border border-faiston-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center flex-shrink-0"><i class="ph ph-check-circle text-lg text-faiston-cyan"></i></div>
+                    <div><p class="lbl">Resolução no 1º contato</p><p id="k-fcr" class="text-2xl font-bold text-faiston-cyan">—</p></div>
+                </div>
+                <p id="k-fcr-obs" class="text-[11px] text-faiston-muted mt-3"></p>
+            </div>
+            <div class="bg-white rounded-2xl p-4 border border-faiston-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-magenta/10 flex items-center justify-center flex-shrink-0"><i class="ph ph-calendar-check text-lg text-faiston-magenta"></i></div>
+                    <div><p class="lbl">Escala de hoje</p><p id="k-escala" class="text-2xl font-bold text-faiston-magenta font-mono">—</p></div>
+                </div>
+                <p id="k-escala-obs" class="text-[11px] text-faiston-muted mt-3"></p>
+            </div>
+            <div class="bg-white rounded-2xl p-4 border border-faiston-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0"><i class="ph ph-stack text-lg text-faiston-muted"></i></div>
+                    <div class="min-w-0"><p class="lbl">Fila com maior demanda</p><p id="k-fila" class="text-sm font-bold text-faiston-dark font-mono break-all mt-1">—</p></div>
+                </div>
+                <p id="k-fila-obs" class="text-[11px] text-faiston-muted mt-3"></p>
+            </div>
+        </div>
+
+        <!-- Registro rápido -->
+        <form id="form-atend" class="bg-white rounded-2xl border border-faiston-border p-5 card-sd" autocomplete="off">
+            <div class="flex flex-wrap items-start justify-between gap-3 pb-4 mb-4 border-b border-faiston-border">
+                <div>
+                    <h2 id="form-titulo" class="titulo-pagina text-lg font-bold text-faiston-dark">Registrar atendimento</h2>
+                    <p class="text-xs text-faiston-muted mt-0.5"><b class="font-mono">Ctrl+Enter</b> salva · <b class="font-mono">Alt+1..9</b> troca o canal · <b class="font-mono">Esc</b> limpa</p>
+                </div>
+                <div id="form-editando" class="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5" hidden>
+                    Editando <b id="form-edit-id"></b> · <button type="button" id="btn-cancelar-edit" class="underline">cancelar</button>
+                </div>
+            </div>
+
+            <!-- Modelos rápidos (saem do próprio histórico) -->
+            <div id="modelos-wrap" class="mb-4" hidden>
+                <p class="lbl mb-2"><i class="ph ph-lightning"></i> Seus atendimentos mais repetidos — um clique preenche</p>
+                <div id="modelos" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div class="lg:col-span-5 relative">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Solicitante *</label>
+                    <input id="f-nome" class="inp" placeholder="Nome ou login — sugere quem já foi atendido" required maxlength="150">
+                    <div id="sug-nome" class="sug" hidden></div>
+                </div>
+                <div class="lg:col-span-3">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Login de rede</label>
+                    <input id="f-login" class="inp font-mono" placeholder="carlos.oliveira" maxlength="80">
+                </div>
+                <div class="lg:col-span-4">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Nº do chamado <span class="normal-case font-normal text-faiston-faint">(opcional)</span></label>
+                    <input id="f-chamado" class="inp font-mono" placeholder="INC0012345" maxlength="60">
+                </div>
+
+                <div class="lg:col-span-12">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Canal</label>
+                    <div id="f-canais" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <div class="lg:col-span-6">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Fila de recebimento *</label>
+                        <button type="button" id="btn-redirecionar" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta">+ Redirecionar para outra fila</button>
+                    </div>
+                    <input id="f-fila" class="inp font-mono text-[13px]" list="dl-filas" required maxlength="120" placeholder="Digite ou escolha — fila nova é criada na hora">
+                </div>
+                <div class="lg:col-span-6" id="wrap-destino" hidden>
+                    <label class="text-xs font-semibold text-amber-700 uppercase tracking-wide block mb-1.5">Redirecionado para</label>
+                    <input id="f-destino" class="inp font-mono text-[13px]" list="dl-filas" maxlength="120" placeholder="Fila de destino">
+                </div>
+
+                <div class="lg:col-span-4">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Categoria</label>
+                    <input id="f-categoria" class="inp" list="dl-categorias" maxlength="120" placeholder="Acesso, SAP, VPN, Hardware…">
+                </div>
+                <div class="lg:col-span-8">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Problema *</label>
+                    <input id="f-problema" class="inp" required maxlength="300" placeholder="Resumo objetivo — ex.: Bloqueio de conta AD">
+                </div>
+                <div class="lg:col-span-12">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Tratativa *</label>
+                    <textarea id="f-tratativa" class="inp" rows="2" required placeholder="O que foi feito — ex.: Reset de senha via console AD e teste com o colaborador"></textarea>
+                </div>
+
+                <div class="lg:col-span-12 flex flex-col md:flex-row md:items-end gap-3">
+                    <div class="flex-1">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Status</label>
+                        <div id="f-status" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" id="btn-limpar" class="px-4 py-2.5 rounded-lg border border-faiston-border text-sm font-semibold text-slate-500 hover:bg-slate-50">Limpar</button>
+                        <button type="submit" id="btn-salvar" class="btn-grad text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2"><i class="ph ph-check-circle text-base"></i> Salvar <span class="font-mono text-[10px] opacity-75">Ctrl+↵</span></button>
+                    </div>
+                </div>
+            </div>
+            <datalist id="dl-filas"></datalist>
+            <datalist id="dl-categorias"></datalist>
+        </form>
+
+        <!-- Lista do turno -->
+        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden card-sd">
+            <div class="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-faiston-border">
+                <span class="text-sm font-bold text-faiston-dark">Meus atendimentos do turno</span>
+                <span id="turno-qtd" class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">0 tratados</span>
+                <div class="ml-auto flex items-center gap-1 p-1 rounded-lg" style="background:rgba(148,163,184,0.1)" id="turno-abas">
+                    <button data-aba="" class="turno-aba px-3 py-1 rounded-md text-xs font-semibold">Todos</button>
+                    <button data-aba="concluido" class="turno-aba px-3 py-1 rounded-md text-xs font-semibold">Concluídos</button>
+                    <button data-aba="redirecionado" class="turno-aba px-3 py-1 rounded-md text-xs font-semibold">Redirecionados</button>
+                    <button data-aba="abertos" class="turno-aba px-3 py-1 rounded-md text-xs font-semibold">Em aberto</button>
+                </div>
+                <input id="turno-filtro" class="border border-faiston-border rounded-lg px-3 py-1.5 text-xs bg-white w-full sm:w-52 focus:outline-none focus:border-faiston-purple" placeholder="Filtrar nesta lista…">
+            </div>
+            <div class="overflow-x-auto custom-scrollbar"><table class="w-full text-sm"><thead class="text-left"><tr class="lbl border-b border-faiston-border">
+                <th class="px-5 py-2.5">Horário</th><th class="px-4">Solicitante</th><th class="px-4">Canal</th><th class="px-4">Fila de entrada</th><th class="px-4">Problema / tratativa</th><th class="px-4">Status</th>
+            </tr></thead><tbody id="turno-tbody"></tbody></table></div>
+            <p id="turno-vazio" class="text-sm text-slate-400 text-center py-10" hidden>Nenhum atendimento neste turno ainda. Registre o primeiro acima.</p>
+        </div>
+    </section>
+
+    <!-- ═════════ ATENDIMENTOS ═════════ -->
+    <section id="view-atendimentos" class="view space-y-5" hidden>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="titulo-pagina text-xl font-bold text-faiston-dark">Chamados registrados</h2>
+                <p class="text-xs text-faiston-muted mt-0.5" id="at-subtitulo"><i class="ph ph-lock-simple"></i> Só você vê os seus atendimentos</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="at-exportar" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors bg-white"><i class="ph ph-microsoft-excel-logo text-sm"></i> Exportar Excel</button>
+                <button id="at-novo" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="ph ph-plus text-base"></i> Novo atendimento</button>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-faiston-border p-5 card-sd">
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <select id="at-escopo" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                    <option value="turno">Turno atual</option><option value="hoje">Hoje</option><option value="7d">Últimos 7 dias</option><option value="30d" selected>Últimos 30 dias</option><option value="tudo">Tudo</option>
+                </select>
+                <select id="at-status" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple"><option value="">Todos os status</option></select>
+                <select id="at-fila" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple"><option value="">Todas as filas</option></select>
+                <select id="at-operador" class="so-sup border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple" hidden><option value="">Toda a equipe</option><option value="eu">Só os meus</option></select>
+                <input id="at-q" class="col-span-2 lg:col-span-1 flex-1 border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-purple" placeholder="Buscar solicitante, problema…">
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden card-sd">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+                <span class="text-sm font-bold text-faiston-dark">Atendimentos</span>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="at-count">carregando...</span>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar"><table class="w-full text-sm"><thead class="text-left"><tr class="lbl border-b border-faiston-border">
+                <th class="px-5 py-2.5">Data / horário</th><th class="px-4 so-sup-col" hidden>Operador</th><th class="px-4">Solicitante</th><th class="px-4">Canal</th><th class="px-4">Fila de entrada</th><th class="px-4">Categoria / problema</th><th class="px-4">Status</th>
+            </tr></thead><tbody id="at-tbody"></tbody></table></div>
+            <p id="at-vazio" class="text-sm text-slate-400 text-center py-10" hidden>Nada encontrado com esses filtros.</p>
+        </div>
+    </section>
+
+    <!-- ═════════ ESCALAS ═════════ -->
+    <section id="view-escalas" class="view space-y-5" hidden>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="titulo-pagina text-xl font-bold text-faiston-dark">Escalas & turnos</h2>
+                <p class="text-xs text-faiston-muted mt-0.5">Rodízio 12x36, plantões e sobreavisos</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1 bg-white border border-faiston-border rounded-lg p-1">
+                    <button id="es-ant" class="w-8 h-8 rounded-md hover:bg-slate-100 text-faiston-muted"><i class="ph ph-caret-left"></i></button>
+                    <button id="es-hoje" class="px-3 h-8 rounded-md hover:bg-slate-100 text-xs font-semibold text-faiston-dark">Esta semana</button>
+                    <button id="es-prox" class="w-8 h-8 rounded-md hover:bg-slate-100 text-faiston-muted"><i class="ph ph-caret-right"></i></button>
+                </div>
+                <button id="es-gerar" class="so-sup flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold" hidden><i class="ph ph-magic-wand text-base"></i> Gerar 12x36</button>
+            </div>
+        </div>
+        <div id="es-grade" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3"></div>
+    </section>
+
+    <!-- ═════════ EQUIPE (supervisor) ═════════ -->
+    <section id="view-equipe" class="view space-y-5" hidden>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="titulo-pagina text-xl font-bold text-faiston-dark">Equipe no turno</h2>
+                <p class="text-xs text-faiston-muted mt-0.5" id="eq-resumo"></p>
+            </div>
+            <button id="eq-atualizar" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 bg-white"><i class="ph ph-arrows-clockwise text-sm"></i> Atualizar</button>
+        </div>
+        <div id="eq-grade" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        <p class="text-xs text-faiston-faint">Operador aparece aqui quando o usuário tem time <b>Service Desk</b> ou cargo <b>Service Desk — Operador/Supervisor</b> (cadastro em Gerenciar Usuários).</p>
+    </section>
+</main>
+
+<!-- Modal genérico (mesmo visual dos modais do sistema) -->
+<div id="modal" class="fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[60] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)" hidden>
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-faiston-border">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-faiston-border">
+            <span id="modal-titulo" class="font-bold text-faiston-dark text-sm"></span>
+            <button id="modal-fechar" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div id="modal-corpo" class="p-6 space-y-3"></div>
+        <div class="flex justify-end gap-2 px-6 pb-6">
+            <button id="modal-cancelar" class="px-4 py-2 rounded-lg border border-faiston-border text-sm font-semibold text-slate-500 hover:bg-slate-50">Cancelar</button>
+            <button id="modal-ok" class="btn-grad text-white px-5 py-2 rounded-lg text-sm font-semibold">Salvar</button>
+        </div>
+    </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="/js/faiston-erros.js"></script>
+
+<script>
+// ─── utilitários ──────────────────────────────────────────────────────────
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const hhmm = iso => { const d = new Date(iso); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const ddmm = iso => { const d = new Date(iso); return pad(d.getDate()) + '/' + pad(d.getMonth() + 1); };
+const isoDia = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const iniciais = nome => (nome || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase();
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+async function api(url, opts = {}) {
+    const init = Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts);
+    if (init.body && typeof init.body !== 'string') init.body = JSON.stringify(init.body);
+    const r = await fetch(url, init);
+    if (r.status === 401) { location.href = '/'; throw new Error('Sessão expirada'); }
+    const data = await r.json().catch(() => null);
+    if (!r.ok) {
+        const d = data && data.detail;
+        throw new Error(typeof d === 'string' ? d : 'Confira os campos obrigatórios');
+    }
+    return data;
+}
+
+function toast(msg, tipo = 'ok') {
+    const t = $('#toast');
+    const cor = tipo === 'erro' ? 'bg-rose-600' : 'grad-bg';
+    t.innerHTML = `<div class="${cor} text-white text-sm font-semibold rounded-xl px-4 py-3 shadow-xl flex items-center gap-2"><i class="ph ${tipo === 'erro' ? 'ph-warning' : 'ph-check-circle'}"></i>${esc(msg)}</div>`;
+    t.hidden = false;
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2600);
+}
+
+const COR_STATUS = { emerald:'bg-emerald-500', amber:'bg-amber-500', sky:'bg-sky-500', blue:'bg-blue-500', violet:'bg-violet-500', rose:'bg-rose-500', slate:'bg-slate-400' };
+const TXT_STATUS = { emerald:'text-emerald-700', amber:'text-amber-700', sky:'text-sky-700', blue:'text-blue-700', violet:'text-violet-700', rose:'text-rose-700', slate:'text-slate-600' };
+const MOTIVOS_PAUSA = ['Banheiro', 'Almoço/Lanche', 'Descanso (NR-17)', 'Feedback', 'Treinamento', 'Problema técnico'];
+const ST_OPERADOR = { online: ['Online', 'bg-emerald-500'], pausa: ['Pausa', 'bg-amber-500'], indisponivel: ['Indisponível', 'bg-rose-500'], offline: ['Offline', 'bg-slate-400'] };
+
+let ME = null, OPC = null, TURNO = [], ABA = '', EDIT_ID = null, CANAL = '', STATUS = 'concluido', STATUS_AUTO = true;
+let statusBase = { seg: 0, em: Date.now() };
+
+function statusInfo(chave) {
+    const s = (OPC?.status || []).find(x => x.chave === chave);
+    return s || { chave, rotulo: chave, cor: 'slate', finaliza: false };
+}
+function badgeStatus(chave) {
+    const s = statusInfo(chave);
+    return `<span class="inline-flex items-center gap-1.5 font-semibold ${TXT_STATUS[s.cor] || ''}"><span class="dot ${COR_STATUS[s.cor] || 'bg-slate-400'}"></span>${esc(s.rotulo)}</span>`;
+}
+function celulaFila(a) {
+    return `<div class="font-mono text-[12px] text-faiston-purple">${esc(a.fila_entrada)}</div>` +
+        (a.fila_destino ? `<div class="font-mono text-[11px] text-amber-700">→ ${esc(a.fila_destino)}</div>` : '');
+}
+
+// ─── navegação ────────────────────────────────────────────────────────────
+// Mesmo estilo de aba do /funcionario (switchTab), com variante pro tema escuro.
+function estiloAba(ativo) {
+    const escuro = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (!ativo) return 'background:transparent;color:#9097AC;box-shadow:none';
+    return escuro ? 'background:#11111E;color:#F1F2F8;box-shadow:0 1px 4px rgba(0,0,0,0.5)'
+                  : 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+}
+let VIEW = 'jornada';
+function irPara(view) {
+    VIEW = view;
+    $$('.view').forEach(v => v.hidden = v.id !== 'view-' + view);
+    $$('.sd-tab').forEach(n => n.style.cssText = estiloAba(n.dataset.view === view));
+    try { localStorage.setItem('sd_view', view); } catch (e) {}
+    if (view === 'atendimentos') carregarAtendimentos();
+    if (view === 'escalas') carregarEscalas();
+    if (view === 'equipe') carregarEquipe();
+}
+$$('[data-view]').forEach(n => n.addEventListener('click', () => irPara(n.dataset.view)));
+
+// ─── jornada: operador, status e KPIs ─────────────────────────────────────
+async function carregarMe() {
+    ME = await api('/api/sd/me');
+    const op = ME.operador;
+    $('#op-nome').textContent = op.nome;
+    $('#op-iniciais').textContent = iniciais(op.nome);
+    $('#user-avatar').textContent = iniciais(op.nome);
+    $('#user-nome').textContent = op.nome;
+    $('#op-nivel').textContent = 'Service Desk ' + (op.nivel || 'N1');
+    $('#op-matricula').textContent = op.matricula ? 'Matrícula: ' + op.matricula : '';
+    $('#op-site').innerHTML = op.site ? `<i class="ph ph-map-pin"></i> ${esc(op.site)}` : '';
+    const t = ME.turno;
+    $('#op-jornada').textContent = t.hora_inicio ? `${t.hora_inicio}–${t.hora_fim}${op.regime ? ' · ' + op.regime : ''}` : 'não cadastrada';
+    $$('.so-sup').forEach(e => e.hidden = !ME.supervisor);
+    $$('.so-sup-col').forEach(e => e.hidden = !ME.supervisor);
+    if (ME.supervisor) $('#at-subtitulo').innerHTML = '<i class="ph ph-eye"></i> Visão de supervisor — atendimentos de toda a equipe';
+    renderStatus(ME.status);
+    renderKpis();
+}
+
+function renderStatus(st) {
+    ME.status = st;
+    statusBase = { seg: st.segundos || 0, em: Date.now() };
+    const [rot, cor] = ST_OPERADOR[st.status] || ST_OPERADOR.offline;
+    $('#st-rotulo').textContent = rot + (st.motivo ? ' · ' + st.motivo : '');
+    $('#st-dot').className = 'dot ' + cor;
+    $('#hdr-dot').className = 'dot ' + cor + (st.status === 'online' ? ' pulse-dot' : '');
+    $('#hdr-rotulo').textContent = rot;
+    $$('.st-btn').forEach(b => b.classList.toggle('ativo', b.dataset.st === st.status));
+    tickTimer();
+}
+function tickTimer() {
+    if (!ME) return;
+    const s = ME.status.status === 'offline' ? 0 : statusBase.seg + Math.floor((Date.now() - statusBase.em) / 1000);
+    const txt = `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+    $('#st-timer').textContent = `(${txt})`;
+    $('#hdr-timer').textContent = txt;
+}
+setInterval(tickTimer, 1000);
+
+async function trocarStatus(status, motivo = '') {
+    try { renderStatus(await api('/api/sd/status', { method: 'POST', body: { status, motivo } })); }
+    catch (e) { toast(e.message, 'erro'); }
+}
+$$('.st-btn').forEach(b => b.addEventListener('click', ev => {
+    if (b.dataset.st === 'pausa') {
+        ev.stopPropagation();
+        const m = $('#menu-pausa');
+        m.innerHTML = MOTIVOS_PAUSA.map(x => `<div data-motivo="${esc(x)}">${esc(x)}</div>`).join('');
+        m.hidden = !m.hidden;
+        return;
+    }
+    trocarStatus(b.dataset.st);
+}));
+$('#menu-pausa').addEventListener('click', ev => {
+    const d = ev.target.closest('[data-motivo]');
+    if (!d) return;
+    $('#menu-pausa').hidden = true;
+    trocarStatus('pausa', d.dataset.motivo);
+});
+document.addEventListener('click', ev => {
+    if (!ev.target.closest('#menu-pausa')) $('#menu-pausa').hidden = true;
+    if (!ev.target.closest('#sug-nome') && ev.target.id !== 'f-nome') $('#sug-nome').hidden = true;
+});
+
+function renderKpis() {
+    const k = ME.kpis;
+    $('#k-total').textContent = k.total;
+    $('#k-meta').textContent = k.meta;
+    $('#k-barra').style.width = Math.min(100, k.meta ? 100 * k.total / k.meta : 0) + '%';
+    const falta = Math.max(0, k.meta - k.total);
+    $('#k-total-obs').textContent = falta ? `Faltam ${falta} pra bater a meta` : 'Meta do turno batida 🎯';
+    $('#k-fcr').textContent = k.fcr_pct == null ? '—' : k.fcr_pct + '%';
+    $('#k-fcr-obs').textContent = `${k.resolvidos_1o_contato} concluídos sem redirecionar · ${k.escalados_outros} escalados/outros`;
+    const t = ME.turno;
+    $('#k-escala').textContent = t.hora_inicio ? `${t.hora_inicio} – ${t.hora_fim}` : 'Sem escala';
+    $('#k-escala-obs').textContent = t.tipo ? 'Da escala cadastrada (' + t.tipo + ')' : (t.hora_inicio ? 'Jornada padrão do cadastro' : 'Peça pro supervisor cadastrar sua jornada');
+    $('#k-fila').textContent = k.fila_top || '—';
+    $('#k-fila-obs').textContent = k.fila_top ? `${k.fila_top_pct}% dos seus chamados no turno` : 'Ainda sem chamados no turno';
+    $('#nav-qtd').textContent = k.total;
+    $('#turno-qtd').textContent = k.total + ' tratados';
+}
+
+// ─── opções do formulário ─────────────────────────────────────────────────
+async function carregarOpcoes() {
+    OPC = await api('/api/sd/opcoes');
+    $('#dl-filas').innerHTML = OPC.filas.map(f => `<option value="${esc(f)}">`).join('');
+    $('#dl-categorias').innerHTML = OPC.categorias.map(f => `<option value="${esc(f)}">`).join('');
+    if (!CANAL) CANAL = OPC.ultimo?.canal || OPC.canais[0] || '';
+    if (!$('#f-fila').value) $('#f-fila').value = OPC.ultimo?.fila_entrada || OPC.filas[0] || '';
+    renderCanais(); renderStatusChips(); renderModelos();
+    $('#at-status').innerHTML = '<option value="">Todos os status</option>' + OPC.status.map(s => `<option value="${esc(s.chave)}">${esc(s.rotulo)}</option>`).join('');
+    $('#at-fila').innerHTML = '<option value="">Todas as filas</option>' + OPC.filas.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+}
+function renderCanais() {
+    $('#f-canais').innerHTML = OPC.canais.map((c, i) =>
+        `<span class="chip ${c === CANAL ? 'ativo' : ''}" data-canal="${esc(c)}">${esc(c)}${i < 9 ? ` <kbd>Alt+${i + 1}</kbd>` : ''}</span>`).join('') +
+        `<span class="chip text-faiston-purple" data-canal-novo>+ outro</span>`;
+}
+$('#f-canais').addEventListener('click', async ev => {
+    const c = ev.target.closest('[data-canal]');
+    if (c) { CANAL = c.dataset.canal; renderCanais(); return; }
+    if (ev.target.closest('[data-canal-novo]')) {
+        const nome = prompt('Nome do novo canal:');
+        if (!nome || !nome.trim()) return;
+        await api('/api/sd/opcoes/canais', { method: 'POST', body: { nome: nome.trim() } });
+        OPC.canais.push(nome.trim()); CANAL = nome.trim(); renderCanais();
+    }
+});
+function renderStatusChips() {
+    $('#f-status').innerHTML = OPC.status.map(s =>
+        `<span class="chip ${s.chave === STATUS ? 'ativo' : ''}" data-status="${esc(s.chave)}"><span class="dot ${COR_STATUS[s.cor] || 'bg-slate-400'}"></span>${esc(s.rotulo)}</span>`).join('') +
+        (ME?.supervisor ? `<span class="chip text-faiston-purple" data-status-novo>+ novo status</span>` : '');
+}
+$('#f-status').addEventListener('click', async ev => {
+    const c = ev.target.closest('[data-status]');
+    if (c) { STATUS = c.dataset.status; STATUS_AUTO = false; renderStatusChips(); return; }
+    if (ev.target.closest('[data-status-novo]')) {
+        const rotulo = prompt('Nome do novo status (ex.: Cancelado):');
+        if (!rotulo || !rotulo.trim()) return;
+        const finaliza = confirm('Esse status encerra o atendimento (conta como tratado)?');
+        try {
+            const r = await api('/api/sd/status-tipos', { method: 'POST', body: { rotulo: rotulo.trim(), finaliza, cor: 'slate' } });
+            await carregarOpcoes(); STATUS = r.chave; renderStatusChips();
+        } catch (e) { toast(e.message, 'erro'); }
+    }
+});
+function renderModelos() {
+    const m = OPC.modelos || [];
+    $('#modelos-wrap').hidden = !m.length;
+    $('#modelos').innerHTML = m.map((x, i) =>
+        `<span class="chip" data-modelo="${i}" title="${esc(x.tratativa)}"><i class="ph ph-lightning text-amber-500"></i>${esc(x.problema)} <kbd>${x.usos}×</kbd></span>`).join('');
+}
+$('#modelos').addEventListener('click', ev => {
+    const c = ev.target.closest('[data-modelo]');
+    if (!c) return;
+    const m = OPC.modelos[+c.dataset.modelo];
+    $('#f-categoria').value = m.categoria || '';
+    $('#f-problema').value = m.problema;
+    $('#f-tratativa').value = m.tratativa;
+    ($('#f-nome').value ? $('#f-tratativa') : $('#f-nome')).focus();
+});
+
+// Redirecionamento: preencher o destino já marca o status como redirecionado
+$('#btn-redirecionar').addEventListener('click', () => {
+    const w = $('#wrap-destino');
+    w.hidden = !w.hidden;
+    if (!w.hidden) $('#f-destino').focus(); else { $('#f-destino').value = ''; autoStatus(); }
+});
+function autoStatus() {
+    if (!STATUS_AUTO) return;
+    STATUS = $('#f-destino').value.trim() ? 'redirecionado' : 'concluido';
+    renderStatusChips();
+}
+$('#f-destino').addEventListener('input', autoStatus);
+
+// Autocompletar solicitante (nome ou login) -- preenche o login junto
+let SUG = [], SUG_SEL = -1;
+const buscarSolicitante = debounce(async q => {
+    if (q.length < 2) { $('#sug-nome').hidden = true; return; }
+    try { SUG = await api('/api/sd/solicitantes?q=' + encodeURIComponent(q)); } catch (e) { SUG = []; }
+    SUG_SEL = -1; renderSug();
+}, 180);
+function renderSug() {
+    const box = $('#sug-nome');
+    box.hidden = !SUG.length;
+    box.innerHTML = SUG.map((s, i) => `<div data-i="${i}" class="${i === SUG_SEL ? 'sel' : ''}"><b>${esc(s.nome)}</b> <span class="font-mono text-xs text-faiston-muted">${esc(s.login)}</span></div>`).join('');
+}
+function escolherSug(i) {
+    const s = SUG[i]; if (!s) return;
+    $('#f-nome').value = s.nome;
+    if (s.login) $('#f-login').value = s.login;
+    $('#sug-nome').hidden = true;
+    $('#f-problema').focus();
+}
+$('#f-nome').addEventListener('input', e => buscarSolicitante(e.target.value.trim()));
+$('#f-nome').addEventListener('keydown', e => {
+    if ($('#sug-nome').hidden) return;
+    if (e.key === 'ArrowDown') { SUG_SEL = Math.min(SUG.length - 1, SUG_SEL + 1); renderSug(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { SUG_SEL = Math.max(0, SUG_SEL - 1); renderSug(); e.preventDefault(); }
+    else if (e.key === 'Enter' && SUG_SEL >= 0) { escolherSug(SUG_SEL); e.preventDefault(); }
+});
+$('#sug-nome').addEventListener('mousedown', e => { const d = e.target.closest('[data-i]'); if (d) { e.preventDefault(); escolherSug(+d.dataset.i); } });
+
+// ─── salvar / editar ──────────────────────────────────────────────────────
+function limparForm(manterContexto = true) {
+    ['#f-nome', '#f-login', '#f-chamado', '#f-categoria', '#f-problema', '#f-tratativa', '#f-destino'].forEach(s => $(s).value = '');
+    $('#wrap-destino').hidden = true;
+    if (!manterContexto) $('#f-fila').value = OPC?.ultimo?.fila_entrada || '';
+    STATUS = 'concluido'; STATUS_AUTO = true; EDIT_ID = null;
+    $('#form-editando').hidden = true;
+    $('#form-titulo').textContent = 'Registrar atendimento';
+    if (OPC) renderStatusChips();
+    $('#f-nome').focus();
+}
+$('#btn-limpar').addEventListener('click', () => limparForm());
+$('#btn-cancelar-edit').addEventListener('click', () => limparForm());
+
+async function salvar(ev) {
+    ev && ev.preventDefault();
+    const body = {
+        solicitante_nome: $('#f-nome').value.trim(), solicitante_login: $('#f-login').value.trim(),
+        canal: CANAL, fila_entrada: $('#f-fila').value.trim(), fila_destino: $('#f-destino').value.trim(),
+        categoria: $('#f-categoria').value.trim(), problema: $('#f-problema').value.trim(),
+        tratativa: $('#f-tratativa').value.trim(), status: STATUS, chamado_externo: $('#f-chamado').value.trim(),
+    };
+    const falta = [['solicitante_nome', '#f-nome'], ['fila_entrada', '#f-fila'], ['problema', '#f-problema'], ['tratativa', '#f-tratativa']].find(([k]) => !body[k]);
+    if (falta) { $(falta[1]).focus(); toast('Preencha os campos com *', 'erro'); return; }
+    const btn = $('#btn-salvar'); btn.disabled = true;
+    try {
+        const editando = EDIT_ID;
+        await api(editando ? `/api/sd/atendimentos/${editando}` : '/api/sd/atendimentos', { method: editando ? 'PUT' : 'POST', body });
+        toast(editando ? 'Atendimento atualizado' : 'Atendimento registrado');
+        OPC.ultimo = { canal: CANAL, fila_entrada: body.fila_entrada };
+        limparForm();
+        await Promise.all([carregarMe(), carregarTurno(), carregarOpcoes()]);
+    } catch (e) { toast(e.message, 'erro'); }
+    finally { btn.disabled = false; }
+}
+$('#form-atend').addEventListener('submit', salvar);
+
+function editar(a) {
+    irPara('jornada');
+    EDIT_ID = a.id;
+    $('#f-nome').value = a.solicitante_nome; $('#f-login').value = a.solicitante_login || '';
+    $('#f-chamado').value = a.chamado_externo || ''; $('#f-fila').value = a.fila_entrada;
+    $('#f-destino').value = a.fila_destino || ''; $('#wrap-destino').hidden = !a.fila_destino;
+    $('#f-categoria').value = a.categoria || ''; $('#f-problema').value = a.problema; $('#f-tratativa').value = a.tratativa;
+    CANAL = a.canal || CANAL; STATUS = a.status; STATUS_AUTO = false;
+    renderCanais(); renderStatusChips();
+    $('#form-editando').hidden = false;
+    $('#form-edit-id').textContent = '#' + a.id + ' · ' + ddmm(a.criado_em) + ' ' + hhmm(a.criado_em);
+    $('#form-titulo').textContent = 'Editar atendimento';
+    $('#form-atend').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => $('#f-tratativa').focus(), 300);
+}
+
+// ─── lista do turno ───────────────────────────────────────────────────────
+async function carregarTurno() {
+    TURNO = await api('/api/sd/atendimentos?escopo=turno&operador=eu');
+    renderTurno();
+}
+function renderTurno() {
+    const q = $('#turno-filtro').value.trim().toLowerCase();
+    const lista = TURNO.filter(a => {
+        if (ABA === 'abertos' && statusInfo(a.status).finaliza) return false;
+        if (ABA && ABA !== 'abertos' && a.status !== ABA) return false;
+        if (!q) return true;
+        return [a.solicitante_nome, a.solicitante_login, a.problema, a.tratativa, a.fila_entrada, a.fila_destino, a.chamado_externo]
+            .some(v => (v || '').toLowerCase().includes(q));
+    });
+    $('#turno-vazio').hidden = !!lista.length;
+    $('#turno-tbody').innerHTML = lista.map(a => `
+        <tr class="linha border-b border-faiston-border last:border-0" data-id="${a.id}">
+            <td class="px-5 py-3 font-mono text-[13px] text-faiston-muted">${hhmm(a.criado_em)}</td>
+            <td class="px-4"><div class="font-semibold text-faiston-dark">${esc(a.solicitante_nome)}</div><div class="font-mono text-[11px] text-faiston-faint">${esc(a.solicitante_login)}</div></td>
+            <td class="px-4"><span class="text-[11px] font-semibold text-faiston-muted bg-slate-100 rounded-full px-2 py-0.5">${esc(a.canal || '—')}</span></td>
+            <td class="px-4">${celulaFila(a)}</td>
+            <td class="px-4 max-w-[340px]"><div class="font-semibold text-faiston-dark truncate">${esc(a.problema)}</div><div class="text-xs text-faiston-faint truncate">${esc(a.tratativa)}</div></td>
+            <td class="px-4 whitespace-nowrap">${badgeStatus(a.status)}</td>
+        </tr>`).join('');
+}
+$('#turno-tbody').addEventListener('click', ev => { const tr = ev.target.closest('tr[data-id]'); if (tr) editar(TURNO.find(a => a.id == tr.dataset.id)); });
+const estiloAbasTurno = () => $$('#turno-abas button').forEach(x => x.style.cssText = estiloAba(x.dataset.aba === ABA));
+$$('#turno-abas button').forEach(b => b.addEventListener('click', () => { ABA = b.dataset.aba; estiloAbasTurno(); renderTurno(); }));
+estiloAbasTurno();
+$('#turno-filtro').addEventListener('input', renderTurno);
+
+// ─── atendimentos (histórico) ─────────────────────────────────────────────
+let AT = [];
+function paramsAt() {
+    const p = new URLSearchParams({ escopo: $('#at-escopo').value, status: $('#at-status').value, fila: $('#at-fila').value, q: $('#at-q').value.trim() });
+    if (ME?.supervisor) p.set('operador', $('#at-operador').value);
+    return p;
+}
+async function carregarAtendimentos() {
+    try { AT = await api('/api/sd/atendimentos?' + paramsAt()); } catch (e) { toast(e.message, 'erro'); return; }
+    $('#at-vazio').hidden = !!AT.length;
+    $('#at-count').textContent = AT.length + ' atendimento' + (AT.length === 1 ? '' : 's');
+    $('#at-tbody').innerHTML = AT.map(a => `
+        <tr class="linha border-b border-faiston-border last:border-0" data-id="${a.id}">
+            <td class="px-5 py-3 font-mono text-[13px] text-faiston-muted whitespace-nowrap">${ddmm(a.criado_em)} ${hhmm(a.criado_em)}</td>
+            ${ME?.supervisor ? `<td class="px-4 text-sm">${esc(a.operador)}</td>` : ''}
+            <td class="px-4"><div class="font-semibold text-faiston-dark">${esc(a.solicitante_nome)}</div><div class="font-mono text-[11px] text-faiston-faint">${esc(a.solicitante_login)}</div></td>
+            <td class="px-4"><span class="text-[11px] font-semibold text-faiston-muted bg-slate-100 rounded-full px-2 py-0.5">${esc(a.canal || '—')}</span></td>
+            <td class="px-4">${celulaFila(a)}</td>
+            <td class="px-4 max-w-[340px]">${a.categoria ? `<span class="text-[11px] font-semibold text-faiston-purple bg-faiston-purple/10 rounded px-1.5">${esc(a.categoria)}</span>` : ''}<div class="font-semibold text-faiston-dark truncate">${esc(a.problema)}</div><div class="text-xs text-faiston-faint truncate">${esc(a.tratativa)}</div></td>
+            <td class="px-4 whitespace-nowrap">${badgeStatus(a.status)}</td>
+        </tr>`).join('');
+}
+$('#at-tbody').addEventListener('click', ev => { const tr = ev.target.closest('tr[data-id]'); if (tr) editar(AT.find(a => a.id == tr.dataset.id)); });
+['#at-escopo', '#at-status', '#at-fila', '#at-operador'].forEach(s => $(s).addEventListener('change', carregarAtendimentos));
+$('#at-q').addEventListener('input', debounce(carregarAtendimentos, 250));
+const exportar = () => { location.href = '/api/sd/atendimentos/exportar?' + paramsAt(); };
+$('#at-exportar').addEventListener('click', exportar);
+$('#at-novo').addEventListener('click', () => { irPara('jornada'); limparForm(); $('#form-atend').scrollIntoView({ behavior: 'smooth' }); });
+$('#btn-novo').addEventListener('click', () => { irPara('jornada'); limparForm(); $('#form-atend').scrollIntoView({ behavior: 'smooth' }); });
+$('#busca-global').addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    $('#at-q').value = e.target.value; $('#at-escopo').value = 'tudo'; irPara('atendimentos');
+});
+
+// ─── escalas ──────────────────────────────────────────────────────────────
+const TIPO_ESCALA = { turno: 'Turno', plantao: 'Plantão', sobreaviso: 'Sobreaviso' };
+const DIAS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+let esInicio = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; })();
+let OPERADORES = null;
+async function carregarEscalas() {
+    let r;
+    try { r = await api('/api/sd/escalas?inicio=' + isoDia(esInicio) + '&dias=7'); } catch (e) { toast(e.message, 'erro'); return; }
+    const hoje = isoDia(new Date());
+    const cols = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(esInicio); d.setDate(d.getDate() + i);
+        const iso = isoDia(d);
+        const itens = r.itens.filter(x => x.data === iso);
+        cols.push(`
+        <div class="bg-white rounded-2xl border border-faiston-border p-3 card-sd ${iso === hoje ? 'ring-2 ring-faiston-purple/30' : ''}">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-2 border-b border-faiston-border pb-2 mb-2">
+                <div class="text-xs font-bold text-faiston-dark whitespace-nowrap">${DIAS[d.getDay()]} · ${pad(d.getDate())}/${pad(d.getMonth() + 1)}</div>
+                <div class="text-[10px] font-mono text-faiston-muted whitespace-nowrap">${itens.length} pessoa${itens.length === 1 ? '' : 's'}</div>
+            </div>
+            <div class="space-y-2">
+            ${itens.map(x => `
+                <div class="group relative rounded-lg border-l-[3px] ${x.noturno ? 'border-faiston-purple bg-faiston-purple/5' : 'border-faiston-cyan bg-faiston-cyan/5'} px-2.5 py-2">
+                    <div class="text-sm font-semibold text-faiston-dark flex items-center gap-1">${esc(x.nome)} ${x.noturno ? '<i class="ph ph-moon text-faiston-purple ml-auto"></i>' : ''}</div>
+                    <div class="text-[11px] font-mono text-faiston-muted">${x.hora_inicio}–${x.hora_fim}${x.tipo !== 'turno' ? ' · ' + (TIPO_ESCALA[x.tipo] || esc(x.tipo)) : ''}</div>
+                    ${ME?.supervisor ? `<button data-del-escala="${x.id}" class="absolute top-1 right-1 hidden group-hover:block text-rose-500 text-xs" title="Remover"><i class="ph ph-trash"></i></button>` : ''}
+                </div>`).join('') || '<div class="text-xs text-faiston-faint py-2">Ninguém escalado</div>'}
+            </div>
+            ${ME?.supervisor ? `<button data-add-escala="${iso}" class="mt-2 w-full text-xs text-faiston-purple font-semibold border border-dashed border-faiston-purple/40 rounded-lg py-1.5">+ adicionar</button>` : ''}
+        </div>`);
+    }
+    $('#es-grade').innerHTML = cols.join('');
+}
+$('#es-ant').addEventListener('click', () => { esInicio.setDate(esInicio.getDate() - 7); carregarEscalas(); });
+$('#es-prox').addEventListener('click', () => { esInicio.setDate(esInicio.getDate() + 7); carregarEscalas(); });
+$('#es-hoje').addEventListener('click', () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); esInicio = d; carregarEscalas(); });
+async function operadores() { if (!OPERADORES) OPERADORES = await api('/api/sd/operadores'); return OPERADORES; }
+const optsOperadores = (lista, vazio) => (vazio ? `<option value="">${vazio}</option>` : '') + lista.map(o => `<option value="${o.id}">${esc(o.nome)}</option>`).join('');
+
+$('#es-grade').addEventListener('click', async ev => {
+    const del = ev.target.closest('[data-del-escala]');
+    if (del) {
+        if (!confirm('Remover da escala?')) return;
+        await api('/api/sd/escalas/' + del.dataset.delEscala, { method: 'DELETE' }); carregarEscalas(); return;
+    }
+    const add = ev.target.closest('[data-add-escala]');
+    if (!add) return;
+    const ops = await operadores();
+    abrirModal('Adicionar na escala · ' + add.dataset.addEscala.split('-').reverse().join('/'), `
+        <label class="text-sm font-semibold">Operador</label>
+        <select id="m-op" class="inp">${optsOperadores(ops, '— rótulo livre (ex.: RJ Plantão) —')}</select>
+        <input id="m-rotulo" class="inp" placeholder="Rótulo (só se não escolher operador)">
+        <div class="grid grid-cols-2 gap-2"><div><label class="text-sm font-semibold">Início</label><input id="m-ini" type="time" class="inp" value="09:00"></div>
+        <div><label class="text-sm font-semibold">Fim</label><input id="m-fim" type="time" class="inp" value="18:00"></div></div>
+        <label class="text-sm font-semibold">Tipo</label>
+        <select id="m-tipo" class="inp"><option value="turno">Turno</option><option value="plantao">Plantão</option><option value="sobreaviso">Sobreaviso</option></select>`,
+        async () => {
+            await api('/api/sd/escalas', { method: 'POST', body: {
+                data: add.dataset.addEscala, usuario_id: $('#m-op').value ? +$('#m-op').value : null, rotulo: $('#m-rotulo').value,
+                hora_inicio: $('#m-ini').value, hora_fim: $('#m-fim').value, tipo: $('#m-tipo').value } });
+            carregarEscalas();
+        });
+    $('#m-op').addEventListener('change', () => {
+        const o = ops.find(x => x.id == $('#m-op').value);
+        if (o && o.jornada_inicio) { $('#m-ini').value = o.jornada_inicio; $('#m-fim').value = o.jornada_fim; }
+    });
+});
+$('#es-gerar').addEventListener('click', async () => {
+    const ops = await operadores();
+    const hoje = isoDia(new Date());
+    const fimMes = (() => { const d = new Date(); d.setMonth(d.getMonth() + 1, 0); return isoDia(d); })();
+    abrirModal('Gerar escala 12x36', `
+        <div class="text-sm text-faiston-muted">Lança dia sim, dia não, a partir do primeiro plantão. Substitui os turnos que já existiam no período.</div>
+        <label class="text-sm font-semibold">Operador</label>
+        <select id="m-op" class="inp">${optsOperadores(ops)}</select>
+        <div class="grid grid-cols-2 gap-2"><div><label class="text-sm font-semibold">1º plantão</label><input id="m-d0" type="date" class="inp" value="${hoje}"></div>
+        <div><label class="text-sm font-semibold">Até</label><input id="m-d1" type="date" class="inp" value="${fimMes}"></div>
+        <div><label class="text-sm font-semibold">Início</label><input id="m-ini" type="time" class="inp" value="19:00"></div>
+        <div><label class="text-sm font-semibold">Fim</label><input id="m-fim" type="time" class="inp" value="07:00"></div></div>`,
+        async () => {
+            const r = await api('/api/sd/escalas/gerar-12x36', { method: 'POST', body: {
+                usuario_id: +$('#m-op').value, data_inicio: $('#m-d0').value, data_fim: $('#m-d1').value,
+                hora_inicio: $('#m-ini').value, hora_fim: $('#m-fim').value } });
+            toast(r.criados + ' plantões lançados'); carregarEscalas();
+        });
+});
+
+// ─── equipe (supervisor) ──────────────────────────────────────────────────
+let EQ = [];
+async function carregarEquipe() {
+    try { EQ = await api('/api/sd/equipe'); } catch (e) { toast(e.message, 'erro'); return; }
+    const cont = s => EQ.filter(o => o.status.status === s).length;
+    $('#eq-resumo').textContent = `${cont('online')} online · ${cont('pausa')} em pausa · ${cont('indisponivel')} indisponível · ${cont('offline')} offline`;
+    const dur = s => `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}`;
+    $('#eq-grade').innerHTML = EQ.map(o => {
+        const [rot, cor] = ST_OPERADOR[o.status.status] || ST_OPERADOR.offline;
+        const k = o.kpis, pct = k.meta ? Math.min(100, 100 * k.total / k.meta) : 0;
+        return `
+        <div class="bg-white rounded-2xl border border-faiston-border p-4 card-sd">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full grad-bg text-white text-xs font-bold flex items-center justify-center">${esc(iniciais(o.nome))}</div>
+                <div class="min-w-0 flex-1"><div class="font-semibold text-faiston-dark truncate">${esc(o.nome)}</div>
+                <div class="text-xs text-faiston-muted font-mono">${esc(o.nivel)}${o.matricula ? ' · ' + esc(o.matricula) : ''}${o.jornada_inicio ? ' · ' + o.jornada_inicio + '–' + o.jornada_fim : ''}</div></div>
+                <button data-cfg="${o.id}" class="text-faiston-muted hover:text-faiston-purple" title="Configurar operador"><i class="ph ph-gear"></i></button>
+            </div>
+            <div class="flex items-center gap-2 mt-3 text-sm font-semibold text-faiston-dark"><span class="dot ${cor}"></span>${rot}${o.status.motivo ? ' · ' + esc(o.status.motivo) : ''}
+                ${o.status.status !== 'offline' ? `<span class="ml-auto font-mono text-xs text-faiston-muted">${dur(o.status.segundos)}</span>` : ''}</div>
+            <div class="mt-3 flex items-end justify-between text-sm"><span><b class="text-lg text-faiston-purple">${k.total}</b> <span class="text-faiston-muted">/ ${k.meta}</span></span>
+                <span class="text-xs text-faiston-muted">FCR ${k.fcr_pct == null ? '—' : k.fcr_pct + '%'}</span></div>
+            <div class="h-1.5 rounded bg-slate-100 mt-1 overflow-hidden"><div class="h-full grad-bg rounded-full" style="width:${pct}%"></div></div>
+        </div>`;
+    }).join('') || '<div class="text-sm text-faiston-muted">Nenhum operador cadastrado ainda.</div>';
+    if ($('#at-operador').options.length <= 2) $('#at-operador').innerHTML += optsOperadores(EQ);
+}
+$('#eq-atualizar').addEventListener('click', carregarEquipe);
+$('#eq-grade').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-cfg]'); if (!b) return;
+    const o = EQ.find(x => x.id == b.dataset.cfg);
+    abrirModal('Operador · ' + o.nome, `
+        <div class="grid grid-cols-2 gap-2">
+            <div><label class="text-sm font-semibold">Matrícula</label><input id="m-mat" class="inp font-mono" value="${esc(o.matricula)}"></div>
+            <div><label class="text-sm font-semibold">Nível</label><select id="m-niv" class="inp">${['N1', 'N2', 'N3'].map(n => `<option ${n === o.nivel ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+            <div class="col-span-2"><label class="text-sm font-semibold">Site / base</label><input id="m-site" class="inp" value="${esc(o.site)}" placeholder="Service Desk SP"></div>
+            <div><label class="text-sm font-semibold">Jornada início</label><input id="m-ji" type="time" class="inp" value="${o.jornada_inicio}"></div>
+            <div><label class="text-sm font-semibold">Jornada fim</label><input id="m-jf" type="time" class="inp" value="${o.jornada_fim}"></div>
+            <div><label class="text-sm font-semibold">Regime</label><input id="m-reg" class="inp" value="${esc(o.regime)}" placeholder="12x36"></div>
+            <div><label class="text-sm font-semibold">Meta por turno</label><input id="m-meta" type="number" min="0" class="inp" value="${o.meta_turno}"></div>
+        </div>`,
+        async () => {
+            await api('/api/sd/operadores/' + o.id, { method: 'PUT', body: {
+                matricula: $('#m-mat').value, nivel: $('#m-niv').value, site: $('#m-site').value,
+                jornada_inicio: $('#m-ji').value, jornada_fim: $('#m-jf').value, regime: $('#m-reg').value,
+                meta_turno: +$('#m-meta').value || 0 } });
+            OPERADORES = null; carregarEquipe(); if (o.id === ME.operador.id) carregarMe();
+        });
+});
+
+// ─── modal ────────────────────────────────────────────────────────────────
+let modalOk = null;
+function abrirModal(titulo, html, onOk) {
+    $('#modal-titulo').textContent = titulo; $('#modal-corpo').innerHTML = html; modalOk = onOk; $('#modal').hidden = false;
+    const f = $('#modal-corpo input, #modal-corpo select'); f && f.focus();
+}
+const fecharModal = () => { $('#modal').hidden = true; modalOk = null; };
+$('#modal-fechar').addEventListener('click', fecharModal);
+$('#modal-cancelar').addEventListener('click', fecharModal);
+$('#modal-ok').addEventListener('click', async () => {
+    if (!modalOk) return;
+    try { await modalOk(); fecharModal(); } catch (e) { toast(e.message, 'erro'); }
+});
+
+// ─── atalhos de teclado ───────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !$('#view-jornada').hidden) { e.preventDefault(); salvar(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('#busca-global').focus(); return; }
+    if (e.altKey && /^[1-9]$/.test(e.key) && OPC && OPC.canais[+e.key - 1]) { e.preventDefault(); CANAL = OPC.canais[+e.key - 1]; renderCanais(); return; }
+    if (e.key === 'Escape') {
+        if (!$('#modal').hidden) { fecharModal(); return; }
+        if (!$('#sug-nome').hidden) { $('#sug-nome').hidden = true; return; }
+        if (document.activeElement && document.activeElement.closest('#form-atend')) limparForm();
+    }
+});
+
+async function logout() {
+    try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+    location.href = '/';
+}
+// Tema claro/escuro -- mesma chave de localStorage do resto do sistema.
+function toggleTema() {
+    const novo = document.documentElement.getAttribute('data-theme') !== 'dark';
+    try { localStorage.setItem('faiston_tema', novo ? 'dark' : 'light'); } catch (e) {}
+    document.documentElement.setAttribute('data-theme', novo ? 'dark' : 'light');
+    $('#icon-tema').className = novo ? 'ph ph-sun text-faiston-cyan' : 'ph ph-moon';
+    irPara(VIEW); estiloAbasTurno();
+}
+if (document.documentElement.getAttribute('data-theme') === 'dark') $('#icon-tema').className = 'ph ph-sun text-faiston-cyan';
+
+// ─── boot ─────────────────────────────────────────────────────────────────
+(async function init() {
+    try {
+        await carregarMe();
+        await carregarOpcoes();
+        await carregarTurno();
+    } catch (e) { toast(e.message, 'erro'); }
+    let v = 'jornada';
+    try { v = localStorage.getItem('sd_view') || 'jornada'; } catch (e) {}
+    if (v === 'equipe' && !ME?.supervisor) v = 'jornada';
+    irPara(v);
+    if (v === 'jornada') $('#f-nome').focus();
+    // KPIs/status atualizam sozinhos (outra aba, job de encerramento)
+    setInterval(() => { carregarMe().catch(() => {}); if (!$('#view-equipe').hidden) carregarEquipe(); }, 60000);
+})();
+</script>
+
+
+<!-- MODAL: abrir solicitação de suporte (visível pra qualquer usuário logado) -->
+<div id="modal-suporte-criar" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.45)] z-[70] flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-faiston-border" style="max-height:92vh;overflow-y:auto">
+        <div class="px-6 py-4 border-b border-faiston-border flex items-center justify-between">
+            <div>
+                <span class="font-bold text-faiston-dark text-sm flex items-center gap-2"><i class="ph ph-lifebuoy text-faiston-purple"></i> Falar com o suporte</span>
+                <p class="text-[11px] text-faiston-muted mt-0.5">Reporte um bug, tire uma dúvida ou peça uma melhoria</p>
+            </div>
+            <button onclick="suporteFecharModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center"><i class="ph ph-x text-faiston-muted"></i></button>
+        </div>
+        <div class="px-6 pt-3 flex gap-2 border-b border-faiston-border">
+            <button id="suporte-tab-nova" onclick="suporteTrocarAba('nova')" class="text-xs font-semibold px-3 py-2 border-b-2 border-faiston-purple text-faiston-purple">Nova solicitação</button>
+            <button id="suporte-tab-minhas" onclick="suporteTrocarAba('minhas')" class="text-xs font-semibold px-3 py-2 border-b-2 border-transparent text-faiston-muted hover:text-faiston-dark">Minhas solicitações</button>
+        </div>
+        <div id="suporte-aba-nova" class="p-6 flex flex-col gap-3">
+            <select id="suporte-categoria" class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="duvida">Dúvida</option>
+                <option value="bug">Bug / algo não funciona</option>
+                <option value="melhoria">Pedido de melhoria</option>
+            </select>
+            <input type="text" id="suporte-titulo" placeholder="Título — resuma em uma frase" maxlength="200"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple">
+            <textarea id="suporte-descricao" rows="4" placeholder="Descreva o que aconteceu ou o que você precisa"
+                class="w-full border border-faiston-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+            <div>
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Anexar print (opcional)</label>
+                <input type="file" id="suporte-arquivo" accept="image/*" onchange="suporteSelecionarArquivo(this)"
+                    class="w-full text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white">
+                <div id="suporte-preview" class="hidden mt-2 relative inline-block">
+                    <img id="suporte-preview-img" src="" class="max-h-32 rounded-lg border border-faiston-border">
+                    <button onclick="suporteRemoverAnexo()" class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-faiston-dark text-white flex items-center justify-center text-xs"><i class="ph ph-x"></i></button>
+                </div>
+            </div>
+            <p id="suporte-msg" class="text-xs"></p>
+            <button onclick="suporteEnviar()" id="suporte-btn-enviar" class="w-full btn-grad text-white rounded-lg py-2.5 text-sm font-semibold">Enviar solicitação</button>
+        </div>
+        <div id="suporte-aba-minhas" class="hidden p-6 flex flex-col gap-3" style="max-height:60vh;overflow-y:auto">
+            <div id="suporte-minhas-lista"></div>
+        </div>
+    </div>
+</div>
+<script>
+let suporteAnexoBase64 = null, suporteAnexoNome = null;
+
+const SUPORTE_STATUS_LABEL = { aberto: 'Aberto', em_andamento: 'Em andamento', resolvido: 'Resolvido' };
+const SUPORTE_STATUS_COR = { aberto: 'bg-slate-100 text-slate-600', em_andamento: 'bg-faiston-purple/10 text-faiston-purple', resolvido: 'bg-faiston-cyan/10 text-faiston-cyan' };
+
+function suporteTrocarAba(aba) {
+    const ehNova = aba === 'nova';
+    document.getElementById('suporte-aba-nova').classList.toggle('hidden', !ehNova);
+    document.getElementById('suporte-aba-minhas').classList.toggle('hidden', ehNova);
+    document.getElementById('suporte-tab-nova').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    document.getElementById('suporte-tab-minhas').className = 'text-xs font-semibold px-3 py-2 border-b-2 ' + (!ehNova ? 'border-faiston-purple text-faiston-purple' : 'border-transparent text-faiston-muted hover:text-faiston-dark');
+    if (!ehNova) suporteCarregarMinhas();
+}
+async function suporteCarregarMinhas() {
+    const box = document.getElementById('suporte-minhas-lista');
+    box.innerHTML = '<p class="text-sm text-slate-300 text-center py-6">Carregando...</p>';
+    try {
+        const res = await fetch('/api/suporte/minhas');
+        if (!res.ok) throw new Error();
+        const itens = await res.json();
+        if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
+        box.innerHTML = itens.map(s => `
+            <div class="bg-slate-50 rounded-xl border border-faiston-border p-3 mb-2">
+                <div class="flex items-start justify-between gap-2 flex-wrap">
+                    <p class="text-sm font-bold text-faiston-dark">${esc(s.titulo)}</p>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
+                </div>
+                <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
+                <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${esc(s.descricao)}</p>
+                ${s.resposta ? `
+                <div class="mt-2 p-2.5 bg-white border border-faiston-purple/20 rounded-lg">
+                    <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${esc(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
+                    <p class="text-xs text-slate-600 whitespace-pre-line">${esc(s.resposta)}</p>
+                </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
+            </div>
+        `).join('');
+    } catch (e) {
+        box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
+}
+
+function suporteAbrirModal() {
+    document.getElementById('suporte-categoria').value = 'duvida';
+    document.getElementById('suporte-titulo').value = '';
+    document.getElementById('suporte-descricao').value = '';
+    document.getElementById('suporte-arquivo').value = '';
+    document.getElementById('suporte-msg').textContent = '';
+    suporteRemoverAnexo();
+    suporteTrocarAba('nova');
+    document.getElementById('modal-suporte-criar').classList.remove('hidden');
+}
+function suporteFecharModal() {
+    document.getElementById('modal-suporte-criar').classList.add('hidden');
+}
+function suporteSelecionarArquivo(input) {
+    const file = input.files[0];
+    const msg = document.getElementById('suporte-msg');
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+        msg.textContent = 'Imagem muito grande (máximo 5MB).'; msg.className = 'text-xs text-red-500';
+        input.value = ''; return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+        suporteAnexoBase64 = reader.result;
+        suporteAnexoNome = file.name;
+        document.getElementById('suporte-preview-img').src = suporteAnexoBase64;
+        document.getElementById('suporte-preview').classList.remove('hidden');
+        msg.textContent = '';
+    };
+    reader.readAsDataURL(file);
+}
+function suporteRemoverAnexo() {
+    suporteAnexoBase64 = null; suporteAnexoNome = null;
+    document.getElementById('suporte-preview').classList.add('hidden');
+    document.getElementById('suporte-preview-img').src = '';
+}
+async function suporteEnviar() {
+    const titulo = document.getElementById('suporte-titulo').value.trim();
+    const descricao = document.getElementById('suporte-descricao').value.trim();
+    const categoria = document.getElementById('suporte-categoria').value;
+    const msg = document.getElementById('suporte-msg');
+    if (!titulo) { msg.textContent = 'Preencha o título.'; msg.className = 'text-xs text-red-500'; return; }
+    if (!descricao) { msg.textContent = 'Preencha a descrição.'; msg.className = 'text-xs text-red-500'; return; }
+    const btn = document.getElementById('suporte-btn-enviar');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    try {
+        const res = await fetch('/api/suporte', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ titulo, descricao, categoria, anexo_base64: suporteAnexoBase64, anexo_nome: suporteAnexoNome })
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); msg.textContent = err.detail || 'Erro ao enviar.'; msg.className = 'text-xs text-red-500'; return; }
+        msg.textContent = 'Enviado! O suporte vai dar uma olhada.'; msg.className = 'text-xs text-emerald-600 font-semibold';
+        setTimeout(suporteFecharModal, 1400);
+    } catch (e) {
+        msg.textContent = 'Erro de rede ao enviar.'; msg.className = 'text-xs text-red-500';
+    } finally {
+        btn.disabled = false; btn.textContent = 'Enviar solicitação';
+    }
+}
+</script>
+
+<script src="/assistente/widget.js?v=2"></script>
+</body>
+</html>
