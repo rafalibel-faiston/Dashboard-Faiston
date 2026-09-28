@@ -712,6 +712,12 @@ def dashboard(periodo: str = "7d", faiston_token: str = Cookie(None)):
             })
         por_operador.sort(key=lambda o: (-o["total"], o["nome"]))
         categorias, filas, canais = top("categoria"), top("fila_entrada"), top("canal", 6)
+        cur.execute(f"""
+            SELECT a.status, COALESCE(t.rotulo, a.status), COUNT(*)
+            FROM sd_atendimentos a LEFT JOIN sd_status_tipos t ON t.chave = a.status
+            WHERE {janela} GROUP BY 1, 2, t.ordem ORDER BY t.ordem NULLS LAST, 3 DESC
+        """, (ini, fim))
+        por_status = [{"chave": r[0], "rotulo": r[1], "total": r[2]} for r in cur.fetchall()]
         cur.close()
         return {
             "periodo": {"chave": periodo, "inicio": d0.isoformat(), "fim": hoje.isoformat(), "dias": dias},
@@ -724,8 +730,122 @@ def dashboard(periodo: str = "7d", faiston_token: str = Cookie(None)):
                 "agora": agora_status,
             },
             "por_dia": por_dia, "por_hora": por_hora, "por_operador": por_operador,
-            "categorias": categorias, "filas": filas, "canais": canais,
+            "categorias": categorias, "filas": filas, "canais": canais, "status": por_status,
         }
+    finally:
+        conn.close()
+
+
+# ── Kanban com carga (supervisor) ────────────────────────────────────────
+# Mesma régua visual do "Carga da equipe" do painel de tarefas (main.py,
+# CARGA_NIVEIS), mas a conta é do SD: pontos = atendimentos em aberto, e o
+# que está parado há mais de 4h pesa 1,5x.
+CARGA_SD_NIVEIS = {
+    "tranquilo": {"rotulo": "Tranquilo",  "cor": "#0E9F6E", "icone": "ph-smiley"},
+    "moderado":  {"rotulo": "Fluindo",    "cor": "#06D7E6", "icone": "ph-gauge"},
+    "pesado":    {"rotulo": "Carga alta", "cor": "#F59E0B", "icone": "ph-warning"},
+    "atolado":   {"rotulo": "Atolado",    "cor": "#EF4444", "icone": "ph-fire"},
+}
+CARGA_SD_LIMITES = {"moderado": 2, "pesado": 5, "atolado": 8}
+PARADO_APOS = timedelta(hours=4)
+
+
+def nivel_carga_sd(pontos: float) -> str:
+    if pontos >= CARGA_SD_LIMITES["atolado"]:
+        return "atolado"
+    if pontos >= CARGA_SD_LIMITES["pesado"]:
+        return "pesado"
+    if pontos >= CARGA_SD_LIMITES["moderado"]:
+        return "moderado"
+    return "tranquilo"
+
+
+@router.get("/api/sd/kanban")
+def kanban(periodo: str = "hoje", faiston_token: str = Cookie(None)):
+    """Cards do Kanban do supervisor: tudo que está em aberto (de qualquer
+    data) + o que foi redirecionado/concluído no período. Junto vem a carga
+    de cada operador pro painel "Carga da equipe"."""
+    _supervisor(faiston_token)
+    dias = PERIODOS_DASHBOARD.get(periodo)
+    if not dias:
+        raise HTTPException(status_code=400, detail="Período inválido")
+    ref = agora()
+    ini = datetime.combine(ref.date() - timedelta(days=dias - 1), time(0))
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        _encerrar_esquecidos(cur)
+        conn.commit()
+        cur.execute(f"""
+            SELECT {_COLUNAS}, COALESCE(t.finaliza, FALSE)
+            FROM sd_atendimentos a JOIN usuarios u ON u.id = a.usuario_id
+            LEFT JOIN sd_status_tipos t ON t.chave = a.status
+            WHERE NOT COALESCE(t.finaliza, FALSE) OR a.criado_em >= %s
+            ORDER BY a.criado_em DESC LIMIT 600
+        """, (ini,))
+        itens = []
+        for r in cur.fetchall():
+            item = _linha(r[:-1])
+            item["finaliza"] = r[-1]
+            item["coluna"] = ("aberto" if not r[-1] else
+                              "redirecionado" if item["fila_destino"] else "concluido")
+            item["idade_min"] = max(0, int((ref - r[13]).total_seconds() // 60))
+            item["parado"] = not r[-1] and (ref - r[13]) > PARADO_APOS
+            itens.append(item)
+        carga = []
+        for uid in _ids_equipe(cur):
+            op = _operador(cur, uid)
+            meus = [i for i in itens if i["usuario_id"] == uid and i["coluna"] == "aberto"]
+            parados = sum(1 for i in meus if i["parado"])
+            pontos = round(len(meus) + 0.5 * parados, 1)
+            nivel = nivel_carga_sd(pontos)
+            j_ini, j_fim, _ = _jornada_do_dia(cur, op, ref.date())
+            c_ini, c_fim = janela_contagem(ref, j_ini, j_fim)
+            cur.execute("SELECT COUNT(*) FROM sd_atendimentos WHERE usuario_id = %s AND criado_em >= %s AND criado_em < %s",
+                        (uid, c_ini, c_fim))
+            turno_total = cur.fetchone()[0]
+            carga.append({
+                "usuario_id": uid, "nome": op["nome"], "nivel_op": op["nivel"],
+                "status": _status_atual(cur, uid)["status"],
+                "abertos": len(meus), "parados": parados, "pontos": pontos,
+                "nivel": nivel, **{k: CARGA_SD_NIVEIS[nivel][k] for k in ("rotulo", "cor", "icone")},
+                "limite_atolado": CARGA_SD_LIMITES["atolado"],
+                "turno_total": turno_total, "meta": op["meta_turno"],
+            })
+        carga.sort(key=lambda p: (-p["pontos"], p["nome"]))
+        cur.close()
+        return {
+            "periodo": {"chave": periodo, "inicio": ini.date().isoformat(), "dias": dias},
+            "itens": itens, "carga": carga, "niveis": CARGA_SD_NIVEIS, "limites": CARGA_SD_LIMITES,
+            "resumo": {
+                "atolados": sum(1 for p in carga if p["nivel"] == "atolado"),
+                "pesados": sum(1 for p in carga if p["nivel"] == "pesado"),
+                "livres": sum(1 for p in carga if not p["abertos"]),
+                "abertos": sum(p["abertos"] for p in carga),
+                "parados": sum(p["parados"] for p in carga),
+            },
+        }
+    finally:
+        conn.close()
+
+
+@router.patch("/api/sd/atendimentos/{aid}/status")
+def mudar_status(aid: int, body: StatusModel, faiston_token: str = Cookie(None)):
+    """Troca só o status (arrastar card no Kanban do supervisor)."""
+    sess = _sessao(faiston_token)
+    conn = _conn()
+    try:
+        cur = conn.cursor()
+        if not _pode_editar(sess, _buscar(cur, aid)):
+            raise HTTPException(status_code=403, detail="Só dá pra alterar os próprios atendimentos")
+        cur.execute("SELECT 1 FROM sd_status_tipos WHERE chave = %s AND ativo", (body.status,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=400, detail="Status inválido")
+        cur.execute("UPDATE sd_atendimentos SET status = %s, atualizado_em = NOW() WHERE id = %s", (body.status, aid))
+        conn.commit()
+        out = _buscar(cur, aid)
+        cur.close()
+        return out
     finally:
         conn.close()
 

@@ -72,6 +72,11 @@
         [data-theme="dark"] .gk-func-header { background-color: #11111E !important; border-color: rgba(255,255,255,0.08) !important; }
         [data-theme="dark"] .gk-func-header p { color: #F1F2F8 !important; }
         [data-theme="dark"] .gk-func-header { box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; }
+        /* Até o init() decidir o modo da tela (gestor, backoffice, supervisor
+           do Service Desk...) o conteúdo fica invisível -- senão o Visão Geral
+           aparece por um instante antes de trocar pro módulo certo. */
+        body.app-carregando #main-area, body.app-carregando #app-sidebar-nav,
+        body.app-carregando #app-sidebar-gestao, body.app-carregando #nav-servicedesk { visibility:hidden; }
         /* ── Sinalização de carga (painel "quem está atolado") ── */
         .carga-painel { background:#fff; border:1px solid #E5E8F0; border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
         [data-theme="dark"] .carga-painel { background:#11111E !important; border-color:rgba(255,255,255,0.08) !important; }
@@ -129,7 +134,7 @@
         [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
     </style>
 </head>
-<body class="bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden selection:bg-faiston-cyan selection:text-faiston-dark pt-14 lg:pt-0">
+<body class="app-carregando bg-faiston-bg text-slate-800 font-sans flex h-screen overflow-hidden selection:bg-faiston-cyan selection:text-faiston-dark pt-14 lg:pt-0">
 
 <!-- Barra mobile: hamburguer + logo, só abaixo do breakpoint lg (sidebar vira off-canvas) -->
 <div class="lg:hidden fixed top-0 inset-x-0 z-30 h-14 bg-white border-b border-faiston-border flex items-center gap-3 px-4">
@@ -1645,11 +1650,13 @@
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- MODULE: HISTÓRICO                                               -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- ═══ MÓDULO SERVICE DESK (visão gerencial do supervisor) ═══ -->
+<!-- ═══ MÓDULO SERVICE DESK (visão gerencial do supervisor) ═══
+     Espelha o dashboard original: KPIs, abas Métricas/Kanban, Kanban por
+     responsável com o painel "Carga da equipe" em cima. -->
 <div id="mod-servicedesk" class="hidden flex-1 flex flex-col p-8 overflow-y-auto custom-scrollbar">
-    <header class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-8">
+    <header class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-8 shrink-0">
         <div>
-            <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Service Desk</h2>
+            <h2 class="text-2xl font-bold text-faiston-dark tracking-tight" style="font-family:'Space Grotesk','Inter',sans-serif">Service Desk</h2>
             <p class="text-sm text-faiston-muted mt-1" id="sdg-sub">Visão gerencial da operação</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -1659,102 +1666,177 @@
                 <button data-periodo="30d" class="text-xs font-semibold px-3 py-1.5 rounded-lg">30 dias</button>
                 <button data-periodo="90d" class="text-xs font-semibold px-3 py-1.5 rounded-lg">90 dias</button>
             </div>
-            <a href="#" onclick="sdgExportar(); return false;" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 bg-white"><i class="ph ph-microsoft-excel-logo text-sm"></i> Exportar</a>
-            <a href="/service-desk#equipe" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="ph ph-users-three text-base"></i> Equipe em tempo real</a>
+            <button onclick="sdgCarregar()" title="Atualizar" class="w-10 h-10 flex items-center justify-center rounded-xl border border-faiston-border bg-white text-faiston-muted hover:text-faiston-purple"><i class="ph ph-arrows-clockwise text-lg"></i></button>
+            <button onclick="sdgExportar()" title="Exportar atendimentos (Excel)" class="w-10 h-10 flex items-center justify-center rounded-xl border border-faiston-border bg-white text-faiston-muted hover:text-faiston-purple"><i class="ph ph-download-simple text-lg"></i></button>
+            <a href="/service-desk#equipe" class="flex items-center gap-2 btn-grad text-white px-4 py-2.5 rounded-xl text-sm font-semibold"><i class="ph ph-users-three text-base"></i> Equipe em tempo real</a>
         </div>
     </header>
-    <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
-        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+
+    <!-- KPIs (mesmo formato do Visão Geral) -->
+    <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6 shrink-0">
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(91,46,224,0.12)] transition-all duration-300 group">
             <div class="absolute top-0 left-0 right-0 h-0.5 grad-bg"></div>
             <div class="p-5">
-                <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center text-faiston-purple mb-4"><i class="ph ph-ticket text-xl"></i></div>
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center text-faiston-purple"><i class="ph ph-ticket text-xl"></i></div>
+                    <span class="text-[10px] font-bold text-faiston-purple bg-faiston-purple/10 px-2 py-1 rounded-full border border-faiston-purple/20 text-right" id="sdg-total-badge">—</span>
+                </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Atendimentos</p>
                 <p class="text-3xl font-black text-faiston-dark" id="sdg-total">—</p>
-                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-total-obs"></p>
             </div>
         </div>
-        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(6,215,230,0.12)] transition-all duration-300 group">
             <div class="absolute top-0 left-0 right-0 h-0.5 grad-bg-cool"></div>
             <div class="p-5">
-                <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center text-faiston-cyan mb-4"><i class="ph ph-check-circle text-xl"></i></div>
-                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Resolução no 1º contato</p>
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center text-faiston-cyan"><i class="ph ph-check-circle text-xl"></i></div>
+                    <span class="text-[10px] font-bold text-faiston-cyan bg-faiston-cyan/10 px-2 py-1 rounded-full border border-faiston-cyan/20 text-right" id="sdg-fcr-badge">—</span>
+                </div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Resolução 1º contato</p>
                 <p class="text-3xl font-black text-faiston-dark" id="sdg-fcr">—</p>
-                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-fcr-obs"></p>
             </div>
         </div>
-        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(184,38,201,0.12)] transition-all duration-300 group">
             <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-faiston-magenta to-faiston-pink"></div>
             <div class="p-5">
-                <div class="w-10 h-10 rounded-xl bg-faiston-magenta/10 flex items-center justify-center text-faiston-magenta mb-4"><i class="ph ph-arrow-bend-up-right text-xl"></i></div>
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-magenta/10 flex items-center justify-center text-faiston-magenta"><i class="ph ph-arrow-bend-up-right text-xl"></i></div>
+                    <span class="text-[10px] font-bold text-faiston-magenta bg-faiston-magenta/10 px-2 py-1 rounded-full border border-faiston-magenta/20 text-right" id="sdg-redir-badge">—</span>
+                </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Redirecionados</p>
                 <p class="text-3xl font-black text-faiston-dark" id="sdg-redir">—</p>
-                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-redir-obs"></p>
             </div>
         </div>
-        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(236,72,153,0.12)] transition-all duration-300 group">
             <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-faiston-pink to-faiston-magenta"></div>
             <div class="p-5">
-                <div class="w-10 h-10 rounded-xl bg-faiston-pink/10 flex items-center justify-center text-faiston-pink mb-4"><i class="ph ph-hourglass-medium text-xl"></i></div>
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-pink/10 flex items-center justify-center text-faiston-pink"><i class="ph ph-hourglass-medium text-xl"></i></div>
+                    <span class="text-[10px] font-bold text-faiston-pink bg-faiston-pink/10 px-2 py-1 rounded-full border border-faiston-pink/20 text-right" id="sdg-aberto-badge">—</span>
+                </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Em aberto</p>
                 <p class="text-3xl font-black text-faiston-dark" id="sdg-aberto">—</p>
-                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-aberto-obs"></p>
             </div>
         </div>
-        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(6,215,230,0.12)] transition-all duration-300 group">
             <div class="absolute top-0 left-0 right-0 h-0.5 grad-bg-cool"></div>
             <div class="p-5">
-                <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center text-faiston-cyan mb-4"><i class="ph ph-broadcast text-xl"></i></div>
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center text-faiston-cyan"><i class="ph ph-broadcast text-xl"></i></div>
+                    <span class="text-[10px] font-bold text-faiston-cyan bg-faiston-cyan/10 px-2 py-1 rounded-full border border-faiston-cyan/20 text-right" id="sdg-agora-badge">—</span>
+                </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Online agora</p>
                 <p class="text-3xl font-black text-faiston-dark" id="sdg-agora">—</p>
-                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-agora-obs"></p>
             </div>
         </div>
-        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden hover:-translate-y-1 hover:shadow-[0_4px_20px_rgba(91,46,224,0.12)] transition-all duration-300 group">
             <div class="absolute top-0 left-0 right-0 h-0.5 grad-bg"></div>
             <div class="p-5">
-                <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center text-faiston-purple mb-4"><i class="ph ph-coffee text-xl"></i></div>
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center text-faiston-purple"><i class="ph ph-coffee text-xl"></i></div>
+                    <span class="text-[10px] font-bold text-faiston-purple bg-faiston-purple/10 px-2 py-1 rounded-full border border-faiston-purple/20 text-right" id="sdg-pausa-badge">—</span>
+                </div>
                 <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Tempo em pausa</p>
                 <p class="text-3xl font-black text-faiston-dark" id="sdg-pausa">—</p>
-                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-pausa-obs"></p>
             </div>
         </div>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+
+    <!-- Abas (mesmo padrão Métricas/Kanban do Visão Geral) -->
+    <div class="flex items-center gap-1 mb-5 p-1 rounded-xl w-fit shrink-0" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+        <button onclick="sdgVista('metricas')" id="sdg-btn-metricas" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"><i class="ph ph-chart-bar text-base"></i> Métricas</button>
+        <button onclick="sdgVista('kanban')" id="sdg-btn-kanban" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"><i class="ph ph-kanban text-base"></i> Kanban</button>
+    </div>
+
+    <!-- MÉTRICAS -->
+    <div id="sdg-view-metricas" class="shrink-0">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col lg:col-span-2" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <h3 class="text-sm font-bold text-faiston-dark">Atendimentos por dia</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Volume diário no período — passe o mouse pra ver o total e quantos foram resolvidos no 1º contato</p>
-            <div id="sdg-chart-dia" class="flex-1" style="min-height:240px;"></div>
+            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Resolvidos no 1º contato × demais (redirecionados e em aberto) — passe o mouse pra ver o total</p>
+            <div class="flex gap-3 text-[10px] mb-1 flex-wrap" id="sdg-legenda-dia"></div>
+            <div id="sdg-chart-dia" class="flex-1" style="min-height:260px;"></div>
         </div>
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col " style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+            <h3 class="text-sm font-bold text-faiston-dark">Status dos atendimentos</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Distribuição por status no período</p>
+            
+            <div id="sdg-chart-status" class="flex-1" style="min-height:260px;"></div>
+        </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col " style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <h3 class="text-sm font-bold text-faiston-dark">Volume por hora do dia</h3>
             <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Somado no período — ajuda a dimensionar a escala</p>
+            
             <div id="sdg-chart-hora" class="flex-1" style="min-height:240px;"></div>
         </div>
-    </div>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col " style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <h3 class="text-sm font-bold text-faiston-dark">Principais categorias</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Atendimentos por categoria no período</p>
+            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Atendimentos por categoria</p>
+            
             <div id="sdg-chart-categorias" class="flex-1" style="min-height:240px;"></div>
         </div>
         <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col " style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
             <h3 class="text-sm font-bold text-faiston-dark">Filas de entrada</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Atendimentos por fila de entrada no período</p>
+            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Atendimentos por fila de entrada</p>
+            
             <div id="sdg-chart-filas" class="flex-1" style="min-height:240px;"></div>
         </div>
-    </div>
-    <div class="chart-card shrink-0 bg-white border border-faiston-border rounded-2xl overflow-hidden" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
-            <div><h3 class="text-sm font-bold text-faiston-dark">Produção por operador</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5">No período selecionado · status é o de agora</p></div>
-            <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="sdg-op-count">—</span>
         </div>
-        <div class="overflow-x-auto custom-scrollbar"><table class="w-full text-sm">
-            <thead class="text-left"><tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-faiston-border">
-                <th class="px-5 py-2.5">Operador</th><th class="px-4">Agora</th><th class="px-4 text-right">Atendimentos</th><th class="px-4 text-right">Média/dia</th><th class="px-4 text-right">1º contato</th><th class="px-4 text-right">Redirecionados</th><th class="px-4 text-right">Pausa</th>
-            </tr></thead>
-            <tbody id="sdg-op-tbody"></tbody>
-        </table></div>
+        <div class="chart-card shrink-0 bg-white border border-faiston-border rounded-2xl overflow-hidden mb-4" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+                <div><h3 class="text-sm font-bold text-faiston-dark">Produção por operador</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">No período selecionado · status é o de agora</p></div>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="sdg-op-count">—</span>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar"><table class="w-full text-sm">
+                <thead class="text-left"><tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-faiston-border">
+                    <th class="px-5 py-2.5">Operador</th><th class="px-4">Agora</th><th class="px-4 text-right">Atendimentos</th><th class="px-4 text-right">Média/dia</th><th class="px-4 text-right">1º contato</th><th class="px-4 text-right">Redirecionados</th><th class="px-4 text-right">Pausa</th>
+                </tr></thead>
+                <tbody id="sdg-op-tbody"></tbody>
+            </table></div>
+        </div>
+    </div>
+
+    <!-- KANBAN (por operador, com carga) -->
+    <div id="sdg-view-kanban" class="hidden shrink-0">
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+            <span class="text-xs font-semibold text-faiston-faint">Agrupar por</span>
+            <div class="flex items-center gap-1 p-1 rounded-lg" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+                <button onclick="sdkAgrupar('operador')" id="sdk-agr-operador" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"><i class="ph ph-user"></i> Operador</button>
+                <button onclick="sdkAgrupar('fila')" id="sdk-agr-fila" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all"><i class="ph ph-stack"></i> Fila</button>
+            </div>
+            <span class="ml-auto text-[11px] text-faiston-faint"><i class="ph ph-hand-grabbing"></i> Arraste o card pra mudar o status</span>
+        </div>
+        <!-- Sinalização de sobrecarga: mesmo painel do Kanban de tarefas -->
+        <div id="sdk-carga-wrap" class="mb-4"></div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div class="flex flex-col" data-sdk-coluna="aberto">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-faiston-purple pulse-dot"></div>
+                    <span class="text-xs font-bold text-faiston-purple uppercase tracking-wider">Em aberto</span>
+                    <span class="ml-auto text-xs font-bold bg-faiston-purple/10 text-faiston-purple px-2 py-0.5 rounded-full" id="sdk-badge-aberto">0</span>
+                </div>
+                <div id="sdk-aberto" class="sdk-drop rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="background:rgba(91,46,224,0.05);max-height:calc(100vh - 320px);min-height:180px"></div>
+            </div>
+            <div class="flex flex-col" data-sdk-coluna="redirecionado">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+                    <span class="text-xs font-bold text-amber-600 uppercase tracking-wider">Redirecionado</span>
+                    <span class="ml-auto text-xs font-bold bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full" id="sdk-badge-redirecionado">0</span>
+                </div>
+                <div id="sdk-redirecionado" class="sdk-drop rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="background:rgba(245,158,11,0.06);max-height:calc(100vh - 320px);min-height:180px"></div>
+            </div>
+            <div class="flex flex-col" data-sdk-coluna="concluido">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-2.5 h-2.5 rounded-full bg-faiston-cyan"></div>
+                    <span class="text-xs font-bold text-faiston-cyan uppercase tracking-wider">Concluído</span>
+                    <span class="ml-auto text-xs font-bold bg-faiston-cyan/10 text-faiston-cyan px-2 py-0.5 rounded-full" id="sdk-badge-concluido">0</span>
+                </div>
+                <div id="sdk-concluido" class="sdk-drop rounded-2xl p-3 overflow-y-auto custom-scrollbar" style="background:rgba(6,215,230,0.06);max-height:calc(100vh - 320px);min-height:180px"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -4001,6 +4083,7 @@ async function init() {
             document.getElementById('app-sidebar-nav').classList.add('hidden');
             document.getElementById('demo-toggle-bar').classList.add('hidden');
             setModule('statuscampo');
+            document.body.classList.remove('app-carregando');
             return;
         }
         // Service Desk: supervisor (cargo) e gestor da área SD ficam só com a
@@ -4044,6 +4127,7 @@ async function init() {
             document.querySelectorAll('[data-nav-mod="statuscampo"]').forEach(el => el.classList.add('hidden'));
         }
     } catch(e) { window.location.href = '/'; return; }
+    document.body.classList.remove('app-carregando');
     await carregarDados('');
 
     // Carrega clientes: dropdown do dashboard + select do modal
@@ -4925,10 +5009,17 @@ const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:
 const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
 
 // ── SERVICE DESK: visão gerencial (supervisor) ─────────────────────────
-// Dados de /api/sd/dashboard. Gráficos de uma série só (cor = roxo da
-// marca), mesmo padrão de tooltip/grade dos demais gráficos do dashboard.
+// Espelha o Visão Geral: KPIs com selo, abas Métricas/Kanban e o painel
+// "Carga da equipe" em cima do Kanban (mesma régua visual de renderCargaEquipe).
+// Dados: /api/sd/dashboard (métricas) e /api/sd/kanban (cards + carga).
+// Paleta do gráfico empilhado validada (validate_palette.js) nos dois temas:
+// claro #5B2EE0/#0891A3, escuro #8B6CF0/#0891A3.
 window.SD_MODO = false;
-let _sdgPeriodo = (() => { try { return localStorage.getItem('sdg_periodo') || '7d'; } catch (e) { return '7d'; } })();
+const _sdgLs = (k, pad) => { try { return localStorage.getItem(k) || pad; } catch (e) { return pad; } };
+let _sdgPeriodo = _sdgLs('sdg_periodo', '7d');
+let _sdgVista = _sdgLs('sdg_vista', 'metricas');
+let _sdkAgrupamento = _sdgLs('sdk_agrupar', 'operador');
+let _sdkDados = null, _sdkCargaSoSinalizados = true, _sdkFiltroOperador = null;
 
 function entrarModoServiceDesk(me) {
     window.SD_MODO = true;
@@ -4944,81 +5035,115 @@ function entrarModoServiceDesk(me) {
     const nsd = document.getElementById('nav-servicedesk');
     nsd.classList.remove('hidden'); nsd.classList.add('flex');
     setModule('servicedesk');
+    document.body.classList.remove('app-carregando');
 }
 
-function _sdgEstiloPeriodos() {
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    document.querySelectorAll('#sdg-periodos button').forEach(b => {
-        const ativo = b.dataset.periodo === _sdgPeriodo;
-        b.style.cssText = !ativo ? 'background:transparent;color:#9097AC'
-            : (dark ? 'background:#11111E;color:#F1F2F8;box-shadow:0 1px 4px rgba(0,0,0,0.5)'
-                    : 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)');
-    });
+const _sdgEscuro = () => document.documentElement.getAttribute('data-theme') === 'dark';
+function _sdgEstiloPill(ativo) {
+    if (!ativo) return 'background:transparent;color:#9097AC;box-shadow:none';
+    return _sdgEscuro() ? 'background:#11111E;color:#F1F2F8;box-shadow:0 1px 4px rgba(0,0,0,0.5)'
+                        : 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)';
+}
+function _sdgEstilos() {
+    document.querySelectorAll('#sdg-periodos button').forEach(b => b.style.cssText = _sdgEstiloPill(b.dataset.periodo === _sdgPeriodo));
+    ['metricas', 'kanban'].forEach(v => document.getElementById('sdg-btn-' + v).style.cssText = _sdgEstiloPill(v === _sdgVista));
+    ['operador', 'fila'].forEach(v => document.getElementById('sdk-agr-' + v).style.cssText = _sdgEstiloPill(v === _sdkAgrupamento));
 }
 document.querySelectorAll('#sdg-periodos button').forEach(b => b.addEventListener('click', () => {
     _sdgPeriodo = b.dataset.periodo;
     try { localStorage.setItem('sdg_periodo', _sdgPeriodo); } catch (e) {}
     sdgCarregar();
 }));
-
+function sdgVista(v) {
+    _sdgVista = v;
+    try { localStorage.setItem('sdg_vista', v); } catch (e) {}
+    document.getElementById('sdg-view-metricas').classList.toggle('hidden', v !== 'metricas');
+    document.getElementById('sdg-view-kanban').classList.toggle('hidden', v !== 'kanban');
+    _sdgEstilos();
+    if (v === 'kanban') sdkCarregar(); else sdgCarregarMetricas();
+}
+function sdkAgrupar(v) {
+    _sdkAgrupamento = v;
+    try { localStorage.setItem('sdk_agrupar', v); } catch (e) {}
+    _sdgEstilos(); sdkRender();
+}
 function sdgExportar() {
     const escopo = { hoje: 'hoje', '7d': '7d', '30d': '30d', '90d': 'tudo' }[_sdgPeriodo] || '30d';
     window.location.href = '/api/sd/atendimentos/exportar?escopo=' + escopo;
 }
+const _sdgFmt = iso => iso.split('-').reverse().slice(0, 2).join('/');
+async function _sdgGet(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Erro ao carregar o Service Desk');
+    return r.json();
+}
 
+// KPIs + vista ativa. Chamado pelo setModule, pelo período e pelo "atualizar".
 async function sdgCarregar() {
-    _sdgEstiloPeriodos();
+    _sdgEstilos();
+    document.getElementById('sdg-view-metricas').classList.toggle('hidden', _sdgVista !== 'metricas');
+    document.getElementById('sdg-view-kanban').classList.toggle('hidden', _sdgVista !== 'kanban');
+    await sdgCarregarMetricas(_sdgVista !== 'metricas');
+    if (_sdgVista === 'kanban') sdkCarregar();
+}
+
+async function sdgCarregarMetricas(soKpis) {
     let d;
-    try {
-        const r = await fetch('/api/sd/dashboard?periodo=' + _sdgPeriodo);
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Erro ao carregar o Service Desk');
-        d = await r.json();
-    } catch (e) { if (typeof mostrarErroGlobal === 'function') mostrarErroGlobal(e.message); return; }
-    const k = d.kpis, fmt = iso => iso.split('-').reverse().slice(0, 2).join('/');
+    try { d = await _sdgGet('/api/sd/dashboard?periodo=' + _sdgPeriodo); }
+    catch (e) { if (typeof mostrarErroGlobal === 'function') mostrarErroGlobal(e.message); return; }
+    const k = d.kpis;
     document.getElementById('sdg-sub').textContent = d.periodo.dias === 1
         ? 'Visão gerencial da operação · hoje'
-        : `Visão gerencial da operação · ${fmt(d.periodo.inicio)} a ${fmt(d.periodo.fim)}`;
-    const set = (id, v, obs) => { document.getElementById('sdg-' + id).textContent = v; document.getElementById('sdg-' + id + '-obs').textContent = obs || ''; };
-    set('total', k.total, `${k.media_dia} por dia · ${k.operadores_com_atendimento} operador(es)`);
-    set('fcr', k.fcr_pct == null ? '—' : k.fcr_pct + '%', 'concluídos sem redirecionar');
-    set('redir', k.redirecionados_pct == null ? '—' : k.redirecionados_pct + '%', 'mandados pra outra fila');
-    set('aberto', k.em_aberto, 'pendente, em atendimento ou aguardando');
-    set('agora', k.agora.online, `${k.agora.pausa} em pausa · ${k.agora.indisponivel} indisponível`);
-    set('pausa', k.pausa_horas + 'h', 'somado de toda a equipe');
+        : `Visão gerencial da operação · ${_sdgFmt(d.periodo.inicio)} a ${_sdgFmt(d.periodo.fim)}`;
+    const set = (id, v, badge) => { document.getElementById('sdg-' + id).textContent = v; document.getElementById('sdg-' + id + '-badge').textContent = badge; };
+    set('total', k.total, `${k.media_dia}/dia`);
+    set('fcr', k.fcr_pct == null ? '—' : k.fcr_pct + '%', 'direto');
+    set('redir', k.redirecionados_pct == null ? '—' : k.redirecionados_pct + '%', 'outra fila');
+    set('aberto', k.em_aberto, 'na fila');
+    set('agora', k.agora.online, `${k.agora.pausa} em pausa`);
+    set('pausa', k.pausa_horas + 'h', 'equipe toda');
+    if (soKpis) return;
 
-    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const dark = _sdgEscuro();
     const tt = dark ? ttDark : ttLight, grid = dark ? gridDark : gridLight;
     const axisC = dark ? '#6A718A' : '#94A3B8';
-    const cor = '#5B2EE0';
-    const barra = (id, cats, vals, opts = {}) => {
+    const [corA, corB] = dark ? ['#8B6CF0', '#0891A3'] : ['#5B2EE0', '#0891A3'];
+    const barra = (id, cats, series, opts = {}) => {
         destroyChart('sdg-' + id);
         charts['sdg-' + id] = new ApexCharts(document.querySelector('#sdg-chart-' + id), {
-            series: [{ name: opts.nome || 'Atendimentos', data: vals }],
-            chart: { ...chartDefaults, type: 'bar', height: opts.altura || 240 },
+            series,
+            chart: { ...chartDefaults, type: 'bar', height: opts.altura || 240, stacked: !!opts.stacked },
             plotOptions: { bar: { horizontal: !!opts.horizontal, borderRadius: 4, borderRadiusApplication: 'end',
-                columnWidth: '58%', barHeight: '62%' } },
-            colors: [cor], dataLabels: { enabled: false }, legend: { show: false },
+                columnWidth: '56%', barHeight: '62%' } },
+            colors: opts.cores || [corA],
+            // 2px de respiro entre segmentos empilhados (mesmo do gráfico de Esforço)
+            stroke: { width: opts.stacked ? 2 : 0, colors: [dark ? '#11111E' : '#ffffff'] },
+            dataLabels: { enabled: false }, legend: { show: false },
             xaxis: { categories: cats, labels: { style: { fontSize: '10px', colors: axisC }, trim: opts.trim !== false,
-                rotate: 0, hideOverlappingLabels: false,
-                formatter: opts.horizontal ? (v => Math.round(v)) : undefined }, axisBorder: { show: false }, axisTicks: { show: false } },
-            yaxis: { labels: { style: { colors: axisC }, maxWidth: 220, formatter: opts.horizontal ? undefined : (v => Math.round(v)) } },
+                rotate: 0, hideOverlappingLabels: false, formatter: opts.horizontal ? (v => Math.round(v)) : undefined },
+                axisBorder: { show: false }, axisTicks: { show: false } },
+            yaxis: { labels: { style: { colors: axisC }, maxWidth: 200, formatter: opts.horizontal ? undefined : (v => Math.round(v)) } },
             grid: { ...grid, xaxis: { lines: { show: !!opts.horizontal } }, yaxis: { lines: { show: !opts.horizontal } } },
-            tooltip: { ...tt, ...(opts.tooltip || {}) },
+            tooltip: { ...tt, shared: !!opts.stacked, intersect: false, ...(opts.tooltip || {}) },
             noData: { text: 'Sem atendimentos no período', style: { color: axisC } },
         });
         charts['sdg-' + id].render();
     };
-    barra('dia', d.por_dia.map(x => fmt(x.data)), d.por_dia.map(x => x.total), {
-        tooltip: { custom: ({ dataPointIndex: i }) => {
-            const x = d.por_dia[i];
-            return `<div style="padding:8px 10px;font-size:12px"><b>${fmt(x.data)}</b><br>${x.total} atendimento(s)<br>${x.resolvidos} resolvido(s) no 1º contato</div>`;
-        } } });
-    // 24 barras: rótulo a cada 3h pra não embolar (o tooltip mostra a hora certa).
+    const um = (nome, vals) => [{ name: nome, data: vals }];
+
+    // Por dia: empilhado 1º contato × demais -- legenda sempre visível.
+    document.getElementById('sdg-legenda-dia').innerHTML = [['Resolvidos no 1º contato', corA], ['Demais', corB]]
+        .map(([n, c]) => `<span class="flex items-center gap-1.5 font-semibold text-faiston-muted"><span style="width:10px;height:10px;border-radius:3px;background:${c}"></span>${n}</span>`).join('');
+    barra('dia', d.por_dia.map(x => _sdgFmt(x.data)), [
+        { name: 'Resolvidos no 1º contato', data: d.por_dia.map(x => x.resolvidos) },
+        { name: 'Demais', data: d.por_dia.map(x => x.total - x.resolvidos) },
+    ], { stacked: true, altura: 260, cores: [corA, corB] });
+    barra('status', d.status.map(x => x.rotulo), um('Atendimentos', d.status.map(x => x.total)), { horizontal: true, altura: 260 });
     const hh = h => String(h).padStart(2, '0') + 'h';
-    barra('hora', d.por_hora.map(x => x.hora % 3 === 0 ? hh(x.hora) : ''), d.por_hora.map(x => x.total),
+    barra('hora', d.por_hora.map(x => x.hora % 3 === 0 ? hh(x.hora) : ''), um('Atendimentos', d.por_hora.map(x => x.total)),
         { trim: false, tooltip: { x: { formatter: (v, o) => hh(d.por_hora[o.dataPointIndex].hora) } } });
-    barra('categorias', d.categorias.map(x => x.nome), d.categorias.map(x => x.total), { horizontal: true });
-    barra('filas', d.filas.map(x => x.nome), d.filas.map(x => x.total), { horizontal: true });
+    barra('categorias', d.categorias.map(x => x.nome), um('Atendimentos', d.categorias.map(x => x.total)), { horizontal: true });
+    barra('filas', d.filas.map(x => x.nome), um('Atendimentos', d.filas.map(x => x.total)), { horizontal: true });
 
     const ST = { online: ['Online', 'bg-emerald-500'], pausa: ['Pausa', 'bg-amber-500'], indisponivel: ['Indisponível', 'bg-rose-500'], offline: ['Offline', 'bg-slate-400'] };
     document.getElementById('sdg-op-count').textContent = d.por_operador.length + ' operador(es)';
@@ -5037,6 +5162,198 @@ async function sdgCarregar() {
         </tr>`;
     }).join('') || '<tr><td colspan="7" class="text-center text-sm text-slate-400 py-8">Nenhum operador na área Service Desk ainda.</td></tr>';
 }
+
+// ── Kanban do SD ────────────────────────────────────────────────────────
+async function sdkCarregar() {
+    try { _sdkDados = await _sdgGet('/api/sd/kanban?periodo=' + _sdgPeriodo); }
+    catch (e) { if (typeof mostrarErroGlobal === 'function') mostrarErroGlobal(e.message); return; }
+    sdkRender();
+}
+
+function _sdkIdade(min) {
+    if (min < 60) return min + ' min';
+    if (min < 1440) return Math.floor(min / 60) + 'h' + String(min % 60).padStart(2, '0');
+    return Math.floor(min / 1440) + 'd';
+}
+
+function sdkRenderCarga() {
+    const wrap = document.getElementById('sdk-carga-wrap');
+    const d = _sdkDados;
+    if (!d || !d.carga.length) { wrap.innerHTML = ''; return; }
+    const equipe = d.carga, resumo = d.resumo;
+    const sinalizados = equipe.filter(p => p.nivel === 'pesado' || p.nivel === 'atolado');
+    const visiveis = (_sdkCargaSoSinalizados && sinalizados.length) ? sinalizados : equipe;
+    const ST = { online: ['online', '#0E9F6E'], pausa: ['em pausa', '#B45309'], indisponivel: ['indisponível', '#EF4444'], offline: ['offline', '#9097AC'] };
+    const cards = visiveis.map(p => {
+        const pct = Math.min(100, Math.round((p.pontos / Math.max(1, p.limite_atolado)) * 100));
+        const sel = _sdkFiltroOperador === p.usuario_id ? ' sel' : '';
+        const pulso = p.nivel === 'atolado' ? ' carga-fogo' : '';
+        const [stRot, stCor] = ST[p.status] || ST.offline;
+        const badges = [`<span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:5px;background:${stCor}18;color:${stCor}">${stRot}</span>`];
+        if (p.parados) badges.push(`<span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:5px;background:#EF444418;color:#EF4444">${p.parados} parado${p.parados === 1 ? '' : 's'} +4h</span>`);
+        if (!p.abertos) badges.push('<span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:5px;background:#0E9F6E18;color:#0E9F6E">livre</span>');
+        return `<div class="carga-card${sel}" onclick="sdkFiltrarOperador(${p.usuario_id})"
+            title="${cargaAttr(`${p.abertos} em aberto · ${p.turno_total}/${p.meta} no turno`)}"
+            style="padding:10px 12px;min-width:198px;flex:0 0 auto;border-left:3px solid ${p.cor}">
+            <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:28px;height:28px;border-radius:50%;background:${p.cor}1F;color:${p.cor};font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${cargaAttr(p.nome.charAt(0).toUpperCase())}</div>
+                <div style="min-width:0;flex:1">
+                    <p class="carga-nome" style="font-size:12px;font-weight:700;color:#0B0D1F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cargaAttr(p.nome.split(' ').slice(0, 2).join(' '))}</p>
+                    <p class="${pulso}" style="font-size:10px;font-weight:800;color:${p.cor};display:flex;align-items:center;gap:3px;margin-top:1px"><i class="ph ${p.icone}"></i>${p.rotulo}</p>
+                </div>
+                <span style="font-family:monospace;font-size:14px;font-weight:800;color:${p.cor};flex-shrink:0">${p.pontos}</span>
+            </div>
+            <div class="carga-trilho" style="height:6px;border-radius:4px;margin:9px 0 7px;overflow:hidden">
+                <div style="height:100%;width:${pct}%;border-radius:4px;background:linear-gradient(90deg,${p.cor}88,${p.cor})"></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:10px;font-weight:600;color:#9097AC">
+                <span>${p.abertos} em aberto</span><span>·</span><span>${p.turno_total}/${p.meta} no turno</span>
+                ${badges.join('')}
+            </div>
+        </div>`;
+    }).join('');
+    const chip = (bg, cor, icone, txt) => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;background:${bg};color:${cor}"><i class="ph ${icone}"></i>${txt}</span>`;
+    const chips = [];
+    if (resumo.atolados) chips.push(chip('#EF444418', '#EF4444', 'ph-fire', `${resumo.atolados} atolado${resumo.atolados === 1 ? '' : 's'}: ${equipe.filter(p => p.nivel === 'atolado').map(p => p.nome.split(' ')[0]).join(', ')}`));
+    if (resumo.pesados) chips.push(chip('#F59E0B18', '#B45309', 'ph-warning', `${resumo.pesados} com carga alta`));
+    if (!resumo.atolados && !resumo.pesados) chips.push(chip('#0E9F6E18', '#0E9F6E', 'ph-check-circle', 'Ninguém atolado agora'));
+    if (resumo.parados) chips.push(chip('#EF444418', '#EF4444', 'ph-clock-countdown', `${resumo.parados} parado${resumo.parados === 1 ? '' : 's'} há +4h`));
+    if (resumo.livres) chips.push(chip('rgba(148,163,184,0.14)', '#5E647A', 'ph-hand-waving', `${resumo.livres} sem fila`));
+    const btnTodos = sinalizados.length
+        ? `<button onclick="_sdkCargaSoSinalizados=!_sdkCargaSoSinalizados;sdkRenderCarga()" class="carga-btn"><i class="ph ${_sdkCargaSoSinalizados ? 'ph-users' : 'ph-funnel'}"></i>${_sdkCargaSoSinalizados ? `Ver equipe (${equipe.length})` : 'Só os sinalizados'}</button>` : '';
+    const btnLimpar = _sdkFiltroOperador ? `<button onclick="sdkFiltrarOperador(null)" class="carga-btn"><i class="ph ph-x"></i>Limpar filtro</button>` : '';
+    wrap.innerHTML = `<div class="carga-painel" style="padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <i class="ph ph-gauge" style="font-size:16px;color:#5B2EE0"></i>
+            <span class="carga-titulo" style="font-size:12px;font-weight:800;color:#0B0D1F">Carga da equipe</span>
+            <span class="carga-legenda" style="font-size:10px;color:#9097AC" title="Pontos = atendimentos em aberto. Parado há mais de 4h conta 1,5x.">pontos = atendimentos em aberto · parado +4h conta 1,5x</span>
+            ${chips.join('')}
+            <span style="margin-left:auto;display:flex;align-items:center;gap:6px">${btnLimpar}${btnTodos}</span>
+        </div>
+        <div class="flex gap-2 overflow-x-auto custom-scrollbar" style="padding-bottom:4px">${cards}</div>
+    </div>`;
+}
+
+function sdkFiltrarOperador(uid) {
+    _sdkFiltroOperador = (uid && _sdkFiltroOperador !== uid) ? uid : null;
+    sdkRender();
+}
+
+function sdkRender() {
+    if (!_sdkDados) return;
+    _sdgEstilos();
+    sdkRenderCarga();
+    const porFila = _sdkAgrupamento === 'fila';
+    const cargaPorId = {};
+    _sdkDados.carga.forEach(p => { cargaPorId[p.usuario_id] = p; });
+    const itens = _sdkDados.itens.filter(i => !_sdkFiltroOperador || i.usuario_id === _sdkFiltroOperador);
+    const STATUS_COR = { concluido: '#0E9F6E', redirecionado: '#F59E0B', pendente: '#0EA5E9', em_atendimento: '#5B2EE0', aguardando_usuario: '#8B5CF6' };
+    const STATUS_ROT = { concluido: 'Concluído', redirecionado: 'Redirecionado', pendente: 'Pendente', em_atendimento: 'Em atendimento', aguardando_usuario: 'Aguardando usuário' };
+    ['aberto', 'redirecionado', 'concluido'].forEach(col => {
+        const lista = itens.filter(i => i.coluna === col);
+        document.getElementById('sdk-badge-' + col).textContent = lista.length;
+        const grupos = {};
+        lista.forEach(i => {
+            const chave = porFila ? i.fila_entrada : i.usuario_id;
+            (grupos[chave] = grupos[chave] || { nome: porFila ? i.fila_entrada : i.operador, uid: porFila ? null : i.usuario_id, itens: [] }).itens.push(i);
+        });
+        // Por operador, quem está mais carregado sobe (é o "kanban por carga").
+        const ordem = Object.values(grupos).sort((a, b) =>
+            porFila ? b.itens.length - a.itens.length
+                    : ((cargaPorId[b.uid] || {}).pontos || 0) - ((cargaPorId[a.uid] || {}).pontos || 0) || b.itens.length - a.itens.length);
+        const alvo = document.getElementById('sdk-' + col);
+        if (!ordem.length) {
+            alvo.innerHTML = '<div class="text-center py-16 text-slate-300"><i class="ph ph-tray text-3xl mb-2 block"></i><p class="text-xs">Nenhum atendimento</p></div>';
+            return;
+        }
+        alvo.innerHTML = ordem.map((g, gi) => {
+            const gid = `sdk-g-${col}-${gi}`;
+            const carga = !porFila && col === 'aberto' ? cargaPorId[g.uid] : null;
+            const selo = (carga && carga.nivel !== 'tranquilo')
+                ? `<span class="${carga.nivel === 'atolado' ? 'carga-fogo' : ''}" style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;padding:3px 7px;border-radius:20px;background:${carga.cor}1A;color:${carga.cor};flex-shrink:0"><i class="ph ${carga.icone}"></i>${carga.rotulo}</span>` : '';
+            const cor = porFila ? '#0891A3' : (typeof gkFuncColor === 'function' ? gkFuncColor(g.nome) : '#5B2EE0');
+            const avatar = porFila ? '<i class="ph ph-stack" style="font-size:15px"></i>' : cargaAttr(g.nome.charAt(0).toUpperCase());
+            const cards = g.itens.map(i => {
+                const sc = STATUS_COR[i.status] || '#9097AC';
+                const hora = new Date(i.criado_em);
+                const quando = `${String(hora.getDate()).padStart(2, '0')}/${String(hora.getMonth() + 1).padStart(2, '0')} ${String(hora.getHours()).padStart(2, '0')}:${String(hora.getMinutes()).padStart(2, '0')}`;
+                return `<div class="gestor-card bg-white rounded-xl border border-faiston-border overflow-hidden ${col === 'concluido' ? 'opacity-70' : ''}" draggable="true" data-sdk-id="${i.id}"
+                    style="border-left:3px solid ${sc};cursor:grab;transition:transform .15s ease,box-shadow .15s ease">
+                    <div style="padding:10px 12px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px">
+                            <span style="font-family:monospace;font-size:9px;font-weight:700;color:#9097AC">#${i.id}${i.chamado_externo ? ' · ' + cargaAttr(i.chamado_externo) : ''}</span>
+                            <span style="font-family:monospace;font-size:9px;font-weight:700;color:${i.parado ? '#EF4444' : '#9097AC'}" title="${quando}">${i.parado ? '<i class="ph ph-clock-countdown"></i> ' : ''}${col === 'aberto' ? _sdkIdade(i.idade_min) : quando}</span>
+                        </div>
+                        <p style="font-size:13px;font-weight:600;line-height:1.35;margin-bottom:4px;color:#0B0D1F;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${cargaAttr(i.problema)}</p>
+                        <p style="font-size:11px;color:#5E647A;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cargaAttr(i.solicitante_nome)}${i.categoria ? ' · ' + cargaAttr(i.categoria) : ''}</p>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                            <span style="font-family:monospace;font-size:9px;font-weight:700;color:#0891A3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${cargaAttr(porFila ? i.operador : i.fila_entrada)}${i.fila_destino ? ' → ' + cargaAttr(i.fila_destino) : ''}</span>
+                            <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:5px;background:${sc}18;color:${sc};flex-shrink:0">${cargaAttr(STATUS_ROT[i.status] || i.status)}</span>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            const aberto = col === 'aberto';
+            return `<div style="margin-bottom:18px">
+                <div onclick="(function(el){const b=document.getElementById('${gid}');const o=b.style.display!=='none';b.style.display=o?'none':'flex';el.querySelector('.gk-chevron').style.transform=o?'rotate(0deg)':'rotate(180deg)';})(this)"
+                    class="gk-func-header" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:white;border-radius:12px;border:1px solid #E5E8F0;margin-bottom:8px;box-shadow:0 1px 3px rgba(0,0,0,0.05);cursor:pointer;user-select:none">
+                    <div style="width:32px;height:32px;border-radius:${porFila ? '10px' : '50%'};background:linear-gradient(135deg,${cor},${cor}99);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700;flex-shrink:0">${avatar}</div>
+                    <div style="flex:1;min-width:0">
+                        <p style="font-size:12px;font-weight:700;color:#0B0D1F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cargaAttr(porFila ? g.nome : g.nome.split(' ').slice(0, 2).join(' '))}</p>
+                        <p style="font-size:10px;color:#9097AC;margin-top:1px">${g.itens.length} atendimento${g.itens.length > 1 ? 's' : ''}</p>
+                    </div>
+                    ${selo}
+                    <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:${cor}15;color:${cor}">${g.itens.length}</span>
+                    <i class="ph ph-caret-down gk-chevron" style="font-size:14px;color:#9097AC;transition:transform .2s ease;${aberto ? 'transform:rotate(180deg)' : ''}"></i>
+                </div>
+                <div id="${gid}" style="display:${aberto ? 'flex' : 'none'};flex-direction:column;gap:6px;padding-left:6px">${cards}</div>
+            </div>`;
+        }).join('');
+    });
+}
+
+// Arrastar card entre colunas: Em aberto → pendente; Redirecionado/Concluído
+// → o status de mesmo nome. Troca só o status (PATCH), o resto fica igual.
+(function () {
+    let arrastando = null;
+    document.addEventListener('dragstart', e => {
+        const c = e.target.closest && e.target.closest('[data-sdk-id]');
+        if (!c) return;
+        arrastando = +c.dataset.sdkId;
+        e.dataTransfer.effectAllowed = 'move';
+        c.style.opacity = '0.5';
+    });
+    document.addEventListener('dragend', e => {
+        const c = e.target.closest && e.target.closest('[data-sdk-id]');
+        if (c) c.style.opacity = '';
+        document.querySelectorAll('.sdk-drop').forEach(z => z.style.outline = '');
+    });
+    document.addEventListener('dragover', e => {
+        const z = arrastando && e.target.closest && e.target.closest('.sdk-drop');
+        if (!z) return;
+        e.preventDefault();
+        z.style.outline = '2px dashed rgba(91,46,224,0.4)';
+    });
+    document.addEventListener('dragleave', e => {
+        const z = e.target.closest && e.target.closest('.sdk-drop');
+        if (z && !z.contains(e.relatedTarget)) z.style.outline = '';
+    });
+    document.addEventListener('drop', async e => {
+        const z = arrastando && e.target.closest && e.target.closest('.sdk-drop');
+        if (!z) return;
+        e.preventDefault();
+        const id = arrastando; arrastando = null;
+        const col = z.id.replace('sdk-', '');
+        const item = (_sdkDados.itens || []).find(i => i.id === id);
+        if (!item || item.coluna === col) return;
+        const status = { aberto: 'pendente', redirecionado: 'redirecionado', concluido: 'concluido' }[col];
+        try {
+            const r = await fetch(`/api/sd/atendimentos/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+            if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Não foi possível mudar o status');
+        } catch (err) { if (typeof mostrarErroGlobal === 'function') mostrarErroGlobal(err.message); }
+        sdkCarregar(); sdgCarregarMetricas(true);
+    });
+})();
 // Peso 1→4 é escala ORDENADA, não categórica: rampa de uma cor só, clara→escura.
 // Validada (lightness monotônica, ΔL >= 0.06, contraste no claro e no escuro).
 // 2026-07-28: peso 3/4 escurecidos (violet-800/950) pra mais contraste entre
@@ -6790,6 +7107,8 @@ async function scFiltrarPorN2(id) {
 // ─────────────────────────────────────────────────────────────────────
 
 init();
+// Rede de segurança: se o init() travar no meio, a tela não fica invisível.
+setTimeout(() => document.body.classList.remove('app-carregando'), 6000);
 setInterval(() => fetch('/api/admin/ping', { method: 'POST', headers: {'Content-Type':'application/json'} }), 60000);
 
 // ══════════════════════════════════════════════════════════════════

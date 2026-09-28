@@ -353,3 +353,42 @@ class TestVisaoGerencial:
 def test_financeiro_saiu_do_menu(admin_client):
     assert admin_client.get("/financeiro", follow_redirects=False).headers["location"] == "/dashboard"
     assert admin_client.get("/financeiro/1", follow_redirects=False).headers["location"] == "/dashboard"
+
+
+class TestKanbanSupervisor:
+    def test_kanban_com_carga(self, supervisor, operador):
+        c = operador["client"]
+        a1 = c.post("/api/sd/atendimentos", json=_atend(status="pendente")).json()["id"]
+        c.post("/api/sd/atendimentos", json=_atend(status="em_atendimento"))
+        c.post("/api/sd/atendimentos", json=_atend())
+        c.post("/api/sd/atendimentos", json=_atend(fila_destino="NOW_ATENDIMENTO_SAP"))
+        s = supervisor["client"]
+        d = s.get("/api/sd/kanban?periodo=hoje").json()
+        meus = [i for i in d["itens"] if i["usuario_id"] == operador["id"]]
+        assert sorted(i["coluna"] for i in meus) == ["aberto", "aberto", "concluido", "redirecionado"]
+        carga = next(p for p in d["carga"] if p["usuario_id"] == operador["id"])
+        assert (carga["abertos"], carga["pontos"], carga["nivel"]) == (2, 2, "moderado")
+        assert carga["rotulo"] == "Fluindo"
+        # arrastar pra Concluído troca só o status
+        r = s.patch(f"/api/sd/atendimentos/{a1}/status", json={"status": "concluido"})
+        assert r.status_code == 200 and r.json()["status"] == "concluido"
+        carga = next(p for p in s.get("/api/sd/kanban?periodo=hoje").json()["carga"] if p["usuario_id"] == operador["id"])
+        assert carga["abertos"] == 1
+
+    def test_parado_ha_mais_de_4h_pesa_mais(self, supervisor, operador):
+        import main
+        aid = operador["client"].post("/api/sd/atendimentos", json=_atend(status="pendente")).json()["id"]
+        conn = main.get_db(); cur = conn.cursor()
+        cur.execute("UPDATE sd_atendimentos SET criado_em = NOW() - INTERVAL '5 hours' WHERE id = %s", (aid,))
+        conn.commit(); cur.close(); conn.close()
+        d = supervisor["client"].get("/api/sd/kanban?periodo=hoje").json()
+        carga = next(p for p in d["carga"] if p["usuario_id"] == operador["id"])
+        assert (carga["abertos"], carga["parados"], carga["pontos"]) == (1, 1, 1.5)
+
+    def test_operador_nao_ve_kanban_da_equipe(self, operador):
+        assert operador["client"].get("/api/sd/kanban").status_code == 403
+
+    def test_dashboard_traz_status(self, supervisor, operador):
+        operador["client"].post("/api/sd/atendimentos", json=_atend(status="pendente"))
+        st = supervisor["client"].get("/api/sd/dashboard?periodo=hoje").json()["status"]
+        assert any(x["chave"] == "pendente" and x["rotulo"] == "Pendente" and x["total"] >= 1 for x in st)
