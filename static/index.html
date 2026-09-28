@@ -154,6 +154,26 @@
         </div>
         <div class="px-4">
             <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Painel de Operações</p>
+            <nav id="nav-servicedesk" class="hidden flex-col gap-1 mb-4">
+                <a href="#" data-nav-mod="servicedesk" onclick="setModule('servicedesk'); return false;" class="flex items-center gap-2.5 btn-grad rounded-lg p-2.5">
+                    <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-headset text-lg"></i> Service Desk</div>
+                </a>
+                <div class="flex flex-col pl-9 py-3 gap-3 relative">
+                    <div class="absolute left-6 top-1 bottom-4 w-px bg-slate-200"></div>
+                    <a href="#" onclick="setModule('servicedesk'); return false;" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                        <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div> Visão gerencial
+                    </a>
+                    <a href="/service-desk#equipe" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                        <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-cyan"></div> Equipe em tempo real
+                    </a>
+                    <a href="/service-desk#escalas" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                        <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-magenta"></div> Escalas
+                    </a>
+                    <a href="/service-desk#jornada" class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
+                        <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-pink"></div> Painel do operador
+                    </a>
+                </div>
+            </nav>
             <nav id="app-sidebar-nav" class="flex flex-col gap-1 mb-8">
                 <div class="flex flex-col">
                     <a href="#" onclick="toggleBackoffice(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
@@ -169,7 +189,10 @@
                         <div id="lista-funcionarios-sidebar"></div>
                     </div>
                 </div>
-                <div class="flex flex-col">
+                <!-- N2, Cronograma de Atividades e Minhas Tarefas ocultos do menu
+                     (2026-09-28, pedido da operação). Só escondidos: as telas e as
+                     rotas continuam -- tirar o `hidden` dos três blocos traz de volta. -->
+                <div class="flex flex-col hidden" data-menu-oculto="n2">
                     <a href="#" onclick="toggleN2(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-headset text-lg"></i> N2</div>
                         <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-n2"></i>
@@ -183,7 +206,7 @@
                         <div id="lista-n2-sidebar" class="flex flex-col gap-3 mt-1"></div>
                     </div>
                 </div>
-                <div class="flex flex-col">
+                <div class="flex flex-col hidden" data-menu-oculto="cronograma">
                     <a href="#" onclick="toggleCronogramaAtividades(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-calendar-check text-lg"></i> Cronograma de Atividades</div>
                         <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-cronograma-atividades"></i>
@@ -233,22 +256,19 @@
                         </a>
                     </div>
                 </div>
-                <div class="flex flex-col">
+                <div class="flex flex-col hidden" data-menu-oculto="minhas">
                     <a href="#" onclick="setModule('minhas'); return false;" class="flex items-center gap-2.5 btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-user-focus text-lg"></i> Minhas Tarefas</div>
                     </a>
                 </div>
             </nav>
-            <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
-            <nav class="flex flex-col gap-1">
+            <p id="app-sidebar-gestao-titulo" class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestão</p>
+            <nav id="app-sidebar-gestao" class="flex flex-col gap-1">
                 <a href="#" onclick="abrirEquipeGestor(); return false;" id="link-equipe" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-users-three text-lg"></i> Minha Equipe
                 </a>
                 <a href="#" data-nav-mod="dashboard" onclick="setModule('dashboard'); return false;" id="sidebar-link-dashboard" class="flex items-center gap-2.5 bg-faiston-cyan/10 text-faiston-cyan font-medium text-sm rounded-md p-2.5 border border-faiston-cyan/30">
                     <i class="ph ph-chart-line-up text-lg"></i> Dashboard
-                </a>
-                <a href="#" id="link-financeiro" data-nav-mod="financeiro" onclick="setModule('financeiro'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
-                    <i class="ph ph-currency-circle-dollar text-lg"></i> Financeiro
                 </a>
                 <a href="#" data-nav-mod="historico" onclick="setModule('historico'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-lg"></i> Histórico
@@ -1625,6 +1645,119 @@
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- MODULE: HISTÓRICO                                               -->
 <!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- ═══ MÓDULO SERVICE DESK (visão gerencial do supervisor) ═══ -->
+<div id="mod-servicedesk" class="hidden flex-1 flex flex-col p-8 overflow-y-auto custom-scrollbar">
+    <header class="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4 mb-8">
+        <div>
+            <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Service Desk</h2>
+            <p class="text-sm text-faiston-muted mt-1" id="sdg-sub">Visão gerencial da operação</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1 p-1 rounded-xl" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)" id="sdg-periodos">
+                <button data-periodo="hoje" class="text-xs font-semibold px-3 py-1.5 rounded-lg">Hoje</button>
+                <button data-periodo="7d" class="text-xs font-semibold px-3 py-1.5 rounded-lg">7 dias</button>
+                <button data-periodo="30d" class="text-xs font-semibold px-3 py-1.5 rounded-lg">30 dias</button>
+                <button data-periodo="90d" class="text-xs font-semibold px-3 py-1.5 rounded-lg">90 dias</button>
+            </div>
+            <a href="#" onclick="sdgExportar(); return false;" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 bg-white"><i class="ph ph-microsoft-excel-logo text-sm"></i> Exportar</a>
+            <a href="/service-desk#equipe" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="ph ph-users-three text-base"></i> Equipe em tempo real</a>
+        </div>
+    </header>
+    <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-0.5 grad-bg"></div>
+            <div class="p-5">
+                <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center text-faiston-purple mb-4"><i class="ph ph-ticket text-xl"></i></div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Atendimentos</p>
+                <p class="text-3xl font-black text-faiston-dark" id="sdg-total">—</p>
+                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-total-obs"></p>
+            </div>
+        </div>
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-0.5 grad-bg-cool"></div>
+            <div class="p-5">
+                <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center text-faiston-cyan mb-4"><i class="ph ph-check-circle text-xl"></i></div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Resolução no 1º contato</p>
+                <p class="text-3xl font-black text-faiston-dark" id="sdg-fcr">—</p>
+                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-fcr-obs"></p>
+            </div>
+        </div>
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-faiston-magenta to-faiston-pink"></div>
+            <div class="p-5">
+                <div class="w-10 h-10 rounded-xl bg-faiston-magenta/10 flex items-center justify-center text-faiston-magenta mb-4"><i class="ph ph-arrow-bend-up-right text-xl"></i></div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Redirecionados</p>
+                <p class="text-3xl font-black text-faiston-dark" id="sdg-redir">—</p>
+                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-redir-obs"></p>
+            </div>
+        </div>
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-faiston-pink to-faiston-magenta"></div>
+            <div class="p-5">
+                <div class="w-10 h-10 rounded-xl bg-faiston-pink/10 flex items-center justify-center text-faiston-pink mb-4"><i class="ph ph-hourglass-medium text-xl"></i></div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Em aberto</p>
+                <p class="text-3xl font-black text-faiston-dark" id="sdg-aberto">—</p>
+                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-aberto-obs"></p>
+            </div>
+        </div>
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-0.5 grad-bg-cool"></div>
+            <div class="p-5">
+                <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center text-faiston-cyan mb-4"><i class="ph ph-broadcast text-xl"></i></div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Online agora</p>
+                <p class="text-3xl font-black text-faiston-dark" id="sdg-agora">—</p>
+                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-agora-obs"></p>
+            </div>
+        </div>
+        <div class="relative bg-white rounded-xl border border-faiston-border overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-0.5 grad-bg"></div>
+            <div class="p-5">
+                <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center text-faiston-purple mb-4"><i class="ph ph-coffee text-xl"></i></div>
+                <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Tempo em pausa</p>
+                <p class="text-3xl font-black text-faiston-dark" id="sdg-pausa">—</p>
+                <p class="text-[11px] text-faiston-muted mt-1" id="sdg-pausa-obs"></p>
+            </div>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col lg:col-span-2" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+            <h3 class="text-sm font-bold text-faiston-dark">Atendimentos por dia</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Volume diário no período — passe o mouse pra ver o total e quantos foram resolvidos no 1º contato</p>
+            <div id="sdg-chart-dia" class="flex-1" style="min-height:240px;"></div>
+        </div>
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col " style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+            <h3 class="text-sm font-bold text-faiston-dark">Volume por hora do dia</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Somado no período — ajuda a dimensionar a escala</p>
+            <div id="sdg-chart-hora" class="flex-1" style="min-height:240px;"></div>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col " style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+            <h3 class="text-sm font-bold text-faiston-dark">Principais categorias</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Atendimentos por categoria no período</p>
+            <div id="sdg-chart-categorias" class="flex-1" style="min-height:240px;"></div>
+        </div>
+        <div class="chart-card bg-white border border-faiston-border rounded-2xl p-5 flex flex-col " style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+            <h3 class="text-sm font-bold text-faiston-dark">Filas de entrada</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5 mb-2">Atendimentos por fila de entrada no período</p>
+            <div id="sdg-chart-filas" class="flex-1" style="min-height:240px;"></div>
+        </div>
+    </div>
+    <div class="chart-card shrink-0 bg-white border border-faiston-border rounded-2xl overflow-hidden" style="box-shadow:0 4px 20px rgba(13,15,35,0.04)">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
+            <div><h3 class="text-sm font-bold text-faiston-dark">Produção por operador</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">No período selecionado · status é o de agora</p></div>
+            <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="sdg-op-count">—</span>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar"><table class="w-full text-sm">
+            <thead class="text-left"><tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-faiston-border">
+                <th class="px-5 py-2.5">Operador</th><th class="px-4">Agora</th><th class="px-4 text-right">Atendimentos</th><th class="px-4 text-right">Média/dia</th><th class="px-4 text-right">1º contato</th><th class="px-4 text-right">Redirecionados</th><th class="px-4 text-right">Pausa</th>
+            </tr></thead>
+            <tbody id="sdg-op-tbody"></tbody>
+        </table></div>
+    </div>
+</div>
+
 <div id="mod-historico" class="hidden flex-1 overflow-y-auto custom-scrollbar">
 <div class="px-6 py-6">
 
@@ -3870,6 +4003,15 @@ async function init() {
             setModule('statuscampo');
             return;
         }
+        // Service Desk: supervisor (cargo) e gestor da área SD ficam só com a
+        // visão do SD. /api/sd/me lê o cargo do cadastro -- a sessão pode estar
+        // com o cargo antigo de quem foi movido pro SD depois do login.
+        if (me.perfil === 'funcionario' || (me.perfil === 'gestor' && me.time === 'Service Desk')) {
+            const rsd = await fetch('/api/sd/me').catch(() => null);
+            const sd = rsd && rsd.ok ? await rsd.json() : null;
+            if (sd && sd.supervisor) { entrarModoServiceDesk(me); return; }
+            if (sd) { window.location.href = '/service-desk'; return; }
+        }
         if (me.perfil === 'funcionario') { window.location.href = '/funcionario'; return; }
         document.getElementById('sidebar-nome').textContent = me.nome;
         document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
@@ -3888,14 +4030,11 @@ async function init() {
         } else {
             document.getElementById('sidebar-perfil').textContent = 'Gestor';
         }
-        // Visão PMO: visível apenas para diretor e admin
+        // Visão PMO e Service Desk: visíveis apenas para diretor e admin
         if (me.perfil === 'diretor' || me.perfil === 'admin') {
             document.getElementById('sb-link-pmo').classList.remove('hidden');
-        }
-        // Diretor não acessa o módulo Financeiro
-        if (me.perfil === 'diretor') {
-            const lf = document.getElementById('link-financeiro');
-            if (lf) lf.classList.add('hidden');
+            const nsd = document.getElementById('nav-servicedesk');
+            nsd.classList.remove('hidden'); nsd.classList.add('flex');
         }
         // Status Report (atividades de campo do N2) é do time de Projetos --
         // gestor de Logística/Rede Credenciada não vê Cronograma nem Status
@@ -4784,6 +4923,120 @@ const gridDark = { borderColor:'rgba(255,255,255,0.08)', strokeDashArray:4, padd
 const gridLight = { borderColor:'#F1F5F9', strokeDashArray:4, padding:{left:8,right:8} };
 const ttLight = { theme:'light', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
 const ttDark = { theme:'dark', style:{fontFamily:'Inter, sans-serif',fontSize:'12px'} };
+
+// ── SERVICE DESK: visão gerencial (supervisor) ─────────────────────────
+// Dados de /api/sd/dashboard. Gráficos de uma série só (cor = roxo da
+// marca), mesmo padrão de tooltip/grade dos demais gráficos do dashboard.
+window.SD_MODO = false;
+let _sdgPeriodo = (() => { try { return localStorage.getItem('sdg_periodo') || '7d'; } catch (e) { return '7d'; } })();
+
+function entrarModoServiceDesk(me) {
+    window.SD_MODO = true;
+    document.getElementById('sidebar-nome').textContent = me.nome;
+    document.getElementById('sidebar-avatar').textContent = me.nome.charAt(0).toUpperCase();
+    document.getElementById('sidebar-perfil').textContent = 'Supervisor · Service Desk';
+    document.getElementById('app-sidebar-nav').classList.add('hidden');
+    document.getElementById('app-sidebar-gestao-titulo').classList.add('hidden');
+    document.querySelectorAll('#app-sidebar-gestao > *').forEach(el => {
+        if (el.id !== 'link-suporte') el.classList.add('hidden');
+    });
+    document.getElementById('demo-toggle-bar').classList.add('hidden');
+    const nsd = document.getElementById('nav-servicedesk');
+    nsd.classList.remove('hidden'); nsd.classList.add('flex');
+    setModule('servicedesk');
+}
+
+function _sdgEstiloPeriodos() {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.querySelectorAll('#sdg-periodos button').forEach(b => {
+        const ativo = b.dataset.periodo === _sdgPeriodo;
+        b.style.cssText = !ativo ? 'background:transparent;color:#9097AC'
+            : (dark ? 'background:#11111E;color:#F1F2F8;box-shadow:0 1px 4px rgba(0,0,0,0.5)'
+                    : 'background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)');
+    });
+}
+document.querySelectorAll('#sdg-periodos button').forEach(b => b.addEventListener('click', () => {
+    _sdgPeriodo = b.dataset.periodo;
+    try { localStorage.setItem('sdg_periodo', _sdgPeriodo); } catch (e) {}
+    sdgCarregar();
+}));
+
+function sdgExportar() {
+    const escopo = { hoje: 'hoje', '7d': '7d', '30d': '30d', '90d': 'tudo' }[_sdgPeriodo] || '30d';
+    window.location.href = '/api/sd/atendimentos/exportar?escopo=' + escopo;
+}
+
+async function sdgCarregar() {
+    _sdgEstiloPeriodos();
+    let d;
+    try {
+        const r = await fetch('/api/sd/dashboard?periodo=' + _sdgPeriodo);
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Erro ao carregar o Service Desk');
+        d = await r.json();
+    } catch (e) { if (typeof mostrarErroGlobal === 'function') mostrarErroGlobal(e.message); return; }
+    const k = d.kpis, fmt = iso => iso.split('-').reverse().slice(0, 2).join('/');
+    document.getElementById('sdg-sub').textContent = d.periodo.dias === 1
+        ? 'Visão gerencial da operação · hoje'
+        : `Visão gerencial da operação · ${fmt(d.periodo.inicio)} a ${fmt(d.periodo.fim)}`;
+    const set = (id, v, obs) => { document.getElementById('sdg-' + id).textContent = v; document.getElementById('sdg-' + id + '-obs').textContent = obs || ''; };
+    set('total', k.total, `${k.media_dia} por dia · ${k.operadores_com_atendimento} operador(es)`);
+    set('fcr', k.fcr_pct == null ? '—' : k.fcr_pct + '%', 'concluídos sem redirecionar');
+    set('redir', k.redirecionados_pct == null ? '—' : k.redirecionados_pct + '%', 'mandados pra outra fila');
+    set('aberto', k.em_aberto, 'pendente, em atendimento ou aguardando');
+    set('agora', k.agora.online, `${k.agora.pausa} em pausa · ${k.agora.indisponivel} indisponível`);
+    set('pausa', k.pausa_horas + 'h', 'somado de toda a equipe');
+
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tt = dark ? ttDark : ttLight, grid = dark ? gridDark : gridLight;
+    const axisC = dark ? '#6A718A' : '#94A3B8';
+    const cor = '#5B2EE0';
+    const barra = (id, cats, vals, opts = {}) => {
+        destroyChart('sdg-' + id);
+        charts['sdg-' + id] = new ApexCharts(document.querySelector('#sdg-chart-' + id), {
+            series: [{ name: opts.nome || 'Atendimentos', data: vals }],
+            chart: { ...chartDefaults, type: 'bar', height: opts.altura || 240 },
+            plotOptions: { bar: { horizontal: !!opts.horizontal, borderRadius: 4, borderRadiusApplication: 'end',
+                columnWidth: '58%', barHeight: '62%' } },
+            colors: [cor], dataLabels: { enabled: false }, legend: { show: false },
+            xaxis: { categories: cats, labels: { style: { fontSize: '10px', colors: axisC }, trim: opts.trim !== false,
+                rotate: 0, hideOverlappingLabels: false,
+                formatter: opts.horizontal ? (v => Math.round(v)) : undefined }, axisBorder: { show: false }, axisTicks: { show: false } },
+            yaxis: { labels: { style: { colors: axisC }, maxWidth: 220, formatter: opts.horizontal ? undefined : (v => Math.round(v)) } },
+            grid: { ...grid, xaxis: { lines: { show: !!opts.horizontal } }, yaxis: { lines: { show: !opts.horizontal } } },
+            tooltip: { ...tt, ...(opts.tooltip || {}) },
+            noData: { text: 'Sem atendimentos no período', style: { color: axisC } },
+        });
+        charts['sdg-' + id].render();
+    };
+    barra('dia', d.por_dia.map(x => fmt(x.data)), d.por_dia.map(x => x.total), {
+        tooltip: { custom: ({ dataPointIndex: i }) => {
+            const x = d.por_dia[i];
+            return `<div style="padding:8px 10px;font-size:12px"><b>${fmt(x.data)}</b><br>${x.total} atendimento(s)<br>${x.resolvidos} resolvido(s) no 1º contato</div>`;
+        } } });
+    // 24 barras: rótulo a cada 3h pra não embolar (o tooltip mostra a hora certa).
+    const hh = h => String(h).padStart(2, '0') + 'h';
+    barra('hora', d.por_hora.map(x => x.hora % 3 === 0 ? hh(x.hora) : ''), d.por_hora.map(x => x.total),
+        { trim: false, tooltip: { x: { formatter: (v, o) => hh(d.por_hora[o.dataPointIndex].hora) } } });
+    barra('categorias', d.categorias.map(x => x.nome), d.categorias.map(x => x.total), { horizontal: true });
+    barra('filas', d.filas.map(x => x.nome), d.filas.map(x => x.total), { horizontal: true });
+
+    const ST = { online: ['Online', 'bg-emerald-500'], pausa: ['Pausa', 'bg-amber-500'], indisponivel: ['Indisponível', 'bg-rose-500'], offline: ['Offline', 'bg-slate-400'] };
+    document.getElementById('sdg-op-count').textContent = d.por_operador.length + ' operador(es)';
+    document.getElementById('sdg-op-tbody').innerHTML = d.por_operador.map(o => {
+        const [rot, dot] = ST[o.status] || ST.offline;
+        const pausa = o.pausa_min >= 60 ? `${Math.floor(o.pausa_min / 60)}h${String(o.pausa_min % 60).padStart(2, '0')}` : `${o.pausa_min} min`;
+        return `<tr class="border-b border-faiston-border last:border-0">
+            <td class="px-5 py-3"><div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-full grad-bg text-white text-[11px] font-bold flex items-center justify-center">${escHtml(o.nome.split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase())}</div>
+                <div><div class="font-semibold text-faiston-dark">${escHtml(o.nome)}</div><div class="text-[11px] text-faiston-faint">${escHtml(o.nivel)}</div></div></div></td>
+            <td class="px-4"><span class="inline-flex items-center gap-1.5 text-xs font-semibold text-faiston-dark"><span class="w-2 h-2 rounded-full ${dot}"></span>${rot}</span></td>
+            <td class="px-4 text-right font-bold text-faiston-purple">${o.total}</td>
+            <td class="px-4 text-right text-faiston-muted">${o.media_por_dia}</td>
+            <td class="px-4 text-right text-faiston-muted">${o.fcr_pct == null ? '—' : o.fcr_pct + '%'}</td>
+            <td class="px-4 text-right text-faiston-muted">${o.redirecionados}</td>
+            <td class="px-4 text-right text-faiston-muted font-mono text-xs">${pausa}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="7" class="text-center text-sm text-slate-400 py-8">Nenhum operador na área Service Desk ainda.</td></tr>';
+}
 // Peso 1→4 é escala ORDENADA, não categórica: rampa de uma cor só, clara→escura.
 // Validada (lightness monotônica, ΔL >= 0.06, contraste no claro e no escuro).
 // 2026-07-28: peso 3/4 escurecidos (violet-800/950) pra mais contraste entre
@@ -5836,7 +6089,11 @@ function setModule(mod, gestaoTab) {
     // Rotas antigas (?go=statuscampo) e links diretos não podem furar a regra
     // de time do Status Report -- sem acesso, cai no dashboard.
     if (mod === 'statuscampo' && window.ME && !podeVerStatusReport(window.ME)) mod = 'dashboard';
-    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo','painelN2','areaDev'];
+    // Financeiro saiu do menu (2026-09-28); link antigo (?go=financeiro) cai no dashboard.
+    if (mod === 'financeiro') mod = 'dashboard';
+    // Supervisor do Service Desk só enxerga o módulo do SD.
+    if (window.SD_MODO && mod !== 'servicedesk') mod = 'servicedesk';
+    const mods = ['dashboard','gestao','financeiro','historico','admin','minhas','statuscampo','painelN2','areaDev','servicedesk'];
     mods.forEach(m => {
         const el = document.getElementById('mod-' + m);
         if (el) el.classList.toggle('hidden', m !== mod);
@@ -5869,6 +6126,8 @@ function setModule(mod, gestaoTab) {
         } else if (gestaoTab) {
             setTab(gestaoTab);
         }
+    } else if (mod === 'servicedesk') {
+        sdgCarregar();
     } else if (mod === 'financeiro') {
         if (!_finCarregado) { _finCarregado = true; finCarregar(); }
     } else if (mod === 'historico') {
@@ -7179,9 +7438,7 @@ function renderClientesCards(lista) {
                     }
                 </div>
                 <div class="flex items-center justify-between py-3 border-t border-faiston-border">
-                    <a href="/financeiro/${c.id}" class="text-xs font-semibold text-faiston-purple hover:text-faiston-magenta transition-colors flex items-center gap-1">
-                        <i class="ph ph-currency-circle-dollar text-xs"></i> Financeiro
-                    </a>
+                    <span></span>
                     <a href="/relatorio/${encodeURIComponent(c.nome)}" target="_blank" class="text-xs font-semibold text-slate-400 hover:text-faiston-purple transition-colors flex items-center gap-1">
                         Relatório <i class="ph ph-arrow-square-out text-xs"></i>
                     </a>

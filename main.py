@@ -4327,7 +4327,9 @@ def _redirect_login_ou_home(sess):
         return RedirectResponse("/dashboard")
     if sess.get("cargo") == "n2":
         return RedirectResponse("/n2")
-    if sess.get("cargo") in ("sd_operador", "sd_supervisor"):
+    if sess.get("cargo") == "sd_supervisor":
+        return RedirectResponse("/dashboard")
+    if sess.get("cargo") == "sd_operador":
         return RedirectResponse("/service-desk")
     return RedirectResponse("/funcionario")
 
@@ -4356,7 +4358,14 @@ def dashboard(faiston_token: str = Cookie(None)):
     # de Cronograma do Status Report -- o próprio index.html restringe a
     # visão a essa única seção pra esse cargo (ver init() em index.html).
     eh_backoffice = sess and sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice"
-    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice):
+    # Supervisor do Service Desk também entra, só com a visão do SD (o
+    # index.html esconde o resto). Cargo lido do cadastro, não da sessão.
+    eh_sup_sd = False
+    if sess and sess["perfil"] == "funcionario" and not eh_backoffice:
+        from app.service_desk.db import get_session as _sd_sessao
+        sd = _sd_sessao(faiston_token)
+        eh_sup_sd = bool(sd) and sd.get("cargo") == "sd_supervisor"
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice and not eh_sup_sd):
         return _redirect_login_ou_home(sess)
     return FileResponse("static/index.html", headers=_HTML_SEM_CACHE)
 
@@ -4370,7 +4379,7 @@ def funcionario(faiston_token: str = Cookie(None)):
     from app.service_desk.router import CARGOS_SD
     sd = _sd_sessao(faiston_token)
     if sd and sd.get("perfil") == "funcionario" and sd.get("cargo") in CARGOS_SD:
-        return RedirectResponse("/service-desk")
+        return RedirectResponse("/dashboard" if sd.get("cargo") == "sd_supervisor" else "/service-desk")
     return FileResponse("static/funcionario.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/n2")
@@ -5336,8 +5345,10 @@ def gestao_page(): return RedirectResponse("/dashboard?go=gestao")
 @app.get("/clientes")
 def clientes_page(): return RedirectResponse("/dashboard?go=clientes")
 
+# Módulo Financeiro saiu do menu (2026-09-28, não é mais usado). Dados e API
+# continuam -- o Forecast/P&L da Gestão de Projetos segue funcionando.
 @app.get("/financeiro")
-def financeiro_geral_page(): return RedirectResponse("/dashboard?go=financeiro")
+def financeiro_geral_page(): return RedirectResponse("/dashboard")
 
 @app.get("/forecast")
 def forecast_page(): return RedirectResponse("/dashboard?go=forecast")
@@ -5346,9 +5357,7 @@ def forecast_page(): return RedirectResponse("/dashboard?go=forecast")
 @app.get("/financeiro/{cid}")
 def financeiro_page(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
-        return _redirect_login_ou_home(sess)
-    return FileResponse("static/financeiro.html", headers=_HTML_SEM_CACHE)
+    return _redirect_login_ou_home(sess)
 
 @app.get("/api/financeiro/resumo")
 def financeiro_resumo(faiston_token: str = Cookie(None)):

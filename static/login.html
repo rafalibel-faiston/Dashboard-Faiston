@@ -420,7 +420,8 @@ function redirecionarPorPerfil(perfil, cargo) {
     if (perfil === 'admin' || perfil === 'gestor' || perfil === 'demo' || perfil === 'dev') window.location.href = '/dashboard';
     else if (perfil === 'diretor') window.location.href = '/gestao';
     else if (perfil === 'funcionario' && cargo === 'n2') window.location.href = '/n2';
-    else if (perfil === 'funcionario' && (cargo === 'sd_operador' || cargo === 'sd_supervisor')) window.location.href = '/service-desk';
+    else if (perfil === 'funcionario' && cargo === 'sd_supervisor') window.location.href = '/dashboard';
+    else if (perfil === 'funcionario' && cargo === 'sd_operador') window.location.href = '/service-desk';
     else window.location.href = '/funcionario';
 }
 
