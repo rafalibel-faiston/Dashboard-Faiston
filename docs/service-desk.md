@@ -16,6 +16,11 @@ jornada do operador, registro rápido de atendimento, histórico e escalas.
 | Supervisor | cargo **Service Desk — Supervisor** (ou gestor do time Service Desk) | + Equipe em tempo real, atendimentos de todos, edita escala, cadastra status |
 | admin / diretor / dev | — | tudo |
 
+A área **Service Desk** é criada sozinha no cadastro de Áreas (Admin → Áreas)
+no boot do módulo, aceitando só os cargos do SD e sem trabalhar por projeto.
+Os cargos `sd_operador`/`sd_supervisor` não entram nas outras áreas; o admin
+pode ligar se precisar, na própria tela de Áreas.
+
 Quem é de outro time recebe 403 na API e é redirecionado fora da tela.
 O login do operador cai direto em `/service-desk`.
 

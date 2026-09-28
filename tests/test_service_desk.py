@@ -267,3 +267,29 @@ class TestSupervisor:
         assert r.json()["chave"] == "cancelado_teste"
         chaves = [x["chave"] for x in supervisor["client"].get("/api/sd/opcoes").json()["status"]]
         assert "cancelado_teste" in chaves
+
+
+class TestAreaServiceDesk:
+    """Integração com o cadastro de áreas (tabela `areas`)."""
+
+    def test_area_criada_so_com_cargos_do_sd(self, admin_client):
+        areas = {a["nome"]: a for a in admin_client.get("/api/areas").json()["areas"]}
+        sd = areas["Service Desk"]
+        assert sd["cargos"] == ["sd_operador", "sd_supervisor"]
+        assert sd["usa_projetos"] is False
+        assert "sd_operador" not in areas["Projetos"]["cargos"]
+
+    def test_admin_cadastra_operador_na_area(self, admin_client):
+        usuario = f"teste_sd_{uuid.uuid4().hex[:8]}"
+        resp = admin_client.post("/api/usuarios", json={
+            "usuario": usuario, "senha": SENHA, "nome": "Operador Via Admin", "perfil": "funcionario",
+            "cargo": "sd_operador", "time": "Service Desk", "email": f"{usuario}@teste.local"})
+        assert resp.status_code == 200, resp.text
+        _apagar_usuario(resp.json()["id"])
+
+    def test_cargo_sd_recusado_em_outra_area(self, admin_client):
+        usuario = f"teste_sd_{uuid.uuid4().hex[:8]}"
+        resp = admin_client.post("/api/usuarios", json={
+            "usuario": usuario, "senha": SENHA, "nome": "Fora da Área", "perfil": "funcionario",
+            "cargo": "sd_operador", "time": "Projetos", "email": f"{usuario}@teste.local"})
+        assert resp.status_code == 400
