@@ -4364,6 +4364,13 @@ def dashboard(faiston_token: str = Cookie(None)):
 def funcionario(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: return RedirectResponse("/")
+    # Operador do Service Desk tem tela própria. Olha o cadastro, não só a
+    # sessão: quem foi movido pro SD depois do login também é desviado.
+    from app.service_desk.db import get_session as _sd_sessao
+    from app.service_desk.router import CARGOS_SD
+    sd = _sd_sessao(faiston_token)
+    if sd and sd.get("perfil") == "funcionario" and sd.get("cargo") in CARGOS_SD:
+        return RedirectResponse("/service-desk")
     return FileResponse("static/funcionario.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/n2")
