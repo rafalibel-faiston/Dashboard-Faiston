@@ -1675,11 +1675,15 @@ async function abrirModalExtra(tarefa) {
     document.getElementById('me-descricao').value = tarefa ? (tarefa.descricao || '') : '';
     document.getElementById('me-natureza').value = tarefa ? (tarefa.natureza || 'programada') : 'programada';
     document.getElementById('me-prazo').value = tarefa ? (tarefa.data_prazo || '') : '';
-    const segTotais = tarefa ? (tarefa.segundos || 0) : 0;
+    const segTotais = tarefa ? (tarefa.segundos || 0) + (tarefa.timer_ativo ? (tarefa.timer_decorrido || 0) : 0) : 0;
     document.getElementById('me-horas').value = Math.floor(segTotais / 3600) || '';
     document.getElementById('me-minutos').value = Math.floor((segTotais % 3600) / 60) || '';
+    // Horas não mexidas: o salvar não manda `segundos` (não pisa no timer).
+    _extraSegMostrados = Math.floor(segTotais / 3600) * 3600 + Math.floor((segTotais % 3600) / 60) * 60;
     document.getElementById('modal-extra').classList.remove('hidden');
 }
+
+let _extraSegMostrados = null;
 
 function fecharModalExtra() {
     document.getElementById('modal-extra').classList.add('hidden');
@@ -1698,12 +1702,15 @@ async function salvarAtividadeExtra() {
     const body = {
         descricao: document.getElementById('me-descricao').value.trim(),
         cliente,
-        status: 'aberto',
         tipo_atividade_id: tipoId,
         natureza: document.getElementById('me-natureza').value,
         data_prazo: prazo,
         segundos: (horas * 3600) + (minutos * 60),
     };
+    // Status só na criação: editar não pode jogar de volta pra 'aberto' uma
+    // atividade que já está em andamento.
+    if (!_extraEditId) body.status = 'aberto';
+    else if (body.segundos === _extraSegMostrados) delete body.segundos;
     const url = _extraEditId ? `/api/tarefas/${_extraEditId}` : '/api/tarefas';
     const res = await fetch(url, { method: _extraEditId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) {
@@ -1716,14 +1723,28 @@ async function salvarAtividadeExtra() {
 }
 
 async function concluirAtividadeExtra(tarefa) {
+    if (!tarefa) return;
     if (!confirm('Marcar esta atividade como concluída?')) return;
+    // Concluir depois da previsão exige motivo -- o backend barra sem ele, e
+    // antes esta tela não perguntava: a atividade atrasada não concluía nunca.
+    let justificativa = '';
+    if (tarefa.data_prazo) {
+        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+        const prazo = new Date(String(tarefa.data_prazo).slice(0, 10) + 'T00:00:00');
+        if (hoje > prazo) {
+            justificativa = (prompt('Esta atividade está sendo concluída FORA do prazo previsto (' +
+                String(tarefa.data_prazo).slice(0, 10).split('-').reverse().join('/') +
+                ').\n\nInforme o motivo do atraso:') || '').trim();
+            if (!justificativa) return;
+        }
+    }
     const res = await fetch(`/api/tarefas/${tarefa.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            descricao: tarefa.descricao, cliente: tarefa.cliente, prioridade: tarefa.prioridade,
-            status: 'concluido', segundos: tarefa.segundos,
-            data_prazo: tarefa.data_prazo, data_agendamento: tarefa.data_agendamento, hora_prazo: tarefa.hora_prazo,
-            tipo_atividade_id: tarefa.tipo_atividade_id, natureza: tarefa.natureza,
+            // Só o necessário: o PUT atualiza apenas o que vem no corpo, e sem
+            // `segundos` o servidor fecha o timer com o tempo que ele contou.
+            descricao: tarefa.descricao, cliente: tarefa.cliente, status: 'concluido',
+            justificativa_atraso: justificativa,
         })
     });
     if (!res.ok) {
