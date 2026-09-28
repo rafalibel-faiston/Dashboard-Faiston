@@ -2430,6 +2430,8 @@
                     <option value="analista">Analista</option>
                     <option value="backoffice">Backoffice</option>
                     <option value="desenvolvedor">Desenvolvedor</option>
+                    <option value="sd_operador">SD — Operador</option>
+                    <option value="sd_supervisor">SD — Supervisor</option>
                 </select>
                 <button onclick="window.open('/api/avisos-ops/previa','_blank')" title="Abre o e-mail exatamente como ele sai, sem enviar nada"
                     class="px-4 py-2 rounded-lg text-sm font-semibold border border-faiston-border bg-white text-faiston-muted hover:border-faiston-purple hover:text-faiston-purple transition-colors flex items-center gap-2">
@@ -3153,7 +3155,7 @@ let _catalogoAcessos = {cargos: [], perfis: []};
 // Inclui as inativas -- é a lista que a aba Áreas mostra.
 let _areasCacheAdmin = [];
 const ROTULO_PERFIL = {funcionario:'Funcionário', gestor:'Gestor', diretor:'Diretor', demo:'Demo', admin:'Admin', dev:'Dev'};
-const ROTULO_CARGO = {analista:'Analista', backoffice:'Backoffice', n2:'N2', desenvolvedor:'Desenvolvedor'};
+const ROTULO_CARGO = {analista:'Analista', backoffice:'Backoffice', n2:'N2', desenvolvedor:'Desenvolvedor', sd_operador:'Service Desk — Operador', sd_supervisor:'Service Desk — Supervisor'};
 let charts = {};
 let vistaAtiva = 'metricas';
 let todasTarefasKanban = [];
@@ -3406,7 +3408,7 @@ const eqPerfilCfg = {
     funcionario: { label: 'Funcionário', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
     demo:        { label: 'Demo',        cls: 'bg-amber-50 text-amber-600 border-amber-200' },
 };
-const EQ_CARGO_LABEL = { analista: 'Analista', backoffice: 'Backoffice', n2: 'N2', desenvolvedor: 'Desenvolvedor' };
+const EQ_CARGO_LABEL = { analista: 'Analista', backoffice: 'Backoffice', n2: 'N2', desenvolvedor: 'Desenvolvedor', sd_operador: 'Service Desk', sd_supervisor: 'Supervisor SD' };
 let eqUsuarios = [], eqModalId = null;
 
 async function abrirEquipeGestor() {
@@ -4447,7 +4449,7 @@ function agendaSelDia(key, manterAberto = false) {
         }).join('');
 }
 
-const FRENTE_LABEL = { analista: 'Analista', backoffice: 'Backoffice', n2: 'N2', desenvolvedor: 'Desenvolvedor' };
+const FRENTE_LABEL = { analista: 'Analista', backoffice: 'Backoffice', n2: 'N2', desenvolvedor: 'Desenvolvedor', sd_operador: 'Service Desk', sd_supervisor: 'Supervisor SD' };
 
 // Chip(s) "Filtrado por: ..." no header do Dashboard -- deixa explícito
 // quando funcionário e/ou frente estão filtrando a tela, com botão de
@@ -8943,6 +8945,7 @@ function adminFiltrarUsuariosFrente() {
     else if (frente === 'analista') lista = lista.filter(u => u.cargo === 'analista');
     else if (frente === 'backoffice') lista = lista.filter(u => u.cargo === 'backoffice');
     else if (frente === 'desenvolvedor') lista = lista.filter(u => u.cargo === 'desenvolvedor');
+    else if (frente) lista = lista.filter(u => u.cargo === frente);
     adminRenderTabelaUsuarios(lista);
 }
 
@@ -11489,6 +11492,8 @@ async function pn2SalvarDistribuicao() {
                     <option value="analista">Analista</option>
                     <option value="backoffice">Backoffice</option>
                     <option value="desenvolvedor">Desenvolvedor</option>
+                    <option value="sd_operador">Service Desk — Operador</option>
+                    <option value="sd_supervisor">Service Desk — Supervisor</option>
                 </select>
             </div>
             <div>
