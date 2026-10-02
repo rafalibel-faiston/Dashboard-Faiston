@@ -854,6 +854,7 @@ function render(t) {
 // buffer a partir do tempo atual (sincronia perfeita com o render) e o
 // script de export usa o mesmo buffer pro MP4.
 const SR = 44100;
+const MUSIC_LEVEL = 0.18; // volume da música em relação aos efeitos
 function buildSfx(ctx, out) {
     let s = 99;
     const rand = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -961,7 +962,73 @@ function scoreTrack(ctx, out) {
     X.pad(b + 1.6, 2.4, 0.026);
 }
 
-function renderTrack() {
+// música de fundo: 120 BPM, compassos alinhados com o impacto do logo (0,17s)
+// Dó7M · Lá m7 · Fá7M · Sol, termina resolvendo em Dó. Bateria só nas cenas
+// de funcionalidade; abertura e encerramento ficam só com pad + arpejo.
+function scoreMusic(ctx, out) {
+    let s = 7;
+    const rand = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const nb = ctx.createBuffer(1, SR, SR), nd = nb.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = rand() * 2 - 1;
+    const BEAT = 0.5, BAR = 2, T0 = 0.17;
+    const CH = [[261.63, 329.63, 392, 493.88], [220, 261.63, 329.63, 392], [174.61, 220, 261.63, 329.63], [196, 246.94, 293.66, 392]];
+    const BASS = [65.41, 55, 87.31, 98];
+    const bus = ctx.createGain(), lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 5000;
+    bus.gain.setValueAtTime(0.0001, 0);
+    bus.gain.exponentialRampToValueAtTime(1, 1.2);
+    bus.gain.setValueAtTime(1, DURATION - 1.6);
+    bus.gain.linearRampToValueAtTime(0, DURATION - 0.05);
+    bus.connect(lp); lp.connect(out);
+    const sustain = (t, f, len, v, type, cut) => {
+        const o = ctx.createOscillator(), g = ctx.createGain(), fl = ctx.createBiquadFilter();
+        o.type = type; o.frequency.value = f; fl.type = 'lowpass'; fl.frequency.value = cut;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(v, t + Math.min(0.45, len / 3));
+        g.gain.setValueAtTime(v, t + len - 0.2);
+        g.gain.linearRampToValueAtTime(0, t + len + 0.5);
+        o.connect(fl); fl.connect(g); g.connect(bus); o.start(t); o.stop(t + len + 0.6);
+    };
+    const pluck = (t, f, v) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+        o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.36);
+    };
+    const kick = (t, v) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.32);
+    };
+    const hit = (t, v, f, q, d, type = 'bandpass') => {
+        const src = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), g = ctx.createGain();
+        src.buffer = nb; fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        src.connect(fl); fl.connect(g); g.connect(bus); src.start(t, rand() * 0.5); src.stop(t + d + 0.02);
+    };
+    const ARP = [0, 1, 2, 3, 2, 1, 0, 2];
+    const BARS = Math.ceil((DURATION - T0) / BAR);
+    for (let k = 0; k < BARS; k++) {
+        const t = T0 + k * BAR, last = k === BARS - 1;
+        const c = last ? 0 : k % 4;                 // último compasso volta pro Dó
+        const len = last ? DURATION - t : BAR;
+        CH[c].forEach(f => { sustain(t, f, len, 0.022, 'triangle', 1300); sustain(t, f * 1.004, len, 0.012, 'sawtooth', 900); });
+        const arpV = k === 0 ? 0.012 : 0.02;
+        for (let i = 0; i < (last ? 4 : 8); i++) pluck(t + i * BEAT / 2, CH[c][ARP[i]] * 2, arpV);
+        const drums = k >= 2 && t < 28.1;            // do Kanban até antes do encerramento
+        if (drums || (k >= 2 && !last)) {
+            sustain(t, BASS[c], BEAT * 1.6, 0.07, 'triangle', 500);
+            sustain(t + BEAT * 2, BASS[c], BEAT * 1.6, 0.06, 'triangle', 500);
+        }
+        if (!drums) continue;
+        [0, 2].forEach(b => kick(t + b * BEAT, 0.22));
+        for (let i = 0; i < 4; i++) hit(t + i * BEAT + BEAT / 2, 0.025, 8000, 0.7, 0.035, 'highpass');
+        if (k >= 4) [1, 3].forEach(b => hit(t + b * BEAT, 0.05, 1600, 0.8, 0.13));
+    }
+}
+
+function renderTrack(mode = 'all') {
     const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!Off) return Promise.resolve(null);
     const ctx = new Off(2, Math.ceil(SR * DURATION), SR);
@@ -969,7 +1036,11 @@ function renderTrack() {
     comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
     const master = ctx.createGain(); master.gain.value = 2.3;
     master.connect(comp); comp.connect(ctx.destination);
-    scoreTrack(ctx, master);
+    if (mode !== 'music') scoreTrack(ctx, master);
+    if (mode !== 'sfx') {
+        const mus = ctx.createGain(); mus.gain.value = MUSIC_LEVEL; mus.connect(master);
+        scoreMusic(ctx, mus);
+    }
     return ctx.startRendering();
 }
 // WAV 16-bit pra export do MP4
@@ -1074,7 +1145,7 @@ addEventListener('mousemove', wake); addEventListener('touchstart', wake, { pass
 // exportação quadro a quadro + trilha (usado pelo script de render)
 window.__DURATION = DURATION;
 window.__seek = t => { cur = t; render(t); };
-window.__audioWav = () => trackReady.then(b => b ? wavBase64(b) : null);
+window.__audioWav = (mode) => (mode ? renderTrack(mode) : trackReady).then(b => b ? wavBase64(b) : null);
 if (CAPTURE) render(0); else requestAnimationFrame(frame);
 })();
 </script>
