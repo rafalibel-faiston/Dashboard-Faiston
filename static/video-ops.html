@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/faiston-ops-mark.svg">
+<title>Vídeo · Faiston OPS</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<!--
+  Vídeo institucional do Faiston OPS (apresentação pra diretoria).
+
+  Tudo é desenhado num <canvas> 1920x1080 por uma função render(t)
+  determinística: o mesmo quadro sai igual no navegador e na exportação.
+
+  Atalhos: Espaço = play/pause · R = recomeçar · F = tela cheia · ←/→ = 5s
+  Parâmetros: ?loop=1 repete no fim · ?export=1 esconde a interface e expõe
+  window.renderAt(t) / window.VIDEO_DURATION (usado pra gerar o MP4).
+-->
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #07070F; overflow: hidden; }
+    body { display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; color: #F1F2F8; }
+    canvas { display: block; width: min(100vw, 177.78vh); height: auto; aspect-ratio: 16 / 9; }
+    .ui {
+        position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+        display: flex; align-items: center; gap: 12px;
+        width: min(760px, calc(100vw - 32px)); padding: 10px 14px;
+        background: rgba(17,17,30,0.82); backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+        transition: opacity .3s ease; opacity: 1;
+    }
+    .ui.hide { opacity: 0; pointer-events: none; }
+    .ui button {
+        border: 0; background: rgba(255,255,255,0.06); color: #F1F2F8;
+        height: 34px; min-width: 34px; padding: 0 10px; border-radius: 9px;
+        font: 600 13px Inter, sans-serif; cursor: pointer; white-space: nowrap;
+    }
+    .ui button:hover { background: rgba(255,255,255,0.12); }
+    .ui button.primary { background: linear-gradient(135deg, #5B2EE0, #B826C9); }
+    .ui input[type=range] { flex: 1; min-width: 60px; accent-color: #B826C9; }
+    .ui .time { font: 600 12px "JetBrains Mono", monospace; color: #9097AC; min-width: 92px; text-align: center; }
+    .ui .rec.on { background: #EC4899; }
+    .start {
+        position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: transparent; border: 0; cursor: pointer;
+    }
+    .start span {
+        width: 96px; height: 96px; border-radius: 28px;
+        background: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
+        box-shadow: 0 20px 60px -10px rgba(184,38,201,0.6);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .start.hide { display: none; }
+    body.export .ui, body.export .start { display: none; }
+</style>
+</head>
+<body>
+<canvas id="cv" width="1920" height="1080"></canvas>
+
+<button class="start" id="start" aria-label="Reproduzir vídeo">
+    <span><svg width="34" height="34" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="#fff"/></svg></span>
+</button>
+
+<div class="ui" id="ui">
+    <button id="btn-play" class="primary" aria-label="Play/Pause">▶</button>
+    <button id="btn-restart" aria-label="Recomeçar">↺</button>
+    <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Linha do tempo">
+    <span class="time" id="time">0:00 / 0:00</span>
+    <button id="btn-full" aria-label="Tela cheia">⛶</button>
+    <button id="btn-rec" class="rec" title="Grava o vídeo inteiro em tempo real e baixa um .webm">● Gravar .webm</button>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+const W = 1920, H = 1080;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+/* ---------------- Identidade (mesmos tokens do style.css) ---------------- */
+const C = {
+    bg: '#07070F', purple: '#5B2EE0', magenta: '#B826C9', pink: '#EC4899', cyan: '#06D7E6',
+    lav: '#A78BFA', text: '#F1F2F8', muted: '#9097AC', subtle: '#6A718A',
+    surface: 'rgba(255,255,255,0.035)', border: 'rgba(255,255,255,0.08)',
+};
+const GRAD = [C.purple, C.magenta, C.pink];
+const GRAD_COOL = [C.cyan, C.purple];
+const F = {
+    display: '"Space Grotesk", Inter, sans-serif',
+    body: 'Inter, system-ui, sans-serif',
+    mono: '"JetBrains Mono", ui-monospace, monospace',
+};
+
+/* ---------------- Utilidades de animação ---------------- */
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const E = {
+    out: t => 1 - Math.pow(1 - t, 3),
+    inOut: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+    expo: t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t),
+    back: t => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+};
+const prog = (t, start, dur) => clamp((t - start) / dur);
+const fmtBR = (v, d = 1) => v.toFixed(d).replace('.', ',');
+
+/* ---------------- Primitivas de desenho ---------------- */
+function linGrad(x0, y0, x1, y1, stops) {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    stops.forEach((c, i) => g.addColorStop(i / (stops.length - 1), c));
+    return g;
+}
+
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+
+function panel(x, y, w, h, o = {}) {
+    ctx.save();
+    if (o.shadow) {
+        ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 20;
+    }
+    rr(x, y, w, h, o.r ?? 24);
+    ctx.fillStyle = o.fill ?? 'rgba(17,17,30,0.72)';
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = o.lw ?? 1.5;
+    ctx.strokeStyle = o.stroke ?? C.border;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function setFont(size, weight, family) { ctx.font = `${weight} ${size}px ${family}`; }
+
+function measure(str, size, weight = 600, family = F.body, ls = 0) {
+    ctx.save(); setFont(size, weight, family); ctx.letterSpacing = ls + 'px';
+    const w = ctx.measureText(str).width; ctx.restore(); return w;
+}
+
+function text(str, x, y, o = {}) {
+    const size = o.size ?? 28, weight = o.weight ?? 500, family = o.font ?? F.body;
+    ctx.save();
+    ctx.globalAlpha *= o.alpha ?? 1;
+    setFont(size, weight, family);
+    ctx.letterSpacing = (o.ls ?? 0) + 'px';
+    ctx.textAlign = o.align ?? 'left';
+    ctx.textBaseline = o.base ?? 'alphabetic';
+    const w = ctx.measureText(str).width;
+    if (o.grad) {
+        const x0 = ctx.textAlign === 'center' ? x - w / 2 : ctx.textAlign === 'right' ? x - w : x;
+        ctx.fillStyle = linGrad(x0, 0, x0 + w, 0, o.grad);
+    } else ctx.fillStyle = o.color ?? C.text;
+    ctx.fillText(str, x, y);
+    ctx.restore();
+    return w;
+}
+
+/* Texto que sobe de dentro de uma máscara — o "reveal" padrão do vídeo. */
+function reveal(str, x, y, p, o = {}) {
+    if (p <= 0) return;
+    const size = o.size ?? 28;
+    const e = E.expo(p);
+    ctx.save();
+    const w = measure(str, size, o.weight ?? 500, o.font ?? F.body, o.ls ?? 0);
+    const x0 = o.align === 'center' ? x - w / 2 : o.align === 'right' ? x - w : x;
+    ctx.beginPath();
+    ctx.rect(x0 - 20, y - size * 1.15, w + 40, size * 1.5);
+    ctx.clip();
+    text(str, x, y + (1 - e) * size * 1.25, { ...o, alpha: (o.alpha ?? 1) * clamp(p * 3) });
+    ctx.restore();
+}
+
+function pill(x, y, label, o = {}) {
+    const size = o.size ?? 15, padX = o.padX ?? 14, h = o.h ?? size + 16;
+    const w = measure(label, size, 700, F.body, o.ls ?? 0.6) + padX * 2;
+    const color = o.color ?? C.cyan;
+    ctx.save();
+    ctx.globalAlpha *= o.alpha ?? 1;
+    rr(x, y, w, h, h / 2);
+    ctx.fillStyle = hexA(color, 0.13); ctx.fill();
+    ctx.lineWidth = 1.2; ctx.strokeStyle = hexA(color, 0.35); ctx.stroke();
+    text(label, x + padX, y + h / 2 + 1, { size, weight: 700, color, base: 'middle', ls: o.ls ?? 0.6 });
+    ctx.restore();
+    return w;
+}
+
+function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+}
+
+function avatar(cx, cy, r, letter, grad) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = linGrad(cx - r, cy - r, cx + r, cy + r, grad); ctx.fill();
+    text(letter, cx, cy + 1, { size: r * 0.95, weight: 700, align: 'center', base: 'middle', color: '#fff' });
+    ctx.restore();
+}
+
+/* Marca do Faiston OPS (mesma geometria do faiston-ops-mark.svg). */
+function mark(cx, cy, s, o = {}) {
+    const k = s / 60;
+    ctx.save();
+    ctx.globalAlpha *= o.alpha ?? 1;
+    ctx.translate(cx, cy);
+    if (o.rot) ctx.rotate(o.rot);
+    if (o.glow) { ctx.shadowColor = 'rgba(184,38,201,0.55)'; ctx.shadowBlur = 70 * k * o.glow; ctx.shadowOffsetY = 14 * k; }
+    rr(-s / 2, -s / 2, s, s, 16 * k);
+    ctx.fillStyle = linGrad(-s / 2, -s / 2, s / 2, s / 2, GRAD);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    const tri = o.tri ?? 1;
+    if (tri > 0) {
+        ctx.save();
+        ctx.translate(3 * k, 0);
+        ctx.scale(tri, tri);
+        ctx.beginPath();
+        ctx.moveTo(-9 * k, -10.5 * k); ctx.lineTo(9 * k, 0); ctx.lineTo(-9 * k, 10.5 * k); ctx.closePath();
+        ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.restore();
+    }
+    ctx.restore();
+}
+
+function wordmark(x, y, size, o = {}) {
+    const w1 = text('FAISTON ', x, y, { size, weight: 700, font: F.display, ls: o.ls ?? 0, alpha: o.alpha, base: o.base });
+    const w2 = text('OPS', x + w1, y, { size, weight: 700, font: F.display, ls: o.ls ?? 0, grad: GRAD, alpha: o.alpha, base: o.base });
+    return w1 + w2;
+}
+
+function sparkle(cx, cy, r, color = '#fff') {
+    ctx.save(); ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.quadraticCurveTo(cx, cy, cx + r, cy);
+    ctx.quadraticCurveTo(cx, cy, cx, cy + r);
+    ctx.quadraticCurveTo(cx, cy, cx - r, cy);
+    ctx.quadraticCurveTo(cx, cy, cx, cy - r);
+    ctx.fillStyle = color; ctx.fill(); ctx.restore();
+}
+
+function check(cx, cy, s, color, p = 1) {
+    if (p <= 0) return;
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = s * 0.22; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const pts = [[-0.45, 0.02], [-0.12, 0.34], [0.48, -0.32]];
+    const len1 = Math.hypot(0.33, 0.32), len2 = Math.hypot(0.6, 0.66), total = len1 + len2;
+    let d = p * total;
+    ctx.beginPath(); ctx.moveTo(cx + pts[0][0] * s, cy + pts[0][1] * s);
+    const a = clamp(d / len1);
+    ctx.lineTo(cx + lerp(pts[0][0], pts[1][0], a) * s, cy + lerp(pts[0][1], pts[1][1], a) * s);
+    if (d > len1) {
+        const b = clamp((d - len1) / len2);
+        ctx.lineTo(cx + lerp(pts[1][0], pts[2][0], b) * s, cy + lerp(pts[1][1], pts[2][1], b) * s);
+    }
+    ctx.stroke(); ctx.restore();
+}
+
+/* Cabeçalho de capítulo — mesmo layout em todas as cenas de módulo. */
+function chapter(lt, num, kicker, title1, title2, sub, x = 140, y = 360) {
+    const a = E.out(prog(lt, 0.15, 0.6));
+    ctx.save(); ctx.globalAlpha *= a;
+    text(num, x, y, { size: 22, weight: 700, font: F.mono, color: C.cyan });
+    ctx.fillStyle = hexA(C.cyan, 0.5);
+    ctx.fillRect(x + 46, y - 8, 60 * E.out(prog(lt, 0.3, 0.7)), 2);
+    text(kicker.toUpperCase(), x + 122, y, { size: 16, weight: 700, color: C.muted, ls: 3 });
+    ctx.restore();
+    reveal(title1, x, y + 104, prog(lt, 0.3, 0.9), { size: 80, weight: 700, font: F.display, ls: -2 });
+    reveal(title2, x, y + 192, prog(lt, 0.45, 0.9), { size: 80, weight: 700, font: F.display, ls: -2, grad: GRAD });
+    sub.forEach((line, i) => reveal(line, x, y + 270 + i * 42, prog(lt, 0.8 + i * 0.1, 0.9), { size: 27, weight: 400, color: C.muted }));
+}
+
+/* ---------------- Fundo e HUD ---------------- */
+function background(t) {
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+
+    const g1x = 1500 + Math.sin(t * 0.18) * 120, g1y = 140 + Math.cos(t * 0.14) * 60;
+    let g = ctx.createRadialGradient(g1x, g1y, 0, g1x, g1y, 1000);
+    g.addColorStop(0, 'rgba(91,46,224,0.24)'); g.addColorStop(1, 'rgba(91,46,224,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    const g2x = 260 + Math.cos(t * 0.16) * 100, g2y = 980 + Math.sin(t * 0.2) * 40;
+    g = ctx.createRadialGradient(g2x, g2y, 0, g2x, g2y, 800);
+    g.addColorStop(0, 'rgba(6,215,230,0.11)'); g.addColorStop(1, 'rgba(6,215,230,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    const g3x = 900 + Math.sin(t * 0.1) * 200, g3y = 620;
+    g = ctx.createRadialGradient(g3x, g3y, 0, g3x, g3y, 700);
+    g.addColorStop(0, 'rgba(184,38,201,0.06)'); g.addColorStop(1, 'rgba(184,38,201,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    // grade da marca, deslizando bem devagar
+    const step = 48, off = (t * 6) % step;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(124,92,255,0.045)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = -off; x < W; x += step) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
+    for (let y = -off; y < H; y += step) { ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
+    ctx.stroke();
+    ctx.restore();
+
+    // vinheta
+    g = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 1.05);
+    g.addColorStop(0, 'rgba(7,7,15,0)'); g.addColorStop(1, 'rgba(7,7,15,0.75)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+const CHAPTERS = [
+    { s: 10.5, e: 18.5, n: '01', label: 'Apontamento' },
+    { s: 18.5, e: 27.5, n: '02', label: 'Tarefas' },
+    { s: 27.5, e: 35, n: '03', label: 'Campo · N2' },
+    { s: 35, e: 44, n: '04', label: 'Assistente OPS' },
+    { s: 44, e: 50, n: '05', label: 'Plataforma' },
+];
+
+function hud(t) {
+    const a = prog(t, 10.2, 0.6) * (1 - prog(t, 49.6, 0.5));
+    if (a <= 0) return;
+    ctx.save(); ctx.globalAlpha = a;
+    mark(158, 92, 40);
+    wordmark(194, 101, 24, {});
+
+    const ch = CHAPTERS.find(c => t >= c.s && t < c.e) || CHAPTERS[CHAPTERS.length - 1];
+    text(ch.label.toUpperCase(), W - 140, 100, { size: 15, weight: 700, color: C.muted, ls: 3, align: 'right' });
+    const lw = measure(ch.label.toUpperCase(), 15, 700, F.body, 3);
+    text(`${ch.n} / 05`, W - 140 - lw - 24, 100, { size: 15, weight: 700, font: F.mono, color: C.cyan, align: 'right' });
+
+    // segmentos de progresso por capítulo
+    const segW = 64, gap = 10, total = CHAPTERS.length * segW + (CHAPTERS.length - 1) * gap;
+    let x = W / 2 - total / 2;
+    CHAPTERS.forEach(c => {
+        const p = clamp((t - c.s) / (c.e - c.s));
+        rr(x, H - 70, segW, 4, 2); ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill();
+        if (p > 0) { rr(x, H - 70, segW * p, 4, 2); ctx.fillStyle = linGrad(x, 0, x + segW, 0, GRAD); ctx.fill(); }
+        x += segW + gap;
+    });
+    ctx.restore();
+}
+
+/* ======================================================================
+   CENAS
+   ====================================================================== */
+
+/* 1 · Abertura */
+function sceneIntro(lt) {
+    const cx = W / 2, cy = H / 2 - 30;
+    const markS = 150, gap = 44, wmSize = 128;
+    const wmW = measure('FAISTON ', wmSize, 700, F.display) + measure('OPS', wmSize, 700, F.display);
+    const groupW = markS + gap + wmW;
+    const slide = E.inOut(prog(lt, 1.5, 1.0));
+    const markX = lerp(cx, cx - groupW / 2 + markS / 2, slide);
+
+    // anel que pulsa quando a marca entra
+    const ring = prog(lt, 0.7, 1.4);
+    if (ring > 0 && ring < 1) {
+        ctx.save();
+        ctx.globalAlpha = (1 - ring) * 0.6;
+        ctx.strokeStyle = C.magenta; ctx.lineWidth = 2;
+        const rs = markS * (1 + E.out(ring) * 1.6);
+        rr(markX - rs / 2, cy - rs / 2, rs, rs, rs * 0.27); ctx.stroke();
+        ctx.restore();
+    }
+
+    const pm = prog(lt, 0.3, 0.9);
+    if (pm > 0) {
+        const s = markS * E.back(pm);
+        mark(markX, cy, s, { glow: 1, rot: (1 - E.out(pm)) * -0.5, tri: E.back(prog(lt, 0.75, 0.6)) });
+    }
+
+    // wordmark entra por "wipe" da esquerda pra direita
+    const pw = E.inOut(prog(lt, 1.9, 1.0));
+    if (pw > 0) {
+        const wx = cx - groupW / 2 + markS + gap;
+        ctx.save();
+        ctx.beginPath(); ctx.rect(wx, cy - 120, (wmW + 30) * pw, 240); ctx.clip();
+        wordmark(wx + (1 - pw) * -30, cy + 2, wmSize, { base: 'middle', ls: -3 });
+        ctx.restore();
+    }
+
+    reveal('SISTEMA DE OPERAÇÕES · FAISTON', cx, cy - 150, prog(lt, 2.8, 0.9), { size: 18, weight: 700, color: C.cyan, ls: 6, align: 'center' });
+    reveal('Projetos, tarefas e campo — num só lugar.', cx, cy + 150, prog(lt, 3.0, 1.0), { size: 36, weight: 400, color: C.muted, align: 'center' });
+}
+
+/* 2 · Manifesto */
+function sceneStatement(lt) {
+    const cx = W / 2;
+    const lines = ['Cada hora apontada.', 'Cada tarefa no prazo.', 'Cada técnico em campo.'];
+    const dim = E.inOut(prog(lt, 2.4, 0.8));
+    lines.forEach((l, i) => {
+        reveal(l, cx, 380 + i * 104, prog(lt, 0.25 + i * 0.5, 1.0), {
+            size: 74, weight: 700, font: F.display, ls: -2, align: 'center', alpha: lerp(1, 0.32, dim),
+        });
+    });
+    reveal('Tudo visível, em tempo real.', cx, 760, prog(lt, 2.7, 1.1), { size: 88, weight: 700, font: F.display, ls: -3, align: 'center', grad: GRAD });
+    const ul = E.inOut(prog(lt, 3.3, 0.9));
+    if (ul > 0) {
+        const w = 540;
+        ctx.fillStyle = linGrad(cx - w / 2, 0, cx + w / 2, 0, GRAD_COOL);
+        rr(cx - (w / 2) * ul, 808, w * ul, 4, 2); ctx.fill();
+    }
+}
+
+/* 3 · Apontamento & Dashboard */
+function sceneDashboard(lt) {
+    chapter(lt, '01', 'Apontamento', 'Apontamento', '& Dashboard',
+        ['Horas apontadas, produtividade e', 'conclusão do time — ao vivo,', 'sem planilha paralela.']);
+
+    const pin = E.out(prog(lt, 0.3, 1.0));
+    const x = 880 + (1 - pin) * 80, y = 180, w = 900, h = 730;
+    ctx.save(); ctx.globalAlpha *= pin;
+    panel(x, y, w, h, { shadow: true });
+
+    text('Dashboard', x + 40, y + 62, { size: 26, weight: 700 });
+    text('Hoje · equipe de projetos', x + 40 + measure('Dashboard', 26, 700) + 16, y + 62, { size: 19, color: C.subtle });
+    const blink = 0.55 + 0.45 * Math.sin(lt * 4);
+    ctx.save(); ctx.globalAlpha *= blink;
+    ctx.beginPath(); ctx.arc(x + w - 150, y + 55, 6, 0, Math.PI * 2); ctx.fillStyle = C.cyan; ctx.fill();
+    ctx.restore();
+    text('AO VIVO', x + w - 134, y + 61, { size: 15, weight: 700, color: C.cyan, ls: 2.5 });
+
+    // KPIs
+    const kpis = [
+        { label: 'HORAS APONTADAS', v: 128.67, fmt: v => `${Math.floor(v)}h ${String(Math.round((v % 1) * 60)).padStart(2, '0')}m`, color: C.cyan, sub: 'hoje' },
+        { label: 'HORAS / PESSOA', v: 7.6, fmt: v => fmtBR(v), color: C.pink, sub: 'média do time' },
+        { label: 'CONCLUSÃO', v: 94, fmt: v => `${Math.round(v)}%`, color: C.lav, sub: 'meta: 92%' },
+    ];
+    const kw = (w - 80 - 40) / 3;
+    kpis.forEach((k, i) => {
+        const kp = prog(lt, 0.9 + i * 0.15, 0.7);
+        const kx = x + 40 + i * (kw + 20), ky = y + 104 + (1 - E.out(kp)) * 20;
+        ctx.save(); ctx.globalAlpha *= E.out(kp);
+        panel(kx, ky, kw, 168, { r: 18, fill: C.surface });
+        text(k.label, kx + 24, ky + 42, { size: 14, weight: 700, color: C.subtle, ls: 2 });
+        const cnt = E.out(prog(lt, 1.0 + i * 0.15, 1.6));
+        text(k.fmt(k.v * cnt), kx + 22, ky + 112, { size: 50, weight: 700, font: F.display, color: k.color, ls: -1.5 });
+        text(k.sub, kx + 24, ky + 146, { size: 17, color: C.subtle });
+        ctx.restore();
+    });
+
+    // gráfico de barras
+    const cx0 = x + 40, cw = w - 80, top = y + 320;
+    panel(cx0, top, cw, 370, { r: 18, fill: C.surface });
+    text('Horas apontadas · semana', cx0 + 28, top + 46, { size: 19, weight: 600, color: C.muted });
+    const base = top + 310, maxH = 210, maxV = 10;
+    const vals = [6.8, 7.9, 7.2, 8.4, 7.6], days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'];
+    const bw = 92, inner = cw - 120, bgap = (inner - vals.length * bw) / (vals.length - 1);
+
+    // meta 8h
+    const my = base - (8 / maxV) * maxH;
+    const mp = E.out(prog(lt, 2.6, 0.8));
+    ctx.save(); ctx.globalAlpha *= mp;
+    ctx.setLineDash([6, 8]); ctx.strokeStyle = hexA(C.lav, 0.55); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx0 + 40, my); ctx.lineTo(cx0 + 40 + (cw - 80) * mp, my); ctx.stroke();
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha *= mp; ctx.setLineDash([5, 6]); ctx.strokeStyle = hexA(C.lav, 0.8); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx0 + cw - 150, top + 40); ctx.lineTo(cx0 + cw - 124, top + 40); ctx.stroke(); ctx.restore();
+    text('meta 8h', cx0 + cw - 28, top + 46, { size: 16, weight: 600, color: C.lav, align: 'right', alpha: mp });
+
+    vals.forEach((v, i) => {
+        const bp = E.out(prog(lt, 1.6 + i * 0.12, 1.0));
+        const bx = cx0 + 60 + i * (bw + bgap);
+        const bh = (v / maxV) * maxH * bp;
+        if (bh > 1) {
+            rr(bx, base - bh, bw, bh, [10, 10, 4, 4]);
+            ctx.fillStyle = linGrad(0, base, 0, base - maxH, [C.purple, C.magenta, C.cyan]);
+            ctx.fill();
+        }
+        text(days[i], bx + bw / 2, base + 34, { size: 17, weight: 600, color: C.subtle, align: 'center' });
+        text(fmtBR(v) + 'h', bx + bw / 2, base - bh - 14, { size: 17, weight: 700, font: F.mono, color: C.text, align: 'center', alpha: prog(lt, 2.4 + i * 0.12, 0.4) });
+    });
+
+    text('dados ilustrativos', x + w - 32, y + h - 22, { size: 13, color: C.subtle, align: 'right', alpha: 0.7 });
+    ctx.restore();
+}
+
+/* 4 · Kanban */
+const KCARDS = {
+    A: { tag: 'IMAC', tc: C.lav, title: 'Mudança de estação · 3º andar', who: 'A', due: 'Hoje', g: [C.purple, C.magenta] },
+    B: { tag: 'Rollout', tc: C.cyan, title: 'Rollout de notebooks · lote 2', who: 'C', due: 'Amanhã', g: [C.cyan, C.purple] },
+    C: { tag: 'Faturamento', tc: C.pink, title: 'Fechamento de medição', who: 'L', due: 'Sex', g: [C.pink, C.purple] },
+    D: { tag: 'BreakFix', tc: C.pink, title: 'Troca de switch · filial', who: 'T', due: 'Hoje', g: [C.magenta, C.pink] },
+    E: { tag: 'Acionamento', tc: C.lav, title: 'Acionar técnico · cabeamento', who: 'A', due: 'Hoje', g: [C.purple, C.magenta] },
+    F: { tag: 'Rollout', tc: C.cyan, title: 'Inventário de ativos', who: 'C', due: 'Ontem', g: [C.cyan, C.purple] },
+};
+const KSTATES = [
+    [['A', 'B', 'C'], ['D', 'E'], ['F']],
+    [['B', 'C'], ['A', 'D', 'E'], ['F']],
+    [['B', 'C'], ['A', 'E'], ['D', 'F']],
+];
+const KB = { x: 700, y: 180, colW: 340, gap: 30, colH: 460, cardH: 104, step: 118 };
+
+function kPos(state, id) {
+    for (let c = 0; c < 3; c++) {
+        const i = KSTATES[state][c].indexOf(id);
+        if (i >= 0) return { x: KB.x + c * (KB.colW + KB.gap) + 16, y: KB.y + 84 + i * KB.step, c };
+    }
+}
+
+function kCard(id, x, y, o) {
+    const k = KCARDS[id], w = KB.colW - 32, h = KB.cardH;
+    ctx.save();
+    ctx.globalAlpha *= o.alpha ?? 1;
+    if (o.lift) {
+        ctx.translate(x + w / 2, y + h / 2); ctx.scale(1 + o.lift * 0.05, 1 + o.lift * 0.05); ctx.rotate(o.lift * -0.025);
+        ctx.translate(-(x + w / 2), -(y + h / 2));
+        ctx.shadowColor = 'rgba(184,38,201,0.45)'; ctx.shadowBlur = 40 * o.lift; ctx.shadowOffsetY = 16 * o.lift;
+    }
+    rr(x, y, w, h, 16);
+    ctx.fillStyle = o.done ? 'rgba(22,22,40,0.92)' : '#161628'; ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 1.3; ctx.strokeStyle = o.lift ? hexA(C.magenta, 0.6) : 'rgba(255,255,255,0.09)'; ctx.stroke();
+
+    pill(x + 16, y + 14, k.tag.toUpperCase(), { size: 11, h: 22, padX: 9, color: k.tc, ls: 1 });
+    text(k.title, x + 16, y + 62, { size: 18, weight: 600, color: o.done ? C.muted : C.text });
+    avatar(x + 30, y + 84, 11, k.who, k.g);
+
+    if (o.done) {
+        check(x + 58, y + 84, 16, C.cyan, o.doneP ?? 1);
+        text('Concluído', x + 72, y + 90, { size: 15, weight: 600, color: C.cyan, alpha: o.doneP ?? 1 });
+    } else if (o.timer != null) {
+        const s = Math.floor(o.timer);
+        const hh = String(Math.floor(s / 3600)).padStart(2, '0'), mm = String(Math.floor(s / 60) % 60).padStart(2, '0'), ss = String(s % 60).padStart(2, '0');
+        ctx.save(); ctx.globalAlpha *= 0.5 + 0.5 * Math.abs(Math.sin(o.t * 3));
+        ctx.beginPath(); ctx.arc(x + 54, y + 84, 4.5, 0, Math.PI * 2); ctx.fillStyle = C.cyan; ctx.fill();
+        ctx.restore();
+        text(`${hh}:${mm}:${ss}`, x + 66, y + 90, { size: 16, weight: 700, font: F.mono, color: C.cyan });
+    } else {
+        text('prazo · ' + k.due, x + 50, y + 90, { size: 15, color: k.due === 'Hoje' ? C.pink : C.subtle, weight: 500 });
+    }
+    ctx.restore();
+}
+
+function sceneKanban(lt) {
+    chapter(lt, '02', 'Tarefas', 'Tarefas', 'em Kanban',
+        ['Timer no card, prazo à vista', 'e sinal de carga por pessoa.']);
+
+    const pin = E.out(prog(lt, 0.3, 0.9));
+    ctx.save(); ctx.globalAlpha *= pin;
+    ctx.translate((1 - pin) * 60, 0);
+
+    const cols = ['Aberto', 'Em andamento', 'Concluído'];
+    const e1 = E.inOut(prog(lt, 2.4, 0.9));
+    const e2 = E.inOut(prog(lt, 4.7, 0.9));
+    const curState = e2 > 0.5 ? 2 : e1 > 0.5 ? 1 : 0;
+    cols.forEach((name, c) => {
+        const x = KB.x + c * (KB.colW + KB.gap);
+        panel(x, KB.y, KB.colW, KB.colH, { r: 20, fill: 'rgba(255,255,255,0.025)' });
+        ctx.beginPath(); ctx.arc(x + 26, KB.y + 42, 5, 0, Math.PI * 2);
+        ctx.fillStyle = [C.lav, C.cyan, C.pink][c]; ctx.fill();
+        text(name, x + 42, KB.y + 49, { size: 20, weight: 700 });
+        const n = KSTATES[curState][c].length;
+        text(String(n), x + KB.colW - 24, KB.y + 49, { size: 17, weight: 700, font: F.mono, color: C.subtle, align: 'right' });
+    });
+
+    const order = ['B', 'C', 'E', 'F', 'D', 'A']; // quem se move é desenhado por cima
+    order.forEach((id, idx) => {
+        const p0 = kPos(0, id), p1 = kPos(1, id), p2 = kPos(2, id);
+        let x = lerp(lerp(p0.x, p1.x, e1), p2.x, e2);
+        let y = lerp(lerp(p0.y, p1.y, e1), p2.y, e2);
+        const moving = (id === 'A' && e1 > 0 && e1 < 1) || (id === 'D' && e2 > 0 && e2 < 1);
+        let lift = id === 'A' ? Math.sin(Math.PI * e1) : id === 'D' ? Math.sin(Math.PI * e2) : 0;
+        if (lift < 0.01) lift = 0;
+        if (moving) y -= lift * 26;
+        const appear = E.back(prog(lt, 0.6 + idx * 0.1, 0.6));
+        y += (1 - appear) * 30;
+
+        const o = { alpha: clamp(appear), lift, t: lt };
+        if (id === 'F') o.done = true;
+        if (id === 'D') {
+            if (e2 >= 0.6) { o.done = true; o.doneP = prog(lt, 5.4, 0.5); }
+            else o.timer = 2530 + lt;
+        }
+        if (id === 'A' && e1 >= 0.98) o.timer = Math.max(0, (lt - 3.3));
+        kCard(id, x, y, o);
+    });
+
+    // carga da equipe
+    const sy = KB.y + KB.colH + 30, sw = KB.colW * 3 + KB.gap * 2;
+    const sp = E.out(prog(lt, 1.6, 0.8));
+    ctx.save(); ctx.globalAlpha *= sp;
+    panel(KB.x, sy, sw, 190, { r: 20, fill: 'rgba(255,255,255,0.025)' });
+    text('Carga da equipe', KB.x + 28, sy + 46, { size: 20, weight: 700 });
+    text('peso × prazo das tarefas em aberto', KB.x + 28 + measure('Carga da equipe', 20, 700) + 14, sy + 46, { size: 16, color: C.subtle });
+    const people = [
+        { n: 'Ana', l: 'A', v: 0.52, g: [C.purple, C.magenta] },
+        { n: 'Caio', l: 'C', v: 0.38, g: [C.cyan, C.purple] },
+        { n: 'Lia', l: 'L', v: 0.45, g: [C.pink, C.purple] },
+        { n: 'Téo', l: 'T', v: 0.62, g: [C.magenta, C.pink] },
+    ];
+    const surge = E.inOut(prog(lt, 6.2, 1.0)); // Téo recebe mais tarefa e acende o alerta
+    const pw = (sw - 56 - 40) / 2;
+    people.forEach((pp, i) => {
+        const px = KB.x + 28 + (i % 2) * (pw + 40), py = sy + 92 + Math.floor(i / 2) * 58;
+        avatar(px + 16, py, 16, pp.l, pp.g);
+        text(pp.n, px + 44, py + 7, { size: 18, weight: 600 });
+        const v = (pp.n === 'Téo' ? lerp(pp.v, 0.94, surge) : pp.v) * E.out(prog(lt, 2.0 + i * 0.1, 1.0));
+        const bx = px + 110, bwid = pw - 250;
+        rr(bx, py - 4, bwid, 8, 4); ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
+        const hot = pp.n === 'Téo' && surge > 0.5;
+        rr(bx, py - 4, Math.max(8, bwid * v), 8, 4);
+        ctx.fillStyle = hot ? linGrad(bx, 0, bx + bwid, 0, [C.magenta, C.pink]) : linGrad(bx, 0, bx + bwid, 0, [C.purple, C.cyan]);
+        ctx.fill();
+        if (hot) pill(bx + bwid + 18, py - 15, 'CARGA ALTA', { size: 12, h: 26, padX: 10, color: C.pink, ls: 1.2, alpha: prog(lt, 6.8, 0.4) });
+        else text(`${Math.round(v * 20)} pts`, bx + bwid + 18, py + 6, { size: 15, weight: 600, font: F.mono, color: C.subtle });
+    });
+    ctx.restore();
+    ctx.restore();
+}
+
+/* 5 · Campo / Status N2 */
+function sceneCampo(lt) {
+    chapter(lt, '03', 'Campo', 'Campo', 'Status N2',
+        ['Cada atividade de campo', 'acompanhada em timeline,', 'do chamado ao carimbo.']);
+
+    const pin = E.out(prog(lt, 0.3, 0.9));
+    const x = 880 + (1 - pin) * 80, y = 180, w = 900, h = 730;
+    ctx.save(); ctx.globalAlpha *= pin;
+    panel(x, y, w, h, { shadow: true });
+
+    const steps = [
+        { t: 'Chamado aberto', d: 'Solicitação registrada no sistema', h: '08:02' },
+        { t: 'Técnico designado', d: 'N2 define quem vai a campo', h: '08:15' },
+        { t: 'Em deslocamento', d: 'Técnico a caminho do local', h: '08:31' },
+        { t: 'Em atendimento', d: 'Execução da atividade no cliente', h: '09:04' },
+        { t: 'Concluído', d: 'Encerrado com carimbo de atendimento', h: '10:47' },
+    ];
+    const T0 = 1.2, STEP = 0.9;
+    const cur = clamp(Math.floor((lt - T0) / STEP), -1, steps.length - 1);
+    const colors = [C.lav, C.lav, C.cyan, C.cyan, C.pink];
+    const status = cur < 0 ? 'Aguardando' : steps[cur].t;
+
+    pill(x + 40, y + 40, 'BREAKFIX', { size: 13, h: 28, padX: 12, color: C.pink, ls: 1.2 });
+    text('Troca de switch · filial', x + 40, y + 118, { size: 34, weight: 700, font: F.display, ls: -0.5 });
+    text('#ATV-2318', x + 40, y + 154, { size: 17, weight: 600, font: F.mono, color: C.subtle });
+    const sc = cur < 0 ? C.subtle : cur === steps.length - 1 ? C.cyan : colors[cur];
+    const sw = measure(status.toUpperCase(), 14, 700, F.body, 1.4) + 28;
+    pill(x + w - 40 - sw, y + 40, status.toUpperCase(), { size: 14, h: 30, padX: 14, color: sc, ls: 1.4 });
+
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x + 40, y + 190, w - 80, 1);
+
+    const lx = x + 78, ly0 = y + 252, lstep = 104;
+    // trilho + preenchimento
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(lx - 1.5, ly0, 3, lstep * (steps.length - 1));
+    const fillP = clamp((lt - T0) / (STEP * (steps.length - 1)));
+    if (fillP > 0) {
+        const fh = lstep * (steps.length - 1) * E.out(fillP);
+        ctx.fillStyle = linGrad(0, ly0, 0, ly0 + lstep * (steps.length - 1), [C.purple, C.cyan, C.pink]);
+        ctx.fillRect(lx - 1.5, ly0, 3, fh);
+    }
+
+    steps.forEach((s, i) => {
+        const yy = ly0 + i * lstep;
+        const on = prog(lt, T0 + i * STEP, 0.4);
+        const isCur = i === cur;
+        ctx.beginPath(); ctx.arc(lx, yy, 12, 0, Math.PI * 2);
+        ctx.fillStyle = '#11111E'; ctx.fill();
+        ctx.lineWidth = 2.5; ctx.strokeStyle = on > 0 ? colors[i] : 'rgba(255,255,255,0.15)'; ctx.stroke();
+        if (on > 0) {
+            ctx.beginPath(); ctx.arc(lx, yy, 6 * E.back(on), 0, Math.PI * 2); ctx.fillStyle = colors[i]; ctx.fill();
+        }
+        if (isCur) {
+            const pr = (lt * 1.2) % 1;
+            ctx.save(); ctx.globalAlpha *= (1 - pr) * 0.6;
+            ctx.beginPath(); ctx.arc(lx, yy, 12 + pr * 18, 0, Math.PI * 2);
+            ctx.strokeStyle = colors[i]; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+        }
+        const ta = lerp(0.35, 1, on);
+        text(s.t, lx + 40, yy + 2, { size: 25, weight: 700, alpha: ta });
+        text(s.d, lx + 40, yy + 34, { size: 18, color: C.muted, alpha: ta });
+        text(on > 0 ? s.h : '--:--', x + w - 44, yy + 2, { size: 19, weight: 600, font: F.mono, color: on > 0 ? C.text : C.subtle, align: 'right', alpha: ta });
+    });
+
+    text('dados ilustrativos', x + w - 32, y + h - 22, { size: 13, color: C.subtle, align: 'right', alpha: 0.7 });
+    ctx.restore();
+}
+
+/* 6 · Assistente OPS */
+function wrapLines(str, maxW, size, weight = 400) {
+    const words = str.split(' '), lines = []; let cur = '';
+    words.forEach(w => {
+        const t = cur ? cur + ' ' + w : w;
+        if (measure(t, size, weight) > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+    });
+    if (cur) lines.push(cur);
+    return lines;
+}
+
+function sceneAssistente(lt) {
+    chapter(lt, '04', 'Inteligência artificial', 'Assistente', 'OPS',
+        ['IA embutida no sistema: acha', 'dados, explica processos, resume', 'a semana e faz o check-in do time.']);
+
+    const pin = E.out(prog(lt, 0.3, 0.9));
+    const x = 820 + (1 - pin) * 80, y = 170, w = 960, h = 640;
+    ctx.save(); ctx.globalAlpha *= pin;
+    panel(x, y, w, h, { shadow: true });
+
+    // cabeçalho do chat
+    ctx.beginPath(); ctx.arc(x + 58, y + 56, 24, 0, Math.PI * 2);
+    ctx.fillStyle = linGrad(x + 34, y + 32, x + 82, y + 80, GRAD); ctx.fill();
+    sparkle(x + 58, y + 56, 12 + Math.sin(lt * 3) * 1.2);
+    text('Assistente OPS', x + 98, y + 64, { size: 23, weight: 700 });
+    pill(x + 98 + measure('Assistente OPS', 23, 700) + 14, y + 40, 'IA', { size: 12, h: 24, padX: 10, color: C.lav, ls: 1.5 });
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x, y + 104, w, 1);
+
+    // pergunta
+    const q = 'Quais tarefas do time vencem esta semana?';
+    const qp = E.out(prog(lt, 1.0, 0.6));
+    if (qp > 0) {
+        const qw = measure(q, 22, 500) + 52, qx = x + w - 36 - qw, qy = y + 136 + (1 - qp) * 16;
+        ctx.save(); ctx.globalAlpha *= qp;
+        rr(qx, qy, qw, 62, [22, 22, 6, 22]);
+        ctx.fillStyle = linGrad(qx, qy, qx + qw, qy + 62, [C.purple, C.magenta]); ctx.fill();
+        text(q, qx + 26, qy + 39, { size: 22, weight: 500, color: '#fff' });
+        ctx.restore();
+    }
+
+    // resposta
+    const ax = x + 92, ay = y + 236, aw = 640;
+    const ap = E.out(prog(lt, 1.8, 0.5));
+    if (ap > 0) {
+        ctx.save(); ctx.globalAlpha *= ap;
+        ctx.beginPath(); ctx.arc(x + 56, ay + 24, 18, 0, Math.PI * 2);
+        ctx.fillStyle = linGrad(x + 38, ay + 6, x + 74, ay + 42, GRAD); ctx.fill();
+        sparkle(x + 56, ay + 24, 8);
+
+        const answer = 'Encontrei 6 tarefas vencendo até sexta — 2 delas já estão atrasadas.';
+        const typing = lt < 2.7;
+        const listP = prog(lt, 4.2, 0.4);
+        const bh = typing ? 64 : 116 + E.out(listP) * 168;
+        rr(ax, ay, typing ? 110 : aw, bh, [6, 22, 22, 22]);
+        ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = C.border; ctx.stroke();
+
+        if (typing) {
+            for (let i = 0; i < 3; i++) {
+                const b = Math.sin(lt * 9 - i * 0.9);
+                ctx.beginPath(); ctx.arc(ax + 34 + i * 21, ay + 32 - Math.max(0, b) * 5, 5, 0, Math.PI * 2);
+                ctx.fillStyle = hexA(C.lav, 0.5 + 0.5 * Math.max(0, b)); ctx.fill();
+            }
+        } else {
+            const chars = Math.floor(answer.length * prog(lt, 2.7, 1.4));
+            const lines = wrapLines(answer, aw - 56, 22);
+            let left = chars;
+            lines.forEach((ln, i) => {
+                const part = ln.slice(0, Math.max(0, left)); left -= ln.length + 1;
+                text(part, ax + 28, ay + 44 + i * 34, { size: 22, weight: 400 });
+            });
+            const rows = [
+                ['Troca de switch · filial', 'Atrasada', C.pink],
+                ['Acionar técnico · cabeamento', 'Atrasada', C.pink],
+                ['Rollout de notebooks · lote 2', 'Amanhã', C.cyan],
+            ];
+            rows.forEach((r, i) => {
+                const rp = E.out(prog(lt, 4.3 + i * 0.18, 0.5));
+                if (rp <= 0) return;
+                const ry = ay + 122 + i * 52 + (1 - rp) * 10;
+                ctx.save(); ctx.globalAlpha *= rp;
+                rr(ax + 22, ry, aw - 44, 44, 12); ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill();
+                ctx.beginPath(); ctx.arc(ax + 46, ry + 22, 5, 0, Math.PI * 2); ctx.fillStyle = r[2]; ctx.fill();
+                text(r[0], ax + 64, ry + 29, { size: 18, weight: 600 });
+                text(r[1], ax + aw - 42, ry + 29, { size: 16, weight: 700, color: r[2], align: 'right' });
+                ctx.restore();
+            });
+        }
+        ctx.restore();
+    }
+
+    // campo de pergunta
+    const iy = y + h - 82;
+    rr(x + 32, iy, w - 64, 56, 16); ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill();
+    ctx.lineWidth = 1.2; ctx.strokeStyle = C.border; ctx.stroke();
+    text('Pergunte ao Assistente OPS…', x + 56, iy + 35, { size: 19, color: C.subtle });
+    rr(x + w - 32 - 46, iy + 5, 46, 46, 12);
+    ctx.fillStyle = linGrad(x + w - 78, iy, x + w - 32, iy + 56, [C.purple, C.magenta]); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x + w - 62, iy + 19); ctx.lineTo(x + w - 46, iy + 28); ctx.lineTo(x + w - 62, iy + 37); ctx.closePath();
+    ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.restore();
+
+    // as seis capacidades
+    const caps = [['A', 'Achar'], ['B', 'Explicar'], ['C', 'Resumir'], ['D', 'Observar'], ['E', 'Ensinar'], ['F', 'Check-in']];
+    const chW = 150, chGap = 12, chY = 856;
+    text('6 CAPACIDADES', 820, chY - 18, { size: 14, weight: 700, color: C.subtle, ls: 3, alpha: prog(lt, 5.2, 0.5) });
+    caps.forEach((c, i) => {
+        const cp = prog(lt, 5.4 + i * 0.13, 0.6);
+        if (cp <= 0) return;
+        const cx = 820 + i * (chW + chGap), cy = chY + (1 - E.back(cp)) * 20;
+        ctx.save(); ctx.globalAlpha *= clamp(cp * 2);
+        rr(cx, cy, chW, 60, 16); ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = hexA(C.magenta, 0.35); ctx.stroke();
+        rr(cx + 12, cy + 15, 30, 30, 9); ctx.fillStyle = linGrad(cx + 12, cy + 15, cx + 42, cy + 45, GRAD); ctx.fill();
+        text(c[0], cx + 27, cy + 31, { size: 15, weight: 700, font: F.mono, color: '#fff', align: 'center', base: 'middle' });
+        text(c[1], cx + 54, cy + 37, { size: 18, weight: 600 });
+        ctx.restore();
+    });
+}
+
+/* 7 · Plataforma */
+function scenePlataforma(lt) {
+    const cx = W / 2;
+    reveal('05 · PLATAFORMA', cx, 228, prog(lt, 0.2, 0.8), { size: 18, weight: 700, color: C.cyan, ls: 5, align: 'center' });
+    reveal('Tudo conectado num só sistema.', cx, 316, prog(lt, 0.35, 0.9), { size: 70, weight: 700, font: F.display, ls: -2, align: 'center' });
+
+    const mods = [
+        ['Dashboard', 'KPIs e horas em tempo real'],
+        ['Tarefas', 'Kanban com timer e carga'],
+        ['Status N2', 'Atividades de campo em timeline'],
+        ['Assistente OPS', 'IA no dia a dia do time'],
+        ['Financeiro', 'Visão financeira dos projetos'],
+        ['Forecast', 'Projeção mensal por projeto'],
+        ['Clientes', 'Relatórios por cliente'],
+        ['Modo TV', 'Painel ao vivo da operação'],
+    ];
+    const tw = 384, th = 196, gap = 24;
+    const x0 = cx - (4 * tw + 3 * gap) / 2, y0 = 400;
+    mods.forEach((m, i) => {
+        const p = prog(lt, 0.8 + i * 0.09, 0.7);
+        if (p <= 0) return;
+        const col = i % 4, row = Math.floor(i / 4);
+        const x = x0 + col * (tw + gap), y = y0 + row * (th + gap) + (1 - E.out(p)) * 30;
+        ctx.save(); ctx.globalAlpha *= E.out(p);
+        panel(x, y, tw, th, { r: 20, fill: 'rgba(17,17,30,0.7)' });
+        // varredura de brilho na borda
+        const sweep = prog(lt, 2.4 + (col + row) * 0.12, 0.9);
+        if (sweep > 0 && sweep < 1) {
+            ctx.save(); rr(x, y, tw, th, 20); ctx.lineWidth = 2;
+            ctx.strokeStyle = linGrad(x, y, x + tw, y + th, [hexA(C.purple, 0), hexA(C.magenta, Math.sin(Math.PI * sweep)), hexA(C.cyan, 0)]);
+            ctx.stroke(); ctx.restore();
+        }
+        rr(x + 28, y + 28, 36, 6, 3); ctx.fillStyle = linGrad(x + 28, 0, x + 64, 0, i % 2 ? GRAD_COOL : GRAD); ctx.fill();
+        text(String(i + 1).padStart(2, '0'), x + tw - 28, y + 40, { size: 15, weight: 700, font: F.mono, color: C.subtle, align: 'right' });
+        text(m[0], x + 28, y + 112, { size: 32, weight: 700, font: F.display, ls: -0.5 });
+        text(m[1], x + 28, y + 150, { size: 19, color: C.muted });
+        ctx.restore();
+    });
+}
+
+/* 8 · Encerramento */
+function sceneOutro(lt) {
+    const cx = W / 2, cy = 430;
+    const pm = prog(lt, 0.2, 0.9);
+    if (pm > 0) mark(cx, cy, 150 * E.back(pm), { glow: 1 + Math.sin(lt * 2) * 0.2, tri: E.back(prog(lt, 0.5, 0.6)) });
+    const pw = E.out(prog(lt, 0.8, 1.0));
+    if (pw > 0) {
+        const wmW = measure('FAISTON ', 104, 700, F.display) + measure('OPS', 104, 700, F.display);
+        ctx.save(); ctx.globalAlpha *= pw;
+        wordmark(cx - wmW / 2, 640 + (1 - pw) * 20, 104, { ls: -3 });
+        ctx.restore();
+    }
+    reveal('Feito pela Faiston, para a operação da Faiston.', cx, 720, prog(lt, 1.5, 1.0), { size: 32, weight: 400, color: C.muted, align: 'center' });
+    reveal('faiston.com', cx, 960, prog(lt, 2.2, 0.9), { size: 18, weight: 600, font: F.mono, color: C.subtle, align: 'center', ls: 2 });
+}
+
+/* ---------------- Linha do tempo ---------------- */
+const SCENES = [
+    { s: 0, e: 5.5, draw: sceneIntro, noFadeIn: true },
+    { s: 5.5, e: 10.5, draw: sceneStatement },
+    { s: 10.5, e: 18.5, draw: sceneDashboard },
+    { s: 18.5, e: 27.5, draw: sceneKanban },
+    { s: 27.5, e: 35, draw: sceneCampo },
+    { s: 35, e: 44, draw: sceneAssistente },
+    { s: 44, e: 50, draw: scenePlataforma },
+    { s: 50, e: 56, draw: sceneOutro, noFadeOut: true },
+];
+const DURATION = 56;
+
+function render(t) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    background(t);
+    SCENES.forEach(sc => {
+        if (t < sc.s || t > sc.e) return;
+        const lt = t - sc.s;
+        const fin = sc.noFadeIn ? 1 : E.out(prog(lt, 0, 0.5));
+        const fout = sc.noFadeOut ? 1 : 1 - E.inOut(prog(t, sc.e - 0.55, 0.55));
+        ctx.save();
+        ctx.globalAlpha = fin * fout;
+        ctx.translate(0, (1 - fout) * -24);
+        sc.draw(lt);
+        ctx.restore();
+    });
+    hud(t);
+    // fade do comecinho e do fim
+    const black = Math.max(1 - prog(t, 0, 0.4), prog(t, DURATION - 0.8, 0.8));
+    if (black > 0) { ctx.fillStyle = `rgba(7,7,15,${black})`; ctx.fillRect(0, 0, W, H); }
+}
+
+/* ---------------- Player ---------------- */
+const params = new URLSearchParams(location.search);
+const EXPORT = params.has('export');
+const LOOP = params.get('loop') === '1';
+let t = 0, playing = false, last = 0;
+
+const $ = id => document.getElementById(id);
+const ui = $('ui'), startBtn = $('start'), playBtn = $('btn-play'), scrub = $('scrub'), timeEl = $('time');
+const fmtT = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+function syncUI() {
+    playBtn.textContent = playing ? '❚❚' : '▶';
+    scrub.value = Math.round((t / DURATION) * 1000);
+    timeEl.textContent = `${fmtT(t)} / ${fmtT(DURATION)}`;
+}
+
+function frame(now) {
+    if (playing) {
+        t += Math.min(0.1, (now - last) / 1000);
+        if (t >= DURATION) {
+            if (LOOP) t = 0; else { t = DURATION; playing = false; if (recorder) recorder.stop(); }
+        }
+    }
+    last = now;
+    render(t);
+    syncUI();
+    requestAnimationFrame(frame);
+}
+
+function play() { if (t >= DURATION) t = 0; playing = true; startBtn.classList.add('hide'); }
+function pause() { playing = false; }
+function toggle() { playing ? pause() : play(); }
+function fullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+}
+
+let recorder = null;
+function record() {
+    if (recorder) return;
+    let stream;
+    try { stream = cv.captureStream(60); } catch (e) { alert('Este navegador não grava canvas.'); return; }
+    const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m));
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 16e6 });
+    const chunks = [];
+    recorder.ondataavailable = e => e.data.size && chunks.push(e.data);
+    recorder.onstop = () => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+        a.download = 'faiston-ops.webm'; a.click();
+        recorder = null; $('btn-rec').classList.remove('on'); $('btn-rec').textContent = '● Gravar .webm';
+    };
+    t = 0; recorder.start(); play();
+    $('btn-rec').classList.add('on'); $('btn-rec').textContent = '● Gravando…';
+}
+
+let hideTimer = null;
+function poke() {
+    ui.classList.remove('hide');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { if (playing) ui.classList.add('hide'); }, 2200);
+}
+
+async function boot() {
+    try {
+        await Promise.all([
+            '400 20px Inter', '500 20px Inter', '600 20px Inter', '700 20px Inter',
+            '500 20px "Space Grotesk"', '700 20px "Space Grotesk"',
+            '500 20px "JetBrains Mono"', '600 20px "JetBrains Mono"', '700 20px "JetBrains Mono"',
+        ].map(f => document.fonts.load(f)));
+        await document.fonts.ready;
+    } catch (e) { /* sem internet: cai nas fontes do sistema */ }
+
+    if (EXPORT) {
+        document.body.classList.add('export');
+        window.VIDEO_DURATION = DURATION;
+        window.renderAt = s => render(s);
+        window.videoReady = true;
+        render(0);
+        return;
+    }
+
+    const ts = parseFloat(params.get('t'));
+    if (!isNaN(ts)) { t = clamp(ts, 0, DURATION); }
+    startBtn.addEventListener('click', play);
+    playBtn.addEventListener('click', toggle);
+    $('btn-restart').addEventListener('click', () => { t = 0; play(); });
+    $('btn-full').addEventListener('click', fullscreen);
+    $('btn-rec').addEventListener('click', record);
+    scrub.addEventListener('input', () => { t = (scrub.value / 1000) * DURATION; startBtn.classList.add('hide'); });
+    cv.addEventListener('click', toggle);
+    document.addEventListener('mousemove', poke);
+    document.addEventListener('keydown', e => {
+        if (e.code === 'Space') { e.preventDefault(); toggle(); }
+        else if (e.key === 'r' || e.key === 'R') { t = 0; play(); }
+        else if (e.key === 'f' || e.key === 'F') fullscreen();
+        else if (e.key === 'ArrowRight') t = Math.min(DURATION, t + 5);
+        else if (e.key === 'ArrowLeft') t = Math.max(0, t - 5);
+        poke();
+    });
+    poke();
+    requestAnimationFrame(n => { last = n; frame(n); });
+}
+
+boot();
+})();
+</script>
+</body>
+</html>
