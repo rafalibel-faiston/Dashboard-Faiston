@@ -790,9 +790,9 @@ const KWARP = (() => {
         [[2.15, 0.6], [5.05, 0.8]],             // modal aberto · tudo preenchido
         [[8.75, 0.3], [11.3, 1.0]],             // soltou o card · dois timers rodando
         [[13.6, 0.6], [17.1, 0.6]],             // pedido do motivo · card concluído
-        [[20.4, 1.5]],                          // régua de carga aberta
+        [[20.4, 0.4]],                          // régua de carga aberta
         [[25.7, 0.6]],                          // aviso dos ajudantes
-        [[28.6, 0.5]],                          // agenda na tela
+        [],                                     // agenda
         [],                                     // carimbos
     ];
     const pts = [[0, 0]]; let r = 0;
@@ -1473,6 +1473,11 @@ function drawSpotCarga(lt, a, fy, fh, pts) {
         const within = idx < 3 ? (pts - NIVEIS[idx].min) / (NIVEIS[idx + 1].min - NIVEIS[idx].min) : 0.5;
         const mx = sx + idx * (segW + 10) + segW * within;
         ctx.save(); ctx.globalAlpha *= mp;
+        // pulso contínuo no marcador: a tela nunca fica parada enquanto se lê
+        const pr = (KR * 1.1) % 1;
+        ctx.save(); ctx.globalAlpha *= (1 - pr) * 0.55;
+        ctx.beginPath(); ctx.arc(mx, sy + 5, 6 + pr * 18, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = nivelDe(pts).cor; ctx.stroke();
+        ctx.restore();
         ctx.beginPath(); ctx.moveTo(mx, sy - 4); ctx.lineTo(mx - 8, sy - 16); ctx.lineTo(mx + 8, sy - 16); ctx.closePath();
         ctx.fillStyle = C.text; ctx.fill();
         text(`você · ${pts} pts`, mx, sy - 24, { size: 13, weight: 700, font: F.mono, align: 'center' });
