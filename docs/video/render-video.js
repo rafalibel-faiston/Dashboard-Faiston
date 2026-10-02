@@ -1,4 +1,5 @@
-// Exporta static/video.html para MP4 (1920x1080, 30 fps), quadro a quadro.
+// Exporta static/video.html para MP4 (1920x1080, 30 fps), quadro a quadro,
+// com a trilha de efeitos sonoros que a própria página sintetiza.
 // Uso: npm i -g playwright && node docs/video/render-video.js
 // Requer ffmpeg no PATH. Saída: docs/video/faiston-ops.mp4
 const { chromium } = require('playwright');
@@ -18,9 +19,16 @@ const fs = require('fs'), os = require('os'), path = require('path');
         await page.evaluate(t => window.__seek(t), i / FPS);
         await page.screenshot({ path: path.join(tmp, `f${String(i).padStart(4, '0')}.jpg`), type: 'jpeg', quality: 95 });
     }
+    const wav = await page.evaluate(() => window.__audioWav());
     await browser.close();
     const out = path.join(__dirname, 'faiston-ops.mp4');
-    execSync(`ffmpeg -y -loglevel error -framerate ${FPS} -i "${tmp}/f%04d.jpg" -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -movflags +faststart "${out}"`, { stdio: 'inherit' });
+    let audioIn = '', audioOut = '';
+    if (wav) {
+        fs.writeFileSync(path.join(tmp, 'track.wav'), Buffer.from(wav, 'base64'));
+        audioIn = `-i "${tmp}/track.wav"`;
+        audioOut = '-c:a aac -b:a 192k -shortest';
+    }
+    execSync(`ffmpeg -y -loglevel error -framerate ${FPS} -i "${tmp}/f%04d.jpg" ${audioIn} -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p ${audioOut} -movflags +faststart "${out}"`, { stdio: 'inherit' });
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`${total} quadros -> ${out}`);
 })();

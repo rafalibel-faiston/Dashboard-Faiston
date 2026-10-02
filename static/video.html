@@ -222,7 +222,16 @@ body { font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--
 .ctrl button.ghost { background: var(--bg-soft); color: var(--text); }
 .ctrl input[type=range] { flex: 1; min-width: 0; accent-color: #B826C9; }
 .ctrl .tm { flex: none; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--muted); min-width: 86px; text-align: right; }
-body.clean .ctrl { display: none; }
+.snd-hint {
+    position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 101;
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    font: 600 14px 'Inter', sans-serif; color: #fff; border: 0;
+    padding: 10px 18px; border-radius: 100px; background: var(--grad);
+    box-shadow: 0 10px 24px -10px rgba(91,46,224,0.6);
+    transition: opacity .3s ease;
+}
+.snd-hint.off { opacity: 0; pointer-events: none; }
+body.clean .ctrl, body.clean .snd-hint { display: none; }
 </style>
 </head>
 <body>
@@ -385,11 +394,16 @@ body.clean .ctrl { display: none; }
     <div id="fade" class="abs" style="inset:0;background:#F4F5FA;pointer-events:none;z-index:60"></div>
 </div>
 
+<button class="snd-hint" id="snd-hint">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+    Clique para ativar o som
+</button>
 <div class="ctrl" id="ctrl">
     <button id="btn-play" title="Play/Pause (espaço)"></button>
     <button id="btn-restart" class="ghost" title="Reiniciar (R)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
     <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Posição do vídeo">
     <span class="tm" id="tm">0:00 / 0:32</span>
+    <button id="btn-snd" class="ghost" title="Som (M)"></button>
     <button id="btn-fs" class="ghost" title="Tela cheia (F)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
 </div>
 
@@ -834,6 +848,148 @@ function render(t) {
     fade.style.opacity = Math.max(1 - prog(t, 0, 0.3), prog(t, DURATION - 0.45, DURATION - 0.05));
 }
 
+// ---------------------------------------------------------------- som
+// Efeitos sintetizados com Web Audio (nenhum arquivo de áudio). A trilha
+// inteira é renderizada uma vez num OfflineAudioContext: o player toca o
+// buffer a partir do tempo atual (sincronia perfeita com o render) e o
+// script de export usa o mesmo buffer pro MP4.
+const SR = 44100;
+function buildSfx(ctx, out) {
+    let s = 99;
+    const rand = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const nb = ctx.createBuffer(1, SR * 2, SR);
+    const nd = nb.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = rand() * 2 - 1;
+    const env = (g, t, a, v, d) => {
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(v, t + a);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
+    };
+    const tone = (t, f, { type = 'sine', a = 0.004, d = 0.2, v = 0.2, f2 = 0, fd = 0 } = {}) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = type; o.frequency.setValueAtTime(f, t);
+        if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + (fd || d));
+        env(g, t, a, v, d); o.connect(g); g.connect(out);
+        o.start(t); o.stop(t + a + d + 0.05);
+    };
+    const noise = (t, { a = 0.005, d = 0.2, v = 0.2, type = 'bandpass', f = 1000, f2 = 0, q = 1 } = {}) => {
+        const src = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), g = ctx.createGain();
+        src.buffer = nb; fl.type = type; fl.Q.value = q;
+        fl.frequency.setValueAtTime(f, t);
+        if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t + a + d);
+        env(g, t, a, v, d); src.connect(fl); fl.connect(g); g.connect(out);
+        src.start(t, rand() * 1.2); src.stop(t + a + d + 0.05);
+    };
+    const PENTA = [523.3, 587.3, 659.3, 784, 880, 1046.5, 1174.7, 1318.5, 1568, 1760, 2093, 2349.3];
+    return {
+        PENTA,
+        pop: (t, p = 1, v = 0.16) => tone(t, 520 * p, { f2: 240 * p, fd: 0.07, d: 0.11, v }),
+        plink: (t, f, v = 0.07) => { tone(t, f, { d: 0.35, v }); tone(t, f * 2, { d: 0.15, v: v * 0.25 }); },
+        click: (t, v = 0.14) => { noise(t, { type: 'highpass', f: 2500, a: 0.001, d: 0.035, v }); tone(t, 1600, { d: 0.03, v: v * 0.35 }); },
+        key: (t) => noise(t, { type: 'bandpass', f: 2400 + rand() * 1600, q: 2.5, a: 0.001, d: 0.03, v: 0.2 }),
+        whoosh: (t, len = 0.5, v = 0.1, up = true) => noise(t, { type: 'bandpass', f: up ? 350 : 2600, f2: up ? 2800 : 350, q: 0.9, a: len * 0.6, d: len * 0.4, v }),
+        chime: (t, v = 0.1) => { tone(t, 1318.5, { d: 0.55, v }); tone(t + 0.08, 1975.5, { d: 0.8, v: v * 0.8 }); },
+        notify: (t, v = 0.11) => { tone(t, 880, { d: 0.2, v }); tone(t + 0.11, 1174.7, { d: 0.45, v }); },
+        blip: (t, v = 0.1) => tone(t, 420, { type: 'triangle', f2: 880, fd: 0.07, d: 0.16, v }),
+        thump: (t, v = 0.22) => { tone(t, 150, { f2: 42, fd: 0.3, d: 0.45, v }); noise(t, { type: 'lowpass', f: 700, a: 0.002, d: 0.12, v: v * 0.25 }); },
+        shimmer: (t, v = 0.05) => [1568, 2093, 2637, 3136, 4186].forEach((f, i) => tone(t + i * 0.045, f, { d: 0.9, v })),
+        tick: (t, v = 0.025) => noise(t, { type: 'highpass', f: 5500, a: 0.001, d: 0.012, v }),
+        buzz: (t, v = 0.07) => [0, 0.13].forEach(o => tone(t + o, 155, { type: 'triangle', d: 0.1, v, f2: 120 })),
+        riser: (t, len, v = 0.035) => tone(t, 220, { type: 'sine', f2: 880, fd: len, a: len * 0.85, d: len * 0.15, v }),
+        pad: (t, len, v = 0.022) => [261.6, 329.6, 392, 493.9, 587.3].forEach(f => tone(t, f, { type: 'sine', a: len * 0.35, d: len * 0.65, v })),
+    };
+}
+
+// a "partitura": cada som no instante da animação que ele acompanha
+function scoreTrack(ctx, out) {
+    const X = buildSfx(ctx, out);
+    const at = id => SCENES.find(s => s.id === id).a;
+    // abertura
+    X.pad(0.1, 4.2);
+    X.thump(0.17); X.pop(0.17, 0.8, 0.1);
+    X.whoosh(1.0, 0.8, 0.07);
+    X.shimmer(1.85);
+    X.whoosh(2.1, 0.5, 0.03);
+    // transições entre cenas
+    SCENES.slice(1).forEach(s => X.whoosh(s.a - 0.42, 0.55, 0.06));
+    // kanban
+    let b = at('s2');
+    [0.25, 0.35, 0.45].forEach((d, i) => X.pop(b + d, 0.7 + i * 0.05, 0.06));
+    CARDS.forEach((c, i) => X.pop(b + c.kf[0].at, 1 + i * 0.08, 0.13));
+    X.chime(b + 1.7, 0.05);
+    [[2.25, 2.95], [3.45, 4.05]].forEach(([g, d]) => { X.click(b + g); X.whoosh(b + g + 0.05, d - g - 0.05, 0.05); X.click(b + d, 0.11); });
+    X.chime(b + 2.95, 0.09);
+    X.notify(b + 3.1, 0.07);
+    X.tick(b + 3.0, 0.04); X.tick(b + 4.1, 0.04); X.tick(b + 4.2, 0.04);
+    // timers
+    b = at('s3');
+    [0.35, 0.48, 0.61].forEach((d, i) => X.pop(b + d, 0.9 + i * 0.1, 0.07));
+    X.pop(b + 0.6, 0.7, 0.08);
+    TIMERS.forEach((tm, i) => { X.click(b + tm.press - 0.05, 0.12); X.blip(b + tm.press, 0.08 + i * 0.01); });
+    for (let t = 1.0; t < 4.0; t += 0.25) X.tick(b + t, 0.02);
+    X.notify(b + 2.4, 0.05);
+    // carga
+    b = at('s4');
+    [0.4, 0.5, 0.6].forEach((d, i) => X.pop(b + d, 1.1 + i * 0.1, 0.06));
+    X.riser(b + 0.75, 1.7, 0.03);
+    PEOPLE.forEach((pp, i) => X.pop(b + 0.4 + i * 0.12 + 1.5, 1.2 + i * 0.06, 0.09));
+    X.buzz(b + 0.64 + 2.0, 0.06);
+    // métricas
+    b = at('s5');
+    [0.3, 0.42, 0.54].forEach((d, i) => X.pop(b + d, 0.85 + i * 0.1, 0.1));
+    for (let t = 0.5; t < 1.9; t += 0.07) X.tick(b + t, 0.018);
+    X.PENTA.forEach((f, i) => X.plink(b + 1.0 + (i / 11) * 1.6, f, 0.05));
+    X.chime(b + 2.65, 0.07);
+    // assistente
+    b = at('s6');
+    X.whoosh(b + 0.2, 0.5, 0.05);
+    [0, 1, 2, 3].forEach(i => X.pop(b + 0.6 + i * 0.12, 1 + i * 0.07, 0.07));
+    for (let i = 1; i <= QUESTION.length; i++) X.key(b + 0.9 + (i / QUESTION.length) * 1.1);
+    X.click(b + 2.05, 0.12);
+    X.whoosh(b + 2.1, 0.35, 0.07);
+    X.pop(b + 2.15, 1.3, 0.09);
+    for (let t = 2.65; t < 3.3; t += 0.22) X.tick(b + t, 0.02);
+    X.notify(b + 3.35, 0.1);
+    [0, 1, 2].forEach(i => X.plink(b + 3.55 + i * 0.16, X.PENTA[4 + i * 2], 0.04));
+    [0, 1].forEach(i => X.pop(b + 4.15 + i * 0.12, 1.4 + i * 0.1, 0.06));
+    // encerramento
+    b = at('s7');
+    X.thump(b + 0.12, 0.2); X.pop(b + 0.12, 0.8, 0.09);
+    X.whoosh(b + 0.95, 0.8, 0.06);
+    X.shimmer(b + 1.8, 0.045);
+    $$('.chip', SCENES[6].el).forEach((_, i) => X.plink(b + 2.0 + i * 0.08, X.PENTA[3 + i], 0.04));
+    X.pad(b + 1.6, 2.4, 0.026);
+}
+
+function renderTrack() {
+    const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Off) return Promise.resolve(null);
+    const ctx = new Off(2, Math.ceil(SR * DURATION), SR);
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.2;
+    const master = ctx.createGain(); master.gain.value = 2.3;
+    master.connect(comp); comp.connect(ctx.destination);
+    scoreTrack(ctx, master);
+    return ctx.startRendering();
+}
+// WAV 16-bit pra export do MP4
+function wavBase64(buf) {
+    const ch = buf.numberOfChannels, n = buf.length, bytes = 44 + n * ch * 2;
+    const v = new DataView(new ArrayBuffer(bytes));
+    const str = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    str(0, 'RIFF'); v.setUint32(4, bytes - 8, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true);
+    v.setUint32(24, buf.sampleRate, true); v.setUint32(28, buf.sampleRate * ch * 2, true);
+    v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * ch * 2, true);
+    const data = [...Array(ch)].map((_, c) => buf.getChannelData(c));
+    let o = 44;
+    for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) { v.setInt16(o, Math.max(-1, Math.min(1, data[c][i])) * 0x7fff, true); o += 2; }
+    const u8 = new Uint8Array(v.buffer); let bin = '';
+    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(bin);
+}
+const trackReady = renderTrack();
+
 // ---------------------------------------------------------------- player
 const params = new URLSearchParams(location.search);
 const CAPTURE = params.has('capture');
@@ -847,44 +1003,78 @@ function fit() {
 addEventListener('resize', fit); fit();
 
 let playing = !CAPTURE, cur = 0, last = null;
-const btnPlay = $('#btn-play'), seek = $('#seek'), tm = $('#tm'), ctrl = $('#ctrl');
+const btnPlay = $('#btn-play'), seek = $('#seek'), tm = $('#tm'), ctrl = $('#ctrl'), btnSnd = $('#btn-snd'), sndHint = $('#snd-hint');
 const ICON_P = '<svg width="16" height="16" viewBox="0 0 24 24"><path d="M7 4v16l13-8z" fill="#fff"/></svg>';
 const ICON_PA = '<svg width="16" height="16" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" fill="#fff"/><rect x="14" y="4" width="4" height="16" rx="1" fill="#fff"/></svg>';
+const ICON_SND = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>';
+const ICON_MUTE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
 const fmtT = s => `${Math.floor(s / 60)}:${pad(Math.floor(s % 60))}`;
+
+// áudio: o navegador só libera som depois de um clique/tecla
+let actx = null, track = null, src = null, srcT0 = 0, srcOff = 0, soundOn = false;
+trackReady.then(b => { track = b; audioSync(); });
+function audioStop() { if (src) { try { src.stop(); } catch (e) {} src.disconnect(); src = null; } }
+function audioSync() {
+    audioStop();
+    if (!actx || !track || !soundOn || !playing) return;
+    src = actx.createBufferSource(); src.buffer = track; src.connect(actx.destination);
+    srcT0 = actx.currentTime; srcOff = cur;
+    src.start(0, cur);
+}
+function enableSound() {
+    if (soundOn) return;
+    try {
+        actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+        actx.resume();
+        soundOn = true; sndHint.classList.add('off');
+        audioSync();
+    } catch (e) { /* sem áudio, o vídeo segue mudo */ }
+}
+function toggleSound() { if (soundOn) { soundOn = false; audioStop(); } else enableSound(); }
+
 function ui() {
     btnPlay.innerHTML = playing ? ICON_PA : ICON_P;
+    btnSnd.innerHTML = soundOn ? ICON_SND : ICON_MUTE;
     seek.value = Math.round(cur / DURATION * 1000);
     tm.textContent = `${fmtT(cur)} / ${fmtT(DURATION)}`;
 }
 function frame(now) {
     if (playing) {
-        if (last !== null) cur += (now - last) / 1000;
-        if (cur >= DURATION) cur = 0; // loop
+        // com som tocando, o relógio do áudio manda (não deriva)
+        if (src) cur = srcOff + (actx.currentTime - srcT0);
+        else if (last !== null) cur += (now - last) / 1000;
+        if (cur >= DURATION) { cur = 0; audioSync(); } // loop
     }
     last = now;
     render(cur); ui();
     requestAnimationFrame(frame);
 }
-const toggle = () => { playing = !playing; };
-btnPlay.onclick = toggle;
-$('#btn-restart').onclick = () => { cur = 0; playing = true; };
+const setCur = t => { cur = clamp(t, 0, DURATION - 0.01); audioSync(); };
+const toggle = () => { playing = !playing; audioSync(); };
+btnPlay.onclick = () => { enableSound(); toggle(); };
+btnSnd.onclick = toggleSound;
+$('#btn-restart').onclick = () => { playing = true; enableSound(); setCur(0); };
 $('#btn-fs').onclick = () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); };
-seek.oninput = () => { cur = seek.value / 1000 * DURATION; };
-stage.onclick = toggle;
+seek.oninput = () => setCur(seek.value / 1000 * DURATION);
+// primeiro clique na tela só liga o som (não pausa)
+stage.onclick = () => { if (!soundOn && !actx) { enableSound(); return; } toggle(); };
+sndHint.onclick = enableSound;
 addEventListener('keydown', e => {
-    if (e.code === 'Space') { e.preventDefault(); toggle(); }
-    else if (e.key === 'r' || e.key === 'R') { cur = 0; playing = true; }
+    if (e.code === 'Space') { e.preventDefault(); enableSound(); toggle(); }
+    else if (e.key === 'r' || e.key === 'R') { playing = true; enableSound(); setCur(0); }
+    else if (e.key === 'm' || e.key === 'M') toggleSound();
     else if (e.key === 'f' || e.key === 'F') $('#btn-fs').click();
-    else if (e.key === 'ArrowRight') cur = Math.min(DURATION - 0.01, cur + 2);
-    else if (e.key === 'ArrowLeft') cur = Math.max(0, cur - 2);
+    else if (e.key === 'ArrowRight') setCur(cur + 2);
+    else if (e.key === 'ArrowLeft') setCur(cur - 2);
 });
 let hideT;
 const wake = () => { ctrl.classList.remove('hide'); clearTimeout(hideT); hideT = setTimeout(() => ctrl.classList.add('hide'), 2500); };
 addEventListener('mousemove', wake); addEventListener('touchstart', wake, { passive: true }); wake();
 
-// exportação quadro a quadro (usado pelo script de render)
+// exportação quadro a quadro + trilha (usado pelo script de render)
 window.__DURATION = DURATION;
 window.__seek = t => { cur = t; render(t); };
+window.__audioWav = () => trackReady.then(b => b ? wavBase64(b) : null);
 if (CAPTURE) render(0); else requestAnimationFrame(frame);
 })();
 </script>
