@@ -1709,17 +1709,15 @@ function scenePlataforma(lt) {
         ['Tarefas', 'Kanban com timer e carga'],
         ['Agenda & Carimbos', 'Prazos e textos prontos'],
         ['Assistente OPS', 'IA no dia a dia do time'],
-        ['Financeiro', 'Visão financeira dos projetos'],
-        ['Forecast', 'Projeção mensal por projeto'],
         ['Clientes', 'Relatórios por cliente'],
         ['Modo TV', 'Painel ao vivo da operação'],
     ];
-    const tw = 384, th = 196, gap = 24;
-    const x0 = cx - (4 * tw + 3 * gap) / 2, y0 = 400;
+    const COLS = 3, tw = 500, th = 196, gap = 24;
+    const x0 = cx - (COLS * tw + (COLS - 1) * gap) / 2, y0 = 400;
     mods.forEach((m, i) => {
         const p = prog(lt, 0.8 + i * 0.09, 0.7);
         if (p <= 0) return;
-        const col = i % 4, row = Math.floor(i / 4);
+        const col = i % COLS, row = Math.floor(i / COLS);
         const x = x0 + col * (tw + gap), y = y0 + row * (th + gap) + (1 - E.out(p)) * 30;
         ctx.save(); ctx.globalAlpha *= E.out(p);
         panel(x, y, tw, th, { r: 20, blur: 30, dy: 12, shadowColor: 'rgba(13,15,35,0.07)' });
