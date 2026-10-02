@@ -13,9 +13,9 @@
   determinística: o mesmo quadro sai igual no navegador e na exportação.
 
   Atalhos: Espaço = play/pause · R = recomeçar · F = tela cheia · ←/→ = 5s
-           C = legendas · V = voz guia (static/video-ops-narracao.mp3)
+           C = legendas
   Parâmetros: ?loop=1 repete no fim · ?t=20 começa no segundo 20 ·
-  ?legendas=0 sem legendas · ?voz=1 já liga a voz guia ·
+  ?legendas=0 sem legendas ·
   ?export=1 esconde a interface e expõe window.renderAt(t) /
   window.VIDEO_DURATION (usado pra gerar o MP4 quadro a quadro).
 -->
@@ -67,14 +67,12 @@
     <span><svg width="34" height="34" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="#fff"/></svg></span>
 </button>
 
-<audio id="narr" preload="auto" src="video-ops-narracao.mp3"></audio>
 <div class="ui" id="ui">
     <button id="btn-play" class="primary" aria-label="Play/Pause">▶</button>
     <button id="btn-restart" aria-label="Recomeçar">↺</button>
     <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Linha do tempo">
     <span class="time" id="time">0:00 / 0:00</span>
     <button id="btn-cc" class="on" aria-pressed="true" title="Legendas (C)">CC</button>
-    <button id="btn-voz" aria-pressed="false" title="Voz guia sintética (V)">🔈 Voz guia</button>
     <button id="btn-full" aria-label="Tela cheia">⛶</button>
     <button id="btn-rec" class="rec" title="Grava o vídeo inteiro em tempo real e baixa um .webm">● Gravar .webm</button>
 </div>
@@ -355,8 +353,8 @@ function background(t) {
 }
 
 /* ---------------- Roteiro de narração = linha do tempo ----------------
-   Cada trecho dura o tempo da fala (d). sp = duração da voz guia gravada,
-   usada pra sincronizar as legendas. Os trechos k1..k7 são os passos da
+   Cada trecho dura o tempo da fala (d). sp = tempo de leitura do texto,
+   usado pra sincronizar as legendas. Os trechos k1..k7 são os passos da
    demo de Minhas tarefas. */
 const NARR = [
     { id: 'intro', d: 9.5, sp: 7.86, c: ['Este é o Faiston OPS:', 'o sistema que reúne projetos, tarefas e a rotina da equipe num só lugar.'] },
@@ -1752,7 +1750,7 @@ const SCENES = [
     { r: T.outro, draw: sceneOutro, orig: 6, noFadeOut: true },
 ];
 
-/* Legendas da narração, sincronizadas com a voz guia. */
+/* Legendas com o texto do roteiro. */
 let CAPTIONS = true;
 function captions(t) {
     if (!CAPTIONS) return;
@@ -1815,20 +1813,7 @@ function syncUI() {
     timeEl.textContent = `${fmtT(t)} / ${fmtT(DURATION)}`;
 }
 
-const narr = document.getElementById('narr');
-let VOICE = false;
-function syncVoice() {
-    if (!narr) return;
-    if (VOICE && playing && t < DURATION) {
-        if (narr.paused) narr.play().catch(() => {});
-        if (Math.abs(narr.currentTime - t) > 0.3) { try { narr.currentTime = t; } catch (e) { /* ainda carregando */ } }
-    } else if (!narr.paused) narr.pause();
-}
 function setCaptions(on) { CAPTIONS = on; const b = $('btn-cc'); if (b) b.setAttribute('aria-pressed', String(on)); }
-function setVoice(on) {
-    VOICE = on; const b = $('btn-voz');
-    if (b) { b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '🔊 Voz guia' : '🔈 Voz guia'; }
-}
 
 function frame(now) {
     if (playing) {
@@ -1840,7 +1825,6 @@ function frame(now) {
     last = now;
     render(t);
     syncUI();
-    syncVoice();
     requestAnimationFrame(frame);
 }
 
@@ -1900,9 +1884,7 @@ async function boot() {
     }
 
     setCaptions(params.get('legendas') !== '0');
-    setVoice(params.get('voz') === '1');
     $('btn-cc').addEventListener('click', () => setCaptions(!CAPTIONS));
-    $('btn-voz').addEventListener('click', () => setVoice(!VOICE));
     const ts = parseFloat(params.get('t'));
     if (!isNaN(ts)) { t = clamp(ts, 0, DURATION); }
     startBtn.addEventListener('click', play);
@@ -1918,7 +1900,6 @@ async function boot() {
         else if (e.key === 'r' || e.key === 'R') { t = 0; play(); }
         else if (e.key === 'f' || e.key === 'F') fullscreen();
         else if (e.key === 'c' || e.key === 'C') setCaptions(!CAPTIONS);
-        else if (e.key === 'v' || e.key === 'V') setVoice(!VOICE);
         else if (e.key === 'ArrowRight') t = Math.min(DURATION, t + 5);
         else if (e.key === 'ArrowLeft') t = Math.max(0, t - 5);
         poke();
