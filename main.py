@@ -4430,6 +4430,12 @@ def apresentacao_page(faiston_token: str = Cookie(None)):
     if not sess: return RedirectResponse("/")
     return FileResponse("static/apresentacao.html")
 
+@app.get("/video")
+def video_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/video.html")
+
 # --- NOTIFICAÇÕES ---
 def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None, destinatario_id: int = None):
     # Usa SAVEPOINT para que uma falha ao gravar a notificação NÃO aborte a
