@@ -13,7 +13,9 @@
   determinística: o mesmo quadro sai igual no navegador e na exportação.
 
   Atalhos: Espaço = play/pause · R = recomeçar · F = tela cheia · ←/→ = 5s
+           C = legendas · V = voz guia (static/video-ops-narracao.mp3)
   Parâmetros: ?loop=1 repete no fim · ?t=20 começa no segundo 20 ·
+  ?legendas=0 sem legendas · ?voz=1 já liga a voz guia ·
   ?export=1 esconde a interface e expõe window.renderAt(t) /
   window.VIDEO_DURATION (usado pra gerar o MP4 quadro a quadro).
 -->
@@ -42,6 +44,8 @@
     .ui input[type=range] { flex: 1; min-width: 60px; accent-color: #B826C9; }
     .ui .time { font: 600 12px "JetBrains Mono", monospace; color: #5E647A; min-width: 92px; text-align: center; }
     .ui .rec.on { background: #EC4899; color: #fff; border: 0; }
+    .ui button[aria-pressed="true"] { background: #5B2EE0; color: #fff; border-color: #5B2EE0; }
+    .ui button:focus-visible { outline: 2px solid #B826C9; outline-offset: 2px; }
     .start {
         position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
         background: transparent; border: 0; cursor: pointer;
@@ -63,11 +67,14 @@
     <span><svg width="34" height="34" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="#fff"/></svg></span>
 </button>
 
+<audio id="narr" preload="auto" src="video-ops-narracao.mp3"></audio>
 <div class="ui" id="ui">
     <button id="btn-play" class="primary" aria-label="Play/Pause">▶</button>
     <button id="btn-restart" aria-label="Recomeçar">↺</button>
     <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Linha do tempo">
     <span class="time" id="time">0:00 / 0:00</span>
+    <button id="btn-cc" class="on" aria-pressed="true" title="Legendas (C)">CC</button>
+    <button id="btn-voz" aria-pressed="false" title="Voz guia sintética (V)">🔈 Voz guia</button>
     <button id="btn-full" aria-label="Tela cheia">⛶</button>
     <button id="btn-rec" class="rec" title="Grava o vídeo inteiro em tempo real e baixa um .webm">● Gravar .webm</button>
 </div>
@@ -347,12 +354,35 @@ function background(t) {
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 }
 
-/* ---------------- Linha do tempo ---------------- */
+/* ---------------- Roteiro de narração = linha do tempo ----------------
+   Cada trecho dura o tempo da fala (d). sp = duração da voz guia gravada,
+   usada pra sincronizar as legendas. Os trechos k1..k7 são os passos da
+   demo de Minhas tarefas. */
+const NARR = [
+    { id: 'intro', d: 9.5, sp: 7.86, c: ['Este é o Faiston OPS:', 'o sistema que reúne projetos, tarefas e a rotina da equipe num só lugar.'] },
+    { id: 'antes', d: 20.5, sp: 19.53, c: ['Antes, o controle era feito em planilhas.', 'Várias versões do mesmo arquivo, atualizadas à mão,', 'com o status escrito cada um de um jeito.', 'A planilha não acompanhava o ritmo da operação,', 'e a gestão não tinha uma visão clara do que estava acontecendo.'] },
+    { id: 'statement', d: 10.5, sp: 7.47, c: ['Com o Faiston OPS, cada hora apontada, cada tarefa no prazo', 'e cada pessoa do time ficam visíveis, em tempo real.'] },
+    { id: 'dash', d: 12.5, sp: 11.46, c: ['No dashboard, a gestão acompanha as horas apontadas,', 'a média por pessoa e a taxa de conclusão do time,', 'ao vivo, sem planilha paralela.'] },
+    { id: 'k1', d: 19.5, sp: 16.08, c: ['No dia a dia, cada pessoa trabalha no próprio quadro.', 'Para criar uma tarefa, ela escolhe o projeto, e o cliente já vem preenchido.', 'Depois informa o tipo de atividade, que carrega o peso de complexidade,', 'a natureza e a previsão de conclusão.'] },
+    { id: 'k2', d: 17.5, sp: 12.99, c: ['A tarefa entra no quadro.', 'Na hora de trabalhar, é só arrastar o card para Em andamento e apertar Iniciar.', 'O tempo é contado no servidor,', 'e dá para ter mais de um cronômetro rodando ao mesmo tempo.'] },
+    { id: 'k3', d: 13, sp: 11.79, c: ['Se a tarefa é concluída depois da previsão, o sistema pede o motivo do atraso.', 'Assim fica fácil separar atraso por dependência externa de atraso por sobrecarga.'] },
+    { id: 'k4', d: 20, sp: 16.28, c: ['A faixa de carga mostra quanto cada pessoa tem na fila.', 'O peso das tarefas é somado, e o que está atrasado conta mais.', 'O resultado vira um nível, de tranquilo a atolado,', 'e o líder vê a mesma informação para redistribuir o trabalho.'] },
+    { id: 'k5', d: 10, sp: 8.75, c: ['Quando precisa de apoio, a pessoa adiciona colegas como ajudantes,', 'e eles recebem uma notificação na hora.'] },
+    { id: 'k6', d: 8, sp: 6.43, c: ['Na agenda, as tarefas aparecem por data,', 'separando prazo e agendamento, no estilo do Outlook.'] },
+    { id: 'k7', d: 10.5, sp: 7.94, c: ['E nos carimbos ficam os textos prontos da equipe,', 'para copiar e colar em chamados, e-mails ou no SAP.'] },
+    { id: 'ia', d: 15.5, sp: 14.53, c: ['O sistema também tem um assistente de inteligência artificial.', 'Ele encontra informações, explica processos,', 'resume a semana e faz o check-in diário do time.'] },
+    { id: 'plat', d: 8.5, sp: 7.44, c: ['Dashboard, tarefas, agenda, assistente, financeiro,', 'forecast, clientes e modo TV: tudo conectado num só sistema.'] },
+    { id: 'outro', d: 7, sp: 4.33, c: ['Faiston OPS.', 'Feito pela Faiston, para a operação da Faiston.'] },
+];
+const NARR_LEAD = 0.5;   // a fala começa meio segundo depois do corte
+{ let acc = 0; NARR.forEach(n => { n.s = acc; n.e = acc + n.d; acc = n.e; }); }
+const NB = Object.fromEntries(NARR.map(n => [n.id, n]));
+const span = id => [NB[id].s, NB[id].e];
 const T = {
-    intro: [0, 5.5], statement: [5.5, 10.5], dash: [10.5, 17.5], kanban: [17.5, 58.5],
-    ia: [58.5, 67], plat: [67, 73], outro: [73, 79],
+    intro: span('intro'), antes: span('antes'), statement: span('statement'), dash: span('dash'),
+    kanban: [NB.k1.s, NB.k7.e], ia: span('ia'), plat: span('plat'), outro: span('outro'),
 };
-const DURATION = 79;
+const DURATION = NARR[NARR.length - 1].e;
 
 const CHAPTERS = [
     { s: T.dash[0], e: T.dash[1], n: '01', label: 'Apontamento' },
@@ -380,8 +410,8 @@ function hud(t) {
     CHAPTERS.forEach(c => {
         const segW = (total - gap * (CHAPTERS.length - 1)) * (c.e - c.s) / span;
         const p = clamp((t - c.s) / (c.e - c.s));
-        rr(x, H - 54, segW, 4, 2); ctx.fillStyle = 'rgba(11,13,31,0.08)'; ctx.fill();
-        if (p > 0) { rr(x, H - 54, segW * p, 4, 2); ctx.fillStyle = linGrad(x, 0, x + segW, 0, GRAD); ctx.fill(); }
+        rr(x, H - 26, segW, 4, 2); ctx.fillStyle = 'rgba(11,13,31,0.08)'; ctx.fill();
+        if (p > 0) { rr(x, H - 26, segW * p, 4, 2); ctx.fillStyle = linGrad(x, 0, x + segW, 0, GRAD); ctx.fill(); }
         x += segW + gap;
     });
     ctx.restore();
@@ -427,6 +457,183 @@ function sceneIntro(lt) {
 
     reveal('SISTEMA DE OPERAÇÕES · FAISTON', cx, cy - 150, prog(lt, 2.8, 0.9), { size: 18, weight: 700, color: C.purple, ls: 6, align: 'center' });
     reveal('Projetos, tarefas e equipe — num só lugar.', cx, cy + 150, prog(lt, 3.0, 1.0), { size: 36, weight: 400, color: C.muted, align: 'center' });
+}
+
+
+/* 1b · Antes: controle em planilha (o cenário que o sistema substituiu) */
+const SH = { x: 860, y: 170, w: 920, h: 720 };
+const SH_COLS = [['Tarefa', 200], ['Responsável', 100], ['Cliente', 110], ['Prazo', 84], ['Status', 130], ['Horas', 76], ['Obs.', 176]];
+const SH_ROWS = [
+    ['Levantamento pontos', 'Ana', 'Cliente A', '03/10', 'andamento', '2h', ''],
+    ['Fechamento medição', 'Lia', 'Cliente B', '01/10', 'Em and.', '1,5', 'atualizar!!'],
+    ['Rollout notebooks', 'Caio', 'Cliente A', '10/10', 'ok', '#REF!', ''],
+    ['Inventário ativos', 'Caio', 'Cliente C', '??', 'feito?', '', 'ver c/ gestor'],
+    ['Instalação APs', 'Téo', 'Cliente B', '08/10', 'AGUARDANDO', '3:30', ''],
+    ['Troca de switch', 'Téo', 'Cliente D', '30/09', 'parado', '0,75', 'urgente'],
+    ['Agendar janela', 'Ana', 'Cliente B', '', 'OK', '35min', ''],
+    ['Medição setembro', 'Lia', 'Cliente A', '05/10', '??', '', ''],
+    ['IMAC 3º andar', 'Ana', 'Cliente C', '02/10', 'andamento ', '4h', ''],
+    ['Cabeamento filial', 'Caio', 'Cliente D', '15/10', 'pendente', '', ''],
+];
+const SH_FILL = { '1,4': '#FEF3C7', '5,4': '#FEE2E2', '3,3': '#FEF3C7', '7,4': '#E5E7EB', '4,4': '#FFEDD5' };
+const SG = { bg: '#FFFFFF', head: '#F3F4F6', grid: '#E2E4EA', text: '#3F4454', faint: '#9CA3AF', red: '#DC2626' };
+const DORES = [
+    [4.0, 'Várias versões do mesmo arquivo'],
+    [6.0, 'Atualização manual'],
+    [8.2, 'Status escrito cada um de um jeito'],
+    [12.0, 'Pouca aderência à rotina da operação'],
+    [15.6, 'Sem visão clara para a gestão'],
+];
+
+function sceneAntes(lt) {
+    const x0 = 140;
+    const ha = E.out(prog(lt, 0.15, 0.6));
+    ctx.save(); ctx.globalAlpha *= ha;
+    text('ANTES', x0, 300, { size: 16, weight: 700, color: C.muted, ls: 4 });
+    ctx.fillStyle = C.borderStrong; ctx.fillRect(x0 + 92, 292, 60 * E.out(prog(lt, 0.3, 0.7)), 2);
+    ctx.restore();
+    reveal('Controle em', x0, 404, prog(lt, 0.3, 0.9), { size: 80, weight: 700, font: F.display, ls: -2 });
+    reveal('planilha', x0, 492, prog(lt, 0.45, 0.9), { size: 80, weight: 700, font: F.display, ls: -2, color: C.faint });
+
+    DORES.forEach(([t0, label], i) => {
+        const p = E.out(prog(lt, t0, 0.6));
+        if (p <= 0) return;
+        const y = 576 + i * 60;
+        ctx.save(); ctx.globalAlpha *= p; ctx.translate((1 - p) * -16, 0);
+        ctx.beginPath(); ctx.arc(x0 + 15, y - 8, 15, 0, Math.PI * 2); ctx.fillStyle = hexA(C.red, 0.10); ctx.fill();
+        ctx.strokeStyle = C.red; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x0 + 10, y - 13); ctx.lineTo(x0 + 20, y - 3); ctx.moveTo(x0 + 20, y - 13); ctx.lineTo(x0 + 10, y - 3); ctx.stroke();
+        text(label, x0 + 46, y, { size: 24, weight: 500, color: C.text });
+        ctx.restore();
+    });
+
+    /* ---------- a planilha ---------- */
+    const wp = E.out(prog(lt, 0.3, 0.9));
+    const fadeOld = E.inOut(prog(lt, 16.8, 2.2));            // perde a cor no fim
+    const { x, y, w, h } = SH;
+    ctx.save(); ctx.globalAlpha *= wp * lerp(1, 0.55, fadeOld);
+    ctx.translate((1 - wp) * 70, 0);
+    if (fadeOld > 0) ctx.filter = `grayscale(${fadeOld})`;
+    panel(x, y, w, h, { r: 14, blur: 40, dy: 16, shadowColor: 'rgba(13,15,35,0.10)' });
+
+    // abas de arquivo — versões surgindo
+    ctx.save(); rr(x, y, w, 44, [14, 14, 0, 0]); ctx.fillStyle = SG.head; ctx.fill(); ctx.restore();
+    const files = [[0.6, 'controle_tarefas_v3.xlsx'], [4.2, 'controle_tarefas_v3_FINAL.xlsx'], [5.0, 'controle_tarefas_v3_FINAL (2).xlsx']];
+    const activeF = files.reduce((a, f, i) => (lt >= f[0] ? i : a), 0);
+    let tx = x + 14;
+    files.forEach(([t0, name], i) => {
+        const p = E.out(prog(lt, t0, 0.4));
+        if (p <= 0) return;
+        const tw = measure(name, 13, 600, F.mono) + 28;
+        ctx.save(); ctx.globalAlpha *= p;
+        rr(tx, y + 8, tw, 36, [8, 8, 0, 0]);
+        ctx.fillStyle = i === activeF ? '#fff' : '#E9EAEE'; ctx.fill();
+        text(name, tx + 14, y + 31, { size: 13, weight: 600, font: F.mono, color: i === activeF ? SG.text : SG.faint });
+        ctx.restore();
+        tx += tw + 6;
+    });
+    ctx.fillStyle = SG.grid; ctx.fillRect(x, y + 44, w, 1);
+
+    // barra de fórmula
+    text('fx', x + 18, y + 69, { size: 15, weight: 700, font: F.mono, color: SG.faint });
+    ctx.fillStyle = SG.grid; ctx.fillRect(x + 44, y + 52, 1, 24);
+    text('=SE(E3="ok";"Concluído";"??")', x + 58, y + 69, { size: 14, weight: 500, font: F.mono, color: SG.text });
+    ctx.fillStyle = SG.grid; ctx.fillRect(x, y + 84, w, 1);
+
+    // grade
+    const gy = y + 84, rh = 34, rn = 44;
+    const colXs = []; let cx = x + rn; SH_COLS.forEach(([, cw]) => { colXs.push(cx); cx += cw; });
+    ctx.fillStyle = SG.head; ctx.fillRect(x, gy, w, 28);
+    'ABCDEFG'.split('').forEach((L, i) => text(L, colXs[i] + SH_COLS[i][1] / 2, gy + 19, { size: 12, weight: 600, color: SG.faint, align: 'center' }));
+    const rows = 17;
+    for (let r = 0; r < rows; r++) {
+        const ry = gy + 28 + r * rh;
+        if (ry + rh > y + h - 8) break;
+        ctx.fillStyle = SG.head; ctx.fillRect(x, ry, rn, rh);
+        text(String(r + 1), x + rn / 2, ry + 22, { size: 12, color: SG.faint, align: 'center' });
+        const rp = r === 0 ? E.out(prog(lt, 0.7, 0.3)) : E.out(prog(lt, 0.8 + r * 0.08, 0.3));
+        if (r === 0) {
+            SH_COLS.forEach(([n], i) => text(n, colXs[i] + 8, ry + 22, { size: 13.5, weight: 700, color: SG.text, alpha: rp }));
+        } else if (SH_ROWS[r - 1]) {
+            SH_ROWS[r - 1].forEach((v, i) => {
+                const key = `${r - 1},${i}`;
+                if (SH_FILL[key] && rp > 0) { ctx.save(); ctx.globalAlpha *= rp; ctx.fillStyle = SH_FILL[key]; ctx.fillRect(colXs[i], ry, SH_COLS[i][1], rh); ctx.restore(); }
+                let val = v;
+                // alguém atualizando à mão a célula E2
+                if (r === 1 && i === 4) {
+                    const typing = prog(lt, 6.6, 1.0);
+                    if (lt >= 6.3) val = typing <= 0 ? '' : 'concluido'.slice(0, Math.ceil(9 * typing));
+                }
+                const col = v === '#REF!' ? SG.red : SG.text;
+                text(val, colXs[i] + 8, ry + 22, { size: 13.5, weight: v === '#REF!' ? 700 : 400, color: col, alpha: rp });
+            });
+        }
+        ctx.fillStyle = SG.grid; ctx.fillRect(x, ry + rh, w, 1);
+    }
+    colXs.concat([x + w]).forEach(cx2 => { ctx.fillStyle = SG.grid; ctx.fillRect(cx2, gy, 1, Math.min(rows, 17) * rh + 28 - 6); });
+
+    // seleção da célula editada
+    const selA = prog(lt, 6.2, 0.15) * (1 - prog(lt, 8.0, 0.3));
+    if (selA > 0) {
+        ctx.save(); ctx.globalAlpha *= selA;
+        ctx.lineWidth = 2.5; ctx.strokeStyle = '#374151';
+        ctx.strokeRect(colXs[4] + 1, gy + 28 + rh + 1, SH_COLS[4][1] - 2, rh - 2);
+        ctx.restore();
+    }
+
+    // destaque: status inconsistente
+    const stA = E.out(prog(lt, 8.4, 0.5)) * (1 - prog(lt, 11.4, 0.4));
+    if (stA > 0) {
+        ctx.save(); ctx.globalAlpha *= stA;
+        ctx.setLineDash([7, 5]); ctx.lineWidth = 2.5; ctx.strokeStyle = C.pink;
+        rr(colXs[4] - 3, gy + 28 + rh - 3, SH_COLS[4][1] + 6, rh * 10 + 6, 6); ctx.stroke();
+        ctx.setLineDash([]);
+        const lbl = '10 jeitos de escrever o status';
+        const lw = measure(lbl, 13, 700, F.body, 0.4) + 24;
+        pill(colXs[4] + SH_COLS[4][1] / 2 - lw / 2, gy + 28 + rh * 11 + 12, lbl, { size: 13, h: 30, padX: 12, color: C.pink, ls: 0.4, fill: '#fff' });
+        ctx.restore();
+    }
+    // destaque: vazios e fórmula quebrada
+    const bad = [[2, 5], [3, 3], [3, 5], [6, 3], [7, 5], [9, 5]];
+    const bA = E.out(prog(lt, 11.8, 0.5)) * (1 - prog(lt, 15.0, 0.4));
+    if (bA > 0) {
+        const pulse = 0.6 + 0.4 * Math.sin(lt * 6);
+        bad.forEach(([r, c]) => {
+            const ry = gy + 28 + (r + 1) * rh;
+            ctx.save(); ctx.globalAlpha *= bA * pulse;
+            rr(colXs[c] + 2, ry + 2, SH_COLS[c][1] - 4, rh - 4, 5); ctx.lineWidth = 2.5; ctx.strokeStyle = SG.red; ctx.stroke();
+            ctx.restore();
+        });
+        const lbl = 'Prazo e horas em branco, fórmula quebrada';
+        const lw = measure(lbl, 13, 700, F.body, 0.4) + 24;
+        ctx.save(); ctx.globalAlpha *= bA;
+        pill(colXs[3], gy + 28 + rh * 11 + 12, lbl, { size: 13, h: 30, padX: 12, color: SG.red, ls: 0.4, fill: '#fff' });
+        ctx.restore();
+    }
+    // carimbo de desatualizada
+    const uA = E.out(prog(lt, 15.4, 0.5));
+    if (uA > 0) {
+        ctx.save(); ctx.globalAlpha *= uA;
+        const lbl = 'Última atualização: 26/09 · há 6 dias';
+        const lw = measure(lbl, 15, 700, F.body, 0) + 32;
+        rr(x + w - 28 - lw, y + h - 64, lw, 40, 12); ctx.fillStyle = '#111827'; ctx.fill();
+        text(lbl, x + w - 28 - lw + 16, y + h - 38, { size: 15, weight: 700, color: '#fff' });
+        ctx.restore();
+    }
+    ctx.restore();
+
+    // cursor editando à mão
+    const cp = prog(lt, 5.4, 0.9);
+    const vis = prog(lt, 5.2, 0.3) * (1 - prog(lt, 8.3, 0.4));
+    if (vis > 0) {
+        const tx2 = colXs[4] + 60, ty2 = gy + 28 + rh + 20;
+        const cxp = lerp(x + w - 60, tx2, E.inOut(cp)), cyp = lerp(y + h - 120, ty2, E.inOut(cp));
+        ctx.save(); ctx.globalAlpha *= vis;
+        clickRing(cxp, cyp, prog(lt, 6.2, 0.5));
+        cursor(cxp, cyp, clamp(1 - Math.abs(lt - 6.2) / 0.1));
+        ctx.restore();
+    }
+    illustrative(x + w, y + h + 26, 0.8 * wp);
 }
 
 /* 2 · Manifesto */
@@ -559,6 +766,48 @@ const STEPS = [
     { s: 27.0, title: 'Agenda', desc: 'Prazo e agendamento, estilo Outlook' },
     { s: 33.0, title: 'Carimbos', desc: 'Textos prontos pra copiar e colar' },
 ];
+
+/* Tempo real da cena -> tempo interno da animação. Cada passo ganha a
+   duração da sua fala: as ações rodam mais devagar e param (hold) nos
+   momentos que a narração explica. */
+const KWARP = (() => {
+    const iv = [[0, 6.6], [6.6, 12.4], [12.4, 17.9], [17.9, 22.4], [22.4, 27.0], [27.0, 33.0], [33.0, 41.0]];
+    const holds = [
+        [[2.15, 3], [2.95, 1.5], [4.0, 1.5], [5.05, 2.5]],   // modal aberto · projeto/cliente · descrição · tudo preenchido
+        [[6.7, 1.4], [8.75, 0.3], [11.3, 5.5]],               // card novo · soltou o card · dois timers rodando
+        [[13.6, 1.5], [17.1, 2.5]],             // pedido do motivo · card concluído
+        [[20.4, 10]],                           // régua de carga aberta
+        [[25.7, 2]],                            // aviso dos ajudantes
+        [[28.6, 1]],                            // agenda na tela
+        [[37.2, 1]],                            // copiado
+    ];
+    const pts = [[0, 0]]; let r = 0;
+    iv.forEach(([a, b], i) => {
+        const Rd = NB['k' + (i + 1)].d, hs = holds[i];
+        const Hs = hs.reduce((acc, h) => acc + h[1], 0);
+        const sp = Math.max(1, (Rd - Hs) / (b - a));
+        const hk = sp === 1 ? (Rd - (b - a)) / Hs : 1;
+        let ci = a;
+        hs.forEach(([hp, hd]) => { r += (hp - ci) * sp; pts.push([r, hp]); r += hd * hk; pts.push([r, hp]); ci = hp; });
+        r += (b - ci) * sp; pts.push([r, b]);
+    });
+    return pts;
+})();
+function kWarp(real) {
+    for (let i = 0; i < KWARP.length - 1; i++) {
+        const [r0, x0] = KWARP[i], [r1, x1] = KWARP[i + 1];
+        if (real <= r1) return r1 === r0 ? x1 : lerp(x0, x1, clamp((real - r0) / (r1 - r0)));
+    }
+    return KWARP[KWARP.length - 1][1];
+}
+function kUnwarp(x) {
+    for (let i = 0; i < KWARP.length - 1; i++) {
+        const [r0, x0] = KWARP[i], [r1, x1] = KWARP[i + 1];
+        if (x1 > x0 && x >= x0 && x <= x1) return lerp(r0, r1, (x - x0) / (x1 - x0));
+    }
+    return KWARP[KWARP.length - 1][0];
+}
+let KR = 0;   // tempo real dentro da cena (timers e pulsos andam no relógio de verdade)
 
 function colX(c) { return KW.x + 28 + c * (KCOL.w + KCOL.gap); }
 function slotPos(state, id) {
@@ -748,8 +997,8 @@ function sceneKanban(lt) {
     ctx.save(); ctx.globalAlpha *= kv;
     // estado derivado do tempo
     const running = { A: lt >= K.startA, C: lt >= K.startC && lt < K.motivoOk };
-    const secsA = running.A ? lt - K.startA : 0;
-    const secsC = 4360 + (lt >= K.startC ? Math.min(lt, K.motivoOk) - K.startC : 0);
+    const secsA = running.A ? KR - kUnwarp(K.startA) : 0;
+    const secsC = 4360 + (lt >= K.startC ? Math.min(KR, kUnwarp(K.motivoOk)) - kUnwarp(K.startC) : 0);
     const secsD = 2110;
     const total = lt >= K.cardIn ? 5 : 4;
     const andamento = lt >= K.moveC + 0.2 ? 1 : lt >= K.drop ? 2 : 1;
@@ -812,7 +1061,7 @@ function sceneKanban(lt) {
     if (lt > K.moveC - 0.2 && lt < K.moveC + 1.2) { order.splice(order.indexOf('C'), 1); order.push('C'); }
     order.forEach(id => {
         let { x, y } = cardPos(id, lt);
-        const o = { t: lt };
+        const o = { t: KR };
         if (id === 'N') {
             const ap = prog(lt, K.cardIn, 0.6);
             if (ap <= 0) return;
@@ -1490,15 +1739,43 @@ function sceneOutro(lt) {
     reveal('faiston.com', cx, 960, prog(lt, 2.2, 0.9), { size: 18, weight: 600, font: F.mono, color: C.faint, align: 'center', ls: 2 });
 }
 
+// orig = duração em que a animação da cena foi desenhada; ela desacelera
+// até 1,5x pra caber na fala e o resto do tempo fica parada no quadro final.
 const SCENES = [
-    { r: T.intro, draw: sceneIntro, noFadeIn: true },
-    { r: T.statement, draw: sceneStatement },
-    { r: T.dash, draw: sceneDashboard },
-    { r: T.kanban, draw: sceneKanban },
-    { r: T.ia, draw: sceneAssistente },
-    { r: T.plat, draw: scenePlataforma },
-    { r: T.outro, draw: sceneOutro, noFadeOut: true },
+    { r: T.intro, draw: sceneIntro, orig: 5.5, noFadeIn: true },
+    { r: T.antes, draw: sceneAntes, orig: NB.antes.d },
+    { r: T.statement, draw: sceneStatement, orig: 5 },
+    { r: T.dash, draw: sceneDashboard, orig: 7 },
+    { r: T.kanban, draw: lt => { KR = lt; sceneKanban(kWarp(lt)); } },
+    { r: T.ia, draw: sceneAssistente, orig: 8.5 },
+    { r: T.plat, draw: scenePlataforma, orig: 6 },
+    { r: T.outro, draw: sceneOutro, orig: 6, noFadeOut: true },
 ];
+
+/* Legendas da narração, sincronizadas com a voz guia. */
+let CAPTIONS = true;
+function captions(t) {
+    if (!CAPTIONS) return;
+    const n = NARR.find(m => t >= m.s && t < m.e);
+    if (!n) return;
+    const lt = t - n.s - NARR_LEAD;
+    if (lt < 0 || lt > n.sp + 0.5) return;
+    const words = n.c.map(c => c.split(' ').length), total = words.reduce((a, b) => a + b, 0);
+    let acc = 0, idx = n.c.length - 1, c0 = 0, c1 = n.sp;
+    for (let i = 0; i < n.c.length; i++) {
+        const a = n.sp * acc / total, b = n.sp * (acc + words[i]) / total;
+        if (lt < b || i === n.c.length - 1) { idx = i; c0 = a; c1 = b; break; }
+        acc += words[i];
+    }
+    const a = prog(lt, c0, 0.15) * (idx === n.c.length - 1 ? 1 - prog(lt, n.sp + 0.2, 0.3) : 1);
+    if (a <= 0) return;
+    const str = n.c[idx], tw = measure(str, 27, 500);
+    const bw = tw + 60, bh = 56, bx = W / 2 - bw / 2, by = H - 106;
+    ctx.save(); ctx.globalAlpha = a;
+    rr(bx, by, bw, bh, 14); ctx.fillStyle = 'rgba(11,13,31,0.86)'; ctx.fill();
+    text(str, W / 2, by + 37, { size: 27, weight: 500, color: '#fff', align: 'center' });
+    ctx.restore();
+}
 
 function render(t) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1507,16 +1784,17 @@ function render(t) {
     SCENES.forEach(sc => {
         const [s, e] = sc.r;
         if (t < s || t > e) return;
-        const lt = t - s;
+        let lt = t - s;
         const fin = sc.noFadeIn ? 1 : E.out(prog(lt, 0, 0.5));
         const fout = sc.noFadeOut ? 1 : 1 - E.inOut(prog(t, e - 0.55, 0.55));
         ctx.save();
         ctx.globalAlpha = fin * fout;
         ctx.translate(0, (1 - fout) * -24);
-        sc.draw(lt);
+        sc.draw(sc.orig ? lt / clamp((e - s) / sc.orig, 1, 1.5) : lt);
         ctx.restore();
     });
     hud(t);
+    captions(t);
     const fade = Math.max(1 - prog(t, 0, 0.4), prog(t, DURATION - 0.8, 0.8));
     if (fade > 0) { ctx.fillStyle = `rgba(244,245,250,${fade})`; ctx.fillRect(0, 0, W, H); }
 }
@@ -1537,6 +1815,21 @@ function syncUI() {
     timeEl.textContent = `${fmtT(t)} / ${fmtT(DURATION)}`;
 }
 
+const narr = document.getElementById('narr');
+let VOICE = false;
+function syncVoice() {
+    if (!narr) return;
+    if (VOICE && playing && t < DURATION) {
+        if (narr.paused) narr.play().catch(() => {});
+        if (Math.abs(narr.currentTime - t) > 0.3) { try { narr.currentTime = t; } catch (e) { /* ainda carregando */ } }
+    } else if (!narr.paused) narr.pause();
+}
+function setCaptions(on) { CAPTIONS = on; const b = $('btn-cc'); if (b) b.setAttribute('aria-pressed', String(on)); }
+function setVoice(on) {
+    VOICE = on; const b = $('btn-voz');
+    if (b) { b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '🔊 Voz guia' : '🔈 Voz guia'; }
+}
+
 function frame(now) {
     if (playing) {
         t += Math.min(0.1, (now - last) / 1000);
@@ -1547,6 +1840,7 @@ function frame(now) {
     last = now;
     render(t);
     syncUI();
+    syncVoice();
     requestAnimationFrame(frame);
 }
 
@@ -1597,12 +1891,18 @@ async function boot() {
     if (EXPORT) {
         document.body.classList.add('export');
         window.VIDEO_DURATION = DURATION;
+        window.NARR_PLAN = NARR.map(n => ({ id: n.id, start: n.s + NARR_LEAD }));
+        setCaptions(params.get('legendas') !== '0');
         window.renderAt = s => render(s);
         window.videoReady = true;
         render(0);
         return;
     }
 
+    setCaptions(params.get('legendas') !== '0');
+    setVoice(params.get('voz') === '1');
+    $('btn-cc').addEventListener('click', () => setCaptions(!CAPTIONS));
+    $('btn-voz').addEventListener('click', () => setVoice(!VOICE));
     const ts = parseFloat(params.get('t'));
     if (!isNaN(ts)) { t = clamp(ts, 0, DURATION); }
     startBtn.addEventListener('click', play);
@@ -1617,6 +1917,8 @@ async function boot() {
         if (e.code === 'Space') { e.preventDefault(); toggle(); }
         else if (e.key === 'r' || e.key === 'R') { t = 0; play(); }
         else if (e.key === 'f' || e.key === 'F') fullscreen();
+        else if (e.key === 'c' || e.key === 'C') setCaptions(!CAPTIONS);
+        else if (e.key === 'v' || e.key === 'V') setVoice(!VOICE);
         else if (e.key === 'ArrowRight') t = Math.min(DURATION, t + 5);
         else if (e.key === 'ArrowLeft') t = Math.max(0, t - 5);
         poke();
