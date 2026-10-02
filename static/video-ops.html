@@ -325,17 +325,25 @@ function illustrative(x, y, a = 1) {
 }
 
 /* ---------------- Fundo e HUD ---------------- */
-function background(t) {
-    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+// O degradê do fundo é pintado numa camada de 1/4 da resolução e ampliado:
+// visualmente idêntico e bem mais leve pra reproduzir em notebook comum.
+const BGS = 4, bgc = document.createElement('canvas');
+bgc.width = W / BGS; bgc.height = H / BGS;
+const bctx = bgc.getContext('2d');
 
+function background(t) {
+    bctx.setTransform(1 / BGS, 0, 0, 1 / BGS, 0, 0);
+    bctx.fillStyle = C.bg; bctx.fillRect(0, 0, W, H);
     const blob = (x, y, r, rgb, a) => {
-        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        const g = bctx.createRadialGradient(x, y, 0, x, y, r);
         g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`);
-        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        bctx.fillStyle = g; bctx.fillRect(0, 0, W, H);
     };
     blob(1520 + Math.sin(t * 0.18) * 120, 120 + Math.cos(t * 0.14) * 60, 1000, '91,46,224', 0.10);
     blob(260 + Math.cos(t * 0.16) * 100, 980 + Math.sin(t * 0.2) * 40, 800, '6,215,230', 0.12);
     blob(980 + Math.sin(t * 0.1) * 200, 640, 700, '236,72,153', 0.05);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bgc, 0, 0, W, H);
 
     // grade da marca, deslizando bem devagar
     const step = 48, off = (t * 6) % step;
@@ -347,33 +355,40 @@ function background(t) {
     ctx.stroke();
     ctx.restore();
 
-    // vinheta clarinha pra grade sumir nas bordas
-    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 1.05);
-    g.addColorStop(0, 'rgba(244,245,250,0)'); g.addColorStop(1, 'rgba(244,245,250,0.85)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // vinheta clarinha pra grade sumir nas bordas (pintada uma vez só)
+    if (!background.vig) {
+        const v = document.createElement('canvas'); v.width = W / BGS; v.height = H / BGS;
+        const vc = v.getContext('2d'); vc.scale(1 / BGS, 1 / BGS);
+        const g = vc.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 1.05);
+        g.addColorStop(0, 'rgba(244,245,250,0)'); g.addColorStop(1, 'rgba(244,245,250,0.85)');
+        vc.fillStyle = g; vc.fillRect(0, 0, W, H);
+        background.vig = v;
+    }
+    ctx.drawImage(background.vig, 0, 0, W, H);
 }
 
-/* ---------------- Roteiro de narração = linha do tempo ----------------
-   Cada trecho dura o tempo da fala (d). sp = tempo de leitura do texto,
-   usado pra sincronizar as legendas. Os trechos k1..k7 são os passos da
-   demo de Minhas tarefas. */
+/* ---------------- Roteiro = linha do tempo ----------------
+   Cada trecho tem sua duração (d) e as legendas (c) que aparecem nele;
+   sp = janela em que as legendas ficam na tela. Os trechos k1..k7 são os
+   passos da demo de Minhas tarefas. */
 const NARR = [
-    { id: 'intro', d: 9.5, sp: 7.86, c: ['Este é o Faiston OPS:', 'o sistema que reúne projetos, tarefas e a rotina da equipe num só lugar.'] },
-    { id: 'antes', d: 20.5, sp: 19.53, c: ['Antes, o controle era feito em planilhas.', 'Várias versões do mesmo arquivo, atualizadas à mão,', 'com o status escrito cada um de um jeito.', 'A planilha não acompanhava o ritmo da operação,', 'e a gestão não tinha uma visão clara do que estava acontecendo.'] },
-    { id: 'statement', d: 10.5, sp: 7.47, c: ['Com o Faiston OPS, cada hora apontada, cada tarefa no prazo', 'e cada pessoa do time ficam visíveis, em tempo real.'] },
-    { id: 'dash', d: 12.5, sp: 11.46, c: ['No dashboard, a gestão acompanha as horas apontadas,', 'a média por pessoa e a taxa de conclusão do time,', 'ao vivo, sem planilha paralela.'] },
-    { id: 'k1', d: 19.5, sp: 16.08, c: ['No dia a dia, cada pessoa trabalha no próprio quadro.', 'Para criar uma tarefa, ela escolhe o projeto, e o cliente já vem preenchido.', 'Depois informa o tipo de atividade, que carrega o peso de complexidade,', 'a natureza e a previsão de conclusão.'] },
-    { id: 'k2', d: 17.5, sp: 12.99, c: ['A tarefa entra no quadro.', 'Na hora de trabalhar, é só arrastar o card para Em andamento e apertar Iniciar.', 'O tempo é contado no servidor,', 'e dá para ter mais de um cronômetro rodando ao mesmo tempo.'] },
-    { id: 'k3', d: 13, sp: 11.79, c: ['Se a tarefa é concluída depois da previsão, o sistema pede o motivo do atraso.', 'Assim fica fácil separar atraso por dependência externa de atraso por sobrecarga.'] },
-    { id: 'k4', d: 20, sp: 16.28, c: ['A faixa de carga mostra quanto cada pessoa tem na fila.', 'O peso das tarefas é somado, e o que está atrasado conta mais.', 'O resultado vira um nível, de tranquilo a atolado,', 'e o líder vê a mesma informação para redistribuir o trabalho.'] },
-    { id: 'k5', d: 10, sp: 8.75, c: ['Quando precisa de apoio, a pessoa adiciona colegas como ajudantes,', 'e eles recebem uma notificação na hora.'] },
-    { id: 'k6', d: 8, sp: 6.43, c: ['Na agenda, as tarefas aparecem por data,', 'separando prazo e agendamento, no estilo do Outlook.'] },
-    { id: 'k7', d: 10.5, sp: 7.94, c: ['E nos carimbos ficam os textos prontos da equipe,', 'para copiar e colar em chamados, e-mails ou no SAP.'] },
-    { id: 'ia', d: 15.5, sp: 14.53, c: ['O sistema também tem um assistente de inteligência artificial.', 'Ele encontra informações, explica processos,', 'resume a semana e faz o check-in diário do time.'] },
-    { id: 'plat', d: 8.5, sp: 7.44, c: ['Dashboard, tarefas, agenda, assistente, financeiro,', 'forecast, clientes e modo TV: tudo conectado num só sistema.'] },
-    { id: 'outro', d: 7, sp: 4.33, c: ['Faiston OPS.', 'Feito pela Faiston, para a operação da Faiston.'] },
+    { id: 'intro', d: 6.5, c: [] },
+    { id: 'antes', d: 15, c: ['Antes: o controle era feito em planilhas.', 'Várias versões do arquivo, atualização manual e status sem padrão.', 'Pouca aderência à operação e pouca visão para a gestão.'] },
+    { id: 'statement', d: 6, c: [] },
+    { id: 'dash', d: 8, c: ['Horas, média por pessoa e conclusão do time, ao vivo.'] },
+    { id: 'k1', d: 9, c: ['Criar tarefa: projeto, tipo de atividade, natureza e previsão.', 'O cliente vem preenchido e o tipo já traz o peso.'] },
+    { id: 'k2', d: 8, c: ['Arrastou para Em andamento, apertou Iniciar.', 'Vários cronômetros ao mesmo tempo, contados no servidor.'] },
+    { id: 'k3', d: 7.5, c: ['Concluiu depois da previsão? O sistema pede o motivo.'] },
+    { id: 'k4', d: 7.5, c: ['Carga: soma do peso das tarefas, e o atraso conta mais.', 'O líder vê o mesmo nível, de tranquilo a atolado.'] },
+    { id: 'k5', d: 6, c: ['Ajudantes entram na tarefa e são notificados.'] },
+    { id: 'k6', d: 7, c: ['Agenda: prazo e agendamento, dia a dia.'] },
+    { id: 'k7', d: 8.5, c: ['Carimbos: textos prontos para copiar e colar.'] },
+    { id: 'ia', d: 9, c: ['Acha dados, explica processos,', 'resume a semana e faz o check-in do time.'] },
+    { id: 'plat', d: 6, c: [] },
+    { id: 'outro', d: 6.5, c: [] },
 ];
-const NARR_LEAD = 0.5;   // a fala começa meio segundo depois do corte
+NARR.forEach(n => { n.sp = n.d - 1.0; });
+const NARR_LEAD = 0.4;   // a legenda entra logo depois do corte
 { let acc = 0; NARR.forEach(n => { n.s = acc; n.e = acc + n.d; acc = n.e; }); }
 const NB = Object.fromEntries(NARR.map(n => [n.id, n]));
 const span = id => [NB[id].s, NB[id].e];
@@ -767,25 +782,25 @@ const STEPS = [
 ];
 
 /* Tempo real da cena -> tempo interno da animação. Cada passo ganha a
-   duração da sua fala: as ações rodam mais devagar e param (hold) nos
-   momentos que a narração explica. */
+   sua duração (d): as ações rodam um pouco mais devagar e fazem pausas
+   curtas (hold) nos momentos-chave, pra dar tempo de ler. */
 const KWARP = (() => {
     const iv = [[0, 6.6], [6.6, 12.4], [12.4, 17.9], [17.9, 22.4], [22.4, 27.0], [27.0, 33.0], [33.0, 41.0]];
     const holds = [
-        [[2.15, 3], [2.95, 1.5], [4.0, 1.5], [5.05, 2.5]],   // modal aberto · projeto/cliente · descrição · tudo preenchido
-        [[6.7, 1.4], [8.75, 0.3], [11.3, 5.5]],               // card novo · soltou o card · dois timers rodando
-        [[13.6, 1.5], [17.1, 2.5]],             // pedido do motivo · card concluído
-        [[20.4, 10]],                           // régua de carga aberta
-        [[25.7, 2]],                            // aviso dos ajudantes
-        [[28.6, 1]],                            // agenda na tela
-        [[37.2, 1]],                            // copiado
+        [[2.15, 0.6], [5.05, 0.8]],             // modal aberto · tudo preenchido
+        [[8.75, 0.3], [11.3, 1.0]],             // soltou o card · dois timers rodando
+        [[13.6, 0.6], [17.1, 0.6]],             // pedido do motivo · card concluído
+        [[20.4, 1.5]],                          // régua de carga aberta
+        [[25.7, 0.6]],                          // aviso dos ajudantes
+        [[28.6, 0.5]],                          // agenda na tela
+        [],                                     // carimbos
     ];
     const pts = [[0, 0]]; let r = 0;
     iv.forEach(([a, b], i) => {
         const Rd = NB['k' + (i + 1)].d, hs = holds[i];
         const Hs = hs.reduce((acc, h) => acc + h[1], 0);
         const sp = Math.max(1, (Rd - Hs) / (b - a));
-        const hk = sp === 1 ? (Rd - (b - a)) / Hs : 1;
+        const hk = sp === 1 && Hs > 0 ? (Rd - (b - a)) / Hs : 1;
         let ci = a;
         hs.forEach(([hp, hd]) => { r += (hp - ci) * sp; pts.push([r, hp]); r += hd * hk; pts.push([r, hp]); ci = hp; });
         r += (b - ci) * sp; pts.push([r, b]);
@@ -1738,11 +1753,11 @@ function sceneOutro(lt) {
     reveal('faiston.com', cx, 960, prog(lt, 2.2, 0.9), { size: 18, weight: 600, font: F.mono, color: C.faint, align: 'center', ls: 2 });
 }
 
-// orig = duração em que a animação da cena foi desenhada; ela desacelera
-// até 1,5x pra caber na fala e o resto do tempo fica parada no quadro final.
+// orig = duração em que a animação da cena foi desenhada; ela se ajusta à
+// duração do trecho (entre 0,6x e 1,5x) e o resto fica no quadro final.
 const SCENES = [
     { r: T.intro, draw: sceneIntro, orig: 5.5, noFadeIn: true },
-    { r: T.antes, draw: sceneAntes, orig: NB.antes.d },
+    { r: T.antes, draw: sceneAntes, orig: 20.5 },
     { r: T.statement, draw: sceneStatement, orig: 5 },
     { r: T.dash, draw: sceneDashboard, orig: 7 },
     { r: T.kanban, draw: lt => { KR = lt; sceneKanban(kWarp(lt)); } },
@@ -1756,7 +1771,7 @@ let CAPTIONS = true;
 function captions(t) {
     if (!CAPTIONS) return;
     const n = NARR.find(m => t >= m.s && t < m.e);
-    if (!n) return;
+    if (!n || !n.c.length) return;
     const lt = t - n.s - NARR_LEAD;
     if (lt < 0 || lt > n.sp + 0.5) return;
     const words = n.c.map(c => c.split(' ').length), total = words.reduce((a, b) => a + b, 0);
@@ -1789,7 +1804,7 @@ function render(t) {
         ctx.save();
         ctx.globalAlpha = fin * fout;
         ctx.translate(0, (1 - fout) * -24);
-        sc.draw(sc.orig ? lt / clamp((e - s) / sc.orig, 1, 1.5) : lt);
+        sc.draw(sc.orig ? lt / clamp((e - s) / sc.orig, 0.6, 1.5) : lt);
         ctx.restore();
     });
     hud(t);
@@ -1805,7 +1820,7 @@ function sfxEvents() {
     const kr = x => T.kanban[0] + kUnwarp(x);
     ev.push(['sting', 0.45]);
     [T.antes, T.statement, T.dash, T.kanban, T.ia, T.plat, T.outro].forEach(r => ev.push(['whoosh', r[0] - 0.3]));
-    ev.push(['click', T.antes[0] + 6.2]);
+    ev.push(['click', T.antes[0] + 6.2 * clamp((T.antes[1] - T.antes[0]) / 20.5, 0.6, 1.5)]);   // mesma escala do SCENES
     CLICKS.forEach(c => ev.push(['click', kr(c)]));
     [K.cardIn, K.moveC + 0.45, K.toast, K.copy + 0.15].forEach(c => ev.push(['ding', kr(c)]));
     ev.push(['sting', T.outro[0] + 0.25]);
