@@ -350,16 +350,15 @@ function background(t) {
 /* ---------------- Linha do tempo ---------------- */
 const T = {
     intro: [0, 5.5], statement: [5.5, 10.5], dash: [10.5, 17.5], kanban: [17.5, 58.5],
-    campo: [58.5, 65.5], ia: [65.5, 74], plat: [74, 80], outro: [80, 86],
+    ia: [58.5, 67], plat: [67, 73], outro: [73, 79],
 };
-const DURATION = 86;
+const DURATION = 79;
 
 const CHAPTERS = [
     { s: T.dash[0], e: T.dash[1], n: '01', label: 'Apontamento' },
     { s: T.kanban[0], e: T.kanban[1], n: '02', label: 'Tarefas' },
-    { s: T.campo[0], e: T.campo[1], n: '03', label: 'Campo · N2' },
-    { s: T.ia[0], e: T.ia[1], n: '04', label: 'Assistente OPS' },
-    { s: T.plat[0], e: T.plat[1], n: '05', label: 'Plataforma' },
+    { s: T.ia[0], e: T.ia[1], n: '03', label: 'Assistente OPS' },
+    { s: T.plat[0], e: T.plat[1], n: '04', label: 'Plataforma' },
 ];
 
 function hud(t) {
@@ -372,7 +371,7 @@ function hud(t) {
     const ch = CHAPTERS.find(c => t >= c.s && t < c.e) || CHAPTERS[CHAPTERS.length - 1];
     text(ch.label.toUpperCase(), W - 140, 78, { size: 15, weight: 700, color: C.muted, ls: 3, align: 'right' });
     const lw = measure(ch.label.toUpperCase(), 15, 700, F.body, 3);
-    text(`${ch.n} / 05`, W - 140 - lw - 24, 78, { size: 15, weight: 700, font: F.mono, color: C.purple, align: 'right' });
+    text(`${ch.n} / ${String(CHAPTERS.length).padStart(2, '0')}`, W - 140 - lw - 24, 78, { size: 15, weight: 700, font: F.mono, color: C.purple, align: 'right' });
 
     // segmentos de progresso por capítulo (proporcionais à duração)
     const total = 420, gap = 10;
@@ -427,13 +426,13 @@ function sceneIntro(lt) {
     }
 
     reveal('SISTEMA DE OPERAÇÕES · FAISTON', cx, cy - 150, prog(lt, 2.8, 0.9), { size: 18, weight: 700, color: C.purple, ls: 6, align: 'center' });
-    reveal('Projetos, tarefas e campo — num só lugar.', cx, cy + 150, prog(lt, 3.0, 1.0), { size: 36, weight: 400, color: C.muted, align: 'center' });
+    reveal('Projetos, tarefas e equipe — num só lugar.', cx, cy + 150, prog(lt, 3.0, 1.0), { size: 36, weight: 400, color: C.muted, align: 'center' });
 }
 
 /* 2 · Manifesto */
 function sceneStatement(lt) {
     const cx = W / 2;
-    const lines = ['Cada hora apontada.', 'Cada tarefa no prazo.', 'Cada técnico em campo.'];
+    const lines = ['Cada hora apontada.', 'Cada tarefa no prazo.', 'Cada pessoa do time.'];
     const dim = E.inOut(prog(lt, 2.4, 0.8));
     lines.forEach((l, i) => {
         reveal(l, cx, 380 + i * 104, prog(lt, 0.25 + i * 0.5, 1.0), {
@@ -1322,71 +1321,7 @@ function drawKanbanCursor(lt) {
     ctx.restore();
 }
 
-/* 5 · Campo / Status N2 */
-function sceneCampo(lt) {
-    chapter(lt, '03', 'Campo', 'Campo', 'Status N2',
-        ['Cada atividade de campo', 'acompanhada em timeline,', 'do chamado ao carimbo.']);
-
-    const pin = E.out(prog(lt, 0.3, 0.9));
-    const x = 880 + (1 - pin) * 80, y = 180, w = 900, h = 730;
-    ctx.save(); ctx.globalAlpha *= pin;
-    panel(x, y, w, h);
-
-    const steps = [
-        { t: 'Chamado aberto', d: 'Solicitação registrada no sistema', h: '08:02' },
-        { t: 'Técnico designado', d: 'N2 define quem vai a campo', h: '08:15' },
-        { t: 'Em deslocamento', d: 'Técnico a caminho do local', h: '08:31' },
-        { t: 'Em atendimento', d: 'Execução da atividade no cliente', h: '09:04' },
-        { t: 'Concluído', d: 'Encerrado com carimbo de atendimento', h: '10:47' },
-    ];
-    const T0 = 1.2, STEP = 0.9;
-    const cur = clamp(Math.floor((lt - T0) / STEP), -1, steps.length - 1);
-    const colors = [C.purple, C.purple, C.cyanText, C.cyanText, C.pink];
-    const status = cur < 0 ? 'Aguardando' : steps[cur].t;
-
-    pill(x + 40, y + 40, 'BREAKFIX', { size: 13, h: 28, padX: 12, color: C.pink, ls: 1.2 });
-    text('Troca de switch · filial', x + 40, y + 118, { size: 34, weight: 700, font: F.display, ls: -0.5 });
-    text('#ATV-2318', x + 40, y + 154, { size: 17, weight: 600, font: F.mono, color: C.faint });
-    const sc = cur < 0 ? C.faint : cur === steps.length - 1 ? C.cyanText : colors[cur];
-    const sw = measure(status.toUpperCase(), 14, 700, F.body, 1.4) + 28;
-    pill(x + w - 40 - sw, y + 40, status.toUpperCase(), { size: 14, h: 30, padX: 14, color: sc, ls: 1.4 });
-
-    ctx.fillStyle = C.border; ctx.fillRect(x + 40, y + 190, w - 80, 1);
-
-    const lx = x + 78, ly0 = y + 252, lstep = 104;
-    ctx.fillStyle = '#ECEEF4';
-    ctx.fillRect(lx - 1.5, ly0, 3, lstep * (steps.length - 1));
-    const fillP = clamp((lt - T0) / (STEP * (steps.length - 1)));
-    if (fillP > 0) {
-        const fh = lstep * (steps.length - 1) * E.out(fillP);
-        ctx.fillStyle = linGrad(0, ly0, 0, ly0 + lstep * (steps.length - 1), [C.purple, C.cyan, C.pink]);
-        ctx.fillRect(lx - 1.5, ly0, 3, fh);
-    }
-
-    steps.forEach((s, i) => {
-        const yy = ly0 + i * lstep;
-        const on = prog(lt, T0 + i * STEP, 0.4);
-        ctx.beginPath(); ctx.arc(lx, yy, 12, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff'; ctx.fill();
-        ctx.lineWidth = 2.5; ctx.strokeStyle = on > 0 ? colors[i] : C.borderStrong; ctx.stroke();
-        if (on > 0) { ctx.beginPath(); ctx.arc(lx, yy, 6 * E.back(on), 0, Math.PI * 2); ctx.fillStyle = colors[i]; ctx.fill(); }
-        if (i === cur) {
-            const pr = (lt * 1.2) % 1;
-            ctx.save(); ctx.globalAlpha *= (1 - pr) * 0.6;
-            ctx.beginPath(); ctx.arc(lx, yy, 12 + pr * 18, 0, Math.PI * 2);
-            ctx.strokeStyle = colors[i]; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
-        }
-        const ta = lerp(0.35, 1, on);
-        text(s.t, lx + 40, yy + 2, { size: 25, weight: 700, alpha: ta });
-        text(s.d, lx + 40, yy + 34, { size: 18, color: C.muted, alpha: ta });
-        text(on > 0 ? s.h : '--:--', x + w - 44, yy + 2, { size: 19, weight: 600, font: F.mono, color: on > 0 ? C.text : C.faint, align: 'right', alpha: ta });
-    });
-
-    illustrative(x + w - 32, y + h - 22);
-    ctx.restore();
-}
-
-/* 6 · Assistente OPS */
+/* 5 · Assistente OPS */
 function wrapLines(str, maxW, size, weight = 400) {
     const words = str.split(' '), lines = []; let cur = '';
     words.forEach(w => {
@@ -1398,7 +1333,7 @@ function wrapLines(str, maxW, size, weight = 400) {
 }
 
 function sceneAssistente(lt) {
-    chapter(lt, '04', 'Inteligência artificial', 'Assistente', 'OPS',
+    chapter(lt, '03', 'Inteligência artificial', 'Assistente', 'OPS',
         ['IA embutida no sistema: acha', 'dados, explica processos, resume', 'a semana e faz o check-in do time.']);
 
     const pin = E.out(prog(lt, 0.3, 0.9));
@@ -1500,16 +1435,16 @@ function sceneAssistente(lt) {
     });
 }
 
-/* 7 · Plataforma */
+/* 6 · Plataforma */
 function scenePlataforma(lt) {
     const cx = W / 2;
-    reveal('05 · PLATAFORMA', cx, 228, prog(lt, 0.2, 0.8), { size: 18, weight: 700, color: C.purple, ls: 5, align: 'center' });
+    reveal('04 · PLATAFORMA', cx, 228, prog(lt, 0.2, 0.8), { size: 18, weight: 700, color: C.purple, ls: 5, align: 'center' });
     reveal('Tudo conectado num só sistema.', cx, 316, prog(lt, 0.35, 0.9), { size: 70, weight: 700, font: F.display, ls: -2, align: 'center' });
 
     const mods = [
         ['Dashboard', 'KPIs e horas em tempo real'],
         ['Tarefas', 'Kanban com timer e carga'],
-        ['Status N2', 'Atividades de campo em timeline'],
+        ['Agenda & Carimbos', 'Prazos e textos prontos'],
         ['Assistente OPS', 'IA no dia a dia do time'],
         ['Financeiro', 'Visão financeira dos projetos'],
         ['Forecast', 'Projeção mensal por projeto'],
@@ -1539,7 +1474,7 @@ function scenePlataforma(lt) {
     });
 }
 
-/* 8 · Encerramento */
+/* 7 · Encerramento */
 function sceneOutro(lt) {
     const cx = W / 2, cy = 430;
     const pm = prog(lt, 0.2, 0.9);
@@ -1560,7 +1495,6 @@ const SCENES = [
     { r: T.statement, draw: sceneStatement },
     { r: T.dash, draw: sceneDashboard },
     { r: T.kanban, draw: sceneKanban },
-    { r: T.campo, draw: sceneCampo },
     { r: T.ia, draw: sceneAssistente },
     { r: T.plat, draw: scenePlataforma },
     { r: T.outro, draw: sceneOutro, noFadeOut: true },
