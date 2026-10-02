@@ -637,8 +637,6 @@ function renderIntro(lt, len, sc) {
         T(r, { s: lerp(1, 1.9, E.out(q)), op: q > 0 && q < 1 ? (1 - q) * 0.6 : 0 });
     });
     rise($('#i-tag', sc), lt, 2.0, 0.7, 24);
-    // leve zoom contínuo pra não ficar parado
-    $('.intro', sc).style.transform = `scale(${1 + lt * 0.01})`;
 }
 
 function renderKanban(lt, len, sc) {
@@ -797,7 +795,6 @@ function renderOutro(lt, len, sc) {
     lockupIn($('#o-lock', sc), lt, 0.1);
     rise($('#o-tag', sc), lt, 1.6, 0.6, 24);
     $$('.chip', sc).forEach((c, i) => pop(c, lt, 2.0 + i * 0.08, 0.5));
-    $('.intro', sc).style.transform = `scale(${1 + lt * 0.01})`;
 }
 
 // ---------------------------------------------------------------- linha do tempo
