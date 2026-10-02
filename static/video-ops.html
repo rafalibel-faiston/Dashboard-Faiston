@@ -7,39 +7,41 @@
 <title>Vídeo · Faiston OPS</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <!--
-  Vídeo institucional do Faiston OPS (apresentação pra diretoria).
+  Vídeo institucional do Faiston OPS (apresentação pra diretoria) — tema claro.
 
   Tudo é desenhado num <canvas> 1920x1080 por uma função render(t)
   determinística: o mesmo quadro sai igual no navegador e na exportação.
 
   Atalhos: Espaço = play/pause · R = recomeçar · F = tela cheia · ←/→ = 5s
-  Parâmetros: ?loop=1 repete no fim · ?export=1 esconde a interface e expõe
-  window.renderAt(t) / window.VIDEO_DURATION (usado pra gerar o MP4).
+  Parâmetros: ?loop=1 repete no fim · ?t=20 começa no segundo 20 ·
+  ?export=1 esconde a interface e expõe window.renderAt(t) /
+  window.VIDEO_DURATION (usado pra gerar o MP4 quadro a quadro).
 -->
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #07070F; overflow: hidden; }
-    body { display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; color: #F1F2F8; }
+    html, body { width: 100%; height: 100%; background: #F4F5FA; overflow: hidden; }
+    body { display: flex; align-items: center; justify-content: center; font-family: Inter, system-ui, sans-serif; color: #0B0D1F; }
     canvas { display: block; width: min(100vw, 177.78vh); height: auto; aspect-ratio: 16 / 9; }
     .ui {
         position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
         display: flex; align-items: center; gap: 12px;
         width: min(760px, calc(100vw - 32px)); padding: 10px 14px;
-        background: rgba(17,17,30,0.82); backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+        background: rgba(255,255,255,0.88); backdrop-filter: blur(10px);
+        border: 1px solid #E5E8F0; border-radius: 14px;
+        box-shadow: 0 12px 32px -12px rgba(13,15,35,0.18);
         transition: opacity .3s ease; opacity: 1;
     }
     .ui.hide { opacity: 0; pointer-events: none; }
     .ui button {
-        border: 0; background: rgba(255,255,255,0.06); color: #F1F2F8;
+        border: 1px solid #E5E8F0; background: #fff; color: #0B0D1F;
         height: 34px; min-width: 34px; padding: 0 10px; border-radius: 9px;
         font: 600 13px Inter, sans-serif; cursor: pointer; white-space: nowrap;
     }
-    .ui button:hover { background: rgba(255,255,255,0.12); }
-    .ui button.primary { background: linear-gradient(135deg, #5B2EE0, #B826C9); }
+    .ui button:hover { background: #ECEEF4; }
+    .ui button.primary { background: linear-gradient(135deg, #5B2EE0, #B826C9); color: #fff; border: 0; }
     .ui input[type=range] { flex: 1; min-width: 60px; accent-color: #B826C9; }
-    .ui .time { font: 600 12px "JetBrains Mono", monospace; color: #9097AC; min-width: 92px; text-align: center; }
-    .ui .rec.on { background: #EC4899; }
+    .ui .time { font: 600 12px "JetBrains Mono", monospace; color: #5E647A; min-width: 92px; text-align: center; }
+    .ui .rec.on { background: #EC4899; color: #fff; border: 0; }
     .start {
         position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
         background: transparent; border: 0; cursor: pointer;
@@ -47,7 +49,7 @@
     .start span {
         width: 96px; height: 96px; border-radius: 28px;
         background: linear-gradient(135deg, #5B2EE0 0%, #B826C9 55%, #EC4899 100%);
-        box-shadow: 0 20px 60px -10px rgba(184,38,201,0.6);
+        box-shadow: 0 20px 60px -10px rgba(184,38,201,0.55);
         display: flex; align-items: center; justify-content: center;
     }
     .start.hide { display: none; }
@@ -78,11 +80,14 @@ const W = 1920, H = 1080;
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 
-/* ---------------- Identidade (mesmos tokens do style.css) ---------------- */
+/* ---------------- Identidade (mesmos tokens do style.css, tema claro) ---------------- */
 const C = {
-    bg: '#07070F', purple: '#5B2EE0', magenta: '#B826C9', pink: '#EC4899', cyan: '#06D7E6',
-    lav: '#A78BFA', text: '#F1F2F8', muted: '#9097AC', subtle: '#6A718A',
-    surface: 'rgba(255,255,255,0.035)', border: 'rgba(255,255,255,0.08)',
+    purple: '#5B2EE0', magenta: '#B826C9', pink: '#EC4899', cyan: '#06D7E6',
+    cyanText: '#0891A0',              // ciano legível em fundo branco (mesmo da página de novidades)
+    amber: '#F59E0B', green: '#0E9F6E', red: '#EF4444',
+    bg: '#F4F5FA', surface: '#FFFFFF', soft: '#F8F9FC',
+    text: '#0B0D1F', muted: '#5E647A', faint: '#9097AC',
+    border: '#E5E8F0', borderStrong: '#D6DAE6',
 };
 const GRAD = [C.purple, C.magenta, C.pink];
 const GRAD_COOL = [C.cyan, C.purple];
@@ -103,6 +108,11 @@ const E = {
 };
 const prog = (t, start, dur) => clamp((t - start) / dur);
 const fmtBR = (v, d = 1) => v.toFixed(d).replace('.', ',');
+const fmtClock = s => {
+    s = Math.max(0, Math.floor(s));
+    return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+};
+const fmtHM = s => `${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, '0')}m`;
 
 /* ---------------- Primitivas de desenho ---------------- */
 function linGrad(x0, y0, x1, y1, stops) {
@@ -113,13 +123,19 @@ function linGrad(x0, y0, x1, y1, stops) {
 
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 
+function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+}
+
 function panel(x, y, w, h, o = {}) {
     ctx.save();
-    if (o.shadow) {
-        ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 20;
+    if (o.shadow !== false) {
+        ctx.shadowColor = o.shadowColor ?? 'rgba(13,15,35,0.10)';
+        ctx.shadowBlur = o.blur ?? 48; ctx.shadowOffsetY = o.dy ?? 18;
     }
     rr(x, y, w, h, o.r ?? 24);
-    ctx.fillStyle = o.fill ?? 'rgba(17,17,30,0.72)';
+    ctx.fillStyle = o.fill ?? C.surface;
     ctx.fill();
     ctx.shadowColor = 'transparent';
     ctx.lineWidth = o.lw ?? 1.5;
@@ -144,11 +160,11 @@ function text(str, x, y, o = {}) {
     ctx.textAlign = o.align ?? 'left';
     ctx.textBaseline = o.base ?? 'alphabetic';
     const w = ctx.measureText(str).width;
-    if (o.grad) {
-        const x0 = ctx.textAlign === 'center' ? x - w / 2 : ctx.textAlign === 'right' ? x - w : x;
-        ctx.fillStyle = linGrad(x0, 0, x0 + w, 0, o.grad);
-    } else ctx.fillStyle = o.color ?? C.text;
+    const x0 = ctx.textAlign === 'center' ? x - w / 2 : ctx.textAlign === 'right' ? x - w : x;
+    if (o.grad) ctx.fillStyle = linGrad(x0, 0, x0 + w, 0, o.grad);
+    else ctx.fillStyle = o.color ?? C.text;
     ctx.fillText(str, x, y);
+    if (o.strike) { ctx.fillRect(x0, y - size * 0.32, w, Math.max(1.2, size * 0.07)); }
     ctx.restore();
     return w;
 }
@@ -170,25 +186,21 @@ function reveal(str, x, y, p, o = {}) {
 
 function pill(x, y, label, o = {}) {
     const size = o.size ?? 15, padX = o.padX ?? 14, h = o.h ?? size + 16;
-    const w = measure(label, size, 700, F.body, o.ls ?? 0.6) + padX * 2;
-    const color = o.color ?? C.cyan;
+    const w = measure(label, size, o.weight ?? 700, F.body, o.ls ?? 0.6) + padX * 2;
+    const color = o.color ?? C.purple;
     ctx.save();
     ctx.globalAlpha *= o.alpha ?? 1;
-    rr(x, y, w, h, h / 2);
-    ctx.fillStyle = hexA(color, 0.13); ctx.fill();
-    ctx.lineWidth = 1.2; ctx.strokeStyle = hexA(color, 0.35); ctx.stroke();
-    text(label, x + padX, y + h / 2 + 1, { size, weight: 700, color, base: 'middle', ls: o.ls ?? 0.6 });
+    rr(x, y, w, h, o.r ?? h / 2);
+    ctx.fillStyle = o.fill ?? hexA(color, 0.10); ctx.fill();
+    if (o.stroke !== false) { ctx.lineWidth = 1.2; ctx.strokeStyle = hexA(color, 0.28); ctx.stroke(); }
+    text(label, x + padX, y + h / 2 + 1, { size, weight: o.weight ?? 700, color: o.textColor ?? color, base: 'middle', ls: o.ls ?? 0.6 });
     ctx.restore();
     return w;
 }
 
-function hexA(hex, a) {
-    const n = parseInt(hex.slice(1), 16);
-    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
-}
-
-function avatar(cx, cy, r, letter, grad) {
+function avatar(cx, cy, r, letter, grad, ring) {
     ctx.save();
+    if (ring) { ctx.beginPath(); ctx.arc(cx, cy, r + 2.5, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); }
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = linGrad(cx - r, cy - r, cx + r, cy + r, grad); ctx.fill();
     text(letter, cx, cy + 1, { size: r * 0.95, weight: 700, align: 'center', base: 'middle', color: '#fff' });
@@ -202,7 +214,7 @@ function mark(cx, cy, s, o = {}) {
     ctx.globalAlpha *= o.alpha ?? 1;
     ctx.translate(cx, cy);
     if (o.rot) ctx.rotate(o.rot);
-    if (o.glow) { ctx.shadowColor = 'rgba(184,38,201,0.55)'; ctx.shadowBlur = 70 * k * o.glow; ctx.shadowOffsetY = 14 * k; }
+    if (o.glow) { ctx.shadowColor = 'rgba(184,38,201,0.40)'; ctx.shadowBlur = 60 * k * o.glow; ctx.shadowOffsetY = 16 * k; }
     rr(-s / 2, -s / 2, s, s, 16 * k);
     ctx.fillStyle = linGrad(-s / 2, -s / 2, s / 2, s / 2, GRAD);
     ctx.fill();
@@ -221,7 +233,7 @@ function mark(cx, cy, s, o = {}) {
 }
 
 function wordmark(x, y, size, o = {}) {
-    const w1 = text('FAISTON ', x, y, { size, weight: 700, font: F.display, ls: o.ls ?? 0, alpha: o.alpha, base: o.base });
+    const w1 = text('FAISTON ', x, y, { size, weight: 700, font: F.display, ls: o.ls ?? 0, alpha: o.alpha, base: o.base, color: C.text });
     const w2 = text('OPS', x + w1, y, { size, weight: 700, font: F.display, ls: o.ls ?? 0, grad: GRAD, alpha: o.alpha, base: o.base });
     return w1 + w2;
 }
@@ -236,13 +248,13 @@ function sparkle(cx, cy, r, color = '#fff') {
     ctx.fillStyle = color; ctx.fill(); ctx.restore();
 }
 
-function check(cx, cy, s, color, p = 1) {
+function check(cx, cy, s, color, p = 1, lw) {
     if (p <= 0) return;
     ctx.save();
-    ctx.strokeStyle = color; ctx.lineWidth = s * 0.22; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = color; ctx.lineWidth = lw ?? s * 0.22; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     const pts = [[-0.45, 0.02], [-0.12, 0.34], [0.48, -0.32]];
     const len1 = Math.hypot(0.33, 0.32), len2 = Math.hypot(0.6, 0.66), total = len1 + len2;
-    let d = p * total;
+    const d = p * total;
     ctx.beginPath(); ctx.moveTo(cx + pts[0][0] * s, cy + pts[0][1] * s);
     const a = clamp(d / len1);
     ctx.lineTo(cx + lerp(pts[0][0], pts[1][0], a) * s, cy + lerp(pts[0][1], pts[1][1], a) * s);
@@ -253,82 +265,124 @@ function check(cx, cy, s, color, p = 1) {
     ctx.stroke(); ctx.restore();
 }
 
+function playIcon(cx, cy, s, color) {
+    ctx.beginPath(); ctx.moveTo(cx - s * 0.4, cy - s * 0.5); ctx.lineTo(cx + s * 0.5, cy); ctx.lineTo(cx - s * 0.4, cy + s * 0.5); ctx.closePath();
+    ctx.fillStyle = color; ctx.fill();
+}
+function pauseIcon(cx, cy, s, color) {
+    ctx.fillStyle = color;
+    rr(cx - s * 0.45, cy - s * 0.5, s * 0.3, s, 1.5); ctx.fill();
+    rr(cx + s * 0.15, cy - s * 0.5, s * 0.3, s, 1.5); ctx.fill();
+}
+
+/* Ponteiro do mouse + "clique" (anel que expande). */
+function cursor(x, y, press = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    const s = 1 - press * 0.12;
+    ctx.scale(s, s);
+    ctx.shadowColor = 'rgba(13,15,35,0.28)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(0, 30); ctx.lineTo(7.5, 23); ctx.lineTo(12.5, 34.5); ctx.lineTo(18, 32);
+    ctx.lineTo(13, 21); ctx.lineTo(23, 21); ctx.closePath();
+    ctx.fillStyle = C.text; ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.lineJoin = 'round'; ctx.stroke();
+    ctx.restore();
+}
+function clickRing(x, y, p) {
+    if (p <= 0 || p >= 1) return;
+    ctx.save();
+    ctx.globalAlpha *= (1 - p) * 0.7;
+    ctx.beginPath(); ctx.arc(x, y, 8 + E.out(p) * 30, 0, Math.PI * 2);
+    ctx.lineWidth = 3; ctx.strokeStyle = C.magenta; ctx.stroke();
+    ctx.restore();
+}
+
 /* Cabeçalho de capítulo — mesmo layout em todas as cenas de módulo. */
-function chapter(lt, num, kicker, title1, title2, sub, x = 140, y = 360) {
+function chapter(lt, num, kicker, title1, title2, sub, x = 140, y = 360, size = 80) {
     const a = E.out(prog(lt, 0.15, 0.6));
     ctx.save(); ctx.globalAlpha *= a;
-    text(num, x, y, { size: 22, weight: 700, font: F.mono, color: C.cyan });
-    ctx.fillStyle = hexA(C.cyan, 0.5);
+    text(num, x, y, { size: 22, weight: 700, font: F.mono, color: C.purple });
+    ctx.fillStyle = hexA(C.purple, 0.45);
     ctx.fillRect(x + 46, y - 8, 60 * E.out(prog(lt, 0.3, 0.7)), 2);
     text(kicker.toUpperCase(), x + 122, y, { size: 16, weight: 700, color: C.muted, ls: 3 });
     ctx.restore();
-    reveal(title1, x, y + 104, prog(lt, 0.3, 0.9), { size: 80, weight: 700, font: F.display, ls: -2 });
-    reveal(title2, x, y + 192, prog(lt, 0.45, 0.9), { size: 80, weight: 700, font: F.display, ls: -2, grad: GRAD });
-    sub.forEach((line, i) => reveal(line, x, y + 270 + i * 42, prog(lt, 0.8 + i * 0.1, 0.9), { size: 27, weight: 400, color: C.muted }));
+    const lh = size * 1.1;
+    reveal(title1, x, y + size * 1.3, prog(lt, 0.3, 0.9), { size, weight: 700, font: F.display, ls: -2 });
+    reveal(title2, x, y + size * 1.3 + lh, prog(lt, 0.45, 0.9), { size, weight: 700, font: F.display, ls: -2, grad: GRAD });
+    sub.forEach((line, i) => reveal(line, x, y + size * 1.3 + lh + 78 + i * 42, prog(lt, 0.8 + i * 0.1, 0.9), { size: 27, weight: 400, color: C.muted }));
+}
+
+function illustrative(x, y, a = 1) {
+    text('dados ilustrativos', x, y, { size: 13, color: C.faint, align: 'right', alpha: a });
 }
 
 /* ---------------- Fundo e HUD ---------------- */
 function background(t) {
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
 
-    const g1x = 1500 + Math.sin(t * 0.18) * 120, g1y = 140 + Math.cos(t * 0.14) * 60;
-    let g = ctx.createRadialGradient(g1x, g1y, 0, g1x, g1y, 1000);
-    g.addColorStop(0, 'rgba(91,46,224,0.24)'); g.addColorStop(1, 'rgba(91,46,224,0)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-
-    const g2x = 260 + Math.cos(t * 0.16) * 100, g2y = 980 + Math.sin(t * 0.2) * 40;
-    g = ctx.createRadialGradient(g2x, g2y, 0, g2x, g2y, 800);
-    g.addColorStop(0, 'rgba(6,215,230,0.11)'); g.addColorStop(1, 'rgba(6,215,230,0)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-
-    const g3x = 900 + Math.sin(t * 0.1) * 200, g3y = 620;
-    g = ctx.createRadialGradient(g3x, g3y, 0, g3x, g3y, 700);
-    g.addColorStop(0, 'rgba(184,38,201,0.06)'); g.addColorStop(1, 'rgba(184,38,201,0)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const blob = (x, y, r, rgb, a) => {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    };
+    blob(1520 + Math.sin(t * 0.18) * 120, 120 + Math.cos(t * 0.14) * 60, 1000, '91,46,224', 0.10);
+    blob(260 + Math.cos(t * 0.16) * 100, 980 + Math.sin(t * 0.2) * 40, 800, '6,215,230', 0.12);
+    blob(980 + Math.sin(t * 0.1) * 200, 640, 700, '236,72,153', 0.05);
 
     // grade da marca, deslizando bem devagar
     const step = 48, off = (t * 6) % step;
     ctx.save();
-    ctx.strokeStyle = 'rgba(124,92,255,0.045)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(91,46,224,0.055)'; ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = -off; x < W; x += step) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
     for (let y = -off; y < H; y += step) { ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
     ctx.stroke();
     ctx.restore();
 
-    // vinheta
-    g = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 1.05);
-    g.addColorStop(0, 'rgba(7,7,15,0)'); g.addColorStop(1, 'rgba(7,7,15,0.75)');
+    // vinheta clarinha pra grade sumir nas bordas
+    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, H * 1.05);
+    g.addColorStop(0, 'rgba(244,245,250,0)'); g.addColorStop(1, 'rgba(244,245,250,0.85)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 }
 
+/* ---------------- Linha do tempo ---------------- */
+const T = {
+    intro: [0, 5.5], statement: [5.5, 10.5], dash: [10.5, 17.5], kanban: [17.5, 46],
+    campo: [46, 53], ia: [53, 61.5], plat: [61.5, 67.5], outro: [67.5, 73.5],
+};
+const DURATION = 73.5;
+
 const CHAPTERS = [
-    { s: 10.5, e: 18.5, n: '01', label: 'Apontamento' },
-    { s: 18.5, e: 27.5, n: '02', label: 'Tarefas' },
-    { s: 27.5, e: 35, n: '03', label: 'Campo · N2' },
-    { s: 35, e: 44, n: '04', label: 'Assistente OPS' },
-    { s: 44, e: 50, n: '05', label: 'Plataforma' },
+    { s: T.dash[0], e: T.dash[1], n: '01', label: 'Apontamento' },
+    { s: T.kanban[0], e: T.kanban[1], n: '02', label: 'Tarefas' },
+    { s: T.campo[0], e: T.campo[1], n: '03', label: 'Campo · N2' },
+    { s: T.ia[0], e: T.ia[1], n: '04', label: 'Assistente OPS' },
+    { s: T.plat[0], e: T.plat[1], n: '05', label: 'Plataforma' },
 ];
 
 function hud(t) {
-    const a = prog(t, 10.2, 0.6) * (1 - prog(t, 49.6, 0.5));
+    const a = prog(t, T.dash[0] - 0.3, 0.6) * (1 - prog(t, T.plat[1] - 0.4, 0.5));
     if (a <= 0) return;
     ctx.save(); ctx.globalAlpha = a;
-    mark(158, 92, 40);
-    wordmark(194, 101, 24, {});
+    mark(158, 70, 40);
+    wordmark(194, 79, 24, {});
 
     const ch = CHAPTERS.find(c => t >= c.s && t < c.e) || CHAPTERS[CHAPTERS.length - 1];
-    text(ch.label.toUpperCase(), W - 140, 100, { size: 15, weight: 700, color: C.muted, ls: 3, align: 'right' });
+    text(ch.label.toUpperCase(), W - 140, 78, { size: 15, weight: 700, color: C.muted, ls: 3, align: 'right' });
     const lw = measure(ch.label.toUpperCase(), 15, 700, F.body, 3);
-    text(`${ch.n} / 05`, W - 140 - lw - 24, 100, { size: 15, weight: 700, font: F.mono, color: C.cyan, align: 'right' });
+    text(`${ch.n} / 05`, W - 140 - lw - 24, 78, { size: 15, weight: 700, font: F.mono, color: C.purple, align: 'right' });
 
-    // segmentos de progresso por capítulo
-    const segW = 64, gap = 10, total = CHAPTERS.length * segW + (CHAPTERS.length - 1) * gap;
+    // segmentos de progresso por capítulo (proporcionais à duração)
+    const total = 420, gap = 10;
+    const span = CHAPTERS.reduce((s, c) => s + (c.e - c.s), 0);
     let x = W / 2 - total / 2;
     CHAPTERS.forEach(c => {
+        const segW = (total - gap * (CHAPTERS.length - 1)) * (c.e - c.s) / span;
         const p = clamp((t - c.s) / (c.e - c.s));
-        rr(x, H - 70, segW, 4, 2); ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill();
-        if (p > 0) { rr(x, H - 70, segW * p, 4, 2); ctx.fillStyle = linGrad(x, 0, x + segW, 0, GRAD); ctx.fill(); }
+        rr(x, H - 54, segW, 4, 2); ctx.fillStyle = 'rgba(11,13,31,0.08)'; ctx.fill();
+        if (p > 0) { rr(x, H - 54, segW * p, 4, 2); ctx.fillStyle = linGrad(x, 0, x + segW, 0, GRAD); ctx.fill(); }
         x += segW + gap;
     });
     ctx.restore();
@@ -342,16 +396,15 @@ function hud(t) {
 function sceneIntro(lt) {
     const cx = W / 2, cy = H / 2 - 30;
     const markS = 150, gap = 44, wmSize = 128;
-    const wmW = measure('FAISTON ', wmSize, 700, F.display) + measure('OPS', wmSize, 700, F.display);
+    const wmW = measure('FAISTON ', wmSize, 700, F.display, -3) + measure('OPS', wmSize, 700, F.display, -3);
     const groupW = markS + gap + wmW;
     const slide = E.inOut(prog(lt, 1.5, 1.0));
     const markX = lerp(cx, cx - groupW / 2 + markS / 2, slide);
 
-    // anel que pulsa quando a marca entra
     const ring = prog(lt, 0.7, 1.4);
     if (ring > 0 && ring < 1) {
         ctx.save();
-        ctx.globalAlpha = (1 - ring) * 0.6;
+        ctx.globalAlpha = (1 - ring) * 0.5;
         ctx.strokeStyle = C.magenta; ctx.lineWidth = 2;
         const rs = markS * (1 + E.out(ring) * 1.6);
         rr(markX - rs / 2, cy - rs / 2, rs, rs, rs * 0.27); ctx.stroke();
@@ -364,7 +417,6 @@ function sceneIntro(lt) {
         mark(markX, cy, s, { glow: 1, rot: (1 - E.out(pm)) * -0.5, tri: E.back(prog(lt, 0.75, 0.6)) });
     }
 
-    // wordmark entra por "wipe" da esquerda pra direita
     const pw = E.inOut(prog(lt, 1.9, 1.0));
     if (pw > 0) {
         const wx = cx - groupW / 2 + markS + gap;
@@ -374,7 +426,7 @@ function sceneIntro(lt) {
         ctx.restore();
     }
 
-    reveal('SISTEMA DE OPERAÇÕES · FAISTON', cx, cy - 150, prog(lt, 2.8, 0.9), { size: 18, weight: 700, color: C.cyan, ls: 6, align: 'center' });
+    reveal('SISTEMA DE OPERAÇÕES · FAISTON', cx, cy - 150, prog(lt, 2.8, 0.9), { size: 18, weight: 700, color: C.purple, ls: 6, align: 'center' });
     reveal('Projetos, tarefas e campo — num só lugar.', cx, cy + 150, prog(lt, 3.0, 1.0), { size: 36, weight: 400, color: C.muted, align: 'center' });
 }
 
@@ -385,7 +437,7 @@ function sceneStatement(lt) {
     const dim = E.inOut(prog(lt, 2.4, 0.8));
     lines.forEach((l, i) => {
         reveal(l, cx, 380 + i * 104, prog(lt, 0.25 + i * 0.5, 1.0), {
-            size: 74, weight: 700, font: F.display, ls: -2, align: 'center', alpha: lerp(1, 0.32, dim),
+            size: 74, weight: 700, font: F.display, ls: -2, align: 'center', alpha: lerp(1, 0.25, dim),
         });
     });
     reveal('Tudo visível, em tempo real.', cx, 760, prog(lt, 2.7, 1.1), { size: 88, weight: 700, font: F.display, ls: -3, align: 'center', grad: GRAD });
@@ -403,55 +455,52 @@ function sceneDashboard(lt) {
         ['Horas apontadas, produtividade e', 'conclusão do time — ao vivo,', 'sem planilha paralela.']);
 
     const pin = E.out(prog(lt, 0.3, 1.0));
-    const x = 880 + (1 - pin) * 80, y = 180, w = 900, h = 730;
+    const x = 880 + (1 - pin) * 80, y = 170, w = 900, h = 740;
     ctx.save(); ctx.globalAlpha *= pin;
-    panel(x, y, w, h, { shadow: true });
+    panel(x, y, w, h);
 
     text('Dashboard', x + 40, y + 62, { size: 26, weight: 700 });
-    text('Hoje · equipe de projetos', x + 40 + measure('Dashboard', 26, 700) + 16, y + 62, { size: 19, color: C.subtle });
+    text('Hoje · equipe de projetos', x + 40 + measure('Dashboard', 26, 700) + 16, y + 62, { size: 19, color: C.faint });
     const blink = 0.55 + 0.45 * Math.sin(lt * 4);
     ctx.save(); ctx.globalAlpha *= blink;
     ctx.beginPath(); ctx.arc(x + w - 150, y + 55, 6, 0, Math.PI * 2); ctx.fillStyle = C.cyan; ctx.fill();
     ctx.restore();
-    text('AO VIVO', x + w - 134, y + 61, { size: 15, weight: 700, color: C.cyan, ls: 2.5 });
+    text('AO VIVO', x + w - 134, y + 61, { size: 15, weight: 700, color: C.cyanText, ls: 2.5 });
 
-    // KPIs
     const kpis = [
-        { label: 'HORAS APONTADAS', v: 128.67, fmt: v => `${Math.floor(v)}h ${String(Math.round((v % 1) * 60)).padStart(2, '0')}m`, color: C.cyan, sub: 'hoje' },
+        { label: 'HORAS APONTADAS', v: 128.67, fmt: v => `${Math.floor(v)}h ${String(Math.round((v % 1) * 60)).padStart(2, '0')}m`, color: C.cyanText, sub: 'hoje' },
         { label: 'HORAS / PESSOA', v: 7.6, fmt: v => fmtBR(v), color: C.pink, sub: 'média do time' },
-        { label: 'CONCLUSÃO', v: 94, fmt: v => `${Math.round(v)}%`, color: C.lav, sub: 'meta: 92%' },
+        { label: 'CONCLUSÃO', v: 94, fmt: v => `${Math.round(v)}%`, color: C.purple, sub: 'meta: 92%' },
     ];
     const kw = (w - 80 - 40) / 3;
     kpis.forEach((k, i) => {
         const kp = prog(lt, 0.9 + i * 0.15, 0.7);
         const kx = x + 40 + i * (kw + 20), ky = y + 104 + (1 - E.out(kp)) * 20;
         ctx.save(); ctx.globalAlpha *= E.out(kp);
-        panel(kx, ky, kw, 168, { r: 18, fill: C.surface });
-        text(k.label, kx + 24, ky + 42, { size: 14, weight: 700, color: C.subtle, ls: 2 });
+        panel(kx, ky, kw, 168, { r: 18, fill: C.soft, shadow: false });
+        text(k.label, kx + 24, ky + 42, { size: 14, weight: 700, color: C.faint, ls: 2 });
         const cnt = E.out(prog(lt, 1.0 + i * 0.15, 1.6));
         text(k.fmt(k.v * cnt), kx + 22, ky + 112, { size: 50, weight: 700, font: F.display, color: k.color, ls: -1.5 });
-        text(k.sub, kx + 24, ky + 146, { size: 17, color: C.subtle });
+        text(k.sub, kx + 24, ky + 146, { size: 17, color: C.faint });
         ctx.restore();
     });
 
-    // gráfico de barras
     const cx0 = x + 40, cw = w - 80, top = y + 320;
-    panel(cx0, top, cw, 370, { r: 18, fill: C.surface });
+    panel(cx0, top, cw, 370, { r: 18, fill: C.soft, shadow: false });
     text('Horas apontadas · semana', cx0 + 28, top + 46, { size: 19, weight: 600, color: C.muted });
     const base = top + 310, maxH = 210, maxV = 10;
     const vals = [6.8, 7.9, 7.2, 8.4, 7.6], days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'];
     const bw = 92, inner = cw - 120, bgap = (inner - vals.length * bw) / (vals.length - 1);
 
-    // meta 8h
     const my = base - (8 / maxV) * maxH;
     const mp = E.out(prog(lt, 2.6, 0.8));
     ctx.save(); ctx.globalAlpha *= mp;
-    ctx.setLineDash([6, 8]); ctx.strokeStyle = hexA(C.lav, 0.55); ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 8]); ctx.strokeStyle = hexA(C.purple, 0.45); ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(cx0 + 40, my); ctx.lineTo(cx0 + 40 + (cw - 80) * mp, my); ctx.stroke();
+    ctx.setLineDash([5, 6]); ctx.strokeStyle = hexA(C.purple, 0.7);
+    ctx.beginPath(); ctx.moveTo(cx0 + cw - 150, top + 40); ctx.lineTo(cx0 + cw - 124, top + 40); ctx.stroke();
     ctx.restore();
-    ctx.save(); ctx.globalAlpha *= mp; ctx.setLineDash([5, 6]); ctx.strokeStyle = hexA(C.lav, 0.8); ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(cx0 + cw - 150, top + 40); ctx.lineTo(cx0 + cw - 124, top + 40); ctx.stroke(); ctx.restore();
-    text('meta 8h', cx0 + cw - 28, top + 46, { size: 16, weight: 600, color: C.lav, align: 'right', alpha: mp });
+    text('meta 8h', cx0 + cw - 28, top + 46, { size: 16, weight: 600, color: C.purple, align: 'right', alpha: mp });
 
     vals.forEach((v, i) => {
         const bp = E.out(prog(lt, 1.6 + i * 0.12, 1.0));
@@ -462,145 +511,599 @@ function sceneDashboard(lt) {
             ctx.fillStyle = linGrad(0, base, 0, base - maxH, [C.purple, C.magenta, C.cyan]);
             ctx.fill();
         }
-        text(days[i], bx + bw / 2, base + 34, { size: 17, weight: 600, color: C.subtle, align: 'center' });
+        text(days[i], bx + bw / 2, base + 34, { size: 17, weight: 600, color: C.faint, align: 'center' });
         text(fmtBR(v) + 'h', bx + bw / 2, base - bh - 14, { size: 17, weight: 700, font: F.mono, color: C.text, align: 'center', alpha: prog(lt, 2.4 + i * 0.12, 0.4) });
     });
 
-    text('dados ilustrativos', x + w - 32, y + h - 22, { size: 13, color: C.subtle, align: 'right', alpha: 0.7 });
+    illustrative(x + w - 32, y + h - 22);
     ctx.restore();
 }
 
-/* 4 · Kanban */
-const KCARDS = {
-    A: { tag: 'IMAC', tc: C.lav, title: 'Mudança de estação · 3º andar', who: 'A', due: 'Hoje', g: [C.purple, C.magenta] },
-    B: { tag: 'Rollout', tc: C.cyan, title: 'Rollout de notebooks · lote 2', who: 'C', due: 'Amanhã', g: [C.cyan, C.purple] },
-    C: { tag: 'Faturamento', tc: C.pink, title: 'Fechamento de medição', who: 'L', due: 'Sex', g: [C.pink, C.purple] },
-    D: { tag: 'BreakFix', tc: C.pink, title: 'Troca de switch · filial', who: 'T', due: 'Hoje', g: [C.magenta, C.pink] },
-    E: { tag: 'Acionamento', tc: C.lav, title: 'Acionar técnico · cabeamento', who: 'A', due: 'Hoje', g: [C.purple, C.magenta] },
-    F: { tag: 'Rollout', tc: C.cyan, title: 'Inventário de ativos', who: 'C', due: 'Ontem', g: [C.cyan, C.purple] },
-};
-const KSTATES = [
-    [['A', 'B', 'C'], ['D', 'E'], ['F']],
-    [['B', 'C'], ['A', 'D', 'E'], ['F']],
-    [['B', 'C'], ['A', 'E'], ['D', 'F']],
-];
-const KB = { x: 700, y: 180, colW: 340, gap: 30, colH: 460, cardH: 104, step: 118 };
+/* ======================================================================
+   4 · KANBAN NA PRÁTICA — demo guiada com cursor, fiel ao quadro real
+   (funcionario.html: card com #id, prioridade, projeto, prazo, timer,
+   ✓ / Iniciar-Pausar; faixa "Sua carga agora"; ajudantes).
+   ====================================================================== */
+const KW = { x: 600, y: 130, w: 1200, h: 830 };
+const KCOL = { y: KW.y + 284, w: 368, gap: 20, bodyH: 524 };
+const KCARD = { w: 344, h: 146, step: 158 };
 
-function kPos(state, id) {
+const TASKS = {
+    N: { id: 1043, prio: 'Alta', desc: 'Instalação de access points', proj: 'Cabeamento Filial', prazo: ['Prazo: 08/10', C.purple] },
+    A: { id: 1038, prio: 'Alta', desc: 'Levantamento de pontos de rede', proj: 'Cabeamento Filial', prazo: ['Prazo: amanhã', C.amber] },
+    B: { id: 1035, prio: 'Baixa', desc: 'Conferir inventário de ativos', proj: 'Rollout Notebooks', prazo: ['Prazo: 10/10', C.purple] },
+    C: { id: 1029, prio: 'Media', desc: 'Fechamento de medição', proj: 'IMAC Sede', prazo: ['Prazo: 1d atraso', C.pink] },
+    D: { id: 1021, prio: 'Media', desc: 'Agendar janela com o cliente', proj: 'IMAC Sede', prazo: null },
+};
+const PRIO = { Alta: C.magenta, Media: C.purple, Baixa: C.cyanText };
+const KSTATES = [
+    [['A', 'B'], ['C'], ['D']],          // início
+    [['N', 'A', 'B'], ['C'], ['D']],     // criou a tarefa nova
+    [['N', 'B'], ['A', 'C'], ['D']],     // arrastou A pra Em andamento
+    [['N', 'B'], ['A'], ['C', 'D']],     // concluiu C (fora do prazo)
+];
+
+// marcos da cena (segundos dentro da cena)
+const K = {
+    clickNew: 2.0, modalIn: 2.1, save: 5.5, modalOut: 5.6, cardIn: 5.9,
+    grab: 7.5, drop: 8.6, startA: 9.7, startC: 10.9,
+    clickDone: 13.3, motivoIn: 13.4, motivoOk: 15.6, moveC: 15.8,
+    spot: [18.0, 22.2], dots: 23.2, pickCaio: 23.9, pickLia: 24.4, addHelp: 25.0, toast: 25.2,
+};
+const STEPS = [
+    { s: 1.0, title: 'Criar tarefa', desc: 'Projeto, tipo, natureza e previsão' },
+    { s: 6.6, title: 'Mover e cronometrar', desc: 'Arrasta o card e aperta Iniciar' },
+    { s: 12.4, title: 'Concluir', desc: 'Fora do prazo, o sistema pede o motivo' },
+    { s: 17.9, title: 'Carga da pessoa', desc: 'Peso × prazo vira um nível de carga' },
+    { s: 22.4, title: 'Ajudantes', desc: 'Colegas entram na tarefa e são avisados' },
+];
+
+function colX(c) { return KW.x + 28 + c * (KCOL.w + KCOL.gap); }
+function slotPos(state, id) {
     for (let c = 0; c < 3; c++) {
         const i = KSTATES[state][c].indexOf(id);
-        if (i >= 0) return { x: KB.x + c * (KB.colW + KB.gap) + 16, y: KB.y + 84 + i * KB.step, c };
+        if (i >= 0) return { x: colX(c) + 12, y: KCOL.y + 12 + i * KCARD.step };
     }
+    return null;
 }
 
-function kCard(id, x, y, o) {
-    const k = KCARDS[id], w = KB.colW - 32, h = KB.cardH;
-    ctx.save();
-    ctx.globalAlpha *= o.alpha ?? 1;
-    if (o.lift) {
-        ctx.translate(x + w / 2, y + h / 2); ctx.scale(1 + o.lift * 0.05, 1 + o.lift * 0.05); ctx.rotate(o.lift * -0.025);
-        ctx.translate(-(x + w / 2), -(y + h / 2));
-        ctx.shadowColor = 'rgba(184,38,201,0.45)'; ctx.shadowBlur = 40 * o.lift; ctx.shadowOffsetY = 16 * o.lift;
+function kTransitions(lt) {
+    return [
+        E.inOut(prog(lt, K.cardIn, 0.6)),
+        E.inOut(prog(lt, K.grab + 0.1, K.drop - K.grab - 0.1)),
+        E.inOut(prog(lt, K.moveC, 0.9)),
+    ];
+}
+
+function cardPos(id, lt) {
+    const tr = kTransitions(lt);
+    let p = slotPos(0, id) || slotPos(1, id);
+    for (let s = 1; s < KSTATES.length; s++) {
+        const q = slotPos(s, id);
+        p = { x: lerp(p.x, q.x, tr[s - 1]), y: lerp(p.y, q.y, tr[s - 1]) };
     }
-    rr(x, y, w, h, 16);
-    ctx.fillStyle = o.done ? 'rgba(22,22,40,0.92)' : '#161628'; ctx.fill();
+    return p;
+}
+
+// botões dentro do card (relativos ao canto do card)
+const BTN = { okX: 344 - 16 - 92 - 8 - 32, okW: 32, runX: 344 - 16 - 92, runW: 92, y: 104, h: 30 };
+
+function kCard(id, x, y, o) {
+    const t = TASKS[id], w = KCARD.w, h = KCARD.h;
+    ctx.save();
+    ctx.globalAlpha *= (o.alpha ?? 1) * (o.done ? 0.62 : 1);
+    if (o.lift) {
+        ctx.translate(x + w / 2, y + h / 2); ctx.scale(1 + o.lift * 0.04, 1 + o.lift * 0.04); ctx.rotate(o.lift * -0.03);
+        ctx.translate(-(x + w / 2), -(y + h / 2));
+    }
+    ctx.shadowColor = o.lift ? 'rgba(91,46,224,0.28)' : 'rgba(13,15,35,0.06)';
+    ctx.shadowBlur = o.lift ? 36 : 6; ctx.shadowOffsetY = o.lift ? 18 : 2;
+    rr(x, y, w, h, 14); ctx.fillStyle = '#fff'; ctx.fill();
     ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 1.3; ctx.strokeStyle = o.lift ? hexA(C.magenta, 0.6) : 'rgba(255,255,255,0.09)'; ctx.stroke();
-
-    pill(x + 16, y + 14, k.tag.toUpperCase(), { size: 11, h: 22, padX: 9, color: k.tc, ls: 1 });
-    text(k.title, x + 16, y + 62, { size: 18, weight: 600, color: o.done ? C.muted : C.text });
-    avatar(x + 30, y + 84, 11, k.who, k.g);
-
-    if (o.done) {
-        check(x + 58, y + 84, 16, C.cyan, o.doneP ?? 1);
-        text('Concluído', x + 72, y + 90, { size: 15, weight: 600, color: C.cyan, alpha: o.doneP ?? 1 });
-    } else if (o.timer != null) {
-        const s = Math.floor(o.timer);
-        const hh = String(Math.floor(s / 3600)).padStart(2, '0'), mm = String(Math.floor(s / 60) % 60).padStart(2, '0'), ss = String(s % 60).padStart(2, '0');
-        ctx.save(); ctx.globalAlpha *= 0.5 + 0.5 * Math.abs(Math.sin(o.t * 3));
-        ctx.beginPath(); ctx.arc(x + 54, y + 84, 4.5, 0, Math.PI * 2); ctx.fillStyle = C.cyan; ctx.fill();
+    ctx.lineWidth = o.running || o.lift ? 1.8 : 1.3;
+    ctx.strokeStyle = o.running || o.lift ? C.purple : o.helpers ? hexA(C.cyan, 0.5) : C.border;
+    ctx.stroke();
+    if (o.highlight) {
+        ctx.save(); ctx.globalAlpha *= o.highlight;
+        rr(x - 4, y - 4, w + 8, h + 8, 17); ctx.lineWidth = 3; ctx.strokeStyle = hexA(C.magenta, 0.55); ctx.stroke();
         ctx.restore();
-        text(`${hh}:${mm}:${ss}`, x + 66, y + 90, { size: 16, weight: 700, font: F.mono, color: C.cyan });
+    }
+
+    if (o.running) {
+        ctx.save(); rr(x, y, w, h, 14); ctx.clip();
+        ctx.fillStyle = linGrad(x, 0, x + w, 0, GRAD); ctx.fillRect(x, y, w, 3.5);
+        ctx.restore();
+        ctx.save(); ctx.globalAlpha *= 0.5 + 0.5 * Math.abs(Math.sin(o.t * 3));
+        ctx.shadowColor = 'rgba(184,38,201,0.7)'; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(x + w - 12, y + 13, 3.5, 0, Math.PI * 2); ctx.fillStyle = C.magenta; ctx.fill();
+        ctx.restore();
+    }
+
+    // linha 1: #id + prioridade · menu
+    const idW = text('#' + t.id, x + 14, y + 27, { size: 12, weight: 700, font: F.mono, color: C.faint });
+    pill(x + 14 + idW + 8, y + 13, t.prio, { size: 12, h: 21, padX: 7, r: 5, color: PRIO[t.prio], weight: 600, ls: 0 });
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x + w - 38 + i * 7, y + 24, 2.2, 0, Math.PI * 2); ctx.fillStyle = C.faint; ctx.fill(); }
+
+    // linha 2: descrição
+    text(t.desc, x + 14, y + 58, { size: 17, weight: 600, color: o.done ? C.faint : C.text, strike: o.done });
+
+    // linha 3: projeto + prazo (+ ajudantes)
+    let tx = x + 14;
+    tx += pill(tx, y + 70, t.proj, { size: 11.5, h: 22, padX: 8, r: 5, color: C.purple, stroke: false, ls: 0 }) + 6;
+    if (t.prazo && !o.done) tx += pill(tx, y + 70, t.prazo[0], { size: 11.5, h: 22, padX: 8, r: 6, color: t.prazo[1], ls: 0 }) + 6;
+    if (o.helpers) {
+        o.helpers.forEach((hp, i) => {
+            const a = E.back(clamp(hp.p));
+            if (a <= 0) return;
+            ctx.save(); ctx.globalAlpha *= clamp(hp.p * 2);
+            avatar(x + w - 26 - i * 22, y + 81, 11 * a, hp.l, hp.g, true);
+            ctx.restore();
+        });
+    }
+
+    // linha 4: timer + ações
+    const timerColor = o.running ? C.purple : o.done ? C.faint : C.muted;
+    text(fmtClock(o.secs ?? 0), x + 14, y + BTN.y + 21, { size: 15, weight: 700, font: F.mono, color: timerColor });
+    if (o.done) {
+        check(x + w - 104, y + BTN.y + 15, 14, C.cyanText, o.doneP ?? 1, 2.2);
+        text('Concluída', x + w - 92, y + BTN.y + 20, { size: 13, weight: 600, color: C.cyanText });
     } else {
-        text('prazo · ' + k.due, x + 50, y + 90, { size: 15, color: k.due === 'Hoje' ? C.pink : C.subtle, weight: 500 });
+        const okX = x + BTN.okX, runX = x + BTN.runX, by = y + BTN.y;
+        rr(okX, by, BTN.okW, BTN.h, 8); ctx.fillStyle = o.okHover ? hexA(C.cyan, 0.12) : '#fff'; ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = o.okHover ? C.cyanText : C.border; ctx.stroke();
+        check(okX + BTN.okW / 2, by + BTN.h / 2, 12, o.okHover ? C.cyanText : C.muted, 1, 2);
+        rr(runX, by, BTN.runW, BTN.h, 8);
+        ctx.fillStyle = o.running ? C.text : linGrad(runX, by, runX + BTN.runW, by + BTN.h, [C.purple, C.magenta]);
+        ctx.fill();
+        if (o.running) pauseIcon(runX + 22, by + BTN.h / 2, 10, '#fff'); else playIcon(runX + 22, by + BTN.h / 2, 10, '#fff');
+        text(o.running ? 'Pausar' : 'Iniciar', runX + 36, by + 20, { size: 13, weight: 700, color: '#fff' });
     }
     ctx.restore();
 }
 
+function counterTile(x, y, w, label, value, color, iconColor, grad) {
+    panel(x, y, w, 76, { r: 16, shadow: false });
+    rr(x + 16, y + 18, 40, 40, 12); ctx.fillStyle = hexA(iconColor, 0.10); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 36, y + 38, 7, 0, Math.PI * 2); ctx.lineWidth = 2.4; ctx.strokeStyle = iconColor; ctx.stroke();
+    text(label, x + 70, y + 32, { size: 11.5, weight: 700, color: C.faint, ls: 1.6 });
+    text(value, x + 70, y + 62, { size: 25, weight: 700, color, grad });
+}
+
+const NIVEIS = [
+    { k: 'Tranquilo', cor: C.green, min: 0 },
+    { k: 'Fluindo', cor: C.cyanText, min: 10 },
+    { k: 'Carga alta', cor: C.amber, min: 18 },
+    { k: 'Atolado', cor: C.red, min: 28 },
+];
+const nivelDe = pts => NIVEIS.slice().reverse().find(n => pts >= n.min);
+
 function sceneKanban(lt) {
-    chapter(lt, '02', 'Tarefas', 'Tarefas', 'em Kanban',
-        ['Timer no card, prazo à vista', 'e sinal de carga por pessoa.']);
+    /* ---------- coluna da esquerda: título + passos ---------- */
+    const lx = 120;
+    const ha = E.out(prog(lt, 0.15, 0.6));
+    ctx.save(); ctx.globalAlpha *= ha;
+    text('02', lx, 250, { size: 22, weight: 700, font: F.mono, color: C.purple });
+    ctx.fillStyle = hexA(C.purple, 0.45); ctx.fillRect(lx + 46, 242, 60 * E.out(prog(lt, 0.3, 0.7)), 2);
+    text('TAREFAS', lx + 122, 250, { size: 16, weight: 700, color: C.muted, ls: 3 });
+    ctx.restore();
+    reveal('Kanban', lx, 334, prog(lt, 0.3, 0.9), { size: 70, weight: 700, font: F.display, ls: -2 });
+    reveal('na prática', lx, 410, prog(lt, 0.45, 0.9), { size: 70, weight: 700, font: F.display, ls: -2, grad: GRAD });
 
-    const pin = E.out(prog(lt, 0.3, 0.9));
-    ctx.save(); ctx.globalAlpha *= pin;
-    ctx.translate((1 - pin) * 60, 0);
-
-    const cols = ['Aberto', 'Em andamento', 'Concluído'];
-    const e1 = E.inOut(prog(lt, 2.4, 0.9));
-    const e2 = E.inOut(prog(lt, 4.7, 0.9));
-    const curState = e2 > 0.5 ? 2 : e1 > 0.5 ? 1 : 0;
-    cols.forEach((name, c) => {
-        const x = KB.x + c * (KB.colW + KB.gap);
-        panel(x, KB.y, KB.colW, KB.colH, { r: 20, fill: 'rgba(255,255,255,0.025)' });
-        ctx.beginPath(); ctx.arc(x + 26, KB.y + 42, 5, 0, Math.PI * 2);
-        ctx.fillStyle = [C.lav, C.cyan, C.pink][c]; ctx.fill();
-        text(name, x + 42, KB.y + 49, { size: 20, weight: 700 });
-        const n = KSTATES[curState][c].length;
-        text(String(n), x + KB.colW - 24, KB.y + 49, { size: 17, weight: 700, font: F.mono, color: C.subtle, align: 'right' });
+    const active = STEPS.reduce((a, s, i) => (lt >= s.s ? i : a), -1);
+    STEPS.forEach((s, i) => {
+        const sp = E.out(prog(lt, 0.7 + i * 0.1, 0.6));
+        if (sp <= 0) return;
+        const sy = 480 + i * 92 + (1 - sp) * 16;
+        const isA = i === active, isDone = i < active;
+        ctx.save(); ctx.globalAlpha *= sp * (isA ? 1 : isDone ? 0.85 : 0.45);
+        if (isA) {
+            const hp = E.out(prog(lt, s.s, 0.4));
+            rr(lx - 16, sy - 14, 440, 82, 16);
+            ctx.fillStyle = hexA('#FFFFFF', 0.9 * hp); ctx.fill();
+            ctx.lineWidth = 1.2; ctx.strokeStyle = hexA(C.purple, 0.18 * hp); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(lx + 17, sy + 17, 17, 0, Math.PI * 2);
+        if (isA) { ctx.fillStyle = linGrad(lx, sy, lx + 34, sy + 34, GRAD); ctx.fill(); }
+        else if (isDone) { ctx.fillStyle = hexA(C.cyan, 0.15); ctx.fill(); }
+        else { ctx.lineWidth = 1.5; ctx.strokeStyle = C.borderStrong; ctx.stroke(); }
+        if (isDone) check(lx + 17, sy + 17, 15, C.cyanText, 1, 2.4);
+        else text(String(i + 1), lx + 17, sy + 18, { size: 15, weight: 700, font: F.mono, align: 'center', base: 'middle', color: isA ? '#fff' : C.faint });
+        text(s.title, lx + 50, sy + 24, { size: 22, weight: 700, color: isA ? C.text : C.muted });
+        text(s.desc, lx + 50, sy + 52, { size: 16.5, color: C.muted });
+        ctx.restore();
     });
 
-    const order = ['B', 'C', 'E', 'F', 'D', 'A']; // quem se move é desenhado por cima
-    order.forEach((id, idx) => {
-        const p0 = kPos(0, id), p1 = kPos(1, id), p2 = kPos(2, id);
-        let x = lerp(lerp(p0.x, p1.x, e1), p2.x, e2);
-        let y = lerp(lerp(p0.y, p1.y, e1), p2.y, e2);
-        const moving = (id === 'A' && e1 > 0 && e1 < 1) || (id === 'D' && e2 > 0 && e2 < 1);
-        let lift = id === 'A' ? Math.sin(Math.PI * e1) : id === 'D' ? Math.sin(Math.PI * e2) : 0;
-        if (lift < 0.01) lift = 0;
-        if (moving) y -= lift * 26;
-        const appear = E.back(prog(lt, 0.6 + idx * 0.1, 0.6));
-        y += (1 - appear) * 30;
+    /* ---------- janela do sistema ---------- */
+    const wp = E.out(prog(lt, 0.2, 0.9));
+    ctx.save(); ctx.globalAlpha *= wp;
+    ctx.translate((1 - wp) * 70, 0);
+    const { x: X, y: Y, w: Wd, h: Hd } = KW;
+    panel(X, Y, Wd, Hd, { r: 26, fill: C.bg, blur: 60, dy: 24, shadowColor: 'rgba(13,15,35,0.14)' });
 
-        const o = { alpha: clamp(appear), lift, t: lt };
-        if (id === 'F') o.done = true;
-        if (id === 'D') {
-            if (e2 >= 0.6) { o.done = true; o.doneP = prog(lt, 5.4, 0.5); }
-            else o.timer = 2530 + lt;
+    // barra superior
+    ctx.save(); rr(X, Y, Wd, 72, [26, 26, 0, 0]); ctx.fillStyle = '#fff'; ctx.fill(); ctx.restore();
+    ctx.fillStyle = C.border; ctx.fillRect(X, Y + 72, Wd, 1);
+    mark(X + 46, Y + 36, 30);
+    text('Minhas tarefas', X + 74, Y + 44, { size: 21, weight: 800 });
+    const tabs = ['Kanban', 'Agenda', 'Carimbos'];
+    let tbx = X + 74 + measure('Minhas tarefas', 21, 800) + 40;
+    tabs.forEach((tb, i) => {
+        const tw = text(tb, tbx, Y + 44, { size: 16, weight: i ? 500 : 700, color: i ? C.faint : C.purple });
+        if (!i) { ctx.fillStyle = linGrad(tbx, 0, tbx + tw, 0, GRAD); rr(tbx, Y + 68, tw, 4, 2); ctx.fill(); }
+        tbx += tw + 28;
+    });
+    const nbX = X + Wd - 28 - 172, nbY = Y + 15;
+    const nbPress = clamp(1 - Math.abs(lt - K.clickNew) / 0.12);
+    ctx.save();
+    ctx.translate(nbX + 86, nbY + 21); ctx.scale(1 - nbPress * 0.05, 1 - nbPress * 0.05); ctx.translate(-(nbX + 86), -(nbY + 21));
+    ctx.shadowColor = 'rgba(184,38,201,0.35)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+    rr(nbX, nbY, 172, 42, 12); ctx.fillStyle = linGrad(nbX, nbY, nbX + 172, nbY + 42, GRAD); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    text('+  Nova Tarefa', nbX + 86, nbY + 27, { size: 15, weight: 700, color: '#fff', align: 'center' });
+    ctx.restore();
+
+    // estado derivado do tempo
+    const running = { A: lt >= K.startA, C: lt >= K.startC && lt < K.motivoOk };
+    const secsA = running.A ? lt - K.startA : 0;
+    const secsC = 4360 + (lt >= K.startC ? Math.min(lt, K.motivoOk) - K.startC : 0);
+    const secsD = 2110;
+    const total = lt >= K.cardIn ? 5 : 4;
+    const andamento = lt >= K.moveC + 0.2 ? 1 : lt >= K.drop ? 2 : 1;
+    const concluidas = lt >= K.moveC + 0.2 ? 2 : 1;
+    const horas = secsA + secsC + secsD;
+
+    // contadores (iguais aos do quadro do funcionário)
+    const cw = (Wd - 56 - 36) / 4, cy = Y + 92;
+    counterTile(X + 28, cy, cw, 'TOTAL', String(total), C.text, C.muted);
+    counterTile(X + 28 + (cw + 12), cy, cw, 'EM ANDAMENTO', String(andamento), C.purple, C.purple);
+    counterTile(X + 28 + 2 * (cw + 12), cy, cw, 'CONCLUÍDAS', String(concluidas), C.cyanText, C.cyanText);
+    counterTile(X + 28 + 3 * (cw + 12), cy, cw, 'HORAS', fmtHM(horas), C.text, C.magenta, GRAD);
+
+    // faixa "Sua carga agora"
+    const pts = Math.round(lerp(lerp(9, 12, E.out(prog(lt, K.cardIn + 0.3, 0.6))), 9, E.out(prog(lt, K.moveC + 0.3, 0.6))));
+    const nv = nivelDe(pts);
+    const fy = Y + 184, fh = 66;
+    panel(X + 28, fy, Wd - 56, fh, { r: 16, shadow: false });
+    rr(X + 44, fy + 14, 38, 38, 12); ctx.fillStyle = hexA(nv.cor, 0.12); ctx.fill();
+    ctx.beginPath(); ctx.arc(X + 63, fy + 33, 8, Math.PI * 0.8, Math.PI * 2.2); ctx.lineWidth = 2.4; ctx.strokeStyle = nv.cor; ctx.stroke();
+    const l1 = text('Sua carga agora: ', X + 96, fy + 30, { size: 15, weight: 800 });
+    const l2 = text(nv.k, X + 96 + l1, fy + 30, { size: 15, weight: 800, color: nv.cor });
+    text(` · ${pts} pts`, X + 96 + l1 + l2, fy + 30, { size: 15, weight: 700, font: F.mono, color: nv.cor });
+    const filaN = total - concluidas;
+    text(`${filaN} tarefas na fila · peso somado ${pts - 2} · 1 atrasada`, X + 96, fy + 51, { size: 12.5, color: C.faint });
+    const barX = X + 520, barW = Wd - 56 - 520 + 28 - 24;
+    rr(barX, fy + 22, barW, 8, 4); ctx.fillStyle = '#ECEEF4'; ctx.fill();
+    const pct = clamp(pts / 28);
+    rr(barX, fy + 22, Math.max(8, barW * pct), 8, 4); ctx.fillStyle = linGrad(barX, 0, barX + barW * pct, 0, [hexA(nv.cor, 0.55), nv.cor]); ctx.fill();
+    text('Pontos = soma do peso (1 a 4) do que está em aberto e em andamento.', barX, fy + 51, { size: 12.5, color: C.faint });
+
+    // colunas
+    const cols = [
+        { n: 'ABERTO', dot: C.faint, color: C.muted, bg: 'rgba(226,232,240,0.55)' },
+        { n: 'EM ANDAMENTO', dot: C.purple, color: C.purple, bg: hexA(C.purple, 0.05) },
+        { n: 'CONCLUÍDO', dot: C.cyan, color: C.cyanText, bg: hexA(C.cyan, 0.06) },
+    ];
+    const counts = [lt >= K.cardIn ? 3 : 2, andamento, concluidas];
+    cols.forEach((c, i) => {
+        const cx = colX(i);
+        ctx.beginPath(); ctx.arc(cx + 10, KCOL.y - 22, 5, 0, Math.PI * 2); ctx.fillStyle = c.dot; ctx.fill();
+        text(c.n, cx + 24, KCOL.y - 16, { size: 13, weight: 700, color: c.color, ls: 1.2 });
+        pill(cx + KCOL.w - 40, KCOL.y - 34, String(counts[i]), { size: 12, h: 22, padX: 9, color: c.color, stroke: false, ls: 0 });
+        rr(cx, KCOL.y, KCOL.w, KCOL.bodyH, 18); ctx.fillStyle = c.bg; ctx.fill();
+    });
+    // destaque da coluna de destino durante o arraste
+    const dragging = lt > K.grab && lt < K.drop + 0.1;
+    if (dragging) {
+        const dp = Math.sin(Math.PI * prog(lt, K.grab, K.drop - K.grab + 0.1));
+        ctx.save(); ctx.globalAlpha *= dp;
+        ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.strokeStyle = C.purple;
+        rr(colX(1) + 3, KCOL.y + 3, KCOL.w - 6, KCOL.bodyH - 6, 16); ctx.stroke();
+        ctx.restore();
+    }
+
+    // cards
+    const tr = kTransitions(lt);
+    const helperP = lt >= K.addHelp ? [prog(lt, K.addHelp, 0.4), prog(lt, K.addHelp + 0.12, 0.4)] : null;
+    const order = ['D', 'B', 'N', 'C', 'A'];
+    if (lt > K.moveC - 0.2 && lt < K.moveC + 1.2) { order.splice(order.indexOf('C'), 1); order.push('C'); }
+    order.forEach(id => {
+        let { x, y } = cardPos(id, lt);
+        const o = { t: lt };
+        if (id === 'N') {
+            const ap = prog(lt, K.cardIn, 0.6);
+            if (ap <= 0) return;
+            o.alpha = ap; y -= (1 - E.back(ap)) * 40;
+            if (helperP) o.helpers = [{ l: 'L', g: [C.pink, C.purple], p: helperP[1] }, { l: 'C', g: [C.cyan, C.purple], p: helperP[0] }];
+            o.highlight = lt > K.dots - 0.3 && lt < K.toast + 1.5 ? Math.sin(Math.PI * prog(lt, K.dots - 0.3, K.toast + 1.8 - K.dots)) : 0;
         }
-        if (id === 'A' && e1 >= 0.98) o.timer = Math.max(0, (lt - 3.3));
+        if (id === 'A') {
+            o.lift = Math.sin(Math.PI * tr[1]);
+            if (o.lift < 0.01) o.lift = 0;
+            y -= o.lift * 22;
+            o.running = running.A; o.secs = secsA;
+        }
+        if (id === 'C') {
+            o.running = running.C; o.secs = secsC;
+            o.okHover = lt > K.clickDone - 0.4 && lt < K.motivoOk;
+            const mv = Math.sin(Math.PI * tr[2]);
+            o.lift = mv < 0.01 ? 0 : mv; y -= o.lift * 18;
+            if (lt >= K.moveC + 0.45) { o.done = true; o.doneP = prog(lt, K.moveC + 0.45, 0.5); }
+        }
+        if (id === 'D') { o.done = true; o.secs = secsD; }
         kCard(id, x, y, o);
     });
 
-    // carga da equipe
-    const sy = KB.y + KB.colH + 30, sw = KB.colW * 3 + KB.gap * 2;
-    const sp = E.out(prog(lt, 1.6, 0.8));
-    ctx.save(); ctx.globalAlpha *= sp;
-    panel(KB.x, sy, sw, 190, { r: 20, fill: 'rgba(255,255,255,0.025)' });
-    text('Carga da equipe', KB.x + 28, sy + 46, { size: 20, weight: 700 });
-    text('peso × prazo das tarefas em aberto', KB.x + 28 + measure('Carga da equipe', 20, 700) + 14, sy + 46, { size: 16, color: C.subtle });
-    const people = [
-        { n: 'Ana', l: 'A', v: 0.52, g: [C.purple, C.magenta] },
-        { n: 'Caio', l: 'C', v: 0.38, g: [C.cyan, C.purple] },
-        { n: 'Lia', l: 'L', v: 0.45, g: [C.pink, C.purple] },
-        { n: 'Téo', l: 'T', v: 0.62, g: [C.magenta, C.pink] },
-    ];
-    const surge = E.inOut(prog(lt, 6.2, 1.0)); // Téo recebe mais tarefa e acende o alerta
-    const pw = (sw - 56 - 40) / 2;
-    people.forEach((pp, i) => {
-        const px = KB.x + 28 + (i % 2) * (pw + 40), py = sy + 92 + Math.floor(i / 2) * 58;
-        avatar(px + 16, py, 16, pp.l, pp.g);
-        text(pp.n, px + 44, py + 7, { size: 18, weight: 600 });
-        const v = (pp.n === 'Téo' ? lerp(pp.v, 0.94, surge) : pp.v) * E.out(prog(lt, 2.0 + i * 0.1, 1.0));
-        const bx = px + 110, bwid = pw - 250;
-        rr(bx, py - 4, bwid, 8, 4); ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
-        const hot = pp.n === 'Téo' && surge > 0.5;
-        rr(bx, py - 4, Math.max(8, bwid * v), 8, 4);
-        ctx.fillStyle = hot ? linGrad(bx, 0, bx + bwid, 0, [C.magenta, C.pink]) : linGrad(bx, 0, bx + bwid, 0, [C.purple, C.cyan]);
-        ctx.fill();
-        if (hot) pill(bx + bwid + 18, py - 15, 'CARGA ALTA', { size: 12, h: 26, padX: 10, color: C.pink, ls: 1.2, alpha: prog(lt, 6.8, 0.4) });
-        else text(`${Math.round(v * 20)} pts`, bx + bwid + 18, py + 6, { size: 15, weight: 600, font: F.mono, color: C.subtle });
-    });
+    /* ---------- modal "Nova Tarefa" ---------- */
+    const mIn = E.out(prog(lt, K.modalIn, 0.4)) * (1 - E.inOut(prog(lt, K.modalOut, 0.3)));
+    if (mIn > 0) drawNovaTarefa(lt, mIn);
+
+    /* ---------- modal motivo do atraso ---------- */
+    const jIn = E.out(prog(lt, K.motivoIn, 0.35)) * (1 - E.inOut(prog(lt, K.motivoOk + 0.05, 0.3)));
+    if (jIn > 0) drawMotivo(lt, jIn);
+
+    /* ---------- holofote na carga ---------- */
+    const sp = prog(lt, K.spot[0], 0.5) * (1 - prog(lt, K.spot[1], 0.5));
+    if (sp > 0) drawSpotCarga(lt, E.inOut(sp), fy, fh, pts);
+
+    /* ---------- popover de ajudantes + toast ---------- */
+    const pIn = E.out(prog(lt, K.dots + 0.05, 0.3)) * (1 - E.inOut(prog(lt, K.addHelp + 0.05, 0.25)));
+    if (pIn > 0) drawAjudantes(lt, pIn);
+    const tIn = E.out(prog(lt, K.toast, 0.45)) * (1 - E.inOut(prog(lt, K.toast + 2.4, 0.4)));
+    if (tIn > 0) {
+        const tw = 460, tx = X + Wd - 28 - tw + (1 - tIn) * 40, ty = Y + 88;
+        ctx.save(); ctx.globalAlpha *= tIn;
+        panel(tx, ty, tw, 70, { r: 16, blur: 30, dy: 12, shadowColor: 'rgba(13,15,35,0.16)' });
+        rr(tx + 16, ty + 15, 40, 40, 12); ctx.fillStyle = hexA(C.purple, 0.10); ctx.fill();
+        // sininho
+        ctx.beginPath(); ctx.moveTo(tx + 28, ty + 42); ctx.quadraticCurveTo(tx + 28, ty + 23, tx + 36, ty + 23); ctx.quadraticCurveTo(tx + 44, ty + 23, tx + 44, ty + 42); ctx.closePath();
+        ctx.fillStyle = C.purple; ctx.fill(); ctx.beginPath(); ctx.arc(tx + 36, ty + 45, 3, 0, Math.PI * 2); ctx.fill();
+        text('Caio e Lia foram notificados', tx + 70, ty + 31, { size: 16, weight: 700 });
+        text('A tarefa já aparece no quadro deles como “Ajudando”.', tx + 70, ty + 53, { size: 13, color: C.muted });
+        ctx.restore();
+    }
+
+    /* ---------- cursor ---------- */
+    drawKanbanCursor(lt);
+
+    illustrative(X + Wd - 24, Y + Hd - 14, 0.9);
     ctx.restore();
+}
+
+/* Formulário "Nova Tarefa" com os campos obrigatórios do sistema. */
+const NT = { w: 620, h: 600 };
+function ntRect() { return { x: KW.x + (KW.w - NT.w) / 2, y: KW.y + 112 }; }
+
+function field(x, y, w, label, value, p, o = {}) {
+    text(label, x, y, { size: 12, weight: 700, color: C.faint, ls: 1.4 });
+    const fy = y + 10, h = 44;
+    rr(x, fy, w, h, 11); ctx.fillStyle = C.soft; ctx.fill();
+    ctx.lineWidth = o.focus ? 2 : 1.2; ctx.strokeStyle = o.focus ? C.purple : C.border; ctx.stroke();
+    if (p > 0) {
+        const shown = o.type ? value.slice(0, Math.floor(value.length * p)) : value;
+        text(shown, x + 14, fy + 28, { size: 16, weight: 500, alpha: o.type ? 1 : E.out(p) });
+        if (o.tag && p >= 1) pill(x + w - (o.select ? 40 : 14) - measure(o.tag[0], 11, 700, F.body, 0.8) - 16, fy + 11, o.tag[0], { size: 11, h: 22, padX: 8, color: o.tag[1], ls: 0.8, textColor: o.tag[2] });
+    } else if (o.placeholder) text(o.placeholder, x + 14, fy + 28, { size: 16, color: C.faint });
+    if (o.select) { ctx.beginPath(); ctx.moveTo(x + w - 26, fy + 19); ctx.lineTo(x + w - 20, fy + 25); ctx.lineTo(x + w - 14, fy + 19); ctx.lineWidth = 1.8; ctx.strokeStyle = C.faint; ctx.stroke(); }
+}
+
+function drawNovaTarefa(lt, a) {
+    const { x: X, y: Y, w: Wd, h: Hd } = KW;
+    ctx.save();
+    ctx.globalAlpha *= a;
+    rr(X, Y, Wd, Hd, 26); ctx.fillStyle = 'rgba(11,13,31,0.28)'; ctx.fill();
+    const { x, y } = ntRect();
+    const s = 0.96 + 0.04 * a;
+    ctx.translate(x + NT.w / 2, y + NT.h / 2); ctx.scale(s, s); ctx.translate(-(x + NT.w / 2), -(y + NT.h / 2));
+    panel(x, y, NT.w, NT.h, { r: 20, blur: 60, dy: 24, shadowColor: 'rgba(13,15,35,0.25)' });
+    ctx.save(); rr(x, y, NT.w, 74, [20, 20, 0, 0]); ctx.fillStyle = linGrad(x, y, x + NT.w, y + 74, [C.purple, C.magenta]); ctx.fill(); ctx.restore();
+    text('Nova Tarefa', x + 28, y + 46, { size: 23, weight: 800, color: '#fff' });
+    text('Campos com * são obrigatórios', x + NT.w - 28, y + 45, { size: 13, color: 'rgba(255,255,255,0.8)', align: 'right' });
+
+    const L = x + 28, full = NT.w - 56, half = (full - 16) / 2;
+    const f = (s0, d = 0.3) => prog(lt, s0, d);
+    field(L, y + 108, full * 0.6, 'PROJETO *', 'Cabeamento Filial', f(2.65), { select: true, focus: lt > 2.4 && lt < 2.9 });
+    field(L + full * 0.6 + 16, y + 108, full * 0.4 - 16, 'CLIENTE', 'Cliente Demo', f(2.9), { tag: ['AUTO', C.cyan, C.cyanText] });
+    field(L, y + 192, full, 'DESCRIÇÃO *', 'Instalação de access points', f(3.05, 0.85), { type: true, focus: lt > 3.0 && lt < 4.0, placeholder: 'O que precisa ser feito?' });
+    field(L, y + 276, half, 'TIPO DE ATIVIDADE *', 'Instalação', f(4.0), { select: true, tag: ['PESO 3', C.purple], focus: lt > 3.9 && lt < 4.25 });
+    field(L + half + 16, y + 276, half, 'PRIORIDADE', 'Alta', f(4.2), { select: true });
+
+    // natureza: programada / urgente
+    text('NATUREZA *', L, y + 360, { size: 12, weight: 700, color: C.faint, ls: 1.4 });
+    const np = f(4.45);
+    ['Programada', 'Urgente'].forEach((n, i) => {
+        const bx = L + i * (half + 16), by = y + 370;
+        const sel = i === 0 && np > 0;
+        rr(bx, by, half, 44, 11);
+        ctx.fillStyle = sel ? hexA(C.purple, 0.08 * E.out(np) + 0.0) : C.soft; ctx.fill();
+        ctx.lineWidth = sel ? 2 : 1.2; ctx.strokeStyle = sel ? C.purple : C.border; ctx.stroke();
+        ctx.beginPath(); ctx.arc(bx + 22, by + 22, 7, 0, Math.PI * 2); ctx.lineWidth = 1.6; ctx.strokeStyle = sel ? C.purple : C.borderStrong; ctx.stroke();
+        if (sel) { ctx.beginPath(); ctx.arc(bx + 22, by + 22, 3.8 * E.back(np), 0, Math.PI * 2); ctx.fillStyle = C.purple; ctx.fill(); }
+        text(n, bx + 40, by + 28, { size: 16, weight: sel ? 700 : 500, color: sel ? C.purple : C.muted });
+    });
+    field(L, y + 444, half, 'PREVISÃO DE CONCLUSÃO *', '08/10/2026', f(4.7), { focus: lt > 4.6 && lt < 4.95 });
+    field(L + half + 16, y + 444, half, 'AGENDAMENTO', '06/10/2026', f(4.95));
+
+    // botões
+    const by = y + NT.h - 64;
+    rr(x + NT.w - 28 - 132 - 12 - 112, by, 112, 42, 11); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = C.border; ctx.stroke();
+    text('Cancelar', x + NT.w - 28 - 132 - 12 - 56, by + 27, { size: 15, weight: 600, color: C.muted, align: 'center' });
+    const press = clamp(1 - Math.abs(lt - K.save) / 0.12);
+    rr(x + NT.w - 28 - 132, by + press * 1.5, 132, 42, 11); ctx.fillStyle = linGrad(x + NT.w - 160, by, x + NT.w - 28, by + 42, GRAD); ctx.fill();
+    text('Salvar', x + NT.w - 28 - 66, by + 27 + press * 1.5, { size: 15, weight: 700, color: '#fff', align: 'center' });
+    ctx.restore();
+}
+
+const MT = { w: 560, h: 290 };
+function mtRect() { return { x: KW.x + (KW.w - MT.w) / 2, y: KW.y + 260 }; }
+
+function drawMotivo(lt, a) {
+    const { x: X, y: Y, w: Wd, h: Hd } = KW;
+    ctx.save(); ctx.globalAlpha *= a;
+    rr(X, Y, Wd, Hd, 26); ctx.fillStyle = 'rgba(11,13,31,0.24)'; ctx.fill();
+    const { x, y } = mtRect();
+    const s = 0.96 + 0.04 * a;
+    ctx.translate(x + MT.w / 2, y + MT.h / 2); ctx.scale(s, s); ctx.translate(-(x + MT.w / 2), -(y + MT.h / 2));
+    panel(x, y, MT.w, MT.h, { r: 20, blur: 60, dy: 24, shadowColor: 'rgba(13,15,35,0.25)' });
+    rr(x + 28, y + 28, 44, 44, 13); ctx.fillStyle = hexA(C.pink, 0.12); ctx.fill();
+    text('!', x + 50, y + 58, { size: 24, weight: 800, color: C.pink, align: 'center' });
+    text('Concluída fora do prazo', x + 88, y + 50, { size: 21, weight: 800 });
+    text('A previsão era 01/10/2026. Informe o motivo do atraso:', x + 88, y + 74, { size: 14.5, color: C.muted });
+    rr(x + 28, y + 100, MT.w - 56, 92, 12); ctx.fillStyle = C.soft; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = C.purple; ctx.stroke();
+    const motivo = 'Aguardando liberação de acesso pelo cliente.';
+    const shown = motivo.slice(0, Math.floor(motivo.length * prog(lt, K.motivoIn + 0.35, 1.1)));
+    const tw = text(shown, x + 44, y + 132, { size: 16 });
+    if (Math.floor(lt * 2.5) % 2 === 0 && lt < K.motivoOk - 0.3) { ctx.fillStyle = C.purple; ctx.fillRect(x + 46 + tw, y + 116, 2, 22); }
+    const by = y + MT.h - 66;
+    rr(x + MT.w - 28 - 172 - 12 - 112, by, 112, 42, 11); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = C.border; ctx.stroke();
+    text('Cancelar', x + MT.w - 28 - 172 - 12 - 56, by + 27, { size: 15, weight: 600, color: C.muted, align: 'center' });
+    const press = clamp(1 - Math.abs(lt - K.motivoOk) / 0.12);
+    rr(x + MT.w - 28 - 172, by + press * 1.5, 172, 42, 11); ctx.fillStyle = linGrad(x + MT.w - 200, by, x + MT.w - 28, by + 42, GRAD); ctx.fill();
+    text('Concluir tarefa', x + MT.w - 28 - 86, by + 27 + press * 1.5, { size: 15, weight: 700, color: '#fff', align: 'center' });
+    ctx.restore();
+}
+
+function drawSpotCarga(lt, a, fy, fh, pts) {
+    const { x: X, y: Y, w: Wd, h: Hd } = KW;
+    const hx = X + 20, hy = fy - 8, hw = Wd - 40, hh = fh + 16;
+    ctx.save(); ctx.globalAlpha *= a;
+    // escurece tudo menos a faixa
+    ctx.beginPath(); ctx.roundRect(X, Y, Wd, Hd, 26); ctx.roundRect(hx, hy, hw, hh, 20);
+    ctx.fillStyle = 'rgba(244,245,250,0.82)'; ctx.fill('evenodd');
+    rr(hx, hy, hw, hh, 20); ctx.lineWidth = 2.5; ctx.strokeStyle = hexA(C.magenta, 0.5); ctx.stroke();
+
+    // régua de níveis
+    const px = X + 120, py = fy + fh + 40, pw = Wd - 240;
+    panel(px, py, pw, 250, { r: 20, blur: 40, dy: 16, shadowColor: 'rgba(13,15,35,0.14)' });
+    text('Como a carga é medida', px + 32, py + 46, { size: 21, weight: 800 });
+    const rules = [['Peso 1 a 4', 'por tipo de atividade'], ['Atrasada', 'conta 1,5×'], ['Vence hoje/amanhã', 'conta 1,25×']];
+    let rx = px + 32;
+    rules.forEach((r, i) => {
+        const rp = E.out(prog(lt, K.spot[0] + 0.4 + i * 0.15, 0.4));
+        ctx.save(); ctx.globalAlpha *= rp;
+        const w1 = text(r[0], rx, py + 84, { size: 16, weight: 700, color: C.purple });
+        text(' ' + r[1], rx + w1, py + 84, { size: 16, color: C.muted });
+        ctx.restore();
+        rx += w1 + measure(' ' + r[1], 16, 500) + 36;
+    });
+    const sx = px + 32, sw = pw - 64, sy = py + 130;
+    const segW = (sw - 3 * 10) / 4;
+    NIVEIS.forEach((n, i) => {
+        const np = E.out(prog(lt, K.spot[0] + 0.9 + i * 0.15, 0.4));
+        const bx = sx + i * (segW + 10);
+        ctx.save(); ctx.globalAlpha *= np;
+        rr(bx, sy, segW, 10, 5); ctx.fillStyle = hexA(n.cor, 0.85); ctx.fill();
+        text(n.k, bx, sy + 40, { size: 17, weight: 700, color: n.cor });
+        const lim = i < 3 ? `${n.min}–${NIVEIS[i + 1].min - 1} pts` : `${n.min}+ pts`;
+        text(lim, bx, sy + 64, { size: 14, weight: 600, font: F.mono, color: C.faint });
+        ctx.restore();
+    });
+    // marcador de onde a pessoa está
+    const mp = E.out(prog(lt, K.spot[0] + 1.6, 0.6));
+    if (mp > 0) {
+        const idx = NIVEIS.indexOf(nivelDe(pts));
+        const within = idx < 3 ? (pts - NIVEIS[idx].min) / (NIVEIS[idx + 1].min - NIVEIS[idx].min) : 0.5;
+        const mx = sx + idx * (segW + 10) + segW * within;
+        ctx.save(); ctx.globalAlpha *= mp;
+        ctx.beginPath(); ctx.moveTo(mx, sy - 4); ctx.lineTo(mx - 8, sy - 16); ctx.lineTo(mx + 8, sy - 16); ctx.closePath();
+        ctx.fillStyle = C.text; ctx.fill();
+        text(`você · ${pts} pts`, mx, sy - 24, { size: 13, weight: 700, font: F.mono, align: 'center' });
+        ctx.restore();
+    }
+    text('O líder vê a mesma sinalização no Kanban da equipe — pra redistribuir, não pra cobrar.', px + 32, py + 228, { size: 14.5, color: C.muted, alpha: E.out(prog(lt, K.spot[0] + 2.0, 0.5)) });
+    ctx.restore();
+}
+
+const POP = { w: 300, h: 236 };
+function popRect() {
+    const p = slotPos(3, 'N');
+    return { x: p.x + KCARD.w - POP.w - 8, y: p.y + 40 };
+}
+const HELPERS = [
+    { n: 'Caio', l: 'C', g: [C.cyan, C.purple], t: K.pickCaio },
+    { n: 'Lia', l: 'L', g: [C.pink, C.purple], t: K.pickLia },
+    { n: 'Téo', l: 'T', g: [C.magenta, C.pink], t: Infinity },
+];
+function drawAjudantes(lt, a) {
+    const { x, y } = popRect();
+    ctx.save(); ctx.globalAlpha *= a;
+    ctx.translate(0, (1 - a) * -8);
+    panel(x, y, POP.w, POP.h, { r: 16, blur: 36, dy: 14, shadowColor: 'rgba(13,15,35,0.18)' });
+    text('+ Adicionar pessoa para ajudar', x + 18, y + 32, { size: 14.5, weight: 700, color: C.purple });
+    HELPERS.forEach((h, i) => {
+        const ry = y + 50 + i * 46;
+        const on = prog(lt, h.t, 0.2);
+        if (on > 0) { rr(x + 8, ry, POP.w - 16, 40, 10); ctx.fillStyle = hexA(C.purple, 0.06 * on); ctx.fill(); }
+        avatar(x + 34, ry + 20, 13, h.l, h.g);
+        text(h.n, x + 58, ry + 26, { size: 15, weight: 600 });
+        const bx = x + POP.w - 42;
+        rr(bx, ry + 10, 20, 20, 6);
+        if (on > 0) { ctx.fillStyle = linGrad(bx, ry + 10, bx + 20, ry + 30, [C.purple, C.magenta]); ctx.fill(); check(bx + 10, ry + 20, 12, '#fff', on, 2); }
+        else { ctx.lineWidth = 1.5; ctx.strokeStyle = C.borderStrong; ctx.stroke(); }
+    });
+    const by = y + POP.h - 48;
+    rr(x + 16, by, POP.w - 32, 36, 10); ctx.fillStyle = linGrad(x, by, x + POP.w, by + 36, GRAD); ctx.fill();
+    text('Adicionar (2)', x + POP.w / 2, by + 23, { size: 14, weight: 700, color: '#fff', align: 'center' });
+    ctx.restore();
+}
+
+/* Caminho do cursor: pontos-chave no tempo + cliques. */
+function kanbanCursorPath() {
+    const nb = { x: KW.x + KW.w - 28 - 86, y: KW.y + 36 };
+    const nt = ntRect(), L = nt.x + 28, full = NT.w - 56, half = (full - 16) / 2;
+    const a1 = slotPos(1, 'A'), a2 = slotPos(2, 'A'), c2 = slotPos(2, 'C'), n3 = slotPos(3, 'N');
+    const mt = mtRect(), pop = popRect();
+    return [
+        [0.0, 1500, 1020], [1.2, 1500, 1020],
+        [1.95, nb.x, nb.y],
+        [2.55, L + 120, nt.y + 140], [2.95, L + 160, nt.y + 145],
+        [3.15, L + 220, nt.y + 224], [3.9, L + 230, nt.y + 226],
+        [4.05, L + 140, nt.y + 308], [4.45, L + 80, nt.y + 394],
+        [4.7, L + 120, nt.y + 476], [5.1, L + half + 120, nt.y + 476],
+        [5.45, nt.x + NT.w - 28 - 30, nt.y + NT.h - 32],
+        [6.2, nt.x + NT.w - 28 - 30, nt.y + NT.h - 32],
+        [7.4, a1.x + 170, a1.y + 50],
+        [9.0, a2.x + 170, a2.y + 50],
+        [9.6, a2.x + BTN.runX + 50, a2.y + BTN.y + 16],
+        [10.15, a2.x + BTN.runX + 50, a2.y + BTN.y + 16],
+        [10.8, c2.x + BTN.runX + 50, c2.y + BTN.y + 16],
+        [12.4, c2.x + BTN.runX + 60, c2.y + BTN.y + 40],
+        [13.2, c2.x + BTN.okX + 16, c2.y + BTN.y + 16],
+        [14.6, mt.x + MT.w - 120, mt.y + MT.h - 40],
+        [15.5, mt.x + MT.w - 110, mt.y + MT.h - 44],
+        [17.6, mt.x + MT.w - 110, mt.y + MT.h - 30],
+        [18.4, KW.x + 470, KW.y + 226],
+        [22.3, KW.x + 470, KW.y + 226],
+        [23.1, n3.x + KCARD.w - 31, n3.y + 26],
+        [23.8, pop.x + POP.w - 32, pop.y + 50 + 20],
+        [24.3, pop.x + POP.w - 32, pop.y + 96 + 20],
+        [24.95, pop.x + POP.w / 2 + 20, pop.y + POP.h - 30],
+        [26.0, pop.x + POP.w / 2 + 60, pop.y + POP.h + 40],
+    ];
+}
+const CLICKS = [K.clickNew, K.save, K.grab, K.startA, K.startC, K.clickDone, K.motivoOk, K.dots, K.pickCaio, K.pickLia, K.addHelp];
+
+function drawKanbanCursor(lt) {
+    const path = kanbanCursorPath();
+    let x = path[0][1], y = path[0][2];
+    for (let i = 1; i < path.length; i++) {
+        const [t0, x0, y0] = path[i - 1], [t1, x1, y1] = path[i];
+        if (lt <= t0) break;
+        const e = E.inOut(clamp((lt - t0) / (t1 - t0)));
+        x = lerp(x0, x1, e); y = lerp(y0, y1, e);
+    }
+    // durante o arraste o cursor vai "colado" no card A
+    if (lt > K.grab && lt < K.drop) {
+        const p = cardPos('A', lt), lift = Math.sin(Math.PI * kTransitions(lt)[1]);
+        x = p.x + 170; y = p.y + 50 - lift * 22;
+    }
+    const vis = prog(lt, 1.0, 0.3) * (1 - prog(lt, 27.2, 0.4));
+    if (vis <= 0) return;
+    let press = 0;
+    CLICKS.forEach(c => { press = Math.max(press, clamp(1 - Math.abs(lt - c) / 0.1)); clickRing(x, y, prog(lt, c, 0.5)); });
+    if (lt > K.grab && lt < K.drop) press = 1;
+    ctx.save(); ctx.globalAlpha *= vis;
+    cursor(x, y, press);
     ctx.restore();
 }
 
@@ -612,7 +1115,7 @@ function sceneCampo(lt) {
     const pin = E.out(prog(lt, 0.3, 0.9));
     const x = 880 + (1 - pin) * 80, y = 180, w = 900, h = 730;
     ctx.save(); ctx.globalAlpha *= pin;
-    panel(x, y, w, h, { shadow: true });
+    panel(x, y, w, h);
 
     const steps = [
         { t: 'Chamado aberto', d: 'Solicitação registrada no sistema', h: '08:02' },
@@ -623,21 +1126,20 @@ function sceneCampo(lt) {
     ];
     const T0 = 1.2, STEP = 0.9;
     const cur = clamp(Math.floor((lt - T0) / STEP), -1, steps.length - 1);
-    const colors = [C.lav, C.lav, C.cyan, C.cyan, C.pink];
+    const colors = [C.purple, C.purple, C.cyanText, C.cyanText, C.pink];
     const status = cur < 0 ? 'Aguardando' : steps[cur].t;
 
     pill(x + 40, y + 40, 'BREAKFIX', { size: 13, h: 28, padX: 12, color: C.pink, ls: 1.2 });
     text('Troca de switch · filial', x + 40, y + 118, { size: 34, weight: 700, font: F.display, ls: -0.5 });
-    text('#ATV-2318', x + 40, y + 154, { size: 17, weight: 600, font: F.mono, color: C.subtle });
-    const sc = cur < 0 ? C.subtle : cur === steps.length - 1 ? C.cyan : colors[cur];
+    text('#ATV-2318', x + 40, y + 154, { size: 17, weight: 600, font: F.mono, color: C.faint });
+    const sc = cur < 0 ? C.faint : cur === steps.length - 1 ? C.cyanText : colors[cur];
     const sw = measure(status.toUpperCase(), 14, 700, F.body, 1.4) + 28;
     pill(x + w - 40 - sw, y + 40, status.toUpperCase(), { size: 14, h: 30, padX: 14, color: sc, ls: 1.4 });
 
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x + 40, y + 190, w - 80, 1);
+    ctx.fillStyle = C.border; ctx.fillRect(x + 40, y + 190, w - 80, 1);
 
     const lx = x + 78, ly0 = y + 252, lstep = 104;
-    // trilho + preenchimento
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillStyle = '#ECEEF4';
     ctx.fillRect(lx - 1.5, ly0, 3, lstep * (steps.length - 1));
     const fillP = clamp((lt - T0) / (STEP * (steps.length - 1)));
     if (fillP > 0) {
@@ -649,14 +1151,11 @@ function sceneCampo(lt) {
     steps.forEach((s, i) => {
         const yy = ly0 + i * lstep;
         const on = prog(lt, T0 + i * STEP, 0.4);
-        const isCur = i === cur;
         ctx.beginPath(); ctx.arc(lx, yy, 12, 0, Math.PI * 2);
-        ctx.fillStyle = '#11111E'; ctx.fill();
-        ctx.lineWidth = 2.5; ctx.strokeStyle = on > 0 ? colors[i] : 'rgba(255,255,255,0.15)'; ctx.stroke();
-        if (on > 0) {
-            ctx.beginPath(); ctx.arc(lx, yy, 6 * E.back(on), 0, Math.PI * 2); ctx.fillStyle = colors[i]; ctx.fill();
-        }
-        if (isCur) {
+        ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.lineWidth = 2.5; ctx.strokeStyle = on > 0 ? colors[i] : C.borderStrong; ctx.stroke();
+        if (on > 0) { ctx.beginPath(); ctx.arc(lx, yy, 6 * E.back(on), 0, Math.PI * 2); ctx.fillStyle = colors[i]; ctx.fill(); }
+        if (i === cur) {
             const pr = (lt * 1.2) % 1;
             ctx.save(); ctx.globalAlpha *= (1 - pr) * 0.6;
             ctx.beginPath(); ctx.arc(lx, yy, 12 + pr * 18, 0, Math.PI * 2);
@@ -665,10 +1164,10 @@ function sceneCampo(lt) {
         const ta = lerp(0.35, 1, on);
         text(s.t, lx + 40, yy + 2, { size: 25, weight: 700, alpha: ta });
         text(s.d, lx + 40, yy + 34, { size: 18, color: C.muted, alpha: ta });
-        text(on > 0 ? s.h : '--:--', x + w - 44, yy + 2, { size: 19, weight: 600, font: F.mono, color: on > 0 ? C.text : C.subtle, align: 'right', alpha: ta });
+        text(on > 0 ? s.h : '--:--', x + w - 44, yy + 2, { size: 19, weight: 600, font: F.mono, color: on > 0 ? C.text : C.faint, align: 'right', alpha: ta });
     });
 
-    text('dados ilustrativos', x + w - 32, y + h - 22, { size: 13, color: C.subtle, align: 'right', alpha: 0.7 });
+    illustrative(x + w - 32, y + h - 22);
     ctx.restore();
 }
 
@@ -690,17 +1189,15 @@ function sceneAssistente(lt) {
     const pin = E.out(prog(lt, 0.3, 0.9));
     const x = 820 + (1 - pin) * 80, y = 170, w = 960, h = 640;
     ctx.save(); ctx.globalAlpha *= pin;
-    panel(x, y, w, h, { shadow: true });
+    panel(x, y, w, h);
 
-    // cabeçalho do chat
     ctx.beginPath(); ctx.arc(x + 58, y + 56, 24, 0, Math.PI * 2);
     ctx.fillStyle = linGrad(x + 34, y + 32, x + 82, y + 80, GRAD); ctx.fill();
     sparkle(x + 58, y + 56, 12 + Math.sin(lt * 3) * 1.2);
     text('Assistente OPS', x + 98, y + 64, { size: 23, weight: 700 });
-    pill(x + 98 + measure('Assistente OPS', 23, 700) + 14, y + 40, 'IA', { size: 12, h: 24, padX: 10, color: C.lav, ls: 1.5 });
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x, y + 104, w, 1);
+    pill(x + 98 + measure('Assistente OPS', 23, 700) + 14, y + 40, 'IA', { size: 12, h: 24, padX: 10, color: C.purple, ls: 1.5 });
+    ctx.fillStyle = C.border; ctx.fillRect(x, y + 104, w, 1);
 
-    // pergunta
     const q = 'Quais tarefas do time vencem esta semana?';
     const qp = E.out(prog(lt, 1.0, 0.6));
     if (qp > 0) {
@@ -712,7 +1209,6 @@ function sceneAssistente(lt) {
         ctx.restore();
     }
 
-    // resposta
     const ax = x + 92, ay = y + 236, aw = 640;
     const ap = E.out(prog(lt, 1.8, 0.5));
     if (ap > 0) {
@@ -726,14 +1222,14 @@ function sceneAssistente(lt) {
         const listP = prog(lt, 4.2, 0.4);
         const bh = typing ? 64 : 116 + E.out(listP) * 168;
         rr(ax, ay, typing ? 110 : aw, bh, [6, 22, 22, 22]);
-        ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fill();
+        ctx.fillStyle = C.soft; ctx.fill();
         ctx.lineWidth = 1.2; ctx.strokeStyle = C.border; ctx.stroke();
 
         if (typing) {
             for (let i = 0; i < 3; i++) {
                 const b = Math.sin(lt * 9 - i * 0.9);
                 ctx.beginPath(); ctx.arc(ax + 34 + i * 21, ay + 32 - Math.max(0, b) * 5, 5, 0, Math.PI * 2);
-                ctx.fillStyle = hexA(C.lav, 0.5 + 0.5 * Math.max(0, b)); ctx.fill();
+                ctx.fillStyle = hexA(C.purple, 0.35 + 0.5 * Math.max(0, b)); ctx.fill();
             }
         } else {
             const chars = Math.floor(answer.length * prog(lt, 2.7, 1.4));
@@ -744,16 +1240,17 @@ function sceneAssistente(lt) {
                 text(part, ax + 28, ay + 44 + i * 34, { size: 22, weight: 400 });
             });
             const rows = [
-                ['Troca de switch · filial', 'Atrasada', C.pink],
-                ['Acionar técnico · cabeamento', 'Atrasada', C.pink],
-                ['Rollout de notebooks · lote 2', 'Amanhã', C.cyan],
+                ['Fechamento de medição', 'Atrasada', C.pink],
+                ['Levantamento de pontos de rede', 'Atrasada', C.pink],
+                ['Instalação de access points', 'Quarta', C.cyanText],
             ];
             rows.forEach((r, i) => {
                 const rp = E.out(prog(lt, 4.3 + i * 0.18, 0.5));
                 if (rp <= 0) return;
                 const ry = ay + 122 + i * 52 + (1 - rp) * 10;
                 ctx.save(); ctx.globalAlpha *= rp;
-                rr(ax + 22, ry, aw - 44, 44, 12); ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill();
+                rr(ax + 22, ry, aw - 44, 44, 12); ctx.fillStyle = '#fff'; ctx.fill();
+                ctx.lineWidth = 1; ctx.strokeStyle = C.border; ctx.stroke();
                 ctx.beginPath(); ctx.arc(ax + 46, ry + 22, 5, 0, Math.PI * 2); ctx.fillStyle = r[2]; ctx.fill();
                 text(r[0], ax + 64, ry + 29, { size: 18, weight: 600 });
                 text(r[1], ax + aw - 42, ry + 29, { size: 16, weight: 700, color: r[2], align: 'right' });
@@ -763,28 +1260,24 @@ function sceneAssistente(lt) {
         ctx.restore();
     }
 
-    // campo de pergunta
     const iy = y + h - 82;
-    rr(x + 32, iy, w - 64, 56, 16); ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill();
+    rr(x + 32, iy, w - 64, 56, 16); ctx.fillStyle = C.soft; ctx.fill();
     ctx.lineWidth = 1.2; ctx.strokeStyle = C.border; ctx.stroke();
-    text('Pergunte ao Assistente OPS…', x + 56, iy + 35, { size: 19, color: C.subtle });
+    text('Pergunte ao Assistente OPS…', x + 56, iy + 35, { size: 19, color: C.faint });
     rr(x + w - 32 - 46, iy + 5, 46, 46, 12);
     ctx.fillStyle = linGrad(x + w - 78, iy, x + w - 32, iy + 56, [C.purple, C.magenta]); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(x + w - 62, iy + 19); ctx.lineTo(x + w - 46, iy + 28); ctx.lineTo(x + w - 62, iy + 37); ctx.closePath();
-    ctx.fillStyle = '#fff'; ctx.fill();
+    playIcon(x + w - 55, iy + 28, 16, '#fff');
     ctx.restore();
 
-    // as seis capacidades
     const caps = [['A', 'Achar'], ['B', 'Explicar'], ['C', 'Resumir'], ['D', 'Observar'], ['E', 'Ensinar'], ['F', 'Check-in']];
     const chW = 150, chGap = 12, chY = 856;
-    text('6 CAPACIDADES', 820, chY - 18, { size: 14, weight: 700, color: C.subtle, ls: 3, alpha: prog(lt, 5.2, 0.5) });
+    text('6 CAPACIDADES', 820, chY - 18, { size: 14, weight: 700, color: C.faint, ls: 3, alpha: prog(lt, 5.2, 0.5) });
     caps.forEach((c, i) => {
         const cp = prog(lt, 5.4 + i * 0.13, 0.6);
         if (cp <= 0) return;
         const cx = 820 + i * (chW + chGap), cy = chY + (1 - E.back(cp)) * 20;
         ctx.save(); ctx.globalAlpha *= clamp(cp * 2);
-        rr(cx, cy, chW, 60, 16); ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fill();
-        ctx.lineWidth = 1.2; ctx.strokeStyle = hexA(C.magenta, 0.35); ctx.stroke();
+        panel(cx, cy, chW, 60, { r: 16, blur: 20, dy: 8, shadowColor: 'rgba(13,15,35,0.06)', stroke: hexA(C.magenta, 0.25) });
         rr(cx + 12, cy + 15, 30, 30, 9); ctx.fillStyle = linGrad(cx + 12, cy + 15, cx + 42, cy + 45, GRAD); ctx.fill();
         text(c[0], cx + 27, cy + 31, { size: 15, weight: 700, font: F.mono, color: '#fff', align: 'center', base: 'middle' });
         text(c[1], cx + 54, cy + 37, { size: 18, weight: 600 });
@@ -795,7 +1288,7 @@ function sceneAssistente(lt) {
 /* 7 · Plataforma */
 function scenePlataforma(lt) {
     const cx = W / 2;
-    reveal('05 · PLATAFORMA', cx, 228, prog(lt, 0.2, 0.8), { size: 18, weight: 700, color: C.cyan, ls: 5, align: 'center' });
+    reveal('05 · PLATAFORMA', cx, 228, prog(lt, 0.2, 0.8), { size: 18, weight: 700, color: C.purple, ls: 5, align: 'center' });
     reveal('Tudo conectado num só sistema.', cx, 316, prog(lt, 0.35, 0.9), { size: 70, weight: 700, font: F.display, ls: -2, align: 'center' });
 
     const mods = [
@@ -816,16 +1309,15 @@ function scenePlataforma(lt) {
         const col = i % 4, row = Math.floor(i / 4);
         const x = x0 + col * (tw + gap), y = y0 + row * (th + gap) + (1 - E.out(p)) * 30;
         ctx.save(); ctx.globalAlpha *= E.out(p);
-        panel(x, y, tw, th, { r: 20, fill: 'rgba(17,17,30,0.7)' });
-        // varredura de brilho na borda
+        panel(x, y, tw, th, { r: 20, blur: 30, dy: 12, shadowColor: 'rgba(13,15,35,0.07)' });
         const sweep = prog(lt, 2.4 + (col + row) * 0.12, 0.9);
         if (sweep > 0 && sweep < 1) {
-            ctx.save(); rr(x, y, tw, th, 20); ctx.lineWidth = 2;
-            ctx.strokeStyle = linGrad(x, y, x + tw, y + th, [hexA(C.purple, 0), hexA(C.magenta, Math.sin(Math.PI * sweep)), hexA(C.cyan, 0)]);
+            ctx.save(); rr(x, y, tw, th, 20); ctx.lineWidth = 2.5;
+            ctx.strokeStyle = linGrad(x, y, x + tw, y + th, [hexA(C.purple, 0), hexA(C.magenta, 0.8 * Math.sin(Math.PI * sweep)), hexA(C.cyan, 0)]);
             ctx.stroke(); ctx.restore();
         }
         rr(x + 28, y + 28, 36, 6, 3); ctx.fillStyle = linGrad(x + 28, 0, x + 64, 0, i % 2 ? GRAD_COOL : GRAD); ctx.fill();
-        text(String(i + 1).padStart(2, '0'), x + tw - 28, y + 40, { size: 15, weight: 700, font: F.mono, color: C.subtle, align: 'right' });
+        text(String(i + 1).padStart(2, '0'), x + tw - 28, y + 40, { size: 15, weight: 700, font: F.mono, color: C.faint, align: 'right' });
         text(m[0], x + 28, y + 112, { size: 32, weight: 700, font: F.display, ls: -0.5 });
         text(m[1], x + 28, y + 150, { size: 19, color: C.muted });
         ctx.restore();
@@ -839,37 +1331,36 @@ function sceneOutro(lt) {
     if (pm > 0) mark(cx, cy, 150 * E.back(pm), { glow: 1 + Math.sin(lt * 2) * 0.2, tri: E.back(prog(lt, 0.5, 0.6)) });
     const pw = E.out(prog(lt, 0.8, 1.0));
     if (pw > 0) {
-        const wmW = measure('FAISTON ', 104, 700, F.display) + measure('OPS', 104, 700, F.display);
+        const wmW = measure('FAISTON ', 104, 700, F.display, -3) + measure('OPS', 104, 700, F.display, -3);
         ctx.save(); ctx.globalAlpha *= pw;
         wordmark(cx - wmW / 2, 640 + (1 - pw) * 20, 104, { ls: -3 });
         ctx.restore();
     }
     reveal('Feito pela Faiston, para a operação da Faiston.', cx, 720, prog(lt, 1.5, 1.0), { size: 32, weight: 400, color: C.muted, align: 'center' });
-    reveal('faiston.com', cx, 960, prog(lt, 2.2, 0.9), { size: 18, weight: 600, font: F.mono, color: C.subtle, align: 'center', ls: 2 });
+    reveal('faiston.com', cx, 960, prog(lt, 2.2, 0.9), { size: 18, weight: 600, font: F.mono, color: C.faint, align: 'center', ls: 2 });
 }
 
-/* ---------------- Linha do tempo ---------------- */
 const SCENES = [
-    { s: 0, e: 5.5, draw: sceneIntro, noFadeIn: true },
-    { s: 5.5, e: 10.5, draw: sceneStatement },
-    { s: 10.5, e: 18.5, draw: sceneDashboard },
-    { s: 18.5, e: 27.5, draw: sceneKanban },
-    { s: 27.5, e: 35, draw: sceneCampo },
-    { s: 35, e: 44, draw: sceneAssistente },
-    { s: 44, e: 50, draw: scenePlataforma },
-    { s: 50, e: 56, draw: sceneOutro, noFadeOut: true },
+    { r: T.intro, draw: sceneIntro, noFadeIn: true },
+    { r: T.statement, draw: sceneStatement },
+    { r: T.dash, draw: sceneDashboard },
+    { r: T.kanban, draw: sceneKanban },
+    { r: T.campo, draw: sceneCampo },
+    { r: T.ia, draw: sceneAssistente },
+    { r: T.plat, draw: scenePlataforma },
+    { r: T.outro, draw: sceneOutro, noFadeOut: true },
 ];
-const DURATION = 56;
 
 function render(t) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     background(t);
     SCENES.forEach(sc => {
-        if (t < sc.s || t > sc.e) return;
-        const lt = t - sc.s;
+        const [s, e] = sc.r;
+        if (t < s || t > e) return;
+        const lt = t - s;
         const fin = sc.noFadeIn ? 1 : E.out(prog(lt, 0, 0.5));
-        const fout = sc.noFadeOut ? 1 : 1 - E.inOut(prog(t, sc.e - 0.55, 0.55));
+        const fout = sc.noFadeOut ? 1 : 1 - E.inOut(prog(t, e - 0.55, 0.55));
         ctx.save();
         ctx.globalAlpha = fin * fout;
         ctx.translate(0, (1 - fout) * -24);
@@ -877,9 +1368,8 @@ function render(t) {
         ctx.restore();
     });
     hud(t);
-    // fade do comecinho e do fim
-    const black = Math.max(1 - prog(t, 0, 0.4), prog(t, DURATION - 0.8, 0.8));
-    if (black > 0) { ctx.fillStyle = `rgba(7,7,15,${black})`; ctx.fillRect(0, 0, W, H); }
+    const fade = Math.max(1 - prog(t, 0, 0.4), prog(t, DURATION - 0.8, 0.8));
+    if (fade > 0) { ctx.fillStyle = `rgba(244,245,250,${fade})`; ctx.fillRect(0, 0, W, H); }
 }
 
 /* ---------------- Player ---------------- */
@@ -948,7 +1438,7 @@ function poke() {
 async function boot() {
     try {
         await Promise.all([
-            '400 20px Inter', '500 20px Inter', '600 20px Inter', '700 20px Inter',
+            '400 20px Inter', '500 20px Inter', '600 20px Inter', '700 20px Inter', '800 20px Inter',
             '500 20px "Space Grotesk"', '700 20px "Space Grotesk"',
             '500 20px "JetBrains Mono"', '600 20px "JetBrains Mono"', '700 20px "JetBrains Mono"',
         ].map(f => document.fonts.load(f)));
