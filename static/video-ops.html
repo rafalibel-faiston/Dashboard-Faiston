@@ -372,20 +372,20 @@ function background(t) {
    sp = janela em que as legendas ficam na tela. Os trechos k1..k7 são os
    passos da demo de Minhas tarefas. */
 const NARR = [
-    { id: 'intro', d: 6.5, c: [] },
-    { id: 'antes', d: 15, c: ['Antes: o controle era feito em planilhas.', 'Várias versões do arquivo, atualização manual e status sem padrão.', 'Pouca aderência à operação e pouca visão para a gestão.'] },
-    { id: 'statement', d: 6, c: [] },
-    { id: 'dash', d: 8, c: ['Horas, média por pessoa e conclusão do time, ao vivo.'] },
-    { id: 'k1', d: 9, c: ['Criar tarefa: projeto, tipo de atividade, natureza e previsão.', 'O cliente vem preenchido e o tipo já traz o peso.'] },
-    { id: 'k2', d: 8, c: ['Arrastou para Em andamento, apertou Iniciar.', 'Vários cronômetros ao mesmo tempo, contados no servidor.'] },
-    { id: 'k3', d: 7.5, c: ['Concluiu depois da previsão? O sistema pede o motivo.'] },
-    { id: 'k4', d: 7.5, c: ['Carga: soma do peso das tarefas, e o atraso conta mais.', 'O líder vê o mesmo nível, de tranquilo a atolado.'] },
-    { id: 'k5', d: 6, c: ['Ajudantes entram na tarefa e são notificados.'] },
-    { id: 'k6', d: 7, c: ['Agenda: prazo e agendamento, dia a dia.'] },
-    { id: 'k7', d: 8.5, c: ['Carimbos: textos prontos para copiar e colar.'] },
-    { id: 'ia', d: 9, c: ['Acha dados, explica processos,', 'resume a semana e faz o check-in do time.'] },
-    { id: 'plat', d: 6, c: [] },
-    { id: 'outro', d: 6.5, c: [] },
+    { id: 'intro', d: 6, c: [] },
+    { id: 'antes', d: 12.5, c: ['Antes: o controle era feito em planilhas.', 'Várias versões do arquivo, atualização manual e status sem padrão.', 'Pouca aderência à operação e pouca visão para a gestão.'] },
+    { id: 'statement', d: 5.5, c: [] },
+    { id: 'dash', d: 7.5, c: ['Horas, média por pessoa e conclusão do time, ao vivo.'] },
+    { id: 'k1', d: 7.5, c: ['Criar tarefa: projeto, tipo de atividade, natureza e previsão.', 'O cliente vem preenchido e o tipo já traz o peso.'] },
+    { id: 'k2', d: 6.8, c: ['Arrastou para Em andamento, apertou Iniciar.', 'Vários cronômetros ao mesmo tempo, contados no servidor.'] },
+    { id: 'k3', d: 6.2, c: ['Concluiu depois da previsão? O sistema pede o motivo.'] },
+    { id: 'k4', d: 6, c: ['Carga: soma do peso das tarefas, e o atraso conta mais.', 'O líder vê o mesmo nível, de tranquilo a atolado.'] },
+    { id: 'k5', d: 5.2, c: ['Ajudantes entram na tarefa e são notificados.'] },
+    { id: 'k6', d: 6.3, c: ['Agenda: prazo e agendamento, dia a dia.'] },
+    { id: 'k7', d: 8.2, c: ['Carimbos: textos prontos para copiar e colar.'] },
+    { id: 'ia', d: 8.5, c: ['Acha dados, explica processos,', 'resume a semana e faz o check-in do time.'] },
+    { id: 'plat', d: 5.5, c: [] },
+    { id: 'outro', d: 6, c: [] },
 ];
 NARR.forEach(n => { n.sp = n.d - 1.0; });
 const NARR_LEAD = 0.4;   // a legenda entra logo depois do corte
@@ -787,11 +787,11 @@ const STEPS = [
 const KWARP = (() => {
     const iv = [[0, 6.6], [6.6, 12.4], [12.4, 17.9], [17.9, 22.4], [22.4, 27.0], [27.0, 33.0], [33.0, 41.0]];
     const holds = [
-        [[2.15, 0.6], [5.05, 0.8]],             // modal aberto · tudo preenchido
-        [[8.75, 0.3], [11.3, 1.0]],             // soltou o card · dois timers rodando
-        [[13.6, 0.6], [17.1, 0.6]],             // pedido do motivo · card concluído
-        [[20.4, 0.4]],                          // régua de carga aberta
-        [[25.7, 0.6]],                          // aviso dos ajudantes
+        [[2.15, 0.3], [5.05, 0.4]],             // modal aberto · tudo preenchido
+        [[11.3, 0.6]],                          // dois timers rodando
+        [[17.1, 0.4]],                          // card concluído
+        [[20.4, 0.3]],                          // régua de carga aberta
+        [[25.7, 0.3]],                          // aviso dos ajudantes
         [],                                     // agenda
         [],                                     // carimbos
     ];
