@@ -4436,12 +4436,6 @@ def video_page(faiston_token: str = Cookie(None)):
     if not sess: return RedirectResponse("/")
     return FileResponse("static/video-ops.html")
 
-@app.get("/video-ops-narracao.mp3")
-def video_narracao(faiston_token: str = Cookie(None)):
-    sess = get_session(faiston_token)
-    if not sess: return RedirectResponse("/")
-    return FileResponse("static/video-ops-narracao.mp3", media_type="audio/mpeg")
-
 # --- NOTIFICAÇÕES ---
 def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None, destinatario_id: int = None):
     # Usa SAVEPOINT para que uma falha ao gravar a notificação NÃO aborte a
