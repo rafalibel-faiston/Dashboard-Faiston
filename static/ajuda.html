@@ -213,6 +213,10 @@
                 <span class="tab-icon"><i class="ph ph-crown-simple"></i></span>
                 <span class="lbl">Diretor</span>
             </button>
+            <button class="tab-btn" onclick="setTab('admin')" id="tb-admin">
+                <span class="tab-icon"><i class="ph ph-shield-check"></i></span>
+                <span class="lbl">Admin</span>
+            </button>
             <button class="tab-btn" onclick="setTab('dev')" id="tb-dev">
                 <span class="tab-icon"><i class="ph ph-code"></i></span>
                 <span class="lbl">Equipe Dev</span>
@@ -808,7 +812,8 @@
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-folders" style="color:#5B2EE0;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Gestão de Projetos</p></div>
                 <p style="font-size:12px;color:#9097AC;line-height:1.5">Clientes, Projetos, Contratos, Carimbos, Forecast e Visão PMO</p>
             </div>
-            <div class="fcard" style="padding:16px;border-left:3px solid #EC4899">
+            <!-- Financeiro oculto do menu (2026-10-07); o card volta junto com ele. -->
+            <div class="fcard" style="display:none;padding:16px;border-left:3px solid #EC4899">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-currency-circle-dollar" style="color:#EC4899;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Financeiro</p></div>
                 <p style="font-size:12px;color:#9097AC;line-height:1.5">Orçamento e lançamentos de gastos por cliente</p>
             </div>
@@ -977,11 +982,11 @@
             </div>
         </div>
         <div class="card" style="padding:24px;margin-bottom:12px">
-            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Em <strong style="color:#0B0D1F">Backoffice</strong>, na barra lateral, você gerencia as contas dos funcionários do seu time. Ao criar uma conta, o sistema dispara o <strong style="color:#0B0D1F">email de primeiro acesso</strong> automaticamente.</p>
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Em <strong style="color:#0B0D1F">Backoffice</strong>, na barra lateral, você gerencia as contas dos funcionários do seu time. A conta nova já nasce na <strong style="color:#0B0D1F">sua área</strong> (ex.: Projetos, Logística), sem precisar escolher. Ao criar, o sistema dispara o <strong style="color:#0B0D1F">email de primeiro acesso</strong> automaticamente.</p>
             <div style="display:flex;flex-direction:column;gap:0">
                 <div style="display:flex;align-items:flex-start;gap:12px">
                     <div class="step-num">1</div>
-                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Clique em <strong style="color:#0B0D1F">"Novo Funcionário"</strong> e preencha nome, usuário e email</p>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Clique em <strong style="color:#0B0D1F">"Novo Funcionário"</strong> e preencha nome, usuário e email (o email é obrigatório: é por ele que a pessoa recebe o acesso)</p>
                 </div>
                 <div class="step-line"><div class="step-connector"></div></div>
                 <div style="display:flex;align-items:flex-start;gap:12px">
@@ -991,7 +996,7 @@
                 <div class="step-line"><div class="step-connector"></div></div>
                 <div style="display:flex;align-items:flex-start;gap:12px">
                     <div class="step-num">3</div>
-                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">O funcionário recebe email com <strong style="color:#0B0D1F">usuário e senha temporária</strong> e cria a própria senha no primeiro acesso (mínimo 8 caracteres, com letras e números)</p>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">O funcionário recebe um email com o <strong style="color:#0B0D1F">link para definir a própria senha</strong> (mínimo 8 caracteres, com letras e números). Se o email não chegar, use <strong style="color:#0B0D1F">Reenviar acesso</strong></p>
                 </div>
                 <div class="step-line"><div class="step-connector"></div></div>
                 <div style="display:flex;align-items:flex-start;gap:12px">
@@ -1058,7 +1063,7 @@
         </div>
         <div class="hbox" style="background:#f59e0b0a;border:1px solid #f59e0b30;margin-top:12px">
             <i class="ph ph-info" style="color:#f59e0b;font-size:18px;flex-shrink:0;margin-top:1px"></i>
-            <p style="font-size:13px;color:#5E647A;line-height:1.6">O gestor cria e gerencia apenas contas de <strong style="color:#0B0D1F">funcionário</strong> dentro do próprio time. Contas de gestor, diretor ou admin são criadas pelo administrador.</p>
+            <p style="font-size:13px;color:#5E647A;line-height:1.6">O gestor cria e gerencia apenas contas de <strong style="color:#0B0D1F">funcionário</strong> dentro da própria área. Contas de gestor, diretor ou admin, e a troca de alguém de área, são feitas pelo administrador. Precisa de uma área nova? Peça ao admin: ele cria pelo próprio sistema, em <strong style="color:#0B0D1F">Admin → Áreas</strong>.</p>
         </div>
     </div>
 
@@ -1263,7 +1268,7 @@
             <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#B826C9)"><i class="ph ph-squares-four" style="font-size:16px"></i></div>
             <div>
                 <div class="sec-hd-txt">Outras Funcionalidades</div>
-                <div class="sec-hd-sub">Carimbos, Clientes & Financeiro</div>
+                <div class="sec-hd-sub">Carimbos & Clientes</div>
             </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
@@ -1345,7 +1350,7 @@
                 </div>
             </div>
 
-            <div class="acc-item" onclick="toggleAcc(this)">
+            <div class="acc-item" style="display:none" onclick="toggleAcc(this)">
                 <div class="acc-head">
                     <div class="acc-icon" style="background:#EC489912"><i class="ph ph-currency-circle-dollar" style="color:#EC4899;font-size:20px"></i></div>
                     <div>
@@ -1490,6 +1495,89 @@
     </div>
 </div>
 
+<!-- ════════════ ADMIN ════════════ -->
+<div id="tab-admin" class="tab-panel" style="display:none;flex-direction:column;gap:32px">
+
+    <!-- Cadastrar gestores e funcionários -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#06D7E6)"><i class="ph ph-user-plus" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Cadastrar gestores e funcionários <span style="font-size:10px;font-weight:800;color:#fff;background:linear-gradient(135deg,#5B2EE0,#EC4899);padding:2px 8px;border-radius:20px;vertical-align:middle;margin-left:6px">ATUALIZADO</span></div>
+                <div class="sec-hd-sub">Admin → Usuários → Novo Usuário</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px;margin-bottom:12px">
+            <div style="display:flex;flex-direction:column;gap:0">
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">1</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Preencha <strong style="color:#0B0D1F">nome, usuário e email</strong>. O email é obrigatório: é por ele que a pessoa recebe o acesso</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">2</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Escolha o <strong style="color:#0B0D1F">perfil</strong>: <strong style="color:#0B0D1F">Gestor</strong> (lidera uma área) ou <strong style="color:#0B0D1F">Funcionário</strong>. Para funcionário, escolha também o <strong style="color:#0B0D1F">cargo</strong> (Analista, Backoffice, N2, Desenvolvedor ou Service Desk), que define a tela em que ele entra</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">3</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Escolha a <strong style="color:#0B0D1F">área (time)</strong>. A lista vem de <strong style="color:#0B0D1F">Admin → Áreas</strong>; se a área ainda não existe, crie lá antes. Só aparecem os <strong style="color:#0B0D1F">perfis e cargos liberados</strong> para aquela área</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">4</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Salve. A pessoa recebe o <strong style="color:#0B0D1F">email de primeiro acesso</strong> com o link para definir a própria senha. Na tabela de usuários ela aparece como <strong style="color:#0B0D1F">"Nunca acessou"</strong> até entrar pela primeira vez</p>
+                </div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <div class="fcard fcard-accent" style="border-left-color:#5B2EE0;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <i class="ph-fill ph-chart-line-up" style="color:#5B2EE0;font-size:18px"></i>
+                    <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Gestor</p>
+                </div>
+                <p style="font-size:12.5px;color:#5E647A;line-height:1.55">Vê o dashboard e o Kanban <strong style="color:#0B0D1F">só da área dele</strong>, e cadastra os funcionários dessa área (eles já nascem na área do gestor). Não cria outros gestores.</p>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#06D7E6;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <i class="ph-fill ph-user" style="color:#06D7E6;font-size:18px"></i>
+                    <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Funcionário</p>
+                </div>
+                <p style="font-size:12.5px;color:#5E647A;line-height:1.55">Pode ser cadastrado pelo admin (em qualquer área) ou pelo gestor da área. Enxerga tarefas, carimbos e clientes da própria área.</p>
+            </div>
+        </div>
+        <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025;margin-top:12px">
+            <i class="ph ph-arrows-clockwise" style="color:#5B2EE0;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:12.5px;color:#5E647A;line-height:1.6">Trocou a área, o perfil ou o cargo de alguém? Se a pessoa estiver com o sistema aberto, peça para ela <strong style="color:#0B0D1F">sair e entrar de novo</strong> para ver a mudança.</p>
+        </div>
+    </div>
+
+    <!-- Áreas -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#B826C9,#EC4899)"><i class="ph ph-buildings" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Áreas (times) <span style="font-size:10px;font-weight:800;color:#fff;background:linear-gradient(135deg,#5B2EE0,#EC4899);padding:2px 8px;border-radius:20px;vertical-align:middle;margin-left:6px">NOVO</span></div>
+                <div class="sec-hd-sub">Admin → Áreas: crie, renomeie e desative pelo sistema</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px;margin-bottom:12px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">As áreas (Projetos, Logística, Rede Credenciada, Desenvolvimento...) eram fixas no sistema. Agora o <strong style="color:#0B0D1F">administrador cadastra novas áreas</strong> sem depender de atualização do sistema. Toda área criada aparece na hora nos cadastros de usuário, cliente, projeto e no catálogo de pesos.</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="info-row"><i class="ph ph-plus-circle" style="color:#10B981"></i><div><strong>Nova área</strong>: digite o nome, marque se ela <strong>trabalha por projeto</strong> e clique para criar. Depois, cadastre o gestor e os funcionários nela, e as frentes em <strong>Pesos das Atividades</strong></div></div>
+                <div class="info-row"><i class="ph ph-folder-minus" style="color:#06D7E6"></i><div><strong>Tirar projetos</strong>: a área passa a trabalhar só com demanda avulsa e deixa de aparecer como dona de projeto. Só é possível sem projeto ativo na área</div></div>
+                <div class="info-row"><i class="ph ph-user-gear" style="color:#B826C9"></i><div><strong>Cargos e perfis</strong>: define quais perfis (gestor, funcionário...) e cargos (Analista, N2, Service Desk...) podem ser cadastrados nessa área</div></div>
+                <div class="info-row"><i class="ph ph-pencil-simple" style="color:#5B2EE0"></i><div><strong>Renomear</strong>: usuários, clientes, projetos e frentes da área passam para o nome novo de uma vez</div></div>
+                <div class="info-row"><i class="ph ph-prohibit" style="color:#EC4899"></i><div><strong>Desativar</strong>: só com a área vazia (mova os usuários antes). Ela some dos cadastros e o histórico é preservado</div></div>
+            </div>
+        </div>
+        <div class="hbox" style="background:#f59e0b0a;border:1px solid #f59e0b30">
+            <i class="ph ph-info" style="color:#f59e0b;font-size:18px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:13px;color:#5E647A;line-height:1.6">Cuidado com <strong style="color:#0B0D1F">Projetos</strong>: é a área padrão do sistema e a dona do Status Report do N2. Evite renomear ou desativar. Área nova começa simples: Kanban, carimbos, pesos e dashboard próprios, sem o Status Report.</p>
+        </div>
+    </div>
+</div>
+
 <!-- ════════════ DIRETOR ════════════ -->
 <div id="tab-diretor" class="tab-panel" style="display:none;flex-direction:column;gap:32px">
 
@@ -1503,8 +1591,8 @@
             </div>
         </div>
         <div class="card" style="padding:24px">
-            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:18px">A ideia do Faiston OPS é <strong style="color:#0B0D1F">unificar tudo num só sistema</strong>: projetos, finanças, tarefas e acompanhamento conversando entre si. Como diretor, você enxerga o <strong style="color:#0B0D1F">consolidado das 3 áreas</strong> que comanda, sem precisar pular entre planilhas e telas.</p>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:18px">A ideia do Faiston OPS é <strong style="color:#0B0D1F">unificar tudo num só sistema</strong>: projetos, finanças, tarefas e acompanhamento conversando entre si. Como diretor, você enxerga o <strong style="color:#0B0D1F">consolidado das áreas</strong> que comanda, sem precisar pular entre planilhas e telas. A lista abaixo vem do cadastro do sistema: área nova criada pelo admin aparece aqui sozinha.</p>
+            <div id="diretor-areas-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
                 <div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:14px;background:#06D7E608;border:1px solid #06D7E620">
                     <i class="ph ph-truck" style="color:#06D7E6;font-size:26px;flex-shrink:0"></i>
                     <p style="font-size:14px;font-weight:700;color:#0B0D1F">Logística</p>
@@ -1531,11 +1619,11 @@
             </div>
         </div>
         <div class="card" style="padding:24px">
-            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Na barra lateral, em <strong style="color:#0B0D1F">Backoffice</strong>, os funcionários aparecem <strong style="color:#0B0D1F">agrupados pelas 3 áreas</strong>. Você navega assim:</p>
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Na barra lateral, em <strong style="color:#0B0D1F">Backoffice</strong>, os funcionários aparecem <strong style="color:#0B0D1F">agrupados por área</strong>. Você navega assim:</p>
             <div style="display:flex;flex-direction:column;gap:10px">
                 <div class="info-row"><i class="ph ph-buildings" style="color:#5B2EE0"></i><div>Clique no <strong>nome da área</strong> (ex.: Logística) → o dashboard passa a mostrar só aquela área</div></div>
                 <div class="info-row"><i class="ph ph-user" style="color:#06D7E6"></i><div>Clique em um <strong>funcionário</strong> → filtra todos os dados por aquela pessoa</div></div>
-                <div class="info-row"><i class="ph ph-arrow-counter-clockwise" style="color:#EC4899"></i><div>Clique em <strong>Todos</strong> → limpa o filtro e volta a ver as 3 áreas juntas</div></div>
+                <div class="info-row"><i class="ph ph-arrow-counter-clockwise" style="color:#EC4899"></i><div>Clique em <strong>Todos</strong> → limpa o filtro e volta a ver todas as áreas juntas</div></div>
             </div>
         </div>
     </div>
@@ -1601,7 +1689,7 @@
         </div>
         <div class="card" style="padding:24px">
             <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">
-                O perfil de diretor é o mais <strong style="color:#0B0D1F">amplo em alcance</strong> — as três áreas, todos os funcionários, todas as métricas. Em compensação, dois módulos ficam de fora por decisão de negócio:
+                O perfil de diretor é o mais <strong style="color:#0B0D1F">amplo em alcance</strong> — todas as áreas, todos os funcionários, todas as métricas. Em compensação, dois módulos ficam de fora por decisão de negócio:
             </p>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
                 <div class="fcard fcard-accent" style="border-left-color:#9097AC">
@@ -2185,7 +2273,7 @@ document.getElementById('ano').textContent = new Date().getFullYear();
     // FUNÇÃO da pessoa, não o perfil cru do banco: a rota /ajuda traduz
     // funcionario+cargo=n2 em "n2" e funcionario+cargo=backoffice em
     // "backoffice" antes de redirecionar.
-    const TODAS = ['func', 'backoffice', 'gestor', 'diretor', 'n2', 'dev'];
+    const TODAS = ['func', 'backoffice', 'gestor', 'diretor', 'n2', 'admin', 'dev'];
     const perfilAbas = {
         funcionario: ['func'],
         backoffice:  ['backoffice', 'func'],
@@ -2199,7 +2287,7 @@ document.getElementById('ano').textContent = new Date().getFullYear();
     // Aba padrão (ativa) de cada função
     const perfilParaAba = {
         funcionario: 'func', backoffice: 'backoffice', gestor: 'gestor',
-        demo: 'gestor', admin: 'gestor', diretor: 'diretor', n2: 'n2', dev: 'dev'
+        demo: 'gestor', admin: 'admin', diretor: 'diretor', n2: 'n2', dev: 'dev'
     };
 
     // Sem perfil conhecido (visita anônima, sem o ?perfil= do e-mail de
@@ -2273,6 +2361,31 @@ document.getElementById('ano').textContent = new Date().getFullYear();
             }
         }, 250);
     }
+})();
+</script>
+<script>
+// Áreas do diretor vêm do cadastro (Admin → Áreas). Sem sessão ou com erro,
+// fica o conteúdo estático da página.
+(async function() {
+    const grid = document.getElementById('diretor-areas-grid');
+    if (!grid) return;
+    try {
+        const res = await fetch('/api/areas');
+        if (!res.ok) return;
+        const areas = (await res.json()).areas || [];
+        if (!areas.length) return;
+        const icones = {'Logística': 'ph-truck', 'Projetos': 'ph-folder-open', 'Rede Credenciada': 'ph-network', 'Desenvolvimento': 'ph-code'};
+        const cores = ['#06D7E6', '#5B2EE0', '#EC4899', '#B826C9', '#10B981', '#F59E0B'];
+        const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        grid.innerHTML = areas.map((a, i) => {
+            const cor = cores[i % cores.length];
+            const icone = icones[a.nome] || 'ph-buildings';
+            return `<div style="display:flex;align-items:center;gap:12px;padding:16px;border-radius:14px;background:${cor}08;border:1px solid ${cor}20">
+                <i class="ph ${icone}" style="color:${cor};font-size:26px;flex-shrink:0"></i>
+                <p style="font-size:14px;font-weight:700;color:#0B0D1F">${esc(a.nome)}</p>
+            </div>`;
+        }).join('');
+    } catch (e) {}
 })();
 </script>
 <script src="/assistente/widget.js?v=2"></script>
