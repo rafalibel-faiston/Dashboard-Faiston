@@ -3717,14 +3717,18 @@ function eqCarregarTabelaBloqueios(lista) {
     }).join('');
 }
 
+// Minha Equipe é sempre a área de quem está logado -- inclusive pra admin/dev,
+// que veem a empresa inteira só em Admin → Usuários.
+let eqMinhaArea = '';
 async function eqCarregarUsuarios() {
     const res = await fetch('/api/me');
     if (res.ok) {
         const me = await res.json();
+        eqMinhaArea = me.time || 'Projetos';
         const label = document.getElementById('equipe-time-label');
         if (label) label.textContent = `· ${me.time || ''}`;
     }
-    const r = await fetch('/api/usuarios');
+    const r = await fetch('/api/usuarios?escopo=minha_area');
     if (!r.ok) return;
     eqUsuarios = await r.json();
     document.getElementById('eq-filtro-frente').value = '';
@@ -3976,9 +3980,9 @@ async function eqSalvarUsuario() {
     try {
         let res;
         if (eqModalId) {
-            res = await fetch(`/api/usuarios/${eqModalId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({nome, perfil, senha, ativo, email, time: '', cargo}) });
+            res = await fetch(`/api/usuarios/${eqModalId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({nome, perfil, senha, ativo, email, time: eqMinhaArea, cargo}) });
         } else {
-            res = await fetch('/api/usuarios', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({usuario, senha, nome, perfil, email, time: '', cargo}) });
+            res = await fetch('/api/usuarios', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({usuario, senha, nome, perfil, email, time: eqMinhaArea, cargo}) });
         }
         const data = await res.json();
         if (!res.ok) { alert(data.detail || 'Erro ao salvar'); return; }
