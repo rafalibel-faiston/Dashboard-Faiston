@@ -795,8 +795,18 @@
                 <div class="sec-hd-sub">O que cada item da barra lateral faz</div>
             </div>
         </div>
+        <div class="card" style="padding:18px 22px;margin-bottom:12px;border:1.5px solid #5B2EE025;background:linear-gradient(135deg,#5B2EE006,#EC489906)">
+            <div style="display:flex;align-items:flex-start;gap:14px">
+                <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#EC4899);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ph ph-graduation-cap" style="color:white;font-size:20px"></i></div>
+                <div>
+                    <p style="font-size:14.5px;font-weight:800;color:#0B0D1F;margin-bottom:4px;font-family:'Space Grotesk',sans-serif">Tem um tour guiado na sua tela <span style="font-size:10px;font-weight:800;color:#fff;background:linear-gradient(135deg,#5B2EE0,#EC4899);padding:2px 8px;border-radius:20px;vertical-align:middle;margin-left:4px">NOVO</span></p>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.65">No seu primeiro acesso ele abre sozinho e mostra, na própria tela, como <strong style="color:#0B0D1F">criar tarefas</strong> e como funciona a <strong style="color:#0B0D1F">operação do N2</strong>. Pra rever quando quiser: <strong style="color:#0B0D1F">Gestão → Rever tour</strong>. Este guia fica em <strong style="color:#0B0D1F">Gestão → Guia de uso</strong>.</p>
+                </div>
+            </div>
+        </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-            <div class="fcard" style="padding:16px;border-left:3px solid #5B2EE0">
+            <!-- Minhas Tarefas oculto do menu (2026-09-28); o card volta junto com ele. -->
+            <div class="fcard" style="display:none;padding:16px;border-left:3px solid #5B2EE0">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-user-focus" style="color:#5B2EE0;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Minhas Tarefas</p></div>
                 <p style="font-size:12px;color:#9097AC;line-height:1.5">Seu quadro pessoal — Kanban, Agenda e Carimbos</p>
             </div>
@@ -806,7 +816,19 @@
             </div>
             <div class="fcard" style="padding:16px;border-left:3px solid #B826C9">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-users-three" style="color:#B826C9;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Backoffice</p></div>
-                <p style="font-size:12px;color:#9097AC;line-height:1.5">Cadastrar e gerenciar os funcionários do time</p>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">As pessoas do seu time. Clique num nome pra filtrar o painel por ela</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #EC4899">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-headset" style="color:#EC4899;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">N2</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Painel N2: escala do dia e resumo de cada técnico N2</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #06D7E6">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-calendar-check" style="color:#06D7E6;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Cronograma de Atividades</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Visitas de campo: Cronograma (quadro) e Status Report. Só para a área Projetos</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #B826C9">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-users-three" style="color:#B826C9;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Minha Equipe</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Cadastrar quem entra no time e marcar férias e afastamentos</p>
             </div>
             <div class="fcard" style="padding:16px;border-left:3px solid #5B2EE0">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-folders" style="color:#5B2EE0;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Gestão de Projetos</p></div>
@@ -820,6 +842,10 @@
             <div class="fcard" style="padding:16px;border-left:3px solid #06D7E6">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-clock-counter-clockwise" style="color:#06D7E6;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Histórico</p></div>
                 <p style="font-size:12px;color:#9097AC;line-height:1.5">Linha do tempo de todas as tarefas, com filtros</p>
+            </div>
+            <div class="fcard" style="padding:16px;border-left:3px solid #5B2EE0">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-book-open-text" style="color:#5B2EE0;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Guia de uso · Rever tour</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Este guia e o tour guiado, sempre à mão no menu Gestão</p>
             </div>
         </div>
         <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025;margin-top:12px">
@@ -982,11 +1008,11 @@
             </div>
         </div>
         <div class="card" style="padding:24px;margin-bottom:12px">
-            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Em <strong style="color:#0B0D1F">Backoffice</strong>, na barra lateral, você gerencia as contas dos funcionários do seu time. A conta nova já nasce na <strong style="color:#0B0D1F">sua área</strong> (ex.: Projetos, Logística), sem precisar escolher. Ao criar, o sistema dispara o <strong style="color:#0B0D1F">email de primeiro acesso</strong> automaticamente.</p>
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">Em <strong style="color:#0B0D1F">Gestão → Minha Equipe</strong>, na barra lateral, você gerencia as contas dos funcionários do seu time. A conta nova já nasce na <strong style="color:#0B0D1F">sua área</strong> (ex.: Projetos, Logística), sem precisar escolher. Ao criar, o sistema dispara o <strong style="color:#0B0D1F">email de primeiro acesso</strong> automaticamente.</p>
             <div style="display:flex;flex-direction:column;gap:0">
                 <div style="display:flex;align-items:flex-start;gap:12px">
                     <div class="step-num">1</div>
-                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Clique em <strong style="color:#0B0D1F">"Novo Funcionário"</strong> e preencha nome, usuário e email (o email é obrigatório: é por ele que a pessoa recebe o acesso)</p>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Clique em <strong style="color:#0B0D1F">"Novo membro"</strong> e preencha nome, usuário e email (o email é obrigatório: é por ele que a pessoa recebe o acesso)</p>
                 </div>
                 <div class="step-line"><div class="step-connector"></div></div>
                 <div style="display:flex;align-items:flex-start;gap:12px">
@@ -1067,32 +1093,178 @@
         </div>
     </div>
 
-    <!-- Criar Ticket -->
+    <!-- Criar Tarefa -->
     <div class="reveal">
         <div class="sec-hd">
             <div class="sec-hd-num" style="background:linear-gradient(135deg,#06D7E6,#5B2EE0)"><i class="ph ph-ticket" style="font-size:16px"></i></div>
             <div>
-                <div class="sec-hd-txt">Criar Ticket para Funcionário</div>
-                <div class="sec-hd-sub">Atribua tarefas diretamente ao time</div>
+                <div class="sec-hd-txt">Criar tarefa para o time <span style="font-size:10px;font-weight:800;color:#fff;background:linear-gradient(135deg,#5B2EE0,#EC4899);padding:2px 8px;border-radius:20px;vertical-align:middle;margin-left:6px">ATUALIZADO</span></div>
+                <div class="sec-hd-sub">Do botão Novo Ticket até o quadro da pessoa</div>
             </div>
         </div>
-        <div class="card" style="padding:24px">
-            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">No Dashboard, clique em <strong style="color:#0B0D1F">"Nova Tarefa"</strong>. O gestor pode atribuir a tarefa diretamente a qualquer funcionário do time.</p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                <div style="display:flex;align-items:flex-start;gap:10px;padding:14px;border-radius:12px;background:#5B2EE008;border:1px solid #5B2EE020">
-                    <i class="ph ph-user-plus" style="color:#5B2EE0;font-size:20px;margin-top:1px;flex-shrink:0"></i>
-                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Selecione o <strong style="color:#0B0D1F">Responsável</strong> no campo do modal</p>
+        <div class="card" style="padding:24px;margin-bottom:12px">
+            <div style="display:flex;flex-direction:column;gap:0">
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">1</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">No Dashboard, clique em <strong style="color:#0B0D1F">Novo Ticket</strong> (botão roxo no topo). Abre o formulário <strong style="color:#0B0D1F">Nova Tarefa</strong></p>
                 </div>
-                <div style="display:flex;align-items:flex-start;gap:10px;padding:14px;border-radius:12px;background:#06D7E608;border:1px solid #06D7E620">
-                    <i class="ph ph-timer" style="color:#06D7E6;font-size:20px;margin-top:1px;flex-shrink:0"></i>
-                    <p style="font-size:13px;color:#5E647A;line-height:1.6">Use o <strong style="color:#0B0D1F">cronômetro do modal</strong> ou preencha as horas manualmente</p>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">2</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Escreva a <strong style="color:#0B0D1F">Descrição</strong> e escolha o <strong style="color:#0B0D1F">Responsável</strong>: aparecem só as pessoas do seu time (você mesmo vem marcado como "Eu")</p>
                 </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">3</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Escolha o <strong style="color:#0B0D1F">Projeto</strong>: o cliente é preenchido sozinho. Se não for de projeto, deixe "Sem projeto" e informe uma <strong style="color:#0B0D1F">Demanda</strong> (ex.: "Demandas Gerais"), que só agrupa as tarefas no quadro e não cria cliente nem projeto</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">4</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Escolha o <strong style="color:#0B0D1F">Tipo de atividade</strong>. Ele define o <strong style="color:#0B0D1F">peso</strong> da tarefa, de 1 (rotina rápida) a 4 (complexa), que entra na medição de esforço da pessoa. O link "ver tabela de pesos" mostra a régua</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">5</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Marque a <strong style="color:#0B0D1F">Natureza</strong> (programada ou urgente/última hora) e a <strong style="color:#0B0D1F">Previsão de conclusão</strong>, que é o prazo. Hora é opcional</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">6</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px">Se precisar: <strong style="color:#0B0D1F">Prioridade</strong>, <strong style="color:#0B0D1F">Ajudantes</strong> (cada um é notificado), <strong style="color:#0B0D1F">Agendar para</strong> outro dia e horas já trabalhadas. Clique em salvar</p>
+                </div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+            <div class="fcard" style="padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-kanban" style="color:#5B2EE0;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Onde ela aparece</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Na hora, no quadro da pessoa e no seu Kanban (Aberto → Em andamento → Concluído). Ela recebe uma notificação</p>
+            </div>
+            <div class="fcard" style="padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-calendar-x" style="color:#EC4899;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Férias e afastamento</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Se a pessoa estiver bloqueada na data, o sistema recusa a tarefa e explica o motivo</p>
+            </div>
+            <div class="fcard" style="padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><i class="ph ph-hourglass-medium" style="color:#06D7E6;font-size:18px"></i><p style="font-size:13px;font-weight:700;color:#0B0D1F">Prazo</p></div>
+                <p style="font-size:12px;color:#9097AC;line-height:1.5">Concluída depois da previsão, a tarefa entra como fora do prazo e a pessoa informa o motivo do atraso</p>
+            </div>
+        </div>
+        <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025;margin-top:12px">
+            <i class="ph ph-folder-minus" style="color:#5B2EE0;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+            <p style="font-size:12.5px;color:#5E647A;line-height:1.6">Se a sua área não trabalha por projeto, o campo Projeto nem aparece: toda tarefa nasce como demanda.</p>
+        </div>
+    </div>
+
+    <!-- Operação do N2 -->
+    <div class="reveal">
+        <div class="sec-hd">
+            <div class="sec-hd-num" style="background:linear-gradient(135deg,#EC4899,#5B2EE0)"><i class="ph ph-headset" style="font-size:16px"></i></div>
+            <div>
+                <div class="sec-hd-txt">Operação do N2 <span style="font-size:10px;font-weight:800;color:#fff;background:linear-gradient(135deg,#5B2EE0,#EC4899);padding:2px 8px;border-radius:20px;vertical-align:middle;margin-left:6px">NOVO</span></div>
+                <div class="sec-hd-sub">Escala, atividades de campo e Status Report</div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px;margin-bottom:12px">
+            <p style="font-size:14px;color:#5E647A;line-height:1.7;margin-bottom:16px">O <strong style="color:#0B0D1F">N2</strong> é o técnico que acompanha as <strong style="color:#0B0D1F">atividades de campo</strong>: visitas em site de cliente (ARCOS, ZAMP, Câmeras IP e outros), feitas por um técnico parceiro no local. O caminho de uma visita é sempre o mesmo:</p>
+            <div style="display:flex;flex-direction:column;gap:0">
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">1</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px"><strong style="color:#0B0D1F">A atividade entra no Cronograma.</strong> Em Cronograma de Atividades → Cronograma, clique em <strong style="color:#0B0D1F">Nova atividade</strong> (ou <strong style="color:#0B0D1F">Importar</strong> uma planilha .xlsx com várias visitas)</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">2</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px"><strong style="color:#0B0D1F">A escala do dia distribui o trabalho.</strong> No Painel N2, <strong style="color:#0B0D1F">Gerar escala do dia</strong> pega as atividades sem N2 da data e sugere quem atende cada cliente. Você revisa e salva</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">3</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px"><strong style="color:#0B0D1F">O N2 atende e registra.</strong> Pela tela dele, o N2 marca onde está, se conseguiu acesso ao site e o que está fazendo. Cada atualização vira um item no histórico</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">4</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px"><strong style="color:#0B0D1F">O N2 encerra.</strong> Informa a hora de saída, os equipamentos e o material. O sistema gera o carimbo de encerramento e lança a tarefa "Atendimento em campo" (peso 4) na medição dele</p>
+                </div>
+                <div class="step-line"><div class="step-connector"></div></div>
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                    <div class="step-num">5</div>
+                    <p style="font-size:13px;color:#5E647A;line-height:1.6;padding-top:6px"><strong style="color:#0B0D1F">Você acompanha e reporta.</strong> No Status Report você vê tudo por cliente, data e N2, e copia o print do dia pra mandar ao cliente</p>
+                </div>
+            </div>
+        </div>
+
+        <p style="font-size:13px;font-weight:800;color:#0B0D1F;margin:4px 0 10px;font-family:'Space Grotesk',sans-serif">Painel N2 — menu N2 → Painel N2</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:16px">
+            <div class="fcard fcard-accent" style="border-left-color:#5B2EE0;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <i class="ph-fill ph-magic-wand" style="color:#5B2EE0;font-size:18px"></i>
+                    <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Gerar escala do dia</p>
+                </div>
+                <div style="font-size:12.5px;color:#5E647A;line-height:1.6">Pega as atividades do Cronograma <strong>sem N2</strong> na data e sugere a distribuição: até 3 visitas do mesmo cliente ficam com o mesmo N2; acima disso, divide em grupos de 3. Visita antes das 8h ou a partir das 18h vira <strong>Home</strong>. Você troca o N2 de qualquer linha antes de salvar.</div>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#06D7E6;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <i class="ph-fill ph-user-plus" style="color:#06D7E6;font-size:18px"></i>
+                    <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Escala manual e importação</p>
+                </div>
+                <div style="font-size:12.5px;color:#5E647A;line-height:1.6"><strong>Adicionar à escala</strong>: N2, data, horário de entrada, modalidade (<strong>Presencial, Home ou Externo</strong>) e a atribuição do dia. <strong>Importar planilha</strong> sobe a escala pronta. Cada linha pode ser editada ou excluída.</div>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#EC4899;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <i class="ph-fill ph-chart-bar" style="color:#EC4899;font-size:18px"></i>
+                    <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Resumo da equipe</p>
+                </div>
+                <div style="font-size:12.5px;color:#5E647A;line-height:1.6">Por N2: visitas concluídas na semana e no mês, <strong>horas trabalhadas</strong> (da chegada à saída de cada visita) e média por dia útil, já descontando férias e afastamentos. <strong>Ver atividades</strong> abre o Status Report só daquela pessoa.</div>
+            </div>
+        </div>
+
+        <p style="font-size:13px;font-weight:800;color:#0B0D1F;margin:4px 0 10px;font-family:'Space Grotesk',sans-serif">Cronograma e Status Report — menu Cronograma de Atividades</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:12px">
+            <div class="fcard fcard-accent" style="border-left-color:#5B2EE0;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <i class="ph-fill ph-plus-circle" style="color:#5B2EE0;font-size:18px"></i>
+                    <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Nova atividade</p>
+                </div>
+                <div style="font-size:12.5px;color:#5E647A;line-height:1.6">Cliente, data e horário, dados do site (sigla, nome, cidade, UF, endereço), ticket e detalhamento técnico. O <strong>N2 responsável</strong> pode ficar em branco pra ser distribuído na escala. O técnico parceiro aparece como sugestão pela UF. Chegada, saída, material e observações quem preenche é o N2.</div>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#06D7E6;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <i class="ph-fill ph-kanban" style="color:#06D7E6;font-size:18px"></i>
+                    <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Quadro do Cronograma</p>
+                </div>
+                <div style="font-size:12.5px;color:#5E647A;line-height:1.6">Cada card é uma visita, nas colunas do status. <strong>Arrastar</strong> o card muda o status; clicar abre o histórico de atualizações. O Cronograma não mostra datas passadas: elas ficam no modo <strong>Histórico</strong>, e <strong>Acompanhamento de Projeto</strong> agrupa por cliente e subprojeto.</div>
+            </div>
+            <div class="fcard fcard-accent" style="border-left-color:#EC4899;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <i class="ph-fill ph-camera" style="color:#EC4899;font-size:18px"></i>
+                    <p style="font-size:13.5px;font-weight:800;color:#0B0D1F">Report do dia</p>
+                </div>
+                <div style="font-size:12.5px;color:#5E647A;line-height:1.6">Escolha a data e o cliente e clique em <strong>Copiar print</strong>: o sistema monta a imagem do status do dia pronta pra enviar. Substitui a antiga planilha STATUS_REPORT.</div>
+            </div>
+        </div>
+        <div class="card" style="padding:20px 22px;margin-bottom:12px">
+            <p style="font-size:13px;font-weight:800;color:#0B0D1F;margin-bottom:8px">Os status de uma visita</p>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+                <span class="pill" style="background:#9097AC12;color:#9097AC">Agendado</span><span class="pill" style="background:#5B2EE012;color:#5B2EE0">Em andamento</span><span class="pill" style="background:#10B98112;color:#10B981">Concluído</span><span class="pill" style="background:#F59E0B12;color:#F59E0B">Parcial</span><span class="pill" style="background:#EC489912;color:#EC4899">Improdutiva cliente</span><span class="pill" style="background:#EC489912;color:#EC4899">Improdutiva Faiston</span><span class="pill" style="background:#64748B12;color:#64748B">Cancelado</span>
+            </div>
+            <p style="font-size:12.5px;color:#5E647A;line-height:1.65">Em andamento, o N2 registra <strong style="color:#0B0D1F">onde está</strong> (em deslocamento ou no local), o <strong style="color:#0B0D1F">acesso ao site</strong> (com acesso, verificando ou sem acesso) e <strong style="color:#0B0D1F">o que está fazendo</strong> (instalando, trocando, removendo ou validando, só com acesso liberado). Pra encerrar como Concluído, Parcial ou Improdutiva, ele informa a hora de saída, se usou material (quantidade, unidade e valor) e os equipamentos: instalado com número de série; removido com série, part number e quem ficou com ele. No fim sai o <strong style="color:#0B0D1F">carimbo de encerramento</strong>, pronto pra copiar.</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">
+            <div class="hbox" style="background:#5B2EE008;border:1px solid #5B2EE025;margin:0">
+                <i class="ph ph-shield-check" style="color:#5B2EE0;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                <p style="font-size:12.5px;color:#5E647A;line-height:1.6">Você cria, edita, reatribui e exclui qualquer visita. O N2 só mexe nas que são dele. O Backoffice pode mudar o status (arrastar no quadro).</p>
+            </div>
+            <div class="hbox" style="background:#f59e0b0a;border:1px solid #f59e0b30;margin:0">
+                <i class="ph ph-info" style="color:#f59e0b;font-size:17px;flex-shrink:0;margin-top:1px"></i>
+                <p style="font-size:12.5px;color:#5E647A;line-height:1.6">Cronograma e Status Report são da área <strong style="color:#0B0D1F">Projetos</strong>. Gestor de outra área não vê esses itens no menu.</p>
             </div>
         </div>
     </div>
 
-    <!-- Minhas Tarefas (quadro pessoal do gestor) -->
-    <div class="reveal">
+    <!-- Minhas Tarefas (quadro pessoal do gestor) -- oculto do menu desde
+         2026-09-28; a seção volta junto com o item. -->
+    <div class="reveal" style="display:none">
         <div class="sec-hd">
             <div class="sec-hd-num" style="background:linear-gradient(135deg,#5B2EE0,#06D7E6)"><i class="ph ph-user-focus" style="font-size:16px"></i></div>
             <div>

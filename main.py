@@ -305,6 +305,12 @@ def setup_banco():
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo VARCHAR(20) DEFAULT ''")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tutorial_n2_visto BOOLEAN DEFAULT FALSE")
+        # Tour do gestor (2026-10-07). A coluna nasce TRUE pra quem já existe
+        # (gestor antigo não leva o tour de surpresa) e o default passa a FALSE
+        # pros cadastros novos -- o ADD COLUMN só roda uma vez, o SET DEFAULT
+        # é idempotente. Quem já existe revê pelo "Rever tour" do menu.
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tutorial_gestor_visto BOOLEAN DEFAULT TRUE")
+        cur.execute("ALTER TABLE usuarios ALTER COLUMN tutorial_gestor_visto SET DEFAULT FALSE")
         # bcrypt gera 60 caracteres; a coluna nasceu VARCHAR(64) e fica sem
         # folga. Ampliar é seguro (não trunca nada já gravado).
         cur.execute("ALTER TABLE usuarios ALTER COLUMN senha_hash TYPE VARCHAR(255)")
@@ -2142,6 +2148,35 @@ def tutorial_n2_marcar_visto(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("UPDATE usuarios SET tutorial_n2_visto=TRUE WHERE id=%s", (sess["id"],))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+# Tour do gestor (2026-10-07) -- mesmo padrão do tutorial do N2: abre sozinho
+# no primeiro acesso ao /dashboard e pode ser revisto pelo menu.
+@app.get("/api/tutorial-gestor/status")
+def tutorial_gestor_status(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(tutorial_gestor_visto, FALSE) FROM usuarios WHERE id=%s", (sess["id"],))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        return {"visto": bool(row[0]) if row else False}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tutorial-gestor/visto")
+def tutorial_gestor_marcar_visto(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE usuarios SET tutorial_gestor_visto=TRUE WHERE id=%s", (sess["id"],))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -4985,6 +5020,12 @@ def disparar_aviso_ops(bg: BackgroundTasks, request: Request, faiston_token: str
 # O histórico abaixo é a carga inicial (ON CONFLICT pelo slug, não
 # sobrescreve edição); novidades novas o admin publica pela própria página.
 NOVIDADES_SEED = [
+    ("2026-10-07-tour-gestor", "2026-10-07 10:00", "novidade", "Gestores",
+     "Tour guiado para gestores",
+     "Gestor novo ganha um tour na própria tela no primeiro acesso: como criar tarefas para o time e como funciona a operação do N2.",
+     ["Rever o tour e abrir o Guia de uso ficam no menu Gestão, sempre à mão.",
+      "N2 e Cronograma de Atividades voltaram ao menu.",
+      "O Guia de uso ganhou a seção Operação do N2, com escala, atividades de campo e Status Report."]),
     ("2026-09-28-timer-varias-tarefas", "2026-09-28 09:01", "novidade", "Todos",
      "Timer em várias tarefas ao mesmo tempo",
      "Agora dá pra deixar o timer rodando em mais de uma tarefa ao mesmo tempo, e ele não para mais quando você recarrega ou fecha a página.",
