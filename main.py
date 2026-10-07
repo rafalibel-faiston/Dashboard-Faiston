@@ -2182,18 +2182,39 @@ def tutorial_gestor_marcar_visto(faiston_token: str = Cookie(None)):
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 # --- USUÁRIOS ---
+def _area_atual(sess: dict) -> str:
+    """Área de quem está logado lida do cadastro, não da cópia gravada na
+    sessão no login: renomear a área (Admin → Áreas) ou mover a pessoa por
+    outro caminho não atualiza `sessoes`, e aí o gestor via/gravava a equipe
+    da área antiga até deslogar."""
+    fallback = sess.get("time") or "Projetos"
+    conn = get_db()
+    if not conn: return fallback
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (sess["id"],))
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else fallback
+    finally:
+        conn.close()
+
 @app.get("/api/usuarios")
-def listar_usuarios(faiston_token: str = Cookie(None)):
+def listar_usuarios(escopo: str = "", faiston_token: str = Cookie(None)):
+    """Admin vê todo mundo (Admin → Usuários). Gestor vê só a própria área.
+    `escopo=minha_area` (tela Minha Equipe) restringe à área de quem está
+    logado para qualquer perfil -- inclusive admin/dev, que antes viam a
+    empresa inteira na "Minha Equipe"."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        if sess["perfil"] == "admin":
+        if sess["perfil"] == "admin" and escopo != "minha_area":
             cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso, COALESCE(cargo,'') FROM usuarios WHERE ativo=TRUE ORDER BY criado_em DESC")
         else:
-            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso, COALESCE(cargo,'') FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (sess.get("time","Projetos"),))
+            cur.execute("SELECT id, usuario, nome, perfil, ativo, criado_em, COALESCE(email,''), COALESCE(time,'Projetos'), COALESCE(primeiro_acesso, FALSE), ultimo_acesso, COALESCE(cargo,'') FROM usuarios WHERE ativo=TRUE AND COALESCE(time,'Projetos')=%s ORDER BY criado_em DESC", (_area_atual(sess),))
         rows = cur.fetchall(); cur.close(); conn.close()
         return [{"id": r[0], "usuario": r[1], "nome": r[2], "perfil": r[3], "ativo": r[4], "criado_em": str(r[5]), "email": r[6], "time": r[7],
                  "primeiro_acesso": bool(r[8]), "ultimo_acesso": str(r[9])[:19] if r[9] else None, "cargo": r[10]} for r in rows]
@@ -2224,7 +2245,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, request: Request, faiston
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
     if u.perfil not in PERFIL_VALIDOS: raise HTTPException(status_code=400, detail="Perfil inválido")
     if not (u.email or "").strip(): raise HTTPException(status_code=400, detail="Email é obrigatório — é por ele que a pessoa recebe o acesso.")
-    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in times_validos() else "Projetos")
+    time_val = _area_atual(sess) if is_gestor else (u.time if u.time in times_validos() else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -2267,7 +2288,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
         cur2 = conn2.cursor()
         cur2.execute("SELECT COALESCE(time,'Projetos'), perfil FROM usuarios WHERE id=%s", (uid,))
         row = cur2.fetchone(); cur2.close(); conn2.close()
-        if not row or row[0] != sess.get("time", "Projetos"):
+        if not row or row[0] != _area_atual(sess):
             raise HTTPException(status_code=403, detail="Acesso negado — usuário não pertence ao seu time")
         if row[1] in ("admin", "gestor", "dev"):
             raise HTTPException(status_code=403, detail="Não é possível editar admins ou gestores")
@@ -2276,7 +2297,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
     if u.senha:
         erro = _senha_fraca(u.senha)
         if erro: raise HTTPException(status_code=400, detail=erro)
-    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in times_validos() else "Projetos")
+    time_val = _area_atual(sess) if is_gestor else (u.time if u.time in times_validos() else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
@@ -2353,7 +2374,7 @@ def deletar_usuario(uid: int, faiston_token: str = Cookie(None)):
         cur2 = conn2.cursor()
         cur2.execute("SELECT COALESCE(time,'Projetos'), perfil FROM usuarios WHERE id=%s AND usuario != 'admin'", (uid,))
         row = cur2.fetchone(); cur2.close(); conn2.close()
-        if not row or row[0] != sess.get("time", "Projetos") or row[1] in ("admin", "gestor", "dev"):
+        if not row or row[0] != _area_atual(sess) or row[1] in ("admin", "gestor", "dev"):
             raise HTTPException(status_code=403, detail="Acesso negado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
