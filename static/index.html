@@ -194,10 +194,12 @@
                         <div id="lista-funcionarios-sidebar"></div>
                     </div>
                 </div>
-                <!-- N2, Cronograma de Atividades e Minhas Tarefas ocultos do menu
-                     (2026-09-28, pedido da operação). Só escondidos: as telas e as
-                     rotas continuam -- tirar o `hidden` dos três blocos traz de volta. -->
-                <div class="flex flex-col hidden" data-menu-oculto="n2">
+                <!-- Minhas Tarefas oculto do menu (2026-09-28, pedido da operação): só
+                     escondido, tela e rota continuam -- tirar o `hidden` traz de volta.
+                     N2 e Cronograma voltaram ao menu em 2026-10-07 (tour do gestor).
+                     O Status Report continua escondido pra quem não é de Projetos
+                     (podeVerStatusReport, no init). -->
+                <div class="flex flex-col" data-menu-oculto="n2">
                     <a href="#" onclick="toggleN2(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-headset text-lg"></i> N2</div>
                         <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-n2"></i>
@@ -211,7 +213,7 @@
                         <div id="lista-n2-sidebar" class="flex flex-col gap-3 mt-1"></div>
                     </div>
                 </div>
-                <div class="flex flex-col hidden" data-menu-oculto="cronograma">
+                <div class="flex flex-col" data-menu-oculto="cronograma">
                     <a href="#" onclick="toggleCronogramaAtividades(); return false;" class="flex items-center justify-between btn-grad rounded-lg p-2.5">
                         <div class="flex items-center gap-2.5 font-semibold text-sm text-white"><i class="ph ph-calendar-check text-lg"></i> Cronograma de Atividades</div>
                         <i class="ph ph-caret-down text-sm text-white transition-transform duration-200" id="caret-cronograma-atividades"></i>
@@ -297,6 +299,17 @@
                 </a>
                 <a href="#" id="link-area-dev" data-nav-mod="areaDev" onclick="setModule('areaDev'); return false;" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-terminal-window text-lg"></i> Área de Dev
+                </a>
+                <a href="/novidades" data-novidades-link class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-megaphone-simple text-lg"></i> Novidades
+                </a>
+                <!-- Ajuda sempre à mão (2026-10-07): guia completo da função e o tour
+                     guiado da tela, que também abre sozinho no primeiro acesso. -->
+                <a href="/ajuda" target="_blank" id="link-guia" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-book-open-text text-lg"></i> Guia de uso
+                </a>
+                <a href="#" id="link-rever-tour" onclick="gtTourIniciar(); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                    <i class="ph ph-graduation-cap text-lg"></i> Rever tour
                 </a>
                 <a href="#" id="link-suporte" onclick="suporteAbrirModal(); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-lifebuoy text-lg"></i> Suporte
@@ -3143,22 +3156,50 @@ async function suporteCarregarMinhas() {
         const itens = await res.json();
         if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
         box.innerHTML = itens.map(s => `
-            <div class="bg-slate-50 rounded-xl border border-faiston-border p-3 mb-2">
+            <div id="suporte-item-${s.id}" class="bg-slate-50 rounded-xl border p-3 mb-2 ${window._suporteDestaqueId === s.id ? 'border-faiston-purple ring-2 ring-faiston-purple/25' : 'border-faiston-border'}">
                 <div class="flex items-start justify-between gap-2 flex-wrap">
                     <p class="text-sm font-bold text-faiston-dark">${escHtml(s.titulo)}</p>
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
                 </div>
                 <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
                 <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${escHtml(s.descricao)}</p>
-                ${s.resposta ? `
-                <div class="mt-2 p-2.5 bg-white border border-faiston-purple/20 rounded-lg">
-                    <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${escHtml(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
-                    <p class="text-xs text-slate-600 whitespace-pre-line">${escHtml(s.resposta)}</p>
+                ${(s.mensagens || []).length ? `
+                <div class="mt-2 flex flex-col gap-1.5">
+                    ${s.mensagens.map(m => `
+                    <div class="p-2.5 rounded-lg border ${m.autor_tipo === 'dev' ? 'bg-white border-faiston-purple/20' : 'bg-faiston-purple/5 border-faiston-purple/10 ml-4'}">
+                        <p class="text-[10px] font-bold uppercase tracking-wide mb-1 ${m.autor_tipo === 'dev' ? 'text-faiston-purple' : 'text-faiston-muted'}">${m.autor_tipo === 'dev' ? 'Suporte' : 'Você'} · ${escHtml(m.autor_nome || '')} · ${m.criado_em}</p>
+                        <p class="text-xs text-slate-600 whitespace-pre-line">${escHtml(m.mensagem)}</p>
+                    </div>`).join('')}
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <textarea id="suporte-resposta-${s.id}" rows="1" placeholder="Responder pro suporte..." class="flex-1 border border-faiston-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                    <button onclick="suporteResponderMinhas(${s.id})" class="text-xs font-semibold text-white btn-grad rounded-lg px-3">Enviar</button>
                 </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
             </div>
         `).join('');
+        if (window._suporteDestaqueId) {
+            const alvo = document.getElementById('suporte-item-' + window._suporteDestaqueId);
+            if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            window._suporteDestaqueId = null;
+        }
     } catch (e) {
         box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
+}
+async function suporteResponderMinhas(id) {
+    const campo = document.getElementById(`suporte-resposta-${id}`);
+    const mensagem = campo.value.trim();
+    if (!mensagem) return;
+    campo.disabled = true;
+    try {
+        const res = await fetch(`/api/suporte/${id}/mensagens`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mensagem })
+        });
+        if (!res.ok) { alert('Erro ao enviar resposta.'); campo.disabled = false; return; }
+        suporteCarregarMinhas();
+    } catch (e) {
+        alert('Erro de rede ao enviar.'); campo.disabled = false;
     }
 }
 function suporteSelecionarArquivo(input) {
@@ -4165,6 +4206,30 @@ async function init() {
     else if (go === 'forecast')   setModule('gestao', 'forecast');
     else if (go === 'areaDev')    setModule('areaDev');
     else if (go === 'admin')      setModule('admin');
+
+    // Link do e-mail de resposta de suporte (?suporte=<id>) — leva direto pro
+    // chamado: dev cai na aba Suporte da Área de Dev, quem abriu o chamado
+    // cai no modal "Minhas solicitações" já com o item em destaque.
+    const suporteId = new URLSearchParams(location.search).get('suporte');
+    if (suporteId) {
+        if (go === 'areaDev') {
+            window._devSuporteDestaqueId = parseInt(suporteId, 10);
+            devSetTab('suporte');
+        } else {
+            window._suporteDestaqueId = parseInt(suporteId, 10);
+            suporteAbrirModal();
+            suporteTrocarAba('minhas');
+        }
+    }
+
+    // Tour do gestor: abre sozinho no primeiro acesso (flag no banco, vale
+    // entre computadores). Só gestor -- admin/diretor revêem pelo menu.
+    if (window.ME && window.ME.perfil === 'gestor' && !go && !suporteId) {
+        try {
+            const rt = await fetch('/api/tutorial-gestor/status');
+            if (rt.ok && !(await rt.json()).visto) setTimeout(() => gtTourIniciar(), 900);
+        } catch (e) {}
+    }
 }
 
 async function enviarRelatorio() {
@@ -6708,7 +6773,7 @@ function devSuporteRender(itens) {
         return;
     }
     lista.innerHTML = itens.map(s => `
-        <div class="bg-white rounded-2xl border border-faiston-border p-4">
+        <div id="dev-suporte-item-${s.id}" class="bg-white rounded-2xl border p-4 ${window._devSuporteDestaqueId === s.id ? 'border-faiston-purple ring-2 ring-faiston-purple/25' : 'border-faiston-border'}">
             <div class="flex items-start justify-between gap-3 flex-wrap">
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_CATEGORIA_COR[s.categoria] || ''}">${SUPORTE_CATEGORIA_LABEL[s.categoria] || s.categoria}</span>
@@ -6726,17 +6791,25 @@ function devSuporteRender(itens) {
                 </select>
                 ${s.tem_anexo ? `<button onclick="devSuporteVerAnexo(${s.id})" class="text-xs font-semibold text-faiston-purple hover:underline flex items-center gap-1"><i class="ph ph-paperclip"></i> Ver anexo</button>` : ''}
             </div>
-            ${s.resposta ? `
-            <div class="mt-3 p-3 bg-faiston-purple/5 border border-faiston-purple/20 rounded-lg">
-                <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${escHtml(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
-                <p class="text-xs text-slate-600 whitespace-pre-line">${escHtml(s.resposta)}</p>
+            ${(s.mensagens || []).length ? `
+            <div class="mt-3 flex flex-col gap-1.5">
+                ${s.mensagens.map(m => `
+                <div class="p-3 rounded-lg border ${m.autor_tipo === 'dev' ? 'bg-faiston-purple/5 border-faiston-purple/20' : 'bg-slate-50 border-faiston-border ml-4'}">
+                    <p class="text-[10px] font-bold uppercase tracking-wide mb-1 ${m.autor_tipo === 'dev' ? 'text-faiston-purple' : 'text-faiston-muted'}">${m.autor_tipo === 'dev' ? 'Suporte' : escHtml(s.criado_por_nome)} · ${escHtml(m.autor_nome || '')} · ${m.criado_em}</p>
+                    <p class="text-xs text-slate-600 whitespace-pre-line">${escHtml(m.mensagem)}</p>
+                </div>`).join('')}
             </div>` : ''}
             <div class="flex gap-2 mt-2">
-                <textarea id="dev-suporte-resposta-${s.id}" rows="2" placeholder="${s.resposta ? 'Editar resposta...' : 'Responder pra quem abriu...'}" class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-faiston-purple resize-none">${escHtml(s.resposta || '')}</textarea>
+                <textarea id="dev-suporte-resposta-${s.id}" rows="2" placeholder="Responder pra quem abriu..." class="flex-1 border border-faiston-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-faiston-purple resize-none"></textarea>
                 <button onclick="devSuporteResponder(${s.id})" class="text-xs font-semibold text-white btn-grad rounded-lg px-3 self-stretch flex items-center">Enviar</button>
             </div>
         </div>
     `).join('');
+    if (window._devSuporteDestaqueId) {
+        const alvo = document.getElementById('dev-suporte-item-' + window._devSuporteDestaqueId);
+        if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window._devSuporteDestaqueId = null;
+    }
 }
 
 async function devSuporteAtualizarStatus(id, status) {
@@ -12224,7 +12297,212 @@ async function pn2SalvarDistribuicao() {
     </div>
 </div>
 
+
+<!-- TOUR GUIADO DO GESTOR (2026-10-07) -- mesmo desenho do tour do N2
+     (n2.html): destaca o elemento real da tela e explica. Abre sozinho no
+     primeiro acesso do gestor (usuarios.tutorial_gestor_visto) e pode ser
+     revisto em Gestão → Rever tour. -->
+<style>
+    #gt-overlay{ position:fixed; inset:0; z-index:2147483000; }
+    #gt-catch{ position:fixed; inset:0; }
+    #gt-spot{ position:fixed; border-radius:14px; box-shadow:0 0 0 4px rgba(91,46,224,.6), 0 0 0 9999px rgba(11,13,31,.62); transition:all .32s cubic-bezier(.4,0,.2,1); pointer-events:none; }
+    #gt-card{ position:fixed; z-index:2147483002; width:360px; max-width:calc(100vw - 32px); background:#fff; border-radius:18px; padding:20px 22px; box-shadow:0 24px 60px rgba(11,13,31,.3); transition:left .32s ease, top .32s ease; }
+    [data-theme="dark"] #gt-card{ background:#161726; }
+    #gt-card .gt-eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#5B2EE0; margin-bottom:6px; display:flex; justify-content:space-between; }
+    #gt-card h3{ font-size:15px; font-weight:800; margin:0 0 8px; color:#0B0D1F; }
+    [data-theme="dark"] #gt-card h3{ color:#F1F2F8; }
+    #gt-desc{ font-size:13px; line-height:1.55; color:#5E647A; margin:0 0 16px; }
+    #gt-desc ul{ margin:6px 0 0; padding-left:18px; list-style:disc; }
+    #gt-desc li{ margin:3px 0; }
+    #gt-desc b{ color:#0B0D1F; }
+    [data-theme="dark"] #gt-desc{ color:#9CA2BC; }
+    [data-theme="dark"] #gt-desc b{ color:#F1F2F8; }
+    #gt-foot{ display:flex; align-items:center; justify-content:space-between; }
+    #gt-foot button{ all:unset; cursor:pointer; font-size:12.5px; font-weight:700; }
+    #gt-foot #gt-pular{ color:#9097AC; }
+    #gt-foot #gt-voltar{ color:#5E647A; margin-right:12px; }
+    #gt-foot #gt-prox{ background:linear-gradient(135deg,#5B2EE0,#EC4899); color:#fff; padding:7px 16px; border-radius:9px; }
+    [data-theme="dark"] #gt-foot #gt-voltar{ color:#9CA2BC; }
+</style>
+<div id="gt-overlay" class="hidden">
+    <div id="gt-catch"></div>
+    <div id="gt-spot"></div>
+    <div id="gt-card" role="dialog" aria-modal="true" aria-labelledby="gt-titulo">
+        <p class="gt-eyebrow"><span id="gt-secao"></span><span id="gt-contador"></span></p>
+        <h3 id="gt-titulo"></h3>
+        <div id="gt-desc"></div>
+        <div id="gt-foot">
+            <button id="gt-pular" onclick="gtTourFinalizar()">Pular tour</button>
+            <div>
+                <button id="gt-voltar" onclick="gtTourVoltar()">Voltar</button>
+                <button id="gt-prox" onclick="gtTourProximo()">Próximo</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+// Passos: sel = elemento destacado (sem sel, o cartão fica no centro);
+// mod = módulo aberto antes de destacar; se = condição pra o passo existir.
+const _gtStatusReport = () => podeVerStatusReport(window.ME);
+const GT_TOUR_STEPS = [
+    { secao: 'Boas-vindas', title: 'Bem-vindo ao Faiston OPS',
+      desc: 'Um tour pelo que o gestor usa no dia a dia: <b>criar e acompanhar tarefas do time</b> e <b>como funciona a operação do N2</b> (escala, atividades de campo e Status Report).<br><br>Dá pra rever quando quiser em <b>Gestão → Rever tour</b>, e o guia completo fica em <b>Gestão → Guia de uso</b>.' },
+
+    // ── Tarefas ──
+    { secao: 'Tarefas', mod: 'dashboard', sel: '#app-sidebar-nav > div:first-child', title: 'Seu time',
+      desc: 'Aqui aparecem as pessoas da sua área. Clique num nome pra filtrar o painel inteiro por aquela pessoa; <b>Todos</b> limpa o filtro.' },
+    { secao: 'Tarefas', mod: 'dashboard', sel: 'button[onclick="abrirModalTicket()"]', title: 'Criar uma tarefa',
+      desc: 'É por este botão (<b>Novo Ticket</b>) que você cria uma tarefa e entrega pra alguém do time. A tarefa cai na hora no quadro da pessoa e ela recebe uma notificação.' },
+    { secao: 'Tarefas', mod: 'dashboard', title: 'Preenchendo a tarefa',
+      desc: 'No formulário, os campos com * são obrigatórios:<ul>' +
+            '<li><b>Descrição</b> e <b>Responsável</b> (só aparece o seu time)</li>' +
+            '<li><b>Projeto</b> (o cliente vem junto) ou, sem projeto, uma <b>Demanda</b> que só agrupa as tarefas no quadro</li>' +
+            '<li><b>Tipo de atividade</b>: define o peso de 1 (rotina rápida) a 4 (complexa), que entra na medição de esforço</li>' +
+            '<li><b>Natureza</b>: programada ou urgente/última hora</li>' +
+            '<li><b>Previsão de conclusão</b>: é o prazo; atrasou, a pessoa justifica ao concluir</li></ul>' +
+            'Dá pra pôr ajudantes, prioridade e agendar pra outro dia. Se a pessoa estiver de férias ou afastada na data, o sistema recusa e avisa.' },
+    { secao: 'Tarefas', mod: 'dashboard', sel: '.view-tab-wrap', title: 'Três jeitos de acompanhar',
+      desc: '<b>Métricas</b>: indicadores e tarefas recentes. <b>Kanban</b>: o quadro do time (Aberto, Em andamento, Concluído), agrupado por pessoa ou projeto, com a carga de cada um. <b>Agenda</b>: o que está marcado em lista ou calendário.' },
+    { secao: 'Tarefas', mod: 'dashboard', sel: '#link-equipe', title: 'Minha Equipe',
+      desc: 'Cadastre quem entra no time (<b>Novo membro</b>: a pessoa recebe o e-mail de acesso sozinha), escolha o cargo e marque <b>férias e afastamentos</b> — o sistema passa a bloquear tarefa nessas datas.' },
+
+    // ── N2 ──
+    { secao: 'N2', title: 'Como funciona o N2',
+      desc: 'O <b>N2</b> é o técnico que acompanha as <b>atividades de campo</b> (visitas em site de cliente: ARCOS, ZAMP, Câmeras IP e outros). O caminho é:<ul>' +
+            '<li>a atividade entra no <b>Cronograma</b> (cadastrada ou importada de planilha)</li>' +
+            '<li>a gestão monta a <b>escala do dia</b> e distribui as atividades entre os N2</li>' +
+            '<li>o N2 registra o andamento pela tela dele e encerra com equipamento e material</li>' +
+            '<li>vocês acompanham tudo no <b>Status Report</b></li></ul>' },
+    { secao: 'N2', mod: 'dashboard', sel: '[data-menu-oculto="n2"]', title: 'Menu do N2',
+      desc: '<b>Painel N2</b> abre a escala e o resumo da equipe. Logo abaixo aparece cada N2: clicar no nome abre o painel filtrado só nele.' },
+    { secao: 'N2', mod: 'painelN2', sel: 'button[onclick="pn2AbrirModalGerarEscala()"]', title: 'Gerar escala do dia',
+      desc: 'O jeito mais rápido de distribuir o trabalho. O sistema pega as atividades do Cronograma <b>sem N2</b> naquela data e sugere quem atende cada cliente (até 3 atividades do mesmo cliente ficam com o mesmo N2). Você revisa, troca o que quiser e salva: as atividades são atribuídas e a escala é criada.' },
+    { secao: 'N2', mod: 'painelN2', sel: 'button[onclick="pn2AbrirModalEscala()"]', title: 'Escala manual',
+      desc: 'Pra pôr alguém na escala na mão: N2, data, horário de entrada e <b>modalidade</b> (Presencial, Home ou Externo), com a atribuição do dia. Também dá pra <b>importar a escala de planilha</b>.' },
+    { secao: 'N2', mod: 'painelN2', sel: '#pn2-equipe-lista', title: 'Resumo da equipe N2',
+      desc: 'Por N2: atividades concluídas na semana e no mês, <b>horas trabalhadas</b> (da chegada à saída de cada visita) e média por dia útil, já descontando férias e afastamentos. <b>Ver atividades</b> abre o Status Report filtrado na pessoa.' },
+    { secao: 'N2', se: _gtStatusReport, mod: 'dashboard', sel: '[data-menu-oculto="cronograma"]', title: 'Cronograma de Atividades',
+      desc: '<b>Escala</b> volta ao Painel N2. <b>Cronograma</b> abre o quadro das atividades de campo e <b>Status Report</b> abre a visão completa com filtros e histórico.' },
+    { secao: 'N2', se: _gtStatusReport, mod: 'statuscampo', sel: '#sc-btn-novo', title: 'Nova atividade de campo',
+      desc: 'Cadastre a visita: <b>cliente, data e horário</b>, site (sigla, nome, cidade, UF), ticket, endereço e o detalhamento técnico. Escolha o <b>N2 responsável</b> ou deixe sem pra distribuir na escala. O técnico parceiro aparece como sugestão pela UF. Com muitas visitas, use <b>Importar</b> (planilha .xlsx).' },
+    { secao: 'N2', se: _gtStatusReport, mod: 'statuscampo', sel: '#sc-kanban', title: 'O quadro do Cronograma',
+      desc: 'Cada card é uma visita. As colunas são o status: <b>Agendado → Em andamento → Concluído / Parcial / Improdutiva (cliente ou Faiston) / Cancelado</b>. Arrastar o card muda o status. Clicar abre o histórico com cada atualização do N2.' },
+    { secao: 'N2', se: _gtStatusReport, title: 'O que o N2 registra em campo',
+      desc: 'Com a atividade <b>Em andamento</b>, o N2 informa:<ul>' +
+            '<li><b>onde está</b>: em deslocamento ou no local</li>' +
+            '<li><b>acesso ao site</b>: com acesso, verificando ou sem acesso</li>' +
+            '<li><b>o que está fazendo</b>: instalando, trocando, removendo ou validando (só com acesso liberado)</li></ul>' +
+            'Ao <b>encerrar</b>, informa hora de saída, equipamentos (série e part number; no removido, quem ficou com ele) e material usado. O sistema gera o <b>carimbo de encerramento</b> pronto pra copiar e cria sozinho a tarefa "Atendimento em campo" (peso 4) na medição do N2.' },
+    { secao: 'N2', se: _gtStatusReport, mod: 'statuscampo', sel: '#sc-report-data', title: 'Report do dia',
+      desc: 'Escolha a data e o cliente e use <b>Copiar print</b>: o sistema monta a imagem do status do dia pronta pra mandar pro cliente — substitui a antiga planilha STATUS_REPORT.' },
+
+    // ── Fim ──
+    { secao: 'Pronto', mod: 'dashboard', sel: '#link-guia', title: 'Sempre que precisar',
+      desc: '<b>Guia de uso</b> abre a ajuda completa da sua função, com tudo isso explicado em detalhe. <b>Rever tour</b>, logo abaixo, repete este passo a passo. E o <b>Assistente OPS</b> (ícone roxo no canto) responde dúvidas em português.' },
+];
+let _gtPassos = [], gtIdx = 0;
+
+function gtTourIniciar() {
+    _gtPassos = GT_TOUR_STEPS.filter(p => !p.se || p.se());
+    gtIdx = 0;
+    if (window.innerWidth < 1024 && typeof toggleSidebarMobile === 'function') toggleSidebarMobile(false);
+    document.getElementById('gt-overlay').classList.remove('hidden');
+    gtRender();
+}
+
+// O check-in do Assistente OPS também abre sozinho no primeiro acesso (às
+// vezes depois do tour já ter começado) e ficava por cima da tela.
+function _gtFecharAssistente() {
+    const painel = document.getElementById('ops-panel');
+    if (painel && painel.classList.contains('aberto')) document.getElementById('ops-fechar')?.click();
+}
+
+function _gtVisivel(el) {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.right > 0 && r.left < window.innerWidth;
+}
+
+function gtRender() {
+    const p = _gtPassos[gtIdx];
+    _gtFecharAssistente();
+    if (p.mod) {
+        if (p.mod === 'painelN2') pn2AbrirGeral();
+        else if (p.mod === 'statuscampo') scAbrirCronograma();
+        else setModule(p.mod);
+    }
+    const spot = document.getElementById('gt-spot');
+    const card = document.getElementById('gt-card');
+    document.getElementById('gt-secao').textContent = p.secao || '';
+    document.getElementById('gt-titulo').textContent = p.title;
+    document.getElementById('gt-desc').innerHTML = p.desc;
+    document.getElementById('gt-contador').textContent = (gtIdx + 1) + ' / ' + _gtPassos.length;
+    document.getElementById('gt-voltar').style.visibility = gtIdx === 0 ? 'hidden' : 'visible';
+    document.getElementById('gt-prox').textContent = gtIdx === _gtPassos.length - 1 ? 'Concluir' : 'Próximo';
+    // Espera o módulo trocar/carregar antes de medir o elemento.
+    setTimeout(() => {
+        const el = p.sel ? document.querySelector(p.sel) : null;
+        if (_gtVisivel(el)) {
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            setTimeout(() => gtPosicionar(el, spot, card), 220);
+        } else {
+            // Sem alvo (ou fora da tela, ex.: menu fechado no celular): cartão no
+            // centro. O destaque vira um ponto invisível no meio só pra manter a
+            // tela escurecida pela sombra dele.
+            spot.style.display = 'block';
+            spot.style.left = '50%'; spot.style.top = '50%';
+            spot.style.width = '0px'; spot.style.height = '0px';
+            spot.style.boxShadow = '0 0 0 9999px rgba(11,13,31,.62)';
+            card.style.left = '50%'; card.style.top = '50%'; card.style.transform = 'translate(-50%,-50%)';
+        }
+    }, p.mod ? 260 : 0);
+}
+
+function gtPosicionar(el, spot, card) {
+    const r = el.getBoundingClientRect();
+    spot.style.display = 'block';
+    spot.style.boxShadow = '';
+    spot.style.left = (r.left - 8) + 'px';
+    spot.style.top = (r.top - 8) + 'px';
+    spot.style.width = (r.width + 16) + 'px';
+    spot.style.height = Math.min(r.height + 16, window.innerHeight - 16) + 'px';
+    card.style.transform = 'none';
+    const cardW = card.offsetWidth || 360, cardH = card.offsetHeight || 220;
+    let left, top;
+    if (r.right + 24 + cardW < window.innerWidth && r.width < window.innerWidth / 2) {
+        // Alvo estreito (menu lateral, botão): cartão ao lado.
+        left = r.right + 24;
+        top = Math.max(16, Math.min(window.innerHeight - cardH - 16, r.top));
+    } else {
+        left = Math.max(16, Math.min(window.innerWidth - cardW - 16, r.left + r.width / 2 - cardW / 2));
+        top = r.bottom + 16;
+        if (top + cardH > window.innerHeight) top = Math.max(16, r.top - cardH - 16);
+    }
+    card.style.left = left + 'px';
+    card.style.top = top + 'px';
+}
+
+function gtTourProximo() {
+    if (gtIdx < _gtPassos.length - 1) { gtIdx++; gtRender(); }
+    else gtTourFinalizar();
+}
+function gtTourVoltar() {
+    if (gtIdx > 0) { gtIdx--; gtRender(); }
+}
+async function gtTourFinalizar() {
+    document.getElementById('gt-overlay').classList.add('hidden');
+    setModule('dashboard');
+    try { await fetch('/api/tutorial-gestor/visto', { method: 'POST' }); } catch (e) {}
+}
+document.addEventListener('keydown', e => {
+    if (document.getElementById('gt-overlay').classList.contains('hidden')) return;
+    if (e.key === 'Escape') gtTourFinalizar();
+    else if (e.key === 'ArrowRight') gtTourProximo();
+    else if (e.key === 'ArrowLeft') gtTourVoltar();
+});
+</script>
 <script src="/js/faiston-erros.js"></script>
 <script src="/assistente/widget.js?v=2"></script>
+<script src="/js/novidades.js?v=1"></script>
 </body>
 </html>

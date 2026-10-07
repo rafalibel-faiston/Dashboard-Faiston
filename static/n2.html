@@ -70,88 +70,178 @@
         #n2-titulo { font-family: 'Space Grotesk', 'Inter', sans-serif; letter-spacing: -0.01em; }
         body { background-image: radial-gradient(rgba(91,46,224,0.035) 1px, transparent 1px); background-size: 24px 24px; }
         [data-theme="dark"] body { background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px); }
+        /* Layout no padrão da tela do Backoffice (/funcionario), 2026-10-07 */
+        .n2-col { min-height: 120px; }
+        @media (min-width: 1024px) { .n2-col { min-height: calc(100vh - 380px); max-height: calc(100vh - 260px); } }
+        .n2-card { background:#fff; border:1px solid #E5E8F0; border-radius:14px; padding:14px 16px; margin-bottom:10px; box-shadow:0 1px 3px rgba(11,13,31,0.04); transition:box-shadow .15s ease, transform .15s ease; }
+        .n2-card:hover { box-shadow:0 6px 18px -6px rgba(91,46,224,0.18); }
+        [data-theme="dark"] .n2-card { background:#11111E; border-color:rgba(255,255,255,0.08); }
+        [data-theme="dark"] .n2-col .text-slate-300 { color:#4A5068 !important; }
     </style>
 </head>
 <body class="bg-faiston-bg font-sans min-h-screen">
 
-<header class="bg-white border-b border-faiston-border px-6 py-3 flex items-center justify-between sticky top-0 z-20">
+<header class="bg-white border-b border-faiston-border px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sticky top-0 z-20">
     <div class="flex items-center gap-3">
-        <i class="ph ph-map-pin-line text-faiston-purple text-lg"></i>
-        <span class="text-sm font-bold text-faiston-dark">Status Report</span>
-        <span class="text-xs text-faiston-faint">Painel N2</span>
+        <img src="/faiston-ops-mark.svg" alt="" class="w-9 h-9 rounded-[10px] shadow-[0_8px_20px_-6px_rgba(184,38,201,0.45)]">
+        <span class="font-extrabold tracking-tight text-faiston-dark text-[15px]">FAISTON <span class="grad-text">OPS</span></span>
+        <span class="w-px h-4 bg-slate-200 mx-1"></span>
+        <span class="text-sm text-slate-500 font-medium">Painel N2</span>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <button onclick="abrirModalNovo()" id="btn-nova-atividade" class="btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+            <i class="ph ph-plus-circle text-lg"></i> Nova atividade
+        </button>
         <button onclick="toggleTema()" id="btn-tema-h" class="btn-theme" title="Alternar tema">
             <i class="ph ph-moon" id="icon-tema-h"></i>
         </button>
-        <button onclick="n2TourIniciar()" title="Rever o tutorial" class="text-faiston-faint hover:text-faiston-purple transition-colors">
+        <button onclick="n2TourIniciar()" title="Rever o tutorial" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple">
             <i class="ph ph-graduation-cap text-lg"></i>
         </button>
-        <button onclick="suporteAbrirModal()" title="Falar com o suporte" class="text-faiston-faint hover:text-faiston-purple transition-colors">
+        <a href="/novidades" data-novidades-link title="Novidades do sistema" class="h-9 px-2.5 flex items-center gap-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple text-sm font-medium">
+            <i class="ph ph-megaphone-simple text-lg"></i><span class="hidden md:inline">Novidades</span>
+        </a>
+        <button onclick="suporteAbrirModal()" title="Falar com o suporte" class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors text-slate-500 hover:text-faiston-purple">
             <i class="ph ph-lifebuoy text-lg"></i>
         </button>
-        <button onclick="logout()" class="text-faiston-faint hover:text-faiston-pink transition-colors">
-            <i class="ph ph-sign-out text-lg"></i>
+        <button onclick="logout()" class="flex items-center gap-2 text-sm text-slate-500 hover:text-faiston-dark px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <i class="ph ph-sign-out"></i> Sair
         </button>
         <div class="flex items-center gap-2 pl-3 border-l border-faiston-border">
-            <div class="w-8 h-8 rounded-lg grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-av">?</div>
+            <div class="w-9 h-9 rounded-full grad-bg flex items-center justify-center text-white text-xs font-bold" id="user-av">?</div>
             <span class="text-sm font-semibold text-faiston-dark" id="user-nome">...</span>
         </div>
     </div>
 </header>
 
-<main class="max-w-5xl mx-auto px-6 py-6">
+<main class="px-6 py-5">
 
-    <div class="flex items-center justify-between mb-5">
-        <div>
-            <h2 class="text-xl font-bold text-faiston-dark" id="n2-titulo">Minhas atividades</h2>
-            <p class="text-xs text-faiston-muted mt-0.5" id="n2-subtitulo">Atividades de campo onde você é o N2 responsável</p>
-        </div>
-        <div class="flex items-center gap-2">
-            <button onclick="n2ToggleOcultarFinalizadas()" id="btn-limpar-lista" class="flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors">
-                <i class="ph ph-broom text-sm"></i> <span id="btn-limpar-lista-label">Limpar lista</span>
-            </button>
-            <button onclick="abrirModalNovo()" id="btn-nova-atividade" class="flex items-center gap-2 btn-grad text-white px-4 py-2 rounded-lg text-sm font-semibold">
-                <i class="ph ph-plus text-base"></i> Nova atividade
-            </button>
-        </div>
+    <!-- Abas no mesmo formato da tela do Backoffice -->
+    <div class="flex items-center gap-1 mb-5 p-1 rounded-xl w-fit max-w-full overflow-x-auto" style="background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.15)">
+        <button onclick="mostrarAbaN2('minhas')" id="n2-tab-minhas"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap flex-shrink-0 transition-all"
+            style="background:white;color:#0B0D1F;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+            <i class="ph ph-user-focus text-base"></i> Minhas atividades
+        </button>
+        <button onclick="mostrarAbaN2('geral')" id="n2-tab-geral"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap flex-shrink-0 transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-kanban text-base"></i> Atividades em geral
+        </button>
+        <button onclick="mostrarAbaN2('print')" id="n2-tab-print"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap flex-shrink-0 transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-camera text-base"></i> Enviar Status Report
+        </button>
+        <button onclick="mostrarAbaN2('extras')" id="n2-tab-extras"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap flex-shrink-0 transition-all"
+            style="background:transparent;color:#9097AC;box-shadow:none">
+            <i class="ph ph-list-plus text-base"></i> Outras Atividades
+        </button>
     </div>
 
-    <div class="flex gap-2 mb-5 flex-wrap">
-        <button onclick="mostrarAbaN2('minhas')" id="n2-tab-minhas" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Minhas atividades</button>
-        <button onclick="mostrarAbaN2('geral')" id="n2-tab-geral" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Atividades em geral</button>
-        <button onclick="mostrarAbaN2('print')" id="n2-tab-print" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Enviar Status Report</button>
-        <button onclick="mostrarAbaN2('extras')" id="n2-tab-extras" class="text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Outras Atividades</button>
+    <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div>
+            <h2 class="text-lg font-bold text-faiston-dark" id="n2-titulo">Minhas atividades</h2>
+            <p class="text-xs text-faiston-muted mt-0.5" id="n2-subtitulo">Atividades de campo onde você é o N2 responsável</p>
+        </div>
     </div>
 
     <div id="n2-view-lista">
-        <div class="bg-white rounded-2xl border border-faiston-border p-5 mb-5" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <select id="f-status" onchange="buscar()" class="border border-faiston-border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-faiston-cyan">
-                    <option value="">Todos os status</option>
-                    <option value="agendado">Agendado</option>
-                    <option value="em_andamento">Em andamento</option>
-                    <option value="concluido">Concluído</option>
-                    <option value="parcial">Parcial</option>
-                    <option value="improdutiva_cliente">Improdutiva — Cliente</option>
-                    <option value="improdutiva_faiston">Improdutiva — Faiston</option>
-                    <option value="cancelado">Cancelado</option>
-                </select>
-                <input type="date" id="f-data-de" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
-                <input type="date" id="f-data-ate" onchange="buscar()" class="border border-faiston-border rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-faiston-cyan">
-                <button onclick="limparFiltros()" class="text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1 justify-center">
-                    <i class="ph ph-x-circle"></i> Limpar
-                </button>
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <div class="bg-white rounded-2xl p-4 border border-faiston-border flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <i class="ph ph-clipboard-text text-lg text-faiston-muted"></i>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em]">Total</p>
+                <p class="text-2xl font-bold text-faiston-dark" id="n2-k-total">0</p>
             </div>
         </div>
+        <div class="bg-white rounded-2xl p-4 border border-faiston-border flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-faiston-cyan/10 flex items-center justify-center flex-shrink-0">
+                <i class="ph ph-calendar-blank text-lg text-faiston-cyan"></i>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em]">Agendadas</p>
+                <p class="text-2xl font-bold text-faiston-cyan" id="n2-k-agendado">0</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl p-4 border border-faiston-border flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-faiston-purple/10 flex items-center justify-center flex-shrink-0">
+                <i class="ph ph-spinner text-lg text-faiston-purple"></i>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em]">Em andamento</p>
+                <p class="text-2xl font-bold text-faiston-purple" id="n2-k-andamento">0</p>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl p-4 border border-faiston-border flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-faiston-magenta/10 flex items-center justify-center flex-shrink-0">
+                <i class="ph ph-check-circle text-lg text-faiston-magenta"></i>
+            </div>
+            <div>
+                <p class="text-[10px] font-bold text-faiston-faint uppercase tracking-[0.12em]">Finalizadas</p>
+                <p class="text-2xl font-bold text-faiston-magenta" id="n2-k-finalizadas">0</p>
+            </div>
+        </div>
+    </div>
 
-        <div class="bg-white rounded-2xl border border-faiston-border overflow-hidden" style="box-shadow:0 2px 12px rgba(91, 46, 224,0.06)">
-            <div class="flex items-center justify-between px-5 py-4 border-b border-faiston-border">
-                <span class="text-sm font-bold text-faiston-dark">Atividades</span>
-                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
-            </div>
-            <div id="lista"></div>
+    <!-- Filtros -->
+    <div class="bg-white rounded-2xl border border-faiston-border px-4 py-3 mb-5 flex items-center gap-3 flex-wrap">
+        <i class="ph ph-funnel text-faiston-faint"></i>
+        <select id="f-status" onchange="buscar()" class="text-xs border border-faiston-border rounded-lg px-3 py-2 bg-white text-faiston-muted focus:outline-none focus:border-faiston-purple cursor-pointer">
+            <option value="">Todos os status</option>
+            <option value="agendado">Agendado</option>
+            <option value="em_andamento">Em andamento</option>
+            <option value="concluido">Concluído</option>
+            <option value="parcial">Parcial</option>
+            <option value="improdutiva_cliente">Improdutiva — Cliente</option>
+            <option value="improdutiva_faiston">Improdutiva — Faiston</option>
+            <option value="cancelado">Cancelado</option>
+        </select>
+        <div class="flex items-center gap-1.5">
+            <input type="date" id="f-data-de" onchange="buscar()" title="De" class="text-xs border border-faiston-border rounded-lg px-2 py-2 text-faiston-muted focus:outline-none focus:border-faiston-purple">
+            <span class="text-xs text-faiston-faint">até</span>
+            <input type="date" id="f-data-ate" onchange="buscar()" title="Até" class="text-xs border border-faiston-border rounded-lg px-2 py-2 text-faiston-muted focus:outline-none focus:border-faiston-purple">
         </div>
+        <button onclick="limparFiltros()" class="text-xs text-slate-400 hover:text-faiston-magenta transition-colors flex items-center gap-1">
+            <i class="ph ph-x-circle"></i> Limpar filtros
+        </button>
+        <span class="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="count-label">carregando...</span>
+        <button onclick="n2ToggleOcultarFinalizadas()" id="btn-limpar-lista" class="ml-auto flex items-center gap-2 border border-faiston-border text-slate-500 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors">
+            <i class="ph ph-broom text-sm"></i> <span id="btn-limpar-lista-label">Limpar lista</span>
+        </button>
+    </div>
+
+    <!-- KANBAN: mesmas colunas visuais do quadro do Backoffice -->
+    <div id="lista" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="flex flex-col">
+            <div class="flex items-center gap-2 mb-3 px-1">
+                <div class="w-2.5 h-2.5 rounded-full bg-faiston-cyan "></div>
+                <span class="text-xs font-bold text-faiston-cyan uppercase tracking-wider">Agendado</span>
+                <span class="ml-auto text-xs font-bold bg-faiston-cyan/10 text-faiston-cyan px-2 py-0.5 rounded-full" id="n2-badge-agendado">0</span>
+            </div>
+            <div class="bg-faiston-cyan/5 rounded-2xl p-3 n2-col custom-scrollbar overflow-y-auto" id="n2-col-agendado"></div>
+        </div>
+        <div class="flex flex-col">
+            <div class="flex items-center gap-2 mb-3 px-1">
+                <div class="w-2.5 h-2.5 rounded-full bg-faiston-purple pulse-dot"></div>
+                <span class="text-xs font-bold text-faiston-purple uppercase tracking-wider">Em andamento</span>
+                <span class="ml-auto text-xs font-bold bg-faiston-purple/10 text-faiston-purple px-2 py-0.5 rounded-full" id="n2-badge-andamento">0</span>
+            </div>
+            <div class="bg-faiston-purple/5 rounded-2xl p-3 n2-col custom-scrollbar overflow-y-auto" id="n2-col-andamento"></div>
+        </div>
+        <div class="flex flex-col">
+            <div class="flex items-center gap-2 mb-3 px-1">
+                <div class="w-2.5 h-2.5 rounded-full bg-slate-400 "></div>
+                <span class="text-xs font-bold text-faiston-muted uppercase tracking-wider">Finalizadas</span>
+                <span class="ml-auto text-xs font-bold bg-slate-100 text-faiston-muted px-2 py-0.5 rounded-full" id="n2-badge-finalizadas">0</span>
+            </div>
+            <div class="bg-slate-100/70 rounded-2xl p-3 n2-col custom-scrollbar overflow-y-auto" id="n2-col-finalizadas"></div>
+        </div>
+    </div>
     </div>
 
     <div id="n2-view-print" class="hidden">
@@ -671,6 +761,15 @@ async function init() {
 
     mostrarAbaN2('minhas');
 
+    // Link do e-mail de resposta de suporte (?suporte=<id>) — abre direto o
+    // modal "Minhas solicitações" com o chamado em destaque.
+    const suporteId = new URLSearchParams(location.search).get('suporte');
+    if (suporteId) {
+        window._suporteDestaqueId = parseInt(suporteId, 10);
+        suporteAbrirModal();
+        suporteTrocarAba('minhas');
+    }
+
     try {
         const resTut = await fetch('/api/tutorial-n2/status');
         if (resTut.ok) {
@@ -699,8 +798,10 @@ function mostrarAbaN2(aba) {
     const tabs = { minhas: 'n2-tab-minhas', geral: 'n2-tab-geral', print: 'n2-tab-print', extras: 'n2-tab-extras' };
     Object.entries(tabs).forEach(([k, id]) => {
         const ativo = k === aba;
-        document.getElementById(id).className = 'text-sm font-semibold px-4 py-2 rounded-lg transition-colors ' +
-            (ativo ? 'btn-grad text-white' : 'text-slate-500 hover:bg-slate-100');
+        const el = document.getElementById(id);
+        el.style.background = ativo ? 'white' : 'transparent';
+        el.style.color = ativo ? '#0B0D1F' : '#9097AC';
+        el.style.boxShadow = ativo ? '0 1px 3px rgba(0,0,0,0.08)' : 'none';
     });
     document.getElementById('n2-view-lista').classList.toggle('hidden', aba !== 'minhas' && aba !== 'geral');
     document.getElementById('n2-view-print').classList.toggle('hidden', aba !== 'print');
@@ -730,11 +831,13 @@ function mostrarAbaN2(aba) {
 function renderCardAtividade(r) {
     const opts = Object.entries(STATUS_LABEL)
         .map(([k, l]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${l}</option>`).join('');
-    return `<div class="px-5 py-3.5 border-b border-faiston-border last:border-0 hover:bg-slate-50/60">
-        <div class="flex items-center gap-3 flex-wrap">
-            <span class="text-xs font-bold text-faiston-purple">${esc(r.cliente_nome || '—')}</span>
-            <span class="text-sm font-semibold flex-1 min-w-[120px]">${esc(r.site_sigla || r.site_nome || '')}</span>
-            <select onchange="mudarStatus(${r.id}, this.value)" class="text-xs font-semibold border border-faiston-border rounded-full px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>
+    return `<div class="n2-card">
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <p class="text-[11px] font-bold text-faiston-purple uppercase tracking-wide truncate">${esc(r.cliente_nome || '—')}</p>
+                <p class="text-sm font-semibold text-faiston-dark truncate">${esc(r.site_sigla || r.site_nome || '')}${r.site_sigla && r.site_nome ? `<span class="font-normal text-faiston-muted"> · ${esc(r.site_nome)}</span>` : ''}</p>
+            </div>
+            <select onchange="mudarStatus(${r.id}, this.value)" class="flex-shrink-0 text-xs font-semibold border border-faiston-border rounded-full px-2 py-1 bg-white focus:outline-none focus:border-faiston-purple">${opts}</select>
         </div>
         <div class="flex gap-4 flex-wrap text-xs text-faiston-muted mt-1.5">
             <span>${fmtDate(r.data)}</span>
@@ -819,22 +922,27 @@ function n2ToggleOcultarFinalizadas() {
 }
 
 function renderizarLista(rows) {
-    const lista = document.getElementById('lista');
     document.getElementById('count-label').textContent = `${rows.length} atividade(s)`;
-    if (!rows.length) {
-        lista.innerHTML = '<div class="text-center py-12 text-slate-300 text-sm">Nenhuma atividade sua registrada ainda.</div>';
-        return;
-    }
-    const ativas = rows.filter(r => !STATUS_FINALIZADOS.includes(r.status));
+    const agendadas = rows.filter(r => r.status === 'agendado');
+    const andamento = rows.filter(r => r.status === 'em_andamento');
     const finalizadas = rows.filter(r => STATUS_FINALIZADOS.includes(r.status));
-    const secaoHtml = (titulo, itens) => itens.length ? `
-        <div class="px-5 py-2 bg-slate-50 border-b border-faiston-border text-[10px] font-bold uppercase tracking-wide text-slate-500">${titulo} (${itens.length})</div>
-        ${itens.map(renderCardAtividade).join('')}` : '';
+    document.getElementById('n2-k-total').textContent = rows.length;
+    document.getElementById('n2-k-agendado').textContent = agendadas.length;
+    document.getElementById('n2-k-andamento').textContent = andamento.length;
+    document.getElementById('n2-k-finalizadas').textContent = finalizadas.length;
+    const vazio = msg => `<div class="text-center py-12 text-slate-300"><i class="ph ph-tray text-2xl mb-2 block"></i><p class="text-xs">${msg}</p></div>`;
+    const preencher = (chave, itens, msgVazio) => {
+        document.getElementById('n2-badge-' + chave).textContent = itens.length;
+        document.getElementById('n2-col-' + chave).innerHTML = itens.length ? itens.map(renderCardAtividade).join('') : vazio(msgVazio);
+    };
+    preencher('agendado', agendadas, 'Nenhuma atividade agendada');
+    preencher('andamento', andamento, 'Nada em andamento');
     if (n2OcultarFinalizadas) {
-        lista.innerHTML = ativas.length ? secaoHtml('Em andamento e agendadas', ativas)
-            : '<div class="text-center py-12 text-slate-300 text-sm">Nada pendente -- tudo finalizado. Clique em "Mostrar finalizadas" pra ver.</div>';
+        // "Limpar lista" só esconde da visão de trabalho -- nada é apagado.
+        document.getElementById('n2-badge-finalizadas').textContent = finalizadas.length;
+        document.getElementById('n2-col-finalizadas').innerHTML = vazio('Finalizadas escondidas. Clique em "Mostrar finalizadas" pra ver.');
     } else {
-        lista.innerHTML = secaoHtml('Em andamento e agendadas', ativas) + secaoHtml('Finalizadas', finalizadas);
+        preencher('finalizadas', finalizadas, 'Nenhuma atividade finalizada');
     }
 }
 
@@ -847,7 +955,6 @@ async function buscar() {
     if (dataDe) params.set('data_de', dataDe);
     if (dataAte) params.set('data_ate', dataAte);
 
-    const lista = document.getElementById('lista');
     try {
         const res = await fetch('/api/status-campo?' + params.toString());
         if (!res.ok) throw new Error();
@@ -855,7 +962,9 @@ async function buscar() {
         ultimaLista = rows;
         renderizarLista(rows);
     } catch (e) {
-        lista.innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+        ['agendado', 'andamento', 'finalizadas'].forEach(k => {
+            document.getElementById('n2-col-' + k).innerHTML = '<div class="text-center py-12 text-red-400 text-sm">Erro ao carregar atividades.</div>';
+        });
     }
 }
 
@@ -1666,11 +1775,15 @@ async function abrirModalExtra(tarefa) {
     document.getElementById('me-descricao').value = tarefa ? (tarefa.descricao || '') : '';
     document.getElementById('me-natureza').value = tarefa ? (tarefa.natureza || 'programada') : 'programada';
     document.getElementById('me-prazo').value = tarefa ? (tarefa.data_prazo || '') : '';
-    const segTotais = tarefa ? (tarefa.segundos || 0) : 0;
+    const segTotais = tarefa ? (tarefa.segundos || 0) + (tarefa.timer_ativo ? (tarefa.timer_decorrido || 0) : 0) : 0;
     document.getElementById('me-horas').value = Math.floor(segTotais / 3600) || '';
     document.getElementById('me-minutos').value = Math.floor((segTotais % 3600) / 60) || '';
+    // Horas não mexidas: o salvar não manda `segundos` (não pisa no timer).
+    _extraSegMostrados = Math.floor(segTotais / 3600) * 3600 + Math.floor((segTotais % 3600) / 60) * 60;
     document.getElementById('modal-extra').classList.remove('hidden');
 }
+
+let _extraSegMostrados = null;
 
 function fecharModalExtra() {
     document.getElementById('modal-extra').classList.add('hidden');
@@ -1689,12 +1802,15 @@ async function salvarAtividadeExtra() {
     const body = {
         descricao: document.getElementById('me-descricao').value.trim(),
         cliente,
-        status: 'aberto',
         tipo_atividade_id: tipoId,
         natureza: document.getElementById('me-natureza').value,
         data_prazo: prazo,
         segundos: (horas * 3600) + (minutos * 60),
     };
+    // Status só na criação: editar não pode jogar de volta pra 'aberto' uma
+    // atividade que já está em andamento.
+    if (!_extraEditId) body.status = 'aberto';
+    else if (body.segundos === _extraSegMostrados) delete body.segundos;
     const url = _extraEditId ? `/api/tarefas/${_extraEditId}` : '/api/tarefas';
     const res = await fetch(url, { method: _extraEditId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) {
@@ -1707,14 +1823,28 @@ async function salvarAtividadeExtra() {
 }
 
 async function concluirAtividadeExtra(tarefa) {
+    if (!tarefa) return;
     if (!confirm('Marcar esta atividade como concluída?')) return;
+    // Concluir depois da previsão exige motivo -- o backend barra sem ele, e
+    // antes esta tela não perguntava: a atividade atrasada não concluía nunca.
+    let justificativa = '';
+    if (tarefa.data_prazo) {
+        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+        const prazo = new Date(String(tarefa.data_prazo).slice(0, 10) + 'T00:00:00');
+        if (hoje > prazo) {
+            justificativa = (prompt('Esta atividade está sendo concluída FORA do prazo previsto (' +
+                String(tarefa.data_prazo).slice(0, 10).split('-').reverse().join('/') +
+                ').\n\nInforme o motivo do atraso:') || '').trim();
+            if (!justificativa) return;
+        }
+    }
     const res = await fetch(`/api/tarefas/${tarefa.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            descricao: tarefa.descricao, cliente: tarefa.cliente, prioridade: tarefa.prioridade,
-            status: 'concluido', segundos: tarefa.segundos,
-            data_prazo: tarefa.data_prazo, data_agendamento: tarefa.data_agendamento, hora_prazo: tarefa.hora_prazo,
-            tipo_atividade_id: tarefa.tipo_atividade_id, natureza: tarefa.natureza,
+            // Só o necessário: o PUT atualiza apenas o que vem no corpo, e sem
+            // `segundos` o servidor fecha o timer com o tempo que ele contou.
+            descricao: tarefa.descricao, cliente: tarefa.cliente, status: 'concluido',
+            justificativa_atraso: justificativa,
         })
     });
     if (!res.ok) {
@@ -1842,22 +1972,50 @@ async function suporteCarregarMinhas() {
         const itens = await res.json();
         if (!itens.length) { box.innerHTML = '<p class="text-sm text-slate-300 text-center py-8">Você ainda não abriu nenhuma solicitação.</p>'; return; }
         box.innerHTML = itens.map(s => `
-            <div class="bg-slate-50 rounded-xl border border-faiston-border p-3 mb-2">
+            <div id="suporte-item-${s.id}" class="bg-slate-50 rounded-xl border p-3 mb-2 ${window._suporteDestaqueId === s.id ? 'border-faiston-purple ring-2 ring-faiston-purple/25' : 'border-faiston-border'}">
                 <div class="flex items-start justify-between gap-2 flex-wrap">
                     <p class="text-sm font-bold text-faiston-dark">${esc(s.titulo)}</p>
                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${SUPORTE_STATUS_COR[s.status] || ''}">${SUPORTE_STATUS_LABEL[s.status] || s.status}</span>
                 </div>
                 <p class="text-[11px] text-faiston-faint mt-0.5">${s.criado_em}</p>
                 <p class="text-xs text-slate-500 mt-1.5 whitespace-pre-line">${esc(s.descricao)}</p>
-                ${s.resposta ? `
-                <div class="mt-2 p-2.5 bg-white border border-faiston-purple/20 rounded-lg">
-                    <p class="text-[10px] font-bold text-faiston-purple uppercase tracking-wide mb-1">Resposta de ${esc(s.resposta_por_nome || '')} · ${s.resposta_em || ''}</p>
-                    <p class="text-xs text-slate-600 whitespace-pre-line">${esc(s.resposta)}</p>
+                ${(s.mensagens || []).length ? `
+                <div class="mt-2 flex flex-col gap-1.5">
+                    ${s.mensagens.map(m => `
+                    <div class="p-2.5 rounded-lg border ${m.autor_tipo === 'dev' ? 'bg-white border-faiston-purple/20' : 'bg-faiston-purple/5 border-faiston-purple/10 ml-4'}">
+                        <p class="text-[10px] font-bold uppercase tracking-wide mb-1 ${m.autor_tipo === 'dev' ? 'text-faiston-purple' : 'text-faiston-muted'}">${m.autor_tipo === 'dev' ? 'Suporte' : 'Você'} · ${esc(m.autor_nome || '')} · ${m.criado_em}</p>
+                        <p class="text-xs text-slate-600 whitespace-pre-line">${esc(m.mensagem)}</p>
+                    </div>`).join('')}
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <textarea id="suporte-resposta-${s.id}" rows="1" placeholder="Responder pro suporte..." class="flex-1 border border-faiston-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-faiston-purple resize-none"></textarea>
+                    <button onclick="suporteResponderMinhas(${s.id})" class="text-xs font-semibold text-white btn-grad rounded-lg px-3">Enviar</button>
                 </div>` : '<p class="text-xs text-faiston-faint mt-2 italic">Aguardando resposta...</p>'}
             </div>
         `).join('');
+        if (window._suporteDestaqueId) {
+            const alvo = document.getElementById('suporte-item-' + window._suporteDestaqueId);
+            if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            window._suporteDestaqueId = null;
+        }
     } catch (e) {
         box.innerHTML = '<p class="text-sm text-red-400 text-center py-6">Erro ao carregar suas solicitações.</p>';
+    }
+}
+async function suporteResponderMinhas(id) {
+    const campo = document.getElementById(`suporte-resposta-${id}`);
+    const mensagem = campo.value.trim();
+    if (!mensagem) return;
+    campo.disabled = true;
+    try {
+        const res = await fetch(`/api/suporte/${id}/mensagens`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mensagem })
+        });
+        if (!res.ok) { alert('Erro ao enviar resposta.'); campo.disabled = false; return; }
+        suporteCarregarMinhas();
+    } catch (e) {
+        alert('Erro de rede ao enviar.'); campo.disabled = false;
     }
 }
 
@@ -1938,9 +2096,9 @@ async function suporteEnviar() {
     [data-theme="dark"] #n2-tour-card p{ color:#9CA2BC; }
     #n2-tour-foot{ display:flex; align-items:center; justify-content:space-between; }
     #n2-tour-foot button{ all:unset; cursor:pointer; font-size:12.5px; font-weight:700; }
-    #n2-tour-pular{ color:#9097AC; }
-    #n2-tour-voltar{ color:#5E647A; margin-right:12px; }
-    #n2-tour-prox{ background:linear-gradient(135deg,#5B2EE0,#EC4899); color:#fff; padding:7px 16px; border-radius:9px; }
+    #n2-tour-foot #n2-tour-pular{ color:#9097AC; }
+    #n2-tour-foot #n2-tour-voltar{ color:#5E647A; margin-right:12px; }
+    #n2-tour-foot #n2-tour-prox{ background:linear-gradient(135deg,#5B2EE0,#EC4899); color:#fff; padding:7px 16px; border-radius:9px; }
 </style>
 <div id="n2-tour-overlay" class="hidden">
     <div id="n2-tour-catch"></div>
@@ -2035,5 +2193,6 @@ async function n2TourFinalizar() {
 }
 </script>
 <script src="/assistente/widget.js?v=2"></script>
+<script src="/js/novidades.js?v=1"></script>
 </body>
 </html>

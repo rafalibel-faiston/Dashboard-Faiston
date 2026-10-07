@@ -123,15 +123,26 @@ Path("static/js").mkdir(parents=True, exist_ok=True)
 
 def get_db():
     try:
-        conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
+        # connect_timeout: sem ele, banco lento/indisponível deixava a thread
+        # do request pendurada pra sempre -- e o usuário via a tela "travada".
+        conn = psycopg2.connect(os.environ.get("DATABASE_URL"), connect_timeout=10)
         cur = conn.cursor()
         cur.execute("SET TIME ZONE 'America/Sao_Paulo'")
+        lst = _request_conns.get()
+        if lst is not None:
+            # Só em conexão de request (jobs de fundo ficam sem limite): uma
+            # query ou uma espera por lock nunca segura o usuário mais que
+            # isso, e uma transação esquecida aberta não prende a tabela
+            # tarefas pro resto da empresa. Sem esses limites, um único lock
+            # preso enfileirava todo mundo atrás ("o sistema trava").
+            cur.execute("SET statement_timeout = '60s'")
+            cur.execute("SET lock_timeout = '15s'")
+            cur.execute("SET idle_in_transaction_session_timeout = '120s'")
         cur.close()
         conn.commit()
         # Registra a conexão para fechamento garantido ao fim do request (ver
         # middleware fechar_conexoes_db). Fechar duas vezes é seguro (no-op),
         # então os conn.close() já existentes continuam válidos.
-        lst = _request_conns.get()
         if lst is not None:
             lst.append(conn)
         return conn
@@ -294,6 +305,12 @@ def setup_banco():
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS time VARCHAR(50) DEFAULT 'Projetos'")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo VARCHAR(20) DEFAULT ''")
         cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tutorial_n2_visto BOOLEAN DEFAULT FALSE")
+        # Tour do gestor (2026-10-07). A coluna nasce TRUE pra quem já existe
+        # (gestor antigo não leva o tour de surpresa) e o default passa a FALSE
+        # pros cadastros novos -- o ADD COLUMN só roda uma vez, o SET DEFAULT
+        # é idempotente. Quem já existe revê pelo "Rever tour" do menu.
+        cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tutorial_gestor_visto BOOLEAN DEFAULT TRUE")
+        cur.execute("ALTER TABLE usuarios ALTER COLUMN tutorial_gestor_visto SET DEFAULT FALSE")
         # bcrypt gera 60 caracteres; a coluna nasceu VARCHAR(64) e fica sem
         # folga. Ampliar é seguro (não trunca nada já gravado).
         cur.execute("ALTER TABLE usuarios ALTER COLUMN senha_hash TYPE VARCHAR(255)")
@@ -788,6 +805,30 @@ def setup_banco():
         cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta TEXT")
         cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta_por_nome VARCHAR(150)")
         cur.execute("ALTER TABLE suporte_solicitacoes ADD COLUMN IF NOT EXISTS resposta_em TIMESTAMP")
+        # Thread de mensagens do chamado (2026-09-09) -- substitui a resposta
+        # única acima por um vai-e-vem de verdade: dev responde, quem abriu
+        # recebe por e-mail e responde de volta pelo sistema. Migra em toda
+        # subida (idempotente via NOT EXISTS) a resposta única já registrada
+        # pra virar a primeira mensagem da thread, sem perder histórico.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS suporte_mensagens (
+                id SERIAL PRIMARY KEY,
+                solicitacao_id INTEGER NOT NULL REFERENCES suporte_solicitacoes(id) ON DELETE CASCADE,
+                autor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                autor_nome VARCHAR(150) NOT NULL,
+                autor_tipo VARCHAR(10) NOT NULL DEFAULT 'dev',
+                mensagem TEXT NOT NULL,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_suporte_mensagens_solicitacao ON suporte_mensagens(solicitacao_id)")
+        cur.execute("""
+            INSERT INTO suporte_mensagens (solicitacao_id, autor_nome, autor_tipo, mensagem, criado_em)
+            SELECT s.id, s.resposta_por_nome, 'dev', s.resposta, COALESCE(s.resposta_em, s.atualizado_em)
+            FROM suporte_solicitacoes s
+            WHERE s.resposta IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM suporte_mensagens m WHERE m.solicitacao_id = s.id)
+        """)
         # Reset de senha por e-mail (2026-07-30). Guarda o HASH do token, não
         # o token em si -- mesmo princípio de senha_hash: se o banco vazar, o
         # hash sozinho não deixa ninguém reutilizar o link. sha256 (sem salt)
@@ -912,6 +953,28 @@ def setup_banco():
         print(f"Erro setup: {e}")
 
 setup_banco()
+
+def _migrar_timer_tarefas():
+    """Timer no servidor (2026-09-28). Antes o cronômetro vivia só na memória
+    do navegador: um timer por vez, e recarregar/fechar a aba fazia a tarefa
+    ficar 'em andamento' sem contar. Agora `timer_inicio` marca desde quando o
+    timer daquela tarefa está rodando (NULL = pausado) e `segundos` guarda o
+    acumulado das sessões já fechadas -- total = segundos + (agora - timer_inicio).
+    Várias tarefas podem ter timer rodando ao mesmo tempo. Separado do
+    setup_banco pra não depender de nenhum passo anterior dele ter dado certo."""
+    conn = get_db()
+    if not conn: return
+    try:
+        cur = conn.cursor()
+        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS timer_inicio TIMESTAMPTZ")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_tarefas_timer_ativo ON tarefas(timer_inicio) WHERE timer_inicio IS NOT NULL")
+        conn.commit(); cur.close()
+    except Exception as e:
+        print(f"Erro migração timer: {e}")
+    finally:
+        conn.close()
+
+_migrar_timer_tarefas()
 
 from app.assistente.db import setup_schema as _setup_schema_assistente
 from app.assistente.router import router as assistente_router
@@ -2089,6 +2152,35 @@ def tutorial_n2_marcar_visto(faiston_token: str = Cookie(None)):
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+# Tour do gestor (2026-10-07) -- mesmo padrão do tutorial do N2: abre sozinho
+# no primeiro acesso ao /dashboard e pode ser revisto pelo menu.
+@app.get("/api/tutorial-gestor/status")
+def tutorial_gestor_status(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(tutorial_gestor_visto, FALSE) FROM usuarios WHERE id=%s", (sess["id"],))
+        row = cur.fetchone()
+        cur.close(); conn.close()
+        return {"visto": bool(row[0]) if row else False}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tutorial-gestor/visto")
+def tutorial_gestor_marcar_visto(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE usuarios SET tutorial_gestor_visto=TRUE WHERE id=%s", (sess["id"],))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 # --- USUÁRIOS ---
 @app.get("/api/usuarios")
 def listar_usuarios(faiston_token: str = Cookie(None)):
@@ -2831,6 +2923,66 @@ def registrar_historico(conn, sess, tid: int, acao: str, mudancas: list, snap: d
     finally:
         cur.close()
 
+# --- TIMER DAS TAREFAS (no servidor) ---
+# Teto de segundos por tarefa (10.000h) -- o mesmo MAX_SEGUNDOS do front, evita
+# overflow do INTEGER com valor corrompido.
+MAX_SEGUNDOS = 36_000_000
+# Tolerância pra cliente antigo que devolve no PUT os segundos que leu: se o
+# valor enviado bate com o total atual (± isso), não é edição manual de horas,
+# e o timer que está rodando não é zerado.
+_TOLERANCIA_ECO_SEGUNDOS = 120
+
+def _sql_decorrido(prefixo: str = "") -> str:
+    """Segundos inteiros desde que o timer foi iniciado (0 se pausado)."""
+    ti = f"{prefixo}timer_inicio"
+    return f"COALESCE(GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (NOW() - {ti}))))::int, 0)"
+
+def _estado_timer(cur, tid: int) -> dict:
+    """Estado da tarefa depois de uma ação de timer/status, pro front
+    sincronizar sem precisar recarregar a lista inteira."""
+    cur.execute(f"""SELECT status, segundos, timer_inicio IS NOT NULL, {_sql_decorrido()}, concluido_em
+                    FROM tarefas WHERE id=%s""", (tid,))
+    r = cur.fetchone()
+    if not r:
+        return {"id": tid}
+    return {"id": tid, "status": r[0], "segundos": r[1] or 0, "timer_ativo": bool(r[2]),
+            "timer_decorrido": r[3] if r[2] else 0,
+            "concluido_em": str(r[4]) if r[4] else None}
+
+def _tarefa_do_usuario_para_update(cur, tid: int, usuario_id: int):
+    """Trava a linha da tarefa (FOR UPDATE) e devolve (status, segundos,
+    timer_rodando, decorrido). 404 se a tarefa não existe ou não é do usuário --
+    antes o UPDATE simplesmente não achava a linha e o endpoint respondia
+    'sucesso', a tela mostrava a tarefa concluída e ela 'voltava' no reload."""
+    cur.execute(f"""SELECT status, segundos, timer_inicio IS NOT NULL, {_sql_decorrido()}
+                    FROM tarefas WHERE id=%s AND usuario_id=%s FOR UPDATE""", (tid, usuario_id))
+    r = cur.fetchone()
+    if not r:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada, ou você não é o responsável por ela. Recarregue a página.")
+    return r[0], r[1] or 0, bool(r[2]), r[3] or 0
+
+def consolidar_timers():
+    """Job de 1 em 1 minuto: passa o tempo dos timers rodando pra `segundos`
+    (e anda o timer_inicio junto, então o total não muda). Mantém métricas,
+    relatórios e o quadro do gestor em dia mesmo com a aba do funcionário
+    fechada. Cada linha é recalculada com os próprios valores atuais, então
+    uma pausa concorrente nunca conta tempo em dobro."""
+    conn = get_db()
+    if not conn: return
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            UPDATE tarefas
+               SET segundos = LEAST(COALESCE(segundos, 0) + {_sql_decorrido()}, {MAX_SEGUNDOS}),
+                   timer_inicio = timer_inicio + {_sql_decorrido()} * INTERVAL '1 second'
+             WHERE timer_inicio IS NOT NULL AND timer_inicio <= NOW() - INTERVAL '1 second'
+        """)
+        conn.commit(); cur.close()
+    except Exception as e:
+        logger.error(f"[timer] falha ao consolidar timers: {e}")
+    finally:
+        conn.close()
+
 # --- TAREFAS ---
 @app.get("/api/tarefas")
 def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
@@ -2840,25 +2992,17 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        # Migração silenciosa: adiciona projeto_id se ainda não existe
-        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS projeto_id INTEGER REFERENCES projetos(id)")
-        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_prazo DATE")
-        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS data_agendamento DATE")
-        cur.execute("ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS hora_prazo TIME")
-        conn.commit()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS tarefa_colaboradores (
-                tarefa_id INTEGER REFERENCES tarefas(id) ON DELETE CASCADE,
-                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-                PRIMARY KEY (tarefa_id, usuario_id)
-            )
-        """)
-        conn.commit()
-        base_sel = """SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
+        # As colunas/tabela que eram criadas aqui ("migração silenciosa") já
+        # vêm do setup_banco. ALTER TABLE pega lock exclusivo na tabela tarefas
+        # mesmo com IF NOT EXISTS; rodando a cada listagem (várias por minuto,
+        # por usuário), qualquer transação mais lenta enfileirava o sistema
+        # inteiro atrás dele -- era a causa do "o sistema trava e não faz mais nada".
+        base_sel = f"""SELECT t.id, t.descricao, t.cliente, t.prioridade, t.status, t.segundos,
                              t.criado_em, u.nome, t.projeto_id, COALESCE(p.nome,'') AS projeto_nome,
                              t.data_prazo, t.data_agendamento, t.usuario_id, t.hora_prazo,
                              t.tipo_atividade_id, t.peso, t.natureza,
-                             t.concluido_em, t.prazo_status, t.justificativa_atraso
+                             t.concluido_em, t.prazo_status, t.justificativa_atraso,
+                             t.timer_inicio IS NOT NULL, {_sql_decorrido('t.')}
                       FROM tarefas t JOIN usuarios u ON t.usuario_id = u.id
                       LEFT JOIN projetos p ON p.id = t.projeto_id"""
         if view == "func":
@@ -2898,6 +3042,7 @@ def listar_tarefas(view: str = "", faiston_token: str = Cookie(None)):
                 "tipo_atividade_id": r[14], "peso": r[15], "natureza": r[16],
                  "concluido_em": str(r[17]) if r[17] else None,
                  "prazo_status": r[18], "justificativa_atraso": r[19],
+                 "timer_ativo": bool(r[20]), "timer_decorrido": r[21] if r[20] else 0,
                  "sou_colaborador": (r[12] != sess["id"]) and any(c["id"] == sess["id"] for c in colab_map.get(r[0], [])),
                  "colaboradores": colab_map.get(r[0], [])} for r in rows]
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -2969,10 +3114,11 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
             peso = row_tipo[0]
         natureza = t.natureza if t.natureza in ("programada", "urgente") else "programada"
         cur.execute(
-                "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id, data_prazo, data_agendamento, hora_prazo, tipo_atividade_id, peso, natureza) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-            (uid, t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
+                "INSERT INTO tarefas (usuario_id, descricao, cliente, prioridade, status, segundos, projeto_id, data_prazo, data_agendamento, hora_prazo, tipo_atividade_id, peso, natureza, timer_inicio) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s, CASE WHEN %s THEN NOW() END) RETURNING id",
+            (uid, t.descricao, t.cliente, t.prioridade, t.status, max(0, min(t.segundos or 0, MAX_SEGUNDOS)), t.projeto_id or None,
              t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None,
-             t.tipo_atividade_id or None, peso, natureza)
+             t.tipo_atividade_id or None, peso, natureza,
+             t.status == "em_andamento")   # já nasce em andamento: timer ligado
         )
         new_id = cur.fetchone()[0]
         novos_helpers = _sync_colaboradores(cur, new_id, uid, t.colaboradores or [])
@@ -2984,20 +3130,28 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
             criar_notificacao(conn, "ajudante_adicionado",
                 f"🤝 {sess['nome']} adicionou você para ajudar em: {t.descricao[:50]} [{t.cliente}]",
                 sess["id"], destinatario_id=hid)
+        estado = _estado_timer(cur, new_id)
         conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True, "id": new_id}
+        return {"sucesso": True, **estado}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/tarefas/{tid}")
 def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)):
+    """Atualiza SÓ os campos que vieram no corpo. Antes o UPDATE gravava todos:
+    ações rápidas do quadro (concluir, arrastar, iniciar timer) mandam só
+    descrição/cliente/status, e o resto ia como NULL -- a tarefa perdia o
+    projeto e o horário do prazo e 'sumia' das visões por projeto."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        enviados = t.model_fields_set
+        status_antigo, seg_antigo, rodando, decorrido = _tarefa_do_usuario_para_update(cur, tid, sess["id"])
         snap_old = _snapshot_tarefa(cur, tid)
+        status_novo = t.status if "status" in enviados else status_antigo
         # Mesma regra da criação -- o UPDATE abaixo é escopado em usuario_id =
         # sess["id"], então o dono da tarefa é quem está editando.
         if t.projeto_id:
@@ -3013,11 +3167,12 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
         # Só na transição para 'concluido' -- reeditar tarefa já concluída não
         # recalcula, senão o histórico mudaria sozinho. Comparação por DATA:
         # concluir no dia previsto conta como dentro do prazo.
-        concluindo = t.status == "concluido" and snap_old.get("status") != "concluido"
+        concluindo = status_novo == "concluido" and status_antigo != "concluido"
+        iniciando = status_novo == "em_andamento" and status_antigo != "em_andamento"
         prazo_status = None
         justificativa = (t.justificativa_atraso or "").strip()
         if concluindo:
-            prazo_ref = t.data_prazo or snap_old.get("data_prazo") or ""
+            prazo_ref = (t.data_prazo if "data_prazo" in enviados else None) or snap_old.get("data_prazo") or ""
             if prazo_ref:
                 prazo_d = datetime.strptime(str(prazo_ref)[:10], "%Y-%m-%d").date()
                 prazo_status = "dentro" if _hoje_sp() <= prazo_d else "fora"
@@ -3025,17 +3180,44 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
                 prazo_status = "sem_prazo"
             if prazo_status == "fora" and not justificativa:
                     raise HTTPException(status_code=400, detail="Tarefa concluída fora do prazo: informe a justificativa do atraso")
-        cur.execute(
-            "UPDATE tarefas SET descricao=%s, cliente=%s, prioridade=%s, status=%s, segundos=%s, projeto_id=%s, data_prazo=%s, data_agendamento=%s, hora_prazo=%s, tipo_atividade_id=COALESCE(%s, tipo_atividade_id), peso=COALESCE(%s, peso), natureza=COALESCE(%s, natureza), atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
-            (t.descricao, t.cliente, t.prioridade, t.status, t.segundos, t.projeto_id or None,
-             t.data_prazo or None, t.data_agendamento or None, t.hora_prazo or None,
-             t.tipo_atividade_id or None, peso_upd, natureza_upd, tid, sess["id"])
-        )
-        if concluindo and cur.rowcount:
+
+        sets, params = [], []
+        for campo in ("descricao", "cliente", "prioridade", "status"):
+            if campo in enviados:
+                sets.append(f"{campo}=%s"); params.append(getattr(t, campo))
+        for campo in ("projeto_id", "data_prazo", "data_agendamento", "hora_prazo"):
+            if campo in enviados:
+                sets.append(f"{campo}=%s"); params.append(getattr(t, campo) or None)
+        if t.tipo_atividade_id:
+            sets.append("tipo_atividade_id=%s"); params.append(t.tipo_atividade_id)
+            sets.append("peso=%s"); params.append(peso_upd)
+        if natureza_upd:
+            sets.append("natureza=%s"); params.append(natureza_upd)
+
+        # Timer: `segundos` só é gravado quando é edição manual de horas. Um
+        # cliente que apenas devolve o valor que leu (quadro antigo, tela do
+        # N2) não pode zerar o tempo que o timer contou nesse meio-tempo.
+        edita_segundos = "segundos" in enviados
+        if edita_segundos and rodando and abs((t.segundos or 0) - (seg_antigo + decorrido)) <= _TOLERANCIA_ECO_SEGUNDOS:
+            edita_segundos = False
+        if edita_segundos:
+            sets.append("segundos=%s"); params.append(max(0, min(t.segundos or 0, MAX_SEGUNDOS)))
+        if rodando and status_novo != "em_andamento":
+            # Saiu de 'em andamento' (concluiu, voltou pra aberto): fecha o timer.
+            if not edita_segundos:
+                sets.append(f"segundos=LEAST(COALESCE(segundos,0) + {_sql_decorrido()}, {MAX_SEGUNDOS})")
+            sets.append("timer_inicio=NULL")
+        elif rodando and edita_segundos:
+            sets.append("timer_inicio=NOW()")   # horas corrigidas à mão: conta a partir delas
+        elif not rodando and iniciando:
+            sets.append("timer_inicio=NOW()")   # entrou em 'em andamento': começa a contar
+        sets.append("atualizado_em=NOW()")
+        cur.execute(f"UPDATE tarefas SET {', '.join(sets)} WHERE id=%s", params + [tid])
+        if concluindo:
             cur.execute("UPDATE tarefas SET concluido_em=NOW(), prazo_status=%s, justificativa_atraso=%s WHERE id=%s",
                         (prazo_status, justificativa, tid))
         # Registra no histórico cada campo que mudou (compara antes × depois)
-        if cur.rowcount and snap_old:
+        if snap_old:
             snap_new = _snapshot_tarefa(cur, tid)
             mudancas = []
             for campo, _label in HIST_CAMPOS:
@@ -3045,31 +3227,90 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
             registrar_historico(conn, sess, tid, "editou", mudancas, snap_new)
         # Só o dono atualiza colaboradores, e apenas quando a lista é enviada explicitamente
         novos_helpers = []
-        if cur.rowcount and t.colaboradores is not None:
+        if t.colaboradores is not None:
             novos_helpers = _sync_colaboradores(cur, tid, sess["id"], t.colaboradores)
-        if t.status == "concluido":
+        if concluindo:
             criar_notificacao(conn, "tarefa_concluida", f"✅ {sess['nome']} concluiu: {t.descricao[:50]} [{t.cliente}]", sess["id"])
-        elif t.status == "em_andamento":
+        elif iniciando:
             criar_notificacao(conn, "tarefa_iniciada", f"▶️ {sess['nome']} iniciou: {t.descricao[:50]} [{t.cliente}]", sess["id"])
         for hid in novos_helpers:
             criar_notificacao(conn, "ajudante_adicionado",
                 f"🤝 {sess['nome']} adicionou você para ajudar em: {t.descricao[:50]} [{t.cliente}]",
                 sess["id"], destinatario_id=hid)
+        estado = _estado_timer(cur, tid)
         conn.commit(); cur.close(); conn.close()
-        return {"sucesso": True}
+        return {"sucesso": True, **estado}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-@app.patch("/api/tarefas/{tid}/segundos")
-def atualizar_segundos(tid: int, body: AtualizarSegundos, faiston_token: str = Cookie(None)):
+@app.post("/api/tarefas/{tid}/timer/iniciar")
+def iniciar_timer_tarefa(tid: int, faiston_token: str = Cookie(None)):
+    """Liga o timer desta tarefa sem mexer nos timers das outras (várias
+    tarefas podem contar tempo ao mesmo tempo). Idempotente: clicar duas
+    vezes, ou repetir a chamada depois de uma falha de rede, não reinicia
+    a contagem."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE tarefas SET segundos=%s, atualizado_em=NOW() WHERE id=%s AND usuario_id=%s",
-                    (body.segundos, tid, sess["id"]))
+        status_antigo, _seg, _rodando, _dec = _tarefa_do_usuario_para_update(cur, tid, sess["id"])
+        if status_antigo == "concluido":
+            raise HTTPException(status_code=400, detail="Tarefa já concluída. Reabra a tarefa antes de iniciar o timer.")
+        snap_old = _snapshot_tarefa(cur, tid)
+        cur.execute("""UPDATE tarefas SET timer_inicio = COALESCE(timer_inicio, NOW()),
+                              status='em_andamento', atualizado_em=NOW() WHERE id=%s""", (tid,))
+        if status_antigo != "em_andamento" and snap_old:
+            snap_new = _snapshot_tarefa(cur, tid)
+            registrar_historico(conn, sess, tid, "editou", [("status", status_antigo, "em_andamento")], snap_new)
+            criar_notificacao(conn, "tarefa_iniciada",
+                f"▶️ {sess['nome']} iniciou: {(snap_old.get('descricao') or '')[:50]} [{snap_old.get('cliente') or ''}]", sess["id"])
+        estado = _estado_timer(cur, tid)
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, **estado}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/tarefas/{tid}/timer/pausar")
+def pausar_timer_tarefa(tid: int, faiston_token: str = Cookie(None)):
+    """Pausa o timer desta tarefa e soma a sessão em `segundos`. A tarefa
+    continua 'em andamento'. Idempotente: pausar o que já está pausado é no-op."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        _tarefa_do_usuario_para_update(cur, tid, sess["id"])
+        cur.execute(f"""UPDATE tarefas
+                           SET segundos = LEAST(COALESCE(segundos,0) + {_sql_decorrido()}, {MAX_SEGUNDOS}),
+                               timer_inicio = NULL, atualizado_em = NOW()
+                         WHERE id=%s AND timer_inicio IS NOT NULL""", (tid,))
+        estado = _estado_timer(cur, tid)
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, **estado}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/api/tarefas/{tid}/segundos")
+def atualizar_segundos(tid: int, body: AtualizarSegundos, faiston_token: str = Cookie(None)):
+    """Legado: era o 'checkpoint' do timer que rodava no navegador (a cada 30s
+    e ao fechar a aba). O quadro novo não usa mais -- fica pra aba antiga
+    ainda aberta. Nunca diminui o tempo já contado, e se o timer está rodando
+    no servidor ele continua a partir do valor gravado."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        seg = max(0, min(body.segundos or 0, MAX_SEGUNDOS))
+        cur.execute(f"""UPDATE tarefas
+                           SET segundos = GREATEST(%s, COALESCE(segundos,0) + {_sql_decorrido()}),
+                               timer_inicio = CASE WHEN timer_inicio IS NULL THEN NULL ELSE NOW() END,
+                               atualizado_em = NOW()
+                         WHERE id=%s AND usuario_id=%s""", (seg, tid, sess["id"]))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -3421,7 +3662,10 @@ def corrigir_horas_tarefa(tid: int, body: AtualizarSegundos, faiston_token: str 
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        cur.execute("UPDATE tarefas SET segundos=%s WHERE id=%s", (body.segundos, tid))
+        # Timer rodando continua contando a partir do valor corrigido.
+        cur.execute("""UPDATE tarefas SET segundos=%s,
+                              timer_inicio = CASE WHEN timer_inicio IS NULL THEN NULL ELSE NOW() END
+                        WHERE id=%s""", (body.segundos, tid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -4768,6 +5012,238 @@ def disparar_aviso_ops(bg: BackgroundTasks, request: Request, faiston_token: str
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
+# --- NOVIDADES DO SISTEMA (2026-09-28) ---
+# Página /novidades com o histórico de atualizações do Faiston OPS + aviso
+# (popup) na primeira vez que a pessoa abre o sistema depois de uma novidade
+# nova. "Já vi" fica no banco por usuário (novidades_vistas), não no
+# localStorage -- vale entre computadores e navegadores diferentes.
+# O histórico abaixo é a carga inicial (ON CONFLICT pelo slug, não
+# sobrescreve edição); novidades novas o admin publica pela própria página.
+NOVIDADES_SEED = [
+    ("2026-10-07-tour-gestor", "2026-10-07 10:00", "novidade", "Gestores",
+     "Tour guiado para gestores",
+     "Gestor novo ganha um tour na própria tela no primeiro acesso: como criar tarefas para o time e como funciona a operação do N2.",
+     ["Rever o tour e abrir o Guia de uso ficam no menu Gestão, sempre à mão.",
+      "N2 e Cronograma de Atividades voltaram ao menu.",
+      "O Guia de uso ganhou a seção Operação do N2, com escala, atividades de campo e Status Report."]),
+    ("2026-09-28-timer-varias-tarefas", "2026-09-28 09:01", "novidade", "Todos",
+     "Timer em várias tarefas ao mesmo tempo",
+     "Agora dá pra deixar o timer rodando em mais de uma tarefa ao mesmo tempo, e ele não para mais quando você recarrega ou fecha a página.",
+     ["Clique em Iniciar em quantas tarefas precisar: iniciar uma não pausa as outras.",
+      "O tempo continua contando mesmo com a aba fechada ou o computador trocado.",
+      "No topo da tela aparece quantas tarefas estão rodando e o tempo somado."]),
+    ("2026-09-28-estabilidade-tarefas", "2026-09-28 09:00", "correcao", "Todos",
+     "Sistema mais estável: fim das travadas e das tarefas sumindo",
+     "Corrigimos os problemas que faziam o sistema travar, a tarefa sumir ou não deixar finalizar.",
+     ["O sistema não fica mais travado esperando: se algo demorar, aparece uma mensagem pra tentar de novo.",
+      "Concluir, arrastar ou iniciar uma tarefa não apaga mais o projeto nem o horário do prazo dela.",
+      "Editar tarefa com ajudante não quebra mais o quadro.",
+      "A tarefa concluída aparece na hora no grupo 'Hoje' da coluna Concluído.",
+      "Arrastar uma tarefa atrasada pra Concluído agora pede o motivo do atraso, em vez de dar erro."]),
+    ("2026-09-09-suporte-conversa", "2026-09-09 09:00", "melhoria", "Todos",
+     "Suporte virou conversa",
+     "A resposta do time de desenvolvimento às suas solicitações de suporte agora chega por e-mail, e você responde pelo próprio sistema.",
+     ["Acompanhe tudo em Suporte → Minhas solicitações.",
+      "Cada solicitação vira uma conversa, com o histórico de mensagens."]),
+    ("2026-08-27-sinal-carga", "2026-08-27 09:00", "novidade", "Todos",
+     "Sua carga de trabalho no quadro",
+     "O quadro mostra a sua carga agora (Tranquila, Pesada, Atolada), somando o peso das tarefas em aberto e em andamento.",
+     ["Tarefas atrasadas pesam mais na conta.",
+      "O líder enxerga a mesma sinalização no quadro dele, pra ajudar a combinar prioridades."]),
+    ("2026-08-26-assistente-ops", "2026-08-26 09:00", "novidade", "Todos",
+     "Chegou o Assistente OPS",
+     "O ícone roxo no canto da tela é o Assistente OPS: pergunte sobre as suas tarefas, ache um carimbo de atendimento ou peça o resumo da sua semana.",
+     ["Acha carimbos e mostra suas tarefas em linguagem natural.",
+      "Resume a sua semana e explica procedimentos.",
+      "Faz um check-in rápido no primeiro acesso do dia."]),
+    ("2026-08-23-projeto-cliente-opcional", "2026-08-23 09:00", "melhoria", "Gestores",
+     "Cadastro de projeto mais simples",
+     "O cliente virou campo opcional no cadastro de projeto, e cada time tem os próprios projetos.",
+     []),
+    ("2026-08-21-alerta-fim-expediente", "2026-08-21 09:00", "novidade", "Todos",
+     "Alerta de pendências no fim do expediente",
+     "No fim do dia você recebe um e-mail e uma notificação com as tarefas que ainda estão pendentes, com botão direto pro seu quadro.",
+     ["A exportação de tarefas agora traz data e hora separadas, o peso e o motivo do atraso."]),
+    ("2026-08-17-analista-atribui", "2026-08-17 09:00", "melhoria", "Analistas",
+     "Analista pode atribuir tarefa ao Backoffice",
+     "Ao criar uma tarefa, o analista pode escolher um assistente de Backoffice do mesmo time como responsável.",
+     []),
+    ("2026-08-11-cadastro-tecnicos", "2026-08-11 09:00", "novidade", "N2",
+     "Cadastro de técnicos no N2",
+     "Busca de técnicos por UF e botão 'Ver dados do técnico' direto na atividade.",
+     ["Os motivos de atraso aparecem ao clicar em 'Fora do prazo' no gráfico de Aderência."]),
+    ("2026-08-10-acesso-por-email", "2026-08-10 09:00", "melhoria", "Todos",
+     "Acesso pelo e-mail e 'Esqueci minha senha'",
+     "Cada pessoa define a própria senha pelo link que chega no e-mail, e dá pra redefinir sozinho em 'Esqueci minha senha'.",
+     []),
+    ("2026-08-03-concluidas-por-dia", "2026-08-03 09:00", "melhoria", "Todos",
+     "Tarefas concluídas separadas por dia",
+     "A coluna Concluído do Kanban agrupa as tarefas pelo dia em que foram concluídas.",
+     ["Gestores ganharam o resumo completo por pessoa e por dia.",
+      "O Status Report ganhou a visão em Kanban."]),
+    ("2026-07-30-suporte-tour-n2", "2026-07-30 09:00", "novidade", "Todos",
+     "Solicitação de suporte e tour guiado",
+     "O botão de boia (Suporte) abre uma solicitação direto pro time de desenvolvimento. O N2 ganhou um tour guiado da tela.",
+     ["Senhas mais fortes e mais proteção no login."]),
+    ("2026-07-29-carimbo-encerramento", "2026-07-29 09:00", "melhoria", "Todos",
+     "Carimbo de encerramento ao clicar",
+     "Clicar numa atividade finalizada (no Kanban ou no Histórico) mostra o carimbo de encerramento.",
+     []),
+    ("2026-07-23-comentarios-drawer", "2026-07-23 09:00", "melhoria", "Todos",
+     "Comentários em painel lateral",
+     "Os comentários de cada tarefa abrem num painel ao lado, sem sair do quadro.",
+     []),
+    ("2026-07-20-status-campo", "2026-07-20 09:00", "novidade", "Projetos",
+     "Módulo Status de Campo",
+     "Acompanhamento dos despachos técnicos (ARCOS, ZAMP, Câmeras IP) com andamento e encerramento.",
+     []),
+    ("2026-06-22-aba-projetos", "2026-06-22 09:00", "novidade", "Todos",
+     "Aba Projetos no seu quadro e guia por perfil",
+     "Quem é responsável por projeto acompanha tudo pela aba Projetos, e cada perfil tem um guia de uso próprio no primeiro acesso.",
+     []),
+]
+_NOVIDADES_CATEGORIAS = ("novidade", "melhoria", "correcao")
+# Quem nunca abriu a página (ou é novo) só recebe o aviso das novidades
+# recentes -- não o histórico inteiro de uma vez.
+_NOVIDADES_JANELA_DIAS = 14
+
+def _migrar_novidades():
+    conn = get_db()
+    if not conn: return
+    try:
+        import json as _json
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS novidades (
+                id SERIAL PRIMARY KEY,
+                slug VARCHAR(120) UNIQUE,
+                titulo VARCHAR(200) NOT NULL,
+                resumo TEXT NOT NULL DEFAULT '',
+                itens JSONB NOT NULL DEFAULT '[]'::jsonb,
+                categoria VARCHAR(20) NOT NULL DEFAULT 'novidade',
+                publico VARCHAR(60) NOT NULL DEFAULT 'Todos',
+                publicado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+                autor_nome VARCHAR(120) NOT NULL DEFAULT '',
+                ativo BOOLEAN NOT NULL DEFAULT TRUE
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS novidades_vistas (
+                usuario_id INTEGER PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+                visto_ate TIMESTAMP NOT NULL
+            )
+        """)
+        for slug, quando, cat, publico, titulo, resumo, itens in NOVIDADES_SEED:
+            cur.execute("""INSERT INTO novidades (slug, titulo, resumo, itens, categoria, publico, publicado_em, autor_nome)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,'Time de Desenvolvimento')
+                           ON CONFLICT (slug) DO NOTHING""",
+                        (slug, titulo, resumo, _json.dumps(itens, ensure_ascii=False), cat, publico, quando))
+        conn.commit(); cur.close()
+    except Exception as e:
+        print(f"Erro migração novidades: {e}")
+    finally:
+        conn.close()
+
+_migrar_novidades()
+
+def _visto_ate(cur, uid):
+    cur.execute("SELECT visto_ate FROM novidades_vistas WHERE usuario_id=%s", (uid,))
+    r = cur.fetchone()
+    if r: return r[0]
+    cur.execute("SELECT NOW()::timestamp - %s * INTERVAL '1 day'", (_NOVIDADES_JANELA_DIAS,))
+    return cur.fetchone()[0]
+
+def _novidade_dict(r, visto_ate):
+    return {"id": r[0], "titulo": r[1], "resumo": r[2], "itens": r[3] or [], "categoria": r[4],
+            "publico": r[5], "publicado_em": str(r[6]), "autor_nome": r[7],
+            "nova": bool(visto_ate and r[6] > visto_ate)}
+
+_NOVIDADES_SEL = "SELECT id, titulo, resumo, itens, categoria, publico, publicado_em, autor_nome FROM novidades WHERE ativo=TRUE"
+
+class NovidadeModel(BaseModel):
+    titulo: str
+    resumo: str = ""
+    itens: List[str] = []
+    categoria: str = "novidade"
+    publico: str = "Todos"
+
+@app.get("/api/novidades")
+def listar_novidades(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    cur = conn.cursor()
+    visto = _visto_ate(cur, sess["id"])
+    cur.execute(_NOVIDADES_SEL + " ORDER BY publicado_em DESC, id DESC")
+    itens = [_novidade_dict(r, visto) for r in cur.fetchall()]
+    cur.close(); conn.close()
+    return {"novidades": itens, "pode_publicar": sess["perfil"] == "admin"}
+
+@app.get("/api/novidades/nao-vistas")
+def novidades_nao_vistas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    cur = conn.cursor()
+    visto = _visto_ate(cur, sess["id"])
+    cur.execute(_NOVIDADES_SEL + " AND publicado_em > %s ORDER BY publicado_em DESC, id DESC", (visto,))
+    itens = [_novidade_dict(r, visto) for r in cur.fetchall()]
+    cur.close(); conn.close()
+    return {"total": len(itens), "itens": itens[:3]}
+
+@app.post("/api/novidades/vistas")
+def marcar_novidades_vistas(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    cur = conn.cursor()
+    cur.execute("""INSERT INTO novidades_vistas (usuario_id, visto_ate) VALUES (%s, NOW())
+                   ON CONFLICT (usuario_id) DO UPDATE SET visto_ate = NOW()""", (sess["id"],))
+    conn.commit(); cur.close(); conn.close()
+    return {"sucesso": True}
+
+@app.post("/api/novidades")
+def publicar_novidade(n: NovidadeModel, faiston_token: str = Cookie(None)):
+    """Admin/dev publica uma novidade: ela entra no topo da página e aparece
+    no aviso de todo mundo que ainda não viu."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin publica novidades")
+    titulo = (n.titulo or "").strip()
+    if not titulo: raise HTTPException(status_code=400, detail="Informe o título")
+    if n.categoria not in _NOVIDADES_CATEGORIAS: raise HTTPException(status_code=400, detail="Categoria inválida")
+    import json as _json
+    itens = [i.strip() for i in (n.itens or []) if i and i.strip()]
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    cur = conn.cursor()
+    cur.execute("""INSERT INTO novidades (titulo, resumo, itens, categoria, publico, autor_nome)
+                   VALUES (%s,%s,%s,%s,%s,%s) RETURNING id""",
+                (titulo[:200], (n.resumo or "").strip(), _json.dumps(itens, ensure_ascii=False),
+                 n.categoria, (n.publico or "Todos").strip()[:60] or "Todos", sess["nome"]))
+    nid = cur.fetchone()[0]
+    conn.commit(); cur.close(); conn.close()
+    return {"sucesso": True, "id": nid}
+
+@app.delete("/api/novidades/{nid}")
+def remover_novidade(nid: int, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403, detail="Apenas admin remove novidades")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    cur = conn.cursor()
+    cur.execute("UPDATE novidades SET ativo=FALSE WHERE id=%s", (nid,))
+    conn.commit(); cur.close(); conn.close()
+    return {"sucesso": True}
+
+@app.get("/novidades")
+def novidades_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/novidades.html", headers=_HTML_SEM_CACHE)
+
 # --- IA INSIGHTS ---
 @app.post("/api/ia/insights")
 def gerar_insights_ia(faiston_token: str = Cookie(None)):
@@ -5409,7 +5885,16 @@ def financeiro_resumo(faiston_token: str = Cookie(None)):
 #  FINANCEIRO — Projetos e Lançamentos
 # ─────────────────────────────────────────────
 
+# Ligado quando a subida do app já garantiu as tabelas (ver
+# _garantir_tabelas_na_subida). A partir daí as chamadas por request viram
+# no-op: ALTER TABLE pega lock exclusivo mesmo com IF NOT EXISTS, e rodar isso
+# a cada abertura do modal de tarefa disputava lock com o resto do sistema.
+_FINANCEIRO_TABELAS_OK = False
+_FORECAST_TABELAS_OK = False
+
 def _ensure_financeiro_tables(cur):
+    if _FINANCEIRO_TABELAS_OK:
+        return
     cur.execute("""
         CREATE TABLE IF NOT EXISTS projetos (
             id SERIAL PRIMARY KEY,
@@ -6114,6 +6599,8 @@ def importar_lancamentos(pid: int, body: ImportarLancamentosBody, faiston_token:
 # ─────────────────────────────────────────────
 
 def _ensure_forecast_tables(cur):
+    if _FORECAST_TABELAS_OK:
+        return
     cur.execute("""
         CREATE TABLE IF NOT EXISTS forecast_projetos (
             id SERIAL PRIMARY KEY,
@@ -6166,6 +6653,25 @@ def _ensure_forecast_tables(cur):
         )
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_forecast_mensal_periodo ON forecast_mensal(periodo_key)")
+
+def _garantir_tabelas_na_subida():
+    """Roda os _ensure_* uma vez, na subida, com commit próprio. Só marca como
+    garantido depois do commit -- se falhar, os requests continuam criando
+    as tabelas sob demanda, como antes."""
+    global _FINANCEIRO_TABELAS_OK, _FORECAST_TABELAS_OK
+    conn = get_db()
+    if not conn: return
+    try:
+        cur = conn.cursor()
+        _ensure_financeiro_tables(cur); conn.commit()
+        _FINANCEIRO_TABELAS_OK = True
+        _ensure_forecast_tables(cur); conn.commit()
+        _FORECAST_TABELAS_OK = True
+        cur.close()
+    except Exception as e:
+        print(f"Erro ao garantir tabelas financeiro/forecast: {e}")
+    finally:
+        conn.close()
 
 _FC_MESES = {'JAN':1,'FEV':2,'MAR':3,'ABR':4,'MAI':5,'JUN':6,'JUL':7,'AGO':8,'SET':9,'OUT':10,'NOV':11,'DEZ':12}
 
@@ -7025,6 +7531,8 @@ def _loop_sync_job():
         conn.close()
 
 
+_garantir_tabelas_na_subida()
+
 # Inicia agendador
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -7069,6 +7577,11 @@ try:
         _scheduler.add_job(_observar_job, "cron", hour=_observar_hora, minute=0,
                            id="assistente_observar", replace_existing=True)
         print(f"APScheduler — assistente (capacidade D) agendado às {_observar_hora}h")
+    # Timer das tarefas: passa o tempo corrido pra `segundos` a cada minuto
+    # (ver consolidar_timers).
+    _scheduler.add_job(consolidar_timers, "interval", minutes=1,
+                       id="consolidar_timers", replace_existing=True,
+                       max_instances=1, coalesce=True)
     # Service Desk: fecha status (pausa/online) esquecido aberto depois do
     # fim do turno -- sem isso o painel chegava a mostrar 96h de pausa.
     from app.service_desk.router import job_encerrar_status_esquecidos
@@ -9204,8 +9717,10 @@ def loop_obter_snapshot(chave: str, faiston_token: str = Cookie(None)):
 
 # ══════════════════════════════════════════════════════════════════
 # SUPORTE: qualquer usuário logado abre uma solicitação (bug, dúvida,
-# pedido de melhoria); só a equipe dev vê/gerencia. Canal de envio --
-# quem abre não acompanha status depois (decidido explicitamente).
+# pedido de melhoria); só a equipe dev vê/gerencia. É uma thread de
+# mensagens (suporte_mensagens) -- dev responde, quem abriu recebe um
+# e-mail avisando e responde de volta pelo sistema (2026-09-09; antes
+# era um campo de resposta único, sem volta pro usuário).
 # ══════════════════════════════════════════════════════════════════
 SUPORTE_CATEGORIA_VALIDAS = ('bug', 'duvida', 'melhoria')
 SUPORTE_STATUS_VALIDOS = ('aberto', 'em_andamento', 'resolvido')
@@ -9219,6 +9734,20 @@ class SuporteSolicitacaoModel(BaseModel):
     anexo_nome: Optional[str] = None
 
 SUPORTE_NOTIFICAR_EMAILS = ["vinicios75soares165@gmail.com", "rafael.libel@gmail.com"]
+
+def _esc_html_email(s):
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+def _suporte_home_path(perfil, cargo):
+    """Mesmo mapeamento perfil/cargo → home usado no pós-login (login.html) e
+    em _redirect_login_ou_home -- usado aqui pra montar, no e-mail, o link
+    que leva quem abriu o chamado direto pra tela onde ele está (dashboard,
+    funcionario ou n2), já logado."""
+    if perfil in ("admin", "gestor", "demo", "diretor"):
+        return "/dashboard"
+    if cargo == "n2":
+        return "/n2"
+    return "/funcionario"
 
 def _suporte_enviar_notificacao(titulo, descricao, categoria, autor_nome, anexo_base64, anexo_nome):
     """Dispara em background (não atrasa a resposta pra quem abriu a
@@ -9243,8 +9772,68 @@ def _suporte_enviar_notificacao(titulo, descricao, categoria, autor_nome, anexo_
     _brevo_send(SUPORTE_NOTIFICAR_EMAILS, f"🎫 Nova solicitação de suporte — {titulo}",
                 _shell_email("Nova solicitação", categoria_label, corpo), anexos=anexos)
 
-def _esc_html_email(s):
-    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+def _suporte_botao_email(link, texto):
+    return f"""
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td align="center" bgcolor="#5B2EE0" style="border-radius:12px;background:linear-gradient(135deg,#5B2EE0,#B826C9)">
+            <a href="{link}" style="display:block;color:#ffffff;text-decoration:none;padding:15px 24px;font-weight:700;font-size:15px;border-radius:12px">{texto} &nbsp;&rarr;</a>
+          </td></tr>
+        </table>
+    """
+
+def _suporte_enviar_email_resposta(email, nome, titulo, mensagem, autor_nome, link):
+    """Avisa quem abriu o chamado quando o suporte responde, com um link que
+    já leva pra 'Minhas solicitações' pra responder de volta pelo sistema
+    (2026-09-09) -- antes a resposta só aparecia se a pessoa voltasse a abrir
+    o modal por conta própria, sem nenhum aviso."""
+    if not email: return
+    corpo = f"""
+        <p style="color:#3D4152;font-size:14.5px;margin:0 0 14px;line-height:1.6">Olá, {_esc_html_email(nome)}. <strong>{_esc_html_email(autor_nome)}</strong> respondeu seu chamado de suporte.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td style="background:#F7F7FB;border:1px solid #E5E8F0;border-radius:12px;padding:16px 18px">
+            <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#0B0D1F">{_esc_html_email(titulo)}</p>
+            <p style="margin:0;font-size:14px;color:#3D4152;white-space:pre-line">{_esc_html_email(mensagem)}</p>
+          </td></tr>
+        </table>
+        {_suporte_botao_email(link, "Ver e responder")}
+        <p style="color:#8A8FA3;font-size:12.5px;margin:0;line-height:1.6">Responda direto pelo sistema: o botão acima já abre "Minhas solicitações" com este chamado. Se preferir entrar por conta própria, é só clicar em <strong>"Falar com o suporte"</strong> (ícone de boia no menu) e depois na aba <strong>"Minhas solicitações"</strong> — lá ficam todos os seus chamados e as respostas.</p>
+    """
+    _brevo_send(email, f"💬 Resposta no seu chamado — {titulo}",
+                _shell_email("Resposta do suporte", titulo, corpo))
+
+def _suporte_notificar_devs_nova_mensagem(titulo, mensagem, autor_nome, link):
+    """Avisa a equipe dev quando quem abriu o chamado responde de volta
+    (2026-09-09) -- simetria com _suporte_enviar_notificacao, que já avisa a
+    equipe na abertura."""
+    corpo = f"""
+        <p style="color:#3D4152;font-size:14.5px;margin:0 0 14px;line-height:1.6"><strong>{_esc_html_email(autor_nome)}</strong> respondeu no chamado de suporte.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px">
+          <tr><td style="background:#F7F7FB;border:1px solid #E5E8F0;border-radius:12px;padding:16px 18px">
+            <p style="margin:0 0 10px;font-size:16px;font-weight:700;color:#0B0D1F">{_esc_html_email(titulo)}</p>
+            <p style="margin:0;font-size:14px;color:#3D4152;white-space:pre-line">{_esc_html_email(mensagem)}</p>
+          </td></tr>
+        </table>
+        {_suporte_botao_email(link, "Ver na Área de Dev")}
+    """
+    _brevo_send(SUPORTE_NOTIFICAR_EMAILS, f"💬 Nova resposta no chamado — {titulo}",
+                _shell_email("Resposta de quem abriu", titulo, corpo))
+
+def _suporte_buscar_mensagens(cur, ids):
+    """Busca as mensagens de uma leva de solicitações de uma vez só (evita
+    N+1 nas telas de listagem) e devolve agrupado por solicitacao_id, da
+    mais antiga pra mais nova."""
+    if not ids: return {}
+    cur.execute("""
+        SELECT solicitacao_id, autor_nome, autor_tipo, mensagem, criado_em
+        FROM suporte_mensagens WHERE solicitacao_id = ANY(%s) ORDER BY criado_em ASC
+    """, (ids,))
+    agrupado = {}
+    for sid_, autor_nome, autor_tipo, mensagem, criado_em in cur.fetchall():
+        agrupado.setdefault(sid_, []).append({
+            "autor_nome": autor_nome, "autor_tipo": autor_tipo, "mensagem": mensagem,
+            "criado_em": criado_em.strftime("%d/%m/%Y %H:%M") if criado_em else "",
+        })
+    return agrupado
 
 @app.post("/api/suporte")
 def criar_suporte(s: SuporteSolicitacaoModel, bg: BackgroundTasks, faiston_token: str = Cookie(None)):
@@ -9284,15 +9873,16 @@ def dev_listar_suporte(faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         cur.execute("""
             SELECT id, titulo, descricao, categoria, status, criado_por_nome, criado_em,
-                   (anexo_base64 IS NOT NULL) AS tem_anexo, resposta, resposta_por_nome, resposta_em
+                   (anexo_base64 IS NOT NULL) AS tem_anexo
             FROM suporte_solicitacoes ORDER BY criado_em DESC
         """)
+        rows = cur.fetchall()
+        mensagens = _suporte_buscar_mensagens(cur, [r[0] for r in rows])
         out = [{
             "id": r[0], "titulo": r[1], "descricao": r[2], "categoria": r[3], "status": r[4],
             "criado_por_nome": r[5], "criado_em": r[6].strftime("%d/%m/%Y %H:%M") if r[6] else "",
-            "tem_anexo": r[7], "resposta": r[8], "resposta_por_nome": r[9],
-            "resposta_em": r[10].strftime("%d/%m/%Y %H:%M") if r[10] else None,
-        } for r in cur.fetchall()]
+            "tem_anexo": r[7], "mensagens": mensagens.get(r[0], []),
+        } for r in rows]
         cur.close(); conn.close()
         return out
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -9301,29 +9891,49 @@ class SuporteRespostaModel(BaseModel):
     resposta: str
 
 @app.put("/api/dev-suporte/{sid}/resposta")
-def dev_responder_suporte(sid: int, s: SuporteRespostaModel, faiston_token: str = Cookie(None)):
-    """Resposta pra quem abriu a solicitação (2026-08-11) -- antes era só um
-    canal de envio, sem volta nenhuma pro usuário. Não muda o status
-    sozinha -- quem responde ainda decide separadamente se marca
-    em_andamento/resolvido."""
+def dev_responder_suporte(sid: int, s: SuporteRespostaModel, bg: BackgroundTasks, request: Request,
+                           faiston_token: str = Cookie(None)):
+    """Resposta pra quem abriu a solicitação -- vira uma mensagem na thread
+    (2026-09-09; antes era um campo único que se sobrescrevia a cada
+    resposta) e dispara um e-mail avisando quem abriu, com link pra
+    responder de volta pelo próprio sistema. Não muda o status sozinha --
+    quem responde ainda decide separadamente se marca em_andamento/resolvido."""
     sess = get_session(faiston_token)
     if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
-    if not s.resposta.strip(): raise HTTPException(status_code=400, detail="Resposta vazia")
+    resposta = s.resposta.strip()
+    if not resposta: raise HTTPException(status_code=400, detail="Resposta vazia")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("""
+            SELECT s.titulo, u.email, u.nome, u.perfil, u.cargo
+            FROM suporte_solicitacoes s LEFT JOIN usuarios u ON u.id = s.criado_por
+            WHERE s.id=%s
+        """, (sid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+        titulo, email_dest, nome_dest, perfil_dest, cargo_dest = row
         cur.execute(
-            "UPDATE suporte_solicitacoes SET resposta=%s, resposta_por_nome=%s, resposta_em=NOW(), atualizado_em=NOW() WHERE id=%s",
-            (s.resposta.strip(), sess["nome"], sid))
+            "INSERT INTO suporte_mensagens (solicitacao_id, autor_id, autor_nome, autor_tipo, mensagem) VALUES (%s,%s,%s,'dev',%s)",
+            (sid, sess["id"], sess["nome"], resposta))
+        cur.execute("UPDATE suporte_solicitacoes SET atualizado_em=NOW() WHERE id=%s", (sid,))
         conn.commit(); cur.close(); conn.close()
+        if email_dest:
+            system_url = _resolver_system_url(request)
+            link = f"{system_url}{_suporte_home_path(perfil_dest, cargo_dest)}?suporte={sid}"
+            bg.add_task(_suporte_enviar_email_resposta, email_dest, nome_dest, titulo, resposta, sess["nome"], link)
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/suporte/minhas")
 def listar_minhas_suporte(faiston_token: str = Cookie(None)):
-    """Solicitações que EU abri, com a resposta do dev se já tiver vindo --
-    complemento do POST /api/suporte, que antes era só de ida (2026-08-11)."""
+    """Solicitações que EU abri, com a thread de mensagens se já tiver vindo
+    resposta -- complemento do POST /api/suporte, que antes era só de ida
+    (2026-08-11)."""
     sess = get_session(faiston_token)
     if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
     conn = get_db()
@@ -9331,17 +9941,57 @@ def listar_minhas_suporte(faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT id, titulo, descricao, categoria, status, criado_em, resposta, resposta_por_nome, resposta_em
+            SELECT id, titulo, descricao, categoria, status, criado_em
             FROM suporte_solicitacoes WHERE criado_por=%s ORDER BY criado_em DESC
         """, (sess["id"],))
+        rows = cur.fetchall()
+        mensagens = _suporte_buscar_mensagens(cur, [r[0] for r in rows])
         out = [{
             "id": r[0], "titulo": r[1], "descricao": r[2], "categoria": r[3], "status": r[4],
             "criado_em": r[5].strftime("%d/%m/%Y %H:%M") if r[5] else "",
-            "resposta": r[6], "resposta_por_nome": r[7],
-            "resposta_em": r[8].strftime("%d/%m/%Y %H:%M") if r[8] else None,
-        } for r in cur.fetchall()]
+            "mensagens": mensagens.get(r[0], []),
+        } for r in rows]
         cur.close(); conn.close()
         return out
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+class SuporteMensagemModel(BaseModel):
+    mensagem: str
+
+@app.post("/api/suporte/{sid}/mensagens")
+def suporte_responder_usuario(sid: int, s: SuporteMensagemModel, bg: BackgroundTasks, request: Request,
+                               faiston_token: str = Cookie(None)):
+    """Quem abriu o chamado responde de volta pelo sistema (2026-09-09) --
+    contrapartida de dev_responder_suporte, fecha o vai-e-vem que antes só
+    existia numa direção (dev → usuário, sem volta). Só quem abriu pode
+    responder aqui -- a equipe dev responde pelo endpoint acima."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    mensagem = s.mensagem.strip()
+    if not mensagem: raise HTTPException(status_code=400, detail="Mensagem vazia")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT titulo, criado_por FROM suporte_solicitacoes WHERE id=%s", (sid,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=404, detail="Solicitação não encontrada")
+        titulo, criado_por = row
+        if criado_por != sess["id"]:
+            cur.close(); conn.close()
+            raise HTTPException(status_code=403, detail="Essa solicitação não é sua")
+        cur.execute(
+            "INSERT INTO suporte_mensagens (solicitacao_id, autor_id, autor_nome, autor_tipo, mensagem) VALUES (%s,%s,%s,'usuario',%s)",
+            (sid, sess["id"], sess["nome"], mensagem))
+        cur.execute("UPDATE suporte_solicitacoes SET atualizado_em=NOW() WHERE id=%s", (sid,))
+        conn.commit(); cur.close(); conn.close()
+        system_url = _resolver_system_url(request)
+        bg.add_task(_suporte_notificar_devs_nova_mensagem, titulo, mensagem, sess["nome"],
+                    f"{system_url}/dashboard?go=areaDev&suporte={sid}")
+        return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/dev-suporte/{sid}/anexo")
