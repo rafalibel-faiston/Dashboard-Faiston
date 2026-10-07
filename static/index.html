@@ -278,10 +278,12 @@
                 <a href="#" data-nav-mod="historico" onclick="setModule('historico'); return false;" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-clock-clockwise text-lg"></i> Histórico
                 </a>
-                <a href="/apresentacao" target="_blank" class="flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
+                <!-- Apresentação e Relatório Mensal ocultos do menu (2026-10-07, pedido
+                     do Rafael). Rotas e código continuam: pra voltar, é só tirar o `hidden`. -->
+                <a href="/apresentacao" target="_blank" class="hidden flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                     <i class="ph ph-presentation-chart text-lg"></i> Apresentação
                 </a>
-                <div class="flex items-center gap-1">
+                <div class="hidden flex items-center gap-1">
                     <a href="/api/relatorio-mensal/preview" target="_blank" class="flex-1 flex items-center gap-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium text-sm rounded-md p-2.5 transition-colors">
                         <i class="ph ph-file-pdf text-lg"></i> Relatório Mensal
                     </a>
