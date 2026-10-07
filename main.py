@@ -220,6 +220,23 @@ def get_session(token: str, page: str = ""):
         print(f"Erro get_session: {e}")
         return None
 
+# Áreas (times) da operação. Isto aqui é só a CARGA INICIAL da tabela `areas`:
+# a lista de verdade vem do banco (times_validos()), porque desde 2026-08-28 a
+# área é cadastro editável na tela de admin -- abrir uma área nova deixou de
+# exigir deploy.
+TIMES_PADRAO = ('Projetos', 'Logística', 'Rede Credenciada', 'Desenvolvimento')
+
+# Catálogo de cargos e perfis. Fixo de propósito: cada um destes tem
+# comportamento preso no código (o N2 tem tela própria, o Backoffice arrasta
+# card no Cronograma, o Analista atribui tarefa pro Backoffice...), então
+# inventar um nome novo aqui daria um rótulo sem efeito nenhum. O que é
+# configurável por área é QUAIS deles ela aceita -- ver a tabela `areas`.
+CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor', 'sd_operador', 'sd_supervisor')
+# Cargos do Service Desk só valem na área Service Desk (criada pelo próprio
+# módulo, app/service_desk/db.py) -- não entram na carga inicial das outras.
+CARGOS_SERVICE_DESK = ('sd_operador', 'sd_supervisor')
+PERFIL_VALIDOS = ('funcionario', 'gestor', 'diretor', 'demo', 'admin', 'dev')
+
 # Régua inicial de complexidade (planilha "Performance projetos — Peso das
 # atividades"). Serve só como carga inicial: o INSERT usa ON CONFLICT DO
 # NOTHING, então peso ajustado na tela de admin não é sobrescrito quando o
@@ -842,6 +859,33 @@ def setup_banco():
         # Peso de esforço por tipo de atividade, por frente (N2, Backoffice...)
         # dentro da área (Projetos, Logística, Rede Credenciada). Cadastro em
         # vez de planilha: o gestor ajusta a régua pela tela de admin.
+        # Cadastro de áreas (2026-08-28). `usa_projetos=FALSE` é a área que não
+        # trabalha por projeto: a tarefa dela é sempre demanda avulsa, ela não
+        # aparece como dona de projeto e a API recusa os dois caminhos (ver
+        # _exigir_area_com_projeto). Antes disso a lista era fixa no código.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS areas (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(50) UNIQUE NOT NULL,
+                usa_projetos BOOLEAN NOT NULL DEFAULT TRUE,
+                ativo BOOLEAN NOT NULL DEFAULT TRUE,
+                criado_em TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        # ON CONFLICT DO NOTHING: banco já existente mantém o que o admin ajustou.
+        for _area_seed in TIMES_PADRAO:
+            cur.execute("INSERT INTO areas (nome) VALUES (%s) ON CONFLICT (nome) DO NOTHING",
+                        (_area_seed,))
+        # Quais cargos e perfis a área aceita (2026-08-28). Guardado como lista
+        # explícita, não como "NULL = todos": assim o admin enxerga na tela
+        # exatamente o que está ligado, e um cargo novo no catálogo do código
+        # não entra sozinho em área nenhuma.
+        import json as _json
+        cur.execute("ALTER TABLE areas ADD COLUMN IF NOT EXISTS cargos JSONB")
+        cur.execute("ALTER TABLE areas ADD COLUMN IF NOT EXISTS perfis JSONB")
+        cur.execute("UPDATE areas SET cargos=%s WHERE cargos IS NULL",
+                    (_json.dumps([c for c in CARGO_VALIDOS if c not in CARGOS_SERVICE_DESK]),))
+        cur.execute("UPDATE areas SET perfis=%s WHERE perfis IS NULL", (_json.dumps(list(PERFIL_VALIDOS)),))
         cur.execute("""
             CREATE TABLE IF NOT EXISTS frentes (
                 id SERIAL PRIMARY KEY,
@@ -931,14 +975,65 @@ from app.assistente.router import router as assistente_router
 _setup_schema_assistente()
 app.include_router(assistente_router)
 
+# Service Desk (operação SGB): módulo isolado, só mexe nas tabelas sd_*.
+from app.service_desk.db import setup_schema as _setup_schema_service_desk
+from app.service_desk.router import router as service_desk_router
+_setup_schema_service_desk()
+app.include_router(service_desk_router)
+
 # --- MODELOS ---
 class LoginRequest(BaseModel):
     usuario: str
     senha: str
 
-TIMES_VALIDOS = ['Projetos', 'Logística', 'Rede Credenciada', 'Desenvolvimento']
+# A área virou cadastro (tabela `areas`), então a lista de times válidos e a
+# regra de "essa área trabalha por projeto?" saem do banco, não de constante.
+# Quem já tem cursor aberto usa a variante _cur, pra não abrir uma segunda
+# conexão no meio da transação.
+def _times_validos_cur(cur) -> list:
+    cur.execute("SELECT nome FROM areas WHERE ativo=TRUE ORDER BY nome")
+    return [r[0] for r in cur.fetchall()]
 
-CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor')
+def times_validos() -> list:
+    """Nomes das áreas ativas. Cai pra TIMES_PADRAO com o banco fora -- validar
+    cadastro não pode virar 500 por causa disso."""
+    conn = get_db()
+    if not conn: return list(TIMES_PADRAO)
+    try:
+        cur = conn.cursor()
+        nomes = _times_validos_cur(cur)
+        cur.close(); conn.close()
+        return nomes or list(TIMES_PADRAO)
+    except Exception:
+        return list(TIMES_PADRAO)
+
+def _area_usa_projetos_cur(cur, nome: str) -> bool:
+    """Área fora do cadastro conta como 'usa projetos' -- é o comportamento de
+    sempre, e evita travar dado legado cujo time saiu da lista."""
+    cur.execute("SELECT usa_projetos FROM areas WHERE nome=%s", (nome or 'Projetos',))
+    row = cur.fetchone()
+    return True if not row else bool(row[0])
+
+def _area_lista_cur(cur, coluna: str, nome: str, catalogo) -> list:
+    """Cargos ou perfis habilitados na área. Área fora do cadastro devolve o
+    catálogo inteiro -- mesma regra de _area_usa_projetos_cur: dado legado não
+    pode ficar travado por causa de um nome que saiu da lista."""
+    cur.execute(f"SELECT {coluna} FROM areas WHERE nome=%s", (nome or 'Projetos',))
+    row = cur.fetchone()
+    if not row or row[0] is None:
+        return list(catalogo)
+    return [v for v in row[0] if v in catalogo]
+
+def _area_cargos_cur(cur, nome: str) -> list:
+    return _area_lista_cur(cur, "cargos", nome, CARGO_VALIDOS)
+
+def _area_perfis_cur(cur, nome: str) -> list:
+    return _area_lista_cur(cur, "perfis", nome, PERFIL_VALIDOS)
+
+def _exigir_area_com_projeto(cur, nome: str):
+    if not _area_usa_projetos_cur(cur, nome):
+        raise HTTPException(status_code=400,
+                            detail=f"A área {nome} não trabalha por projeto — registre como demanda")
 
 def _eh_n2(sess: dict) -> bool:
     """N2 deixou de ser perfil próprio e virou cargo dentro de
@@ -2092,14 +2187,22 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, request: Request, faiston
     is_gestor = sess["perfil"] in ("gestor", "demo")
     if is_gestor and u.perfil not in ("funcionario", "demo"):
         raise HTTPException(status_code=403, detail="Gestores só podem criar funcionários")
-    if u.perfil not in ("admin", "gestor", "funcionario", "demo", "diretor", "dev"): raise HTTPException(status_code=400, detail="Perfil inválido")
+    if u.perfil not in PERFIL_VALIDOS: raise HTTPException(status_code=400, detail="Perfil inválido")
     if not (u.email or "").strip(): raise HTTPException(status_code=400, detail="Email é obrigatório — é por ele que a pessoa recebe o acesso.")
-    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
+    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in times_validos() else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        # Cargo e perfil habilitados por área (cadastro em /api/areas): o admin
+        # liga em cada área só o que faz sentido nela.
+        if u.perfil not in _area_perfis_cur(cur, time_val):
+            raise HTTPException(status_code=400,
+                                detail=f"O perfil {u.perfil} não está habilitado na área {time_val}")
+        if cargo_val and cargo_val not in _area_cargos_cur(cur, time_val):
+            raise HTTPException(status_code=400,
+                                detail=f"O cargo {cargo_val} não está habilitado na área {time_val}")
         # Sem senha definida pelo admin (2026-08-10): a coluna senha_hash ainda
         # não aceita NULL, então preenche com uma senha aleatória que nunca é
         # exibida nem enviada -- a pessoa define a própria senha pelo link de
@@ -2115,6 +2218,7 @@ def criar_usuario(u: NovoUsuario, bg: BackgroundTasks, request: Request, faiston
         bg.add_task(enviar_email_boas_vindas, u.email, u.nome, link)
         return {"sucesso": True, "id": new_id, "email_enviado": True}
     except psycopg2.errors.UniqueViolation: raise HTTPException(status_code=400, detail="Usuário já existe")
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/usuarios/{uid}")
@@ -2137,12 +2241,25 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
     if u.senha:
         erro = _senha_fraca(u.senha)
         if erro: raise HTTPException(status_code=400, detail=erro)
-    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in TIMES_VALIDOS else "Projetos")
+    time_val = sess.get("time", "Projetos") if is_gestor else (u.time if u.time in times_validos() else "Projetos")
     cargo_val = u.cargo if (u.perfil == "funcionario" and u.cargo in CARGO_VALIDOS) else ""
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("SELECT perfil, COALESCE(cargo,''), COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (uid,))
+        atual = cur.fetchone()
+        if not atual: raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        # Só checa o que mudou: alguém cadastrado antes de a área restringir
+        # cargo/perfil continua editável (mudar o nome não pode dar 400) -- mas
+        # trocar o perfil, o cargo ou a área passa pela regra da área de destino.
+        if (u.perfil, time_val) != (atual[0], atual[2]) and u.perfil not in _area_perfis_cur(cur, time_val):
+            raise HTTPException(status_code=400,
+                                detail=f"O perfil {u.perfil} não está habilitado na área {time_val}")
+        if cargo_val and (cargo_val, time_val) != (atual[1], atual[2]) \
+                and cargo_val not in _area_cargos_cur(cur, time_val):
+            raise HTTPException(status_code=400,
+                                detail=f"O cargo {cargo_val} não está habilitado na área {time_val}")
         if u.senha:
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, senha_hash=%s, primeiro_acesso=TRUE, time=%s, cargo=%s WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, u.email, hash_senha(u.senha), time_val, cargo_val, uid))
@@ -2159,6 +2276,7 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
                     (u.nome, u.perfil, time_val, cargo_val, uid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/usuarios/{uid}/reenviar-email")
@@ -2332,6 +2450,161 @@ class NovaFrente(BaseModel):
     area: str
     nome: str
 
+class AreaModel(BaseModel):
+    nome: str
+    usa_projetos: bool = True
+    ativo: bool = True
+    # None = não mexer (o PUT de renomear/ligar projetos não manda estas duas).
+    # Lista vazia é tratada como "todos", pra não deixar área que não aceita
+    # ninguém -- o admin tira o que não quer, não esvazia.
+    cargos: Optional[List[str]] = None
+    perfis: Optional[List[str]] = None
+
+def _normalizar_lista_area(valores, catalogo):
+    if valores is None:
+        return None
+    filtrada = [v for v in catalogo if v in valores]
+    return filtrada or list(catalogo)
+
+@app.get("/api/areas")
+def listar_areas(todas: bool = False, faiston_token: str = Cookie(None)):
+    """Leitura liberada pra qualquer logado: o front monta com isto todo select
+    de time e descobre se a área trabalha por projeto. `todas=1` (só admin)
+    inclui as inativas -- é o que a tela de cadastro precisa."""
+    sess = get_session(faiston_token)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    incluir_inativas = todas and sess["perfil"] == "admin"
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT a.id, a.nome, a.usa_projetos, a.ativo,
+                   (SELECT COUNT(*) FROM usuarios u
+                     WHERE COALESCE(u.time,'Projetos') = a.nome AND u.ativo = TRUE),
+                   (SELECT COUNT(*) FROM projetos p
+                     WHERE COALESCE(p.time,'Projetos') = a.nome AND p.ativo = TRUE),
+                   a.cargos, a.perfis
+            FROM areas a
+            {'' if incluir_inativas else 'WHERE a.ativo = TRUE'}
+            ORDER BY a.nome
+        """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return {
+            # Catálogo junto da lista: a tela monta as caixas de seleção com
+            # ele, e assim não repete os nomes em JavaScript.
+            "catalogo": {"cargos": list(CARGO_VALIDOS), "perfis": list(PERFIL_VALIDOS)},
+            "areas": [{"id": r[0], "nome": r[1], "usa_projetos": r[2], "ativo": r[3],
+                       "usuarios": r[4], "projetos": r[5],
+                       "cargos": [c for c in CARGO_VALIDOS if r[6] is None or c in r[6]],
+                       "perfis": [pf for pf in PERFIL_VALIDOS if r[7] is None or pf in r[7]]}
+                      for r in rows],
+        }
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/areas")
+def criar_area(a: AreaModel, faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    nome = (a.nome or "").strip()
+    if not nome: raise HTTPException(status_code=400, detail="Informe o nome da área")
+    if len(nome) > 50: raise HTTPException(status_code=400, detail="Nome da área: no máximo 50 caracteres")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        import json as _json
+        cargos = _normalizar_lista_area(a.cargos, CARGO_VALIDOS) or list(CARGO_VALIDOS)
+        perfis = _normalizar_lista_area(a.perfis, PERFIL_VALIDOS) or list(PERFIL_VALIDOS)
+        cur = conn.cursor()
+        cur.execute("INSERT INTO areas (nome, usa_projetos, cargos, perfis) VALUES (%s,%s,%s,%s) "
+                    "ON CONFLICT (nome) DO NOTHING RETURNING id",
+                    (nome, a.usa_projetos, _json.dumps(cargos), _json.dumps(perfis)))
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=400, detail="Já existe uma área com esse nome")
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True, "id": row[0]}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/areas/{aid}")
+def atualizar_area(aid: int, a: AreaModel, faiston_token: str = Cookie(None)):
+    """Renomear propaga pras tabelas que guardam o NOME da área (usuarios,
+    clientes, projetos, frentes): `time` nunca foi chave estrangeira, então sem
+    a cascata o rename deixaria todo mundo apontando pro nome antigo. Tudo na
+    mesma transação."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    nome = (a.nome or "").strip()
+    if not nome: raise HTTPException(status_code=400, detail="Informe o nome da área")
+    if len(nome) > 50: raise HTTPException(status_code=400, detail="Nome da área: no máximo 50 caracteres")
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome, usa_projetos FROM areas WHERE id=%s", (aid,))
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=404, detail="Área não encontrada")
+        nome_antigo, usava_projetos = row[0], bool(row[1])
+        # Desligar o projeto de uma área que ainda tem projeto ativo deixaria
+        # tarefa apontando pra projeto que nenhuma tela mostra mais. Barra e diz
+        # quantos são, pro admin arquivar antes.
+        if usava_projetos and not a.usa_projetos:
+            cur.execute("SELECT COUNT(*) FROM projetos WHERE COALESCE(time,'Projetos')=%s AND ativo=TRUE",
+                        (nome_antigo,))
+            n_proj = cur.fetchone()[0]
+            if n_proj:
+                raise HTTPException(status_code=400, detail=(
+                    f"A área {nome_antigo} tem {n_proj} projeto(s) ativo(s) — "
+                    "arquive antes de marcá-la como área sem projetos"))
+        if nome != nome_antigo:
+            cur.execute("SELECT 1 FROM areas WHERE nome=%s AND id<>%s", (nome, aid))
+            if cur.fetchone(): raise HTTPException(status_code=400, detail="Já existe uma área com esse nome")
+            for tabela, coluna in (("usuarios", "time"), ("clientes", "time"),
+                                   ("projetos", "time"), ("frentes", "area")):
+                cur.execute(f"UPDATE {tabela} SET {coluna}=%s WHERE {coluna}=%s", (nome, nome_antigo))
+        import json as _json
+        cargos = _normalizar_lista_area(a.cargos, CARGO_VALIDOS)
+        perfis = _normalizar_lista_area(a.perfis, PERFIL_VALIDOS)
+        cur.execute("""UPDATE areas SET nome=%s, usa_projetos=%s, ativo=%s,
+                              cargos=COALESCE(%s, cargos), perfis=COALESCE(%s, perfis)
+                        WHERE id=%s""",
+                    (nome, a.usa_projetos, a.ativo,
+                     _json.dumps(cargos) if cargos is not None else None,
+                     _json.dumps(perfis) if perfis is not None else None, aid))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/areas/{aid}")
+def desativar_area(aid: int, faiston_token: str = Cookie(None)):
+    """Desativa em vez de apagar: usuário, cliente e projeto guardam o NOME da
+    área, então um DELETE de verdade deixaria esse dado apontando pro vazio.
+    Área com gente dentro não desativa -- esses usuários sumiriam de todo filtro
+    por time."""
+    sess = get_session(faiston_token)
+    if not sess or sess["perfil"] != "admin": raise HTTPException(status_code=403)
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM areas WHERE id=%s", (aid,))
+        row = cur.fetchone()
+        if not row: raise HTTPException(status_code=404, detail="Área não encontrada")
+        cur.execute("SELECT COUNT(*) FROM usuarios WHERE COALESCE(time,'Projetos')=%s AND ativo=TRUE",
+                    (row[0],))
+        n_users = cur.fetchone()[0]
+        if n_users:
+            raise HTTPException(status_code=400, detail=(
+                f"A área {row[0]} tem {n_users} usuário(s) ativo(s) — "
+                "mova essas pessoas para outra área antes de desativar"))
+        cur.execute("UPDATE areas SET ativo=FALSE WHERE id=%s", (aid,))
+        conn.commit(); cur.close(); conn.close()
+        return {"sucesso": True}
+    except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/frentes")
 def listar_frentes(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
@@ -2354,12 +2627,15 @@ def criar_frente(f: NovaFrente, faiston_token: str = Cookie(None)):
     peso do time de Projetos)."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "diretor"): raise HTTPException(status_code=403)
-    if f.area not in TIMES_VALIDOS: raise HTTPException(status_code=400, detail="Área inválida")
     if not f.nome.strip(): raise HTTPException(status_code=400, detail="Informe o nome da frente")
     conn = get_db()
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        # Valida contra o cadastro de áreas, não contra lista fixa -- é o que
+        # permite montar o catálogo de atividades de uma área recém-criada.
+        if f.area not in _times_validos_cur(cur):
+            raise HTTPException(status_code=400, detail="Área inválida")
         cur.execute(
             "INSERT INTO frentes (area, nome) VALUES (%s,%s) ON CONFLICT (area, nome) DO NOTHING RETURNING id",
             (f.area, f.nome.strip())
@@ -2779,6 +3055,14 @@ def criar_tarefa(t: TarefaModel, faiston_token: str = Cookie(None)):
         bloqueio = _bloqueio_ativo(cur, uid, data_checar, t.hora_prazo)
         if bloqueio:
             raise HTTPException(status_code=400, detail=f"Funcionário indisponível nesta data: {bloqueio}")
+        # Área sem projeto (cadastro em /api/areas): a tarefa é sempre demanda
+        # avulsa. Olha o time do DONO da tarefa (uid), não o de quem cria --
+        # gestor de outra área atribuindo tarefa cai na mesma regra.
+        if t.projeto_id:
+            cur.execute("SELECT COALESCE(time,'Projetos') FROM usuarios WHERE id=%s", (uid,))
+            row_area = cur.fetchone()
+            if row_area:
+                _exigir_area_com_projeto(cur, row_area[0])
         # 2A: campo ainda opcional. Quando vier preenchido, o peso da régua é
         # copiado pra tarefa. A obrigatoriedade entra no 2B, junto com o campo
         # no modal -- senão o frontend antigo pararia de criar tarefa.
@@ -2833,6 +3117,10 @@ def atualizar_tarefa(tid: int, t: TarefaModel, faiston_token: str = Cookie(None)
         status_antigo, seg_antigo, rodando, decorrido = _tarefa_do_usuario_para_update(cur, tid, sess["id"])
         snap_old = _snapshot_tarefa(cur, tid)
         status_novo = t.status if "status" in enviados else status_antigo
+        # Mesma regra da criação -- o UPDATE abaixo é escopado em usuario_id =
+        # sess["id"], então o dono da tarefa é quem está editando.
+        if t.projeto_id:
+            _exigir_area_com_projeto(cur, sess.get("time", "Projetos"))
         peso_upd = None
         if t.tipo_atividade_id:
             cur.execute("SELECT peso FROM tipos_atividade WHERE id=%s AND ativo=TRUE", (t.tipo_atividade_id,))
@@ -4248,6 +4536,10 @@ def _redirect_login_ou_home(sess):
         return RedirectResponse("/dashboard")
     if sess.get("cargo") == "n2":
         return RedirectResponse("/n2")
+    if sess.get("cargo") == "sd_supervisor":
+        return RedirectResponse("/dashboard")
+    if sess.get("cargo") == "sd_operador":
+        return RedirectResponse("/service-desk")
     return RedirectResponse("/funcionario")
 
 # Telas autenticadas que embarcam o widget do assistente. `no-cache` obriga
@@ -4275,7 +4567,14 @@ def dashboard(faiston_token: str = Cookie(None)):
     # de Cronograma do Status Report -- o próprio index.html restringe a
     # visão a essa única seção pra esse cargo (ver init() em index.html).
     eh_backoffice = sess and sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice"
-    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice):
+    # Supervisor do Service Desk também entra, só com a visão do SD (o
+    # index.html esconde o resto). Cargo lido do cadastro, não da sessão.
+    eh_sup_sd = False
+    if sess and sess["perfil"] == "funcionario" and not eh_backoffice:
+        from app.service_desk.db import get_session as _sd_sessao
+        sd = _sd_sessao(faiston_token)
+        eh_sup_sd = bool(sd) and sd.get("cargo") == "sd_supervisor"
+    if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice and not eh_sup_sd):
         return _redirect_login_ou_home(sess)
     return FileResponse("static/index.html", headers=_HTML_SEM_CACHE)
 
@@ -4283,6 +4582,13 @@ def dashboard(faiston_token: str = Cookie(None)):
 def funcionario(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: return RedirectResponse("/")
+    # Operador do Service Desk tem tela própria. Olha o cadastro, não só a
+    # sessão: quem foi movido pro SD depois do login também é desviado.
+    from app.service_desk.db import get_session as _sd_sessao
+    from app.service_desk.router import CARGOS_SD
+    sd = _sd_sessao(faiston_token)
+    if sd and sd.get("perfil") == "funcionario" and sd.get("cargo") in CARGOS_SD:
+        return RedirectResponse("/dashboard" if sd.get("cargo") == "sd_supervisor" else "/service-desk")
     return FileResponse("static/funcionario.html", headers=_HTML_SEM_CACHE)
 
 @app.get("/n2")
@@ -4429,6 +4735,12 @@ def apresentacao_page(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess: return RedirectResponse("/")
     return FileResponse("static/apresentacao.html")
+
+@app.get("/video")
+def video_page(faiston_token: str = Cookie(None)):
+    sess = get_session(faiston_token)
+    if not sess: return RedirectResponse("/")
+    return FileResponse("static/video-ops.html")
 
 # --- NOTIFICAÇÕES ---
 def criar_notificacao(conn, tipo: str, mensagem: str, usuario_id: int = None, destinatario_id: int = None):
@@ -5405,7 +5717,7 @@ def criar_cliente(c: ClienteModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500)
     try:
         cur = conn.cursor()
-        time_val = c.time if (sess["perfil"] == "admin" and c.time in TIMES_VALIDOS) else sess.get("time", "Projetos")
+        time_val = c.time if (sess["perfil"] == "admin" and c.time in _times_validos_cur(cur)) else sess.get("time", "Projetos")
         cur.execute("INSERT INTO clientes (nome, contato, email, time) VALUES (%s,%s,%s,%s) RETURNING id",
                     (c.nome, c.contato, c.email, time_val))
         new_id = cur.fetchone()[0]
@@ -5474,8 +5786,10 @@ def gestao_page(): return RedirectResponse("/dashboard?go=gestao")
 @app.get("/clientes")
 def clientes_page(): return RedirectResponse("/dashboard?go=clientes")
 
+# Módulo Financeiro saiu do menu (2026-09-28, não é mais usado). Dados e API
+# continuam -- o Forecast/P&L da Gestão de Projetos segue funcionando.
 @app.get("/financeiro")
-def financeiro_geral_page(): return RedirectResponse("/dashboard?go=financeiro")
+def financeiro_geral_page(): return RedirectResponse("/dashboard")
 
 @app.get("/forecast")
 def forecast_page(): return RedirectResponse("/dashboard?go=forecast")
@@ -5484,9 +5798,7 @@ def forecast_page(): return RedirectResponse("/dashboard?go=forecast")
 @app.get("/financeiro/{cid}")
 def financeiro_page(cid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"):
-        return _redirect_login_ou_home(sess)
-    return FileResponse("static/financeiro.html", headers=_HTML_SEM_CACHE)
+    return _redirect_login_ou_home(sess)
 
 @app.get("/api/financeiro/resumo")
 def financeiro_resumo(faiston_token: str = Cookie(None)):
@@ -5837,6 +6149,10 @@ def opcoes_tarefa(faiston_token: str = Cookie(None)):
             ORDER BY c.nome NULLS FIRST, p.nome
         """, (tf, tf))
         projetos = [{"id": r[0], "nome": r[1], "cliente": r[2]} for r in cur.fetchall()]
+        # Área sem projeto: o modal esconde o campo, e aqui a API não oferece o
+        # que ela não pode usar. Admin atravessa áreas, então segue vendo tudo.
+        if sess["perfil"] != "admin" and not _area_usa_projetos_cur(cur, sess.get("time", "Projetos")):
+            projetos = []
         cur.close(); conn.close()
         return {"clientes": clientes, "projetos": projetos}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -5883,7 +6199,8 @@ def criar_projeto_simples(p: NovoProjetoSimples, faiston_token: str = Cookie(Non
             if sess["perfil"] != "admin" and time_val != sess.get("time", "Projetos"):
                 raise HTTPException(status_code=403, detail="Cliente não pertence ao seu time")
         else:
-            time_val = p.time if (sess["perfil"] == "admin" and p.time in TIMES_VALIDOS) else sess.get("time", "Projetos")
+            time_val = p.time if (sess["perfil"] == "admin" and p.time in _times_validos_cur(cur)) else sess.get("time", "Projetos")
+        _exigir_area_com_projeto(cur, time_val)
         cur.execute("""
             INSERT INTO projetos (cliente_id, nome, descricao, orcamento, escopo,
                                   responsavel_id, status_gestao, data_inicio, data_termino, time, ativo)
@@ -6027,6 +6344,12 @@ def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
     try:
         cur = conn.cursor()
         _ensure_financeiro_tables(cur)
+        # O projeto criado aqui pertence à área do cliente -- se ela não trabalha
+        # por projeto, esta porta também fica fechada.
+        cur.execute("SELECT COALESCE(time,'Projetos') FROM clientes WHERE id=%s", (cid,))
+        row_cli = cur.fetchone()
+        if row_cli:
+            _exigir_area_com_projeto(cur, row_cli[0])
         status = p.status_gestao if p.status_gestao in ('EM ANDAMENTO', 'FINALIZAÇÃO', 'EM FREEZING') else 'EM ANDAMENTO'
         cur.execute("""
             INSERT INTO projetos (cliente_id, nome, descricao, orcamento, escopo,
@@ -6037,6 +6360,7 @@ def criar_projeto(cid: int, p: ProjetoModel, faiston_token: str = Cookie(None)):
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
+    except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/projetos/{pid}")
@@ -7216,6 +7540,12 @@ try:
     # (ver consolidar_timers).
     _scheduler.add_job(consolidar_timers, "interval", minutes=1,
                        id="consolidar_timers", replace_existing=True,
+                       max_instances=1, coalesce=True)
+    # Service Desk: fecha status (pausa/online) esquecido aberto depois do
+    # fim do turno -- sem isso o painel chegava a mostrar 96h de pausa.
+    from app.service_desk.router import job_encerrar_status_esquecidos
+    _scheduler.add_job(job_encerrar_status_esquecidos, "interval", minutes=5,
+                       id="sd_encerrar_status", replace_existing=True,
                        max_instances=1, coalesce=True)
     _scheduler.start()
     print("APScheduler iniciado — relatório agendado para dia 1 de cada mês às 08h")
