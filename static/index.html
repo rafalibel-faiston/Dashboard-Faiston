@@ -210,7 +210,7 @@
                             <div class="absolute -left-[14px] w-2 h-2 rounded-full bg-faiston-purple"></div>
                             Painel N2
                         </a>
-                        <div id="lista-n2-sidebar" class="flex flex-col gap-3 mt-1"></div>
+                        <div id="lista-n2-sidebar"></div>
                     </div>
                 </div>
                 <div class="flex flex-col" data-menu-oculto="cronograma">
@@ -4415,13 +4415,32 @@ async function popularSidebarN2() {
         if (!res.ok) return;
         const rows = await res.json();
         const ativos = rows.filter(u => u.ativo !== false);
-        lista.innerHTML = ativos.map(u => `
+        // Mesmo desenho dos nomes do Backoffice (linkFuncSidebar): ponto
+        // colorido por pessoa e o mesmo espaçamento entre os itens.
+        lista.innerHTML = ativos.map((u, i) => `
             <a href="#" onclick="pn2FiltrarIndividual(${u.id}, '${u.nome.replace(/'/g, "\\'")}'); return false;"
-               class="text-sm font-medium text-slate-500 hover:text-faiston-dark flex items-center gap-3 relative transition-colors">
-                <div class="absolute -left-[14px] w-1.5 h-1.5 rounded-full bg-faiston-cyan"></div>
+               class="text-sm font-medium text-slate-500 hover:text-faiston-dark transition-colors flex items-center gap-3 relative">
+                <div class="absolute -left-[13px] w-1.5 h-1.5 rounded-full" style="background:${FUNC_COLORS_SB[i % FUNC_COLORS_SB.length]}"></div>
                 ${scEsc(u.nome.split(' ')[0])}
             </a>`).join('');
+        _n2IdsSidebar = new Set(rows.map(u => u.id));
+        renderListaBackofficeSidebar();
     } catch (e) {}
+}
+
+// Times separados no menu: quem é N2 aparece só no bloco N2 (o N2 também
+// ganha tarefa sozinho ao finalizar visita, e por isso caía no Backoffice).
+let _hpfSidebar = [];
+let _n2IdsSidebar = new Set();
+
+function renderListaBackofficeSidebar() {
+    const listaSidebar = document.getElementById('lista-funcionarios-sidebar');
+    if (!listaSidebar || !_hpfSidebar.length) return;
+    const time = _hpfSidebar.filter(u => !_n2IdsSidebar.has(u.id));
+    const ehDiretor = window.ME && window.ME.perfil === 'diretor';
+    listaSidebar.innerHTML = ehDiretor
+        ? renderBackofficePorArea(time)
+        : time.map((u, i) => linkFuncSidebar(u, i)).join('');
 }
 
 function popularSidebarFuncionarios(hpf) {
@@ -4434,11 +4453,8 @@ function popularSidebarFuncionarios(hpf) {
     if (!listaSidebar) return;
 
     const sel = document.getElementById('filtro-funcionario');
-    const ehDiretor = window.ME && window.ME.perfil === 'diretor';
-
-    listaSidebar.innerHTML = ehDiretor
-        ? renderBackofficePorArea(hpf)
-        : hpf.map((u, i) => linkFuncSidebar(u, i)).join('');
+    _hpfSidebar = hpf;
+    renderListaBackofficeSidebar();
 
     // Popula também o select do header (limpa antes para não duplicar)
     if (sel) {
