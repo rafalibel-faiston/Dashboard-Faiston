@@ -42,13 +42,18 @@ def get_session(token: Optional[str]) -> Optional[dict]:
         return None
     try:
         cur = conn.cursor()
+        # Só leitura no caminho comum; last_seen é regravado no máximo uma vez
+        # por minuto (mesma regra do get_session do main.py) pra não disputar
+        # lock em `sessoes` a cada polling do painel.
         cur.execute("""
-            UPDATE sessoes s SET last_seen = NOW()
-            FROM usuarios u
-            WHERE s.token = %s AND s.expira_em > NOW() AND u.id = s.usuario_id AND u.ativo
-            RETURNING s.usuario_id, u.nome, u.perfil, u.time, u.cargo
+            SELECT s.usuario_id, u.nome, u.perfil, u.time, u.cargo,
+                   COALESCE(s.last_seen < NOW() - INTERVAL '60 seconds', TRUE)
+            FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
+            WHERE s.token = %s AND s.expira_em > NOW() AND u.ativo
         """, (token,))
         row = cur.fetchone()
+        if row and row[5]:
+            cur.execute("UPDATE sessoes SET last_seen = NOW() WHERE token = %s", (token,))
         conn.commit(); cur.close(); conn.close()
         if not row:
             return None

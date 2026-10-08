@@ -10,7 +10,8 @@ from email.mime.text import MIMEText
 from datetime import date, timedelta, datetime
 from calendar import monthrange
 import os, hashlib, secrets, csv, io, logging, traceback, uuid, bcrypt, re
-import contextvars
+import contextvars, threading
+import time as _time
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -121,30 +122,153 @@ async def fechar_conexoes_db(request, call_next):
 Path("static/css").mkdir(parents=True, exist_ok=True)
 Path("static/js").mkdir(parents=True, exist_ok=True)
 
+def _abrir_conexao(de_request):
+    # connect_timeout: sem ele, banco lento/indisponível deixava a thread
+    # do request pendurada pra sempre -- e o usuário via a tela "travada".
+    conn = psycopg2.connect(os.environ.get("DATABASE_URL"), connect_timeout=10)
+    cur = conn.cursor()
+    cur.execute("SET TIME ZONE 'America/Sao_Paulo'")
+    if de_request:
+        # Só em conexão de request (jobs de fundo ficam sem limite): uma
+        # query ou uma espera por lock nunca segura o usuário mais que
+        # isso, e uma transação esquecida aberta não prende a tabela
+        # tarefas pro resto da empresa. Sem esses limites, um único lock
+        # preso enfileirava todo mundo atrás ("o sistema trava").
+        cur.execute("SET statement_timeout = '60s'")
+        cur.execute("SET lock_timeout = '15s'")
+        cur.execute("SET idle_in_transaction_session_timeout = '120s'")
+    cur.close()
+    conn.commit()
+    return conn
+
+
+# Pool de conexões dos requests (2026-10-08). Antes cada get_db() abria uma
+# conexão TCP+TLS nova com o Neon e rodava 4 comandos de setup -- e um request
+# típico chama get_db() pelo menos duas vezes (get_session + handler). Agora a
+# conexão volta pro pool no close() e é reaproveitada pelo próximo request.
+# Jobs de fundo continuam com conexão própria (sem os timeouts de request).
+DB_POOL_MAX = int(os.environ.get("DB_POOL_MAX", "20"))
+DB_POOL_ESPERA_S = float(os.environ.get("DB_POOL_ESPERA_S", "5"))
+# Conexão parada há mais que isso é testada (SELECT 1) antes de ser entregue:
+# o Neon derruba conexão ociosa quando suspende o compute.
+DB_POOL_TESTAR_APOS_S = 60
+
+
+class _PoolConexoes:
+    def __init__(self, maximo):
+        self._livres = []  # (conexão crua, momento em que voltou pro pool)
+        self._lock = threading.Lock()
+        self._vagas = threading.BoundedSemaphore(maximo)
+
+    def pegar(self, espera):
+        """Conexão crua do pool, ou None se todas estiverem em uso por mais
+        de `espera` segundos."""
+        if not self._vagas.acquire(timeout=espera):
+            return None
+        try:
+            while True:
+                with self._lock:
+                    item = self._livres.pop() if self._livres else None
+                if item is None:
+                    return _abrir_conexao(de_request=True)
+                conn, devolvida_em = item
+                if conn.closed:
+                    continue
+                if _time.monotonic() - devolvida_em > DB_POOL_TESTAR_APOS_S:
+                    try:
+                        cur = conn.cursor(); cur.execute("SELECT 1"); cur.close()
+                        conn.rollback()
+                    except Exception:
+                        try: conn.close()
+                        except Exception: pass
+                        continue
+                return conn
+        except Exception:
+            self._vagas.release()
+            raise
+
+    def devolver(self, conn):
+        try:
+            if not conn.closed:
+                # Desfaz transação deixada aberta (o close() de antes também
+                # descartava) pra o próximo request pegar a conexão limpa.
+                conn.rollback()
+                with self._lock:
+                    self._livres.append((conn, _time.monotonic()))
+        except Exception:
+            try: conn.close()
+            except Exception: pass
+        finally:
+            self._vagas.release()
+
+
+_pool_db = _PoolConexoes(DB_POOL_MAX)
+
+
+class _ConexaoDoPool:
+    """Embrulha a conexão do pool: close() devolve ao pool em vez de fechar,
+    e depois dele a conexão (e os cursores abertos por ela) ficam
+    inutilizáveis -- quem ainda tiver a referência nunca toca a conexão que
+    já foi entregue pra outro request."""
+    __slots__ = ("_conn", "_cursores")
+
+    def __init__(self, conn):
+        self._conn = conn
+        self._cursores = []
+
+    def _crua(self):
+        if self._conn is None:
+            raise psycopg2.InterfaceError("connection already closed")
+        return self._conn
+
+    def __getattr__(self, nome):
+        if nome in _ConexaoDoPool.__slots__:
+            raise AttributeError(nome)  # slot ainda não preenchido (__init__ falhou)
+        return getattr(self._crua(), nome)
+
+    def cursor(self, *args, **kwargs):
+        cur = self._crua().cursor(*args, **kwargs)
+        self._cursores.append(cur)
+        return cur
+
+    @property
+    def closed(self):
+        return 1 if self._conn is None else self._conn.closed
+
+    def close(self):
+        conn = self._conn
+        if conn is None:
+            return  # fechar duas vezes é no-op, como no psycopg2
+        self._conn = None
+        for cur in self._cursores:
+            try: cur.close()
+            except Exception: pass
+        self._cursores = []
+        _pool_db.devolver(conn)
+
+    def __del__(self):
+        # Rede de segurança pra caminho que esquece o close() fora do
+        # middleware (ex.: BackgroundTasks, que rodam depois dele).
+        try: self.close()
+        except Exception: pass
+
+
 def get_db():
     try:
-        # connect_timeout: sem ele, banco lento/indisponível deixava a thread
-        # do request pendurada pra sempre -- e o usuário via a tela "travada".
-        conn = psycopg2.connect(os.environ.get("DATABASE_URL"), connect_timeout=10)
-        cur = conn.cursor()
-        cur.execute("SET TIME ZONE 'America/Sao_Paulo'")
         lst = _request_conns.get()
-        if lst is not None:
-            # Só em conexão de request (jobs de fundo ficam sem limite): uma
-            # query ou uma espera por lock nunca segura o usuário mais que
-            # isso, e uma transação esquecida aberta não prende a tabela
-            # tarefas pro resto da empresa. Sem esses limites, um único lock
-            # preso enfileirava todo mundo atrás ("o sistema trava").
-            cur.execute("SET statement_timeout = '60s'")
-            cur.execute("SET lock_timeout = '15s'")
-            cur.execute("SET idle_in_transaction_session_timeout = '120s'")
-        cur.close()
-        conn.commit()
+        if lst is None:
+            return _abrir_conexao(de_request=False)
+        crua = _pool_db.pegar(DB_POOL_ESPERA_S)
+        if crua is None:
+            # Pool esgotado: cai no comportamento antigo em vez de falhar.
+            logger.warning("Pool de conexões esgotado; abrindo conexão avulsa")
+            conn = _abrir_conexao(de_request=True)
+        else:
+            conn = _ConexaoDoPool(crua)
         # Registra a conexão para fechamento garantido ao fim do request (ver
         # middleware fechar_conexoes_db). Fechar duas vezes é seguro (no-op),
         # então os conn.close() já existentes continuam válidos.
-        if lst is not None:
-            lst.append(conn)
+        lst.append(conn)
         return conn
     except Exception as e:
         logger.error(f"Falha ao conectar ao banco: {e}\n{traceback.format_exc()}")
@@ -185,6 +309,24 @@ def _senha_fraca(senha, usuario=""):
         return "A senha não pode ser igual ao nome de usuário."
     return None
 
+SESSAO_LAST_SEEN_S = 60
+
+
+def limpar_sessoes_expiradas():
+    """Job do scheduler: apaga sessões vencidas (antes era feito em todo request)."""
+    conn = get_db()
+    if not conn:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM sessoes WHERE expira_em < NOW()")
+        conn.commit(); cur.close()
+    except Exception as e:
+        logger.error(f"Erro limpando sessões expiradas: {e}")
+    finally:
+        conn.close()
+
+
 def get_session(token: str, page: str = ""):
     if not token:
         return None
@@ -193,23 +335,26 @@ def get_session(token: str, page: str = ""):
         return None
     try:
         cur = conn.cursor()
-        cur.execute("DELETE FROM sessoes WHERE expira_em < NOW()")
-        if page:
-            cur.execute("""
-                UPDATE sessoes SET last_seen = NOW(), pagina = %s
-                WHERE token = %s AND expira_em > NOW()
-                RETURNING usuario_id, nome, perfil, time_usuario, pagina, cargo
-            """, (page, token))
-        else:
-            cur.execute("""
-                UPDATE sessoes SET last_seen = NOW()
-                WHERE token = %s AND expira_em > NOW()
-                RETURNING usuario_id, nome, perfil, time_usuario, pagina, cargo
-            """, (token,))
+        # Leitura pura no caminho comum (2026-10-08). Antes todo request fazia
+        # um DELETE das sessões vencidas na tabela inteira + UPDATE de
+        # last_seen, e todo mundo disputava lock em `sessoes`. A limpeza agora
+        # é job (limpar_sessoes_expiradas) e last_seen só é regravado quando
+        # passou de SESSAO_LAST_SEEN_S ou a página mudou -- o "quem está
+        # online" olha uma janela de 5 minutos, então 1 minuto de folga não muda nada.
+        cur.execute("""
+            SELECT usuario_id, nome, perfil, time_usuario, pagina, cargo,
+                   COALESCE(last_seen < NOW() - make_interval(secs => %s), TRUE)
+            FROM sessoes
+            WHERE token = %s AND expira_em > NOW()
+        """, (SESSAO_LAST_SEEN_S, token))
         row = cur.fetchone()
+        if row and (row[6] or (page and page != (row[4] or ""))):
+            cur.execute("UPDATE sessoes SET last_seen = NOW(), pagina = COALESCE(%s, pagina) WHERE token = %s",
+                        (page or None, token))
         conn.commit(); cur.close(); conn.close()
         if not row:
             return None
+        row = row[:4] + ((page or row[4]),) + row[5:6]
         # Perfil 'dev' tem acesso equivalente a admin em todo o sistema (todas as
         # checagens de permissão existentes usam sess["perfil"]) -- "perfil_real"
         # preserva o valor de fato gravado no banco, só pra exibição/auditoria.
@@ -7605,6 +7750,9 @@ try:
                        max_instances=1, coalesce=True)
     # Service Desk: fecha status (pausa/online) esquecido aberto depois do
     # fim do turno -- sem isso o painel chegava a mostrar 96h de pausa.
+    _scheduler.add_job(limpar_sessoes_expiradas, "interval", minutes=10,
+                       id="limpar_sessoes", replace_existing=True,
+                       max_instances=1, coalesce=True)
     from app.service_desk.router import job_encerrar_status_esquecidos
     _scheduler.add_job(job_encerrar_status_esquecidos, "interval", minutes=5,
                        id="sd_encerrar_status", replace_existing=True,
