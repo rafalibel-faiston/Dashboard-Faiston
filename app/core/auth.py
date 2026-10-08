@@ -107,3 +107,8 @@ def get_session(token: str, page: str = ""):
     except Exception as e:
         print(f"Erro get_session: {e}")
         return None
+
+
+def _is_dev(sess):
+    """Perfil 'dev' de verdade (sess["perfil"] vira 'admin' pra ele -- ver get_session)."""
+    return bool(sess) and sess.get("perfil_real") == "dev"
