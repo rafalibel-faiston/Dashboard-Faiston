@@ -20,7 +20,8 @@ from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.service_desk import db
-from app.service_desk.turno import STATUS_OPERADOR, agora, deve_encerrar, dias_12x36, janela_contagem, janela_turno
+from app.service_desk.turno import (STATUS_OPERADOR, agora, deve_encerrar, dias_12x36, escolher_escala,
+                                    janela_contagem, janela_turno)
 
 router = APIRouter()
 
@@ -118,24 +119,27 @@ def _operador(cur, uid: int) -> dict:
             "jornada_inicio": r[4], "jornada_fim": r[5], "regime": r[6], "meta_turno": r[7]}
 
 
-def _jornada_do_dia(cur, op: dict, dia: date):
-    """Escala cadastrada manda; sem escala vale a jornada padrão. Olha
-    ontem também: às 02h o plantão em curso é o que começou ontem (12x36)."""
+def _jornada_em(cur, op: dict, ref: datetime):
+    """Jornada do turno ao qual `ref` pertence: escala cadastrada manda (ver
+    escolher_escala -- olha ontem também, às 02h o plantão em curso é o que
+    começou ontem); sem escala vale a jornada padrão."""
     cur.execute("""
-        SELECT hora_inicio, hora_fim, tipo FROM sd_escalas
-        WHERE usuario_id = %s AND data IN (%s, %s) ORDER BY data DESC, hora_inicio LIMIT 1
-    """, (op["id"], dia, dia - timedelta(days=1)))
-    r = cur.fetchone()
-    if r:
-        return r[0], r[1], r[2]
+        SELECT data, hora_inicio, hora_fim, tipo FROM sd_escalas
+        WHERE usuario_id = %s AND data IN (%s, %s)
+    """, (op["id"], ref.date(), ref.date() - timedelta(days=1)))
+    escala = escolher_escala(cur.fetchall(), ref)
+    if escala:
+        return escala[1], escala[2], escala[3]
     return op["jornada_inicio"], op["jornada_fim"], None
 
 
 def _encerrar_esquecidos(cur, uid: Optional[int] = None):
     """Fecha status aberto que passou do fim do turno (a pessoa saiu em
-    pausa e não voltou). Roda no job e também antes de ler o status."""
+    pausa e não voltou). Roda no job e também antes de ler o status.
+    O turno é o da escala do dia do evento, não só a jornada padrão --
+    senão o plantão noturno de quem é 08h-17h no cadastro era fechado no meio."""
     sql = """
-        SELECT e.id, e.inicio, o.jornada_inicio, o.jornada_fim
+        SELECT e.id, e.inicio, e.usuario_id, o.jornada_inicio, o.jornada_fim
         FROM sd_status_eventos e LEFT JOIN sd_operadores o ON o.usuario_id = e.usuario_id
         WHERE e.fim IS NULL
     """
@@ -146,7 +150,9 @@ def _encerrar_esquecidos(cur, uid: Optional[int] = None):
     cur.execute(sql, params)
     ref = agora()
     fechados = 0
-    for eid, inicio, j_ini, j_fim in cur.fetchall():
+    for eid, inicio, dono, jp_ini, jp_fim in cur.fetchall():
+        op = {"id": dono, "jornada_inicio": jp_ini, "jornada_fim": jp_fim}
+        j_ini, j_fim, _ = _jornada_em(cur, op, inicio)
         fim = deve_encerrar(inicio, j_ini, j_fim, ref)
         if fim:
             cur.execute("UPDATE sd_status_eventos SET fim = %s, auto_encerrado = TRUE WHERE id = %s",
@@ -220,7 +226,7 @@ def me(faiston_token: str = Cookie(None)):
         conn.commit()
         op = _operador(cur, sess["id"])
         ref = agora()
-        j_ini, j_fim, tipo_escala = _jornada_do_dia(cur, op, ref.date())
+        j_ini, j_fim, tipo_escala = _jornada_em(cur, op, ref)
         ini, fim = janela_turno(ref, j_ini, j_fim)
         kpis = _kpis(cur, sess["id"], *janela_contagem(ref, j_ini, j_fim), op["meta_turno"])
         status = _status_atual(cur, sess["id"])
@@ -479,18 +485,38 @@ def criar_atendimento(body: AtendimentoModel, faiston_token: str = Cookie(None))
 
 def _filtros_lista(sess, escopo, status, fila, q, operador, cur):
     where, params = [], []
+    alvo = None  # None = equipe toda (supervisor sem filtro de operador)
     if eh_supervisor(sess) and operador != "eu":
         if operador:
             if not operador.isdigit():
                 raise HTTPException(status_code=400, detail="Operador inválido")
-            where.append("a.usuario_id = %s"); params.append(int(operador))
+            alvo = int(operador)
     else:
-        where.append("a.usuario_id = %s"); params.append(sess["id"])
+        alvo = sess["id"]
+    if alvo is not None:
+        where.append("a.usuario_id = %s"); params.append(alvo)
     if escopo == "turno":
-        op = _operador(cur, sess["id"])
-        j_ini, j_fim, _ = _jornada_do_dia(cur, op, agora().date())
-        ini, fim = janela_contagem(agora(), j_ini, j_fim)
-        where.append("a.criado_em >= %s AND a.criado_em < %s"); params += [ini, fim]
+        # Cada operador na janela do PRÓPRIO turno -- antes valia a de quem
+        # estava olhando, e o supervisor 08h-17h via o plantão 19h-07h cortado.
+        ref = agora()
+
+        def janela(uid):
+            j_ini, j_fim, _ = _jornada_em(cur, _operador(cur, uid), ref)
+            return janela_contagem(ref, j_ini, j_fim)
+
+        if alvo is not None:
+            where.append("a.criado_em >= %s AND a.criado_em < %s"); params += list(janela(alvo))
+        else:
+            equipe = _ids_equipe(cur)
+            partes = []
+            for uid in equipe:
+                partes.append("(a.usuario_id = %s AND a.criado_em >= %s AND a.criado_em < %s)")
+                params += [uid, *janela(uid)]
+            # Quem não é da equipe (ex.: admin que registrou) segue na janela de quem olha.
+            ini, fim = janela(sess["id"])
+            partes.append("(NOT a.usuario_id = ANY(%s) AND a.criado_em >= %s AND a.criado_em < %s)")
+            params += [equipe, ini, fim]
+            where.append("(" + " OR ".join(partes) + ")")
     elif escopo == "hoje":
         where.append("a.criado_em::date = CURRENT_DATE")
     elif escopo == "7d":
@@ -776,15 +802,22 @@ def kanban(periodo: str = "hoje", faiston_token: str = Cookie(None)):
         cur = conn.cursor()
         _encerrar_esquecidos(cur)
         conn.commit()
-        cur.execute(f"""
+        # Em aberto vêm todos (são a base da carga da equipe); só os
+        # finalizados do período têm teto. Com um LIMIT único, um mês cheio
+        # de concluídos empurrava abertos antigos pra fora -- sumiam da
+        # coluna e o operador sobrecarregado aparecia como "Tranquilo".
+        base = f"""
             SELECT {_COLUNAS}, COALESCE(t.finaliza, FALSE)
             FROM sd_atendimentos a JOIN usuarios u ON u.id = a.usuario_id
             LEFT JOIN sd_status_tipos t ON t.chave = a.status
-            WHERE NOT COALESCE(t.finaliza, FALSE) OR a.criado_em >= %s
-            ORDER BY a.criado_em DESC LIMIT 600
-        """, (ini,))
+        """
+        cur.execute(base + " WHERE NOT COALESCE(t.finaliza, FALSE) ORDER BY a.criado_em DESC")
+        linhas = cur.fetchall()
+        cur.execute(base + " WHERE COALESCE(t.finaliza, FALSE) AND a.criado_em >= %s ORDER BY a.criado_em DESC LIMIT 600",
+                    (ini,))
+        linhas += cur.fetchall()
         itens = []
-        for r in cur.fetchall():
+        for r in linhas:
             item = _linha(r[:-1])
             item["finaliza"] = r[-1]
             item["coluna"] = ("aberto" if not r[-1] else
@@ -799,7 +832,7 @@ def kanban(periodo: str = "hoje", faiston_token: str = Cookie(None)):
             parados = sum(1 for i in meus if i["parado"])
             pontos = round(len(meus) + 0.5 * parados, 1)
             nivel = nivel_carga_sd(pontos)
-            j_ini, j_fim, _ = _jornada_do_dia(cur, op, ref.date())
+            j_ini, j_fim, _ = _jornada_em(cur, op, ref)
             c_ini, c_fim = janela_contagem(ref, j_ini, j_fim)
             cur.execute("SELECT COUNT(*) FROM sd_atendimentos WHERE usuario_id = %s AND criado_em >= %s AND criado_em < %s",
                         (uid, c_ini, c_fim))
@@ -829,19 +862,39 @@ def kanban(periodo: str = "hoje", faiston_token: str = Cookie(None)):
         conn.close()
 
 
+class MoverAtendimentoModel(BaseModel):
+    status: str
+    fila_destino: Optional[str] = Field(default=None, max_length=120)
+
+
 @router.patch("/api/sd/atendimentos/{aid}/status")
-def mudar_status(aid: int, body: StatusModel, faiston_token: str = Cookie(None)):
-    """Troca só o status (arrastar card no Kanban do supervisor)."""
+def mudar_status(aid: int, body: MoverAtendimentoModel, faiston_token: str = Cookie(None)):
+    """Troca o status (arrastar card no Kanban do supervisor).
+
+    A coluna Redirecionado/Concluído e o FCR vêm de `fila_destino`, não do
+    status -- então mexer só no status fazia o card voltar pra coluna antiga
+    no reload. Concluir limpa a fila de destino (resolvido aqui); redirecionar
+    exige saber pra qual fila."""
     sess = _sessao(faiston_token)
     conn = _conn()
     try:
         cur = conn.cursor()
-        if not _pode_editar(sess, _buscar(cur, aid)):
+        atual = _buscar(cur, aid)
+        if not _pode_editar(sess, atual):
             raise HTTPException(status_code=403, detail="Só dá pra alterar os próprios atendimentos")
         cur.execute("SELECT 1 FROM sd_status_tipos WHERE chave = %s AND ativo", (body.status,))
         if not cur.fetchone():
             raise HTTPException(status_code=400, detail="Status inválido")
-        cur.execute("UPDATE sd_atendimentos SET status = %s, atualizado_em = NOW() WHERE id = %s", (body.status, aid))
+        fila = atual["fila_destino"] or ""
+        if body.status == "concluido":
+            fila = ""
+        elif body.status == "redirecionado":
+            fila = (body.fila_destino if body.fila_destino is not None else fila).strip()
+            if not fila or fila == atual["fila_entrada"]:
+                raise HTTPException(status_code=400, detail="Informe a fila para onde o atendimento foi redirecionado")
+            _garantir_opcao(cur, "sd_filas", fila)
+        cur.execute("UPDATE sd_atendimentos SET status = %s, fila_destino = %s, atualizado_em = NOW() WHERE id = %s",
+                    (body.status, fila, aid))
         conn.commit()
         out = _buscar(cur, aid)
         cur.close()
@@ -874,7 +927,7 @@ def equipe(faiston_token: str = Cookie(None)):
         out = []
         for uid in _ids_equipe(cur):
             op = _operador(cur, uid)
-            j_ini, j_fim, _ = _jornada_do_dia(cur, op, ref.date())
+            j_ini, j_fim, _ = _jornada_em(cur, op, ref)
             ini, fim = janela_contagem(ref, j_ini, j_fim)
             out.append({
                 **{k: v for k, v in op.items() if k not in ("jornada_inicio", "jornada_fim")},

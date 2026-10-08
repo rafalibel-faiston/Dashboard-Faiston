@@ -42,6 +42,26 @@ def _duracao(inicio: time, fim: time) -> timedelta:
     return d if d > timedelta(0) else d + timedelta(days=1)
 
 
+def escolher_escala(escalas, ref: datetime):
+    """Entre as escalas de ontem e de hoje -- tuplas (data, hora_inicio,
+    hora_fim, tipo) --, a do turno ao qual `ref` pertence: a que está rolando
+    ou começa em até 2h (se duas valem, a que começa depois, igual a
+    janela_contagem); senão a de hoje; senão a de ontem. None se não há.
+
+    Antes valia sempre a de hoje: às 02h, quem estava no plantão 19h-07h de
+    ontem e tinha 07h-19h hoje caía na janela errada."""
+    em_curso = []
+    for e in escalas:
+        ini = datetime.combine(e[0], e[1])
+        if ini - ANTECEDENCIA <= ref < ini + _duracao(e[1], e[2]):
+            em_curso.append((ini, e))
+    if em_curso:
+        return max(em_curso, key=lambda x: x[0])[1]
+    hoje = [e for e in escalas if e[0] == ref.date()]
+    candidatas = hoje or list(escalas)
+    return min(candidatas, key=lambda e: e[1]) if candidatas else None
+
+
 def janela_turno(ref: datetime, inicio: Optional[time], fim: Optional[time]) -> Tuple[datetime, datetime]:
     """Horário oficial (início, fim) do turno ao qual `ref` pertence: o que
     está rolando, o que começa em até 2h, ou o último que já terminou.

@@ -5400,7 +5400,8 @@ function sdkRender() {
 }
 
 // Arrastar card entre colunas: Em aberto → pendente; Redirecionado/Concluído
-// → o status de mesmo nome. Troca só o status (PATCH), o resto fica igual.
+// → o status de mesmo nome. Concluir limpa a fila de destino no servidor;
+// redirecionar card que não tem fila de destino pergunta qual é.
 (function () {
     let arrastando = null;
     document.addEventListener('dragstart', e => {
@@ -5434,8 +5435,14 @@ function sdkRender() {
         const item = (_sdkDados.itens || []).find(i => i.id === id);
         if (!item || item.coluna === col) return;
         const status = { aberto: 'pendente', redirecionado: 'redirecionado', concluido: 'concluido' }[col];
+        const corpo = { status };
+        if (status === 'redirecionado' && !item.fila_destino) {
+            const fila = (prompt('Redirecionado para qual fila?') || '').trim();
+            if (!fila) return;
+            corpo.fila_destino = fila;
+        }
         try {
-            const r = await fetch(`/api/sd/atendimentos/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+            const r = await fetch(`/api/sd/atendimentos/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
             if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Não foi possível mudar o status');
         } catch (err) { if (typeof mostrarErroGlobal === 'function') mostrarErroGlobal(err.message); }
         sdkCarregar(); sdgCarregarMetricas(true);

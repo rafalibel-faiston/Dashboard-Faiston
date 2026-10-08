@@ -8,7 +8,7 @@ from datetime import date, datetime, time, timedelta
 
 import pytest
 
-from app.service_desk.turno import deve_encerrar, dias_12x36, janela_contagem, janela_turno
+from app.service_desk.turno import agora, deve_encerrar, dias_12x36, escolher_escala, janela_contagem, janela_turno
 
 SENHA = "senhaTeste123"
 
@@ -392,3 +392,130 @@ class TestKanbanSupervisor:
         operador["client"].post("/api/sd/atendimentos", json=_atend(status="pendente"))
         st = supervisor["client"].get("/api/sd/dashboard?periodo=hoje").json()["status"]
         assert any(x["chave"] == "pendente" and x["rotulo"] == "Pendente" and x["total"] >= 1 for x in st)
+
+
+# ── Correções de 2026-10-08 ──────────────────────────────────────────────
+class TestEscolherEscala:
+    ONTEM, HOJE = date(2026, 9, 23), date(2026, 9, 24)
+    NOITE_ONTEM = (ONTEM, time(19), time(7), "turno")
+    DIA_HOJE = (HOJE, time(7), time(19), "turno")
+
+    def test_madrugada_fica_no_plantao_que_comecou_ontem(self):
+        assert escolher_escala([self.DIA_HOJE, self.NOITE_ONTEM], datetime(2026, 9, 24, 2, 0)) == self.NOITE_ONTEM
+
+    def test_ate_2h_antes_ja_conta_o_turno_que_vai_comecar(self):
+        # mesma regra de janela_contagem: chegou antes, conta pro turno novo
+        assert escolher_escala([self.DIA_HOJE, self.NOITE_ONTEM], datetime(2026, 9, 24, 6, 0)) == self.DIA_HOJE
+
+    def test_sem_turno_rolando_vale_a_de_hoje(self):
+        tarde = (self.HOJE, time(20), time(23), "turno")
+        assert escolher_escala([tarde, (self.ONTEM, time(8), time(12), "turno")],
+                               datetime(2026, 9, 24, 10, 0)) == tarde
+
+    def test_sem_escala(self):
+        assert escolher_escala([], datetime(2026, 9, 24, 10, 0)) is None
+
+
+def _sql(q, params=()):
+    import main
+    conn = main.get_db(); cur = conn.cursor()
+    cur.execute(q, params)
+    row = cur.fetchone() if cur.description else None
+    conn.commit(); cur.close(); conn.close()
+    return row
+
+
+def _hm(dt):
+    return dt.replace(second=0, microsecond=0)
+
+
+def _escala(uid, inicio, fim):
+    _sql("INSERT INTO sd_escalas (data, usuario_id, hora_inicio, hora_fim) VALUES (%s, %s, %s, %s)",
+         (inicio.date(), uid, inicio.time(), fim.time()))
+
+
+def _jornada_padrao(uid, inicio, fim):
+    _sql("""INSERT INTO sd_operadores (usuario_id, jornada_inicio, jornada_fim) VALUES (%s, %s, %s)
+            ON CONFLICT (usuario_id) DO UPDATE SET jornada_inicio = EXCLUDED.jornada_inicio,
+                                                   jornada_fim = EXCLUDED.jornada_fim""",
+         (uid, inicio.time(), fim.time()))
+
+
+class TestEncerramentoRespeitaEscala:
+    def test_plantao_fora_da_jornada_padrao_nao_e_fechado(self, operador):
+        import main
+        from app.service_desk import router as sd
+        agora_ = _hm(agora())
+        # jornada padrão bem longe de agora; a escala de hoje cobre agora
+        _jornada_padrao(operador["id"], agora_ + timedelta(hours=10), agora_ + timedelta(hours=11))
+        _escala(operador["id"], agora_ - timedelta(hours=4), agora_ + timedelta(hours=4))
+        eid = _sql("INSERT INTO sd_status_eventos (usuario_id, status, inicio) VALUES (%s, 'online', %s) RETURNING id",
+                   (operador["id"], agora_ - timedelta(hours=3)))[0]
+
+        def encerrar():
+            conn = main.get_db(); cur = conn.cursor()
+            sd._encerrar_esquecidos(cur, operador["id"])
+            conn.commit(); cur.close(); conn.close()
+            return _sql("SELECT fim FROM sd_status_eventos WHERE id = %s", (eid,))[0]
+
+        assert encerrar() is None
+        # sem a escala, pela jornada padrão o evento já estaria vencido
+        _sql("DELETE FROM sd_escalas WHERE usuario_id = %s", (operador["id"],))
+        assert encerrar() is not None
+
+
+class TestFiltroTurnoDeOutroOperador:
+    def test_supervisor_ve_turno_do_operador_pela_janela_dele(self, supervisor, operador):
+        agora_ = _hm(agora())
+        # operador num plantão de 12h que começou há 11h; supervisor começou há 5h
+        _escala(operador["id"], agora_ - timedelta(hours=11), agora_ + timedelta(hours=1))
+        _jornada_padrao(supervisor["id"], agora_ - timedelta(hours=5), agora_ + timedelta(hours=4))
+        aid = operador["client"].post("/api/sd/atendimentos", json=_atend()).json()["id"]
+        _sql("UPDATE sd_atendimentos SET criado_em = %s WHERE id = %s", (agora_ - timedelta(hours=10), aid))
+        s = supervisor["client"]
+        um = [a["id"] for a in s.get(f"/api/sd/atendimentos?escopo=turno&operador={operador['id']}").json()]
+        equipe = [a["id"] for a in s.get("/api/sd/atendimentos?escopo=turno").json()]
+        assert aid in um and aid in equipe
+
+
+class TestArrastarNoKanban:
+    def _coluna(self, s, aid):
+        return next(i for i in s.get("/api/sd/kanban?periodo=hoje").json()["itens"] if i["id"] == aid)["coluna"]
+
+    def test_redirecionado_para_concluido_muda_de_coluna(self, supervisor, operador):
+        aid = operador["client"].post("/api/sd/atendimentos", json=_atend(fila_destino="NOW_ATENDIMENTO_SAP")).json()["id"]
+        s = supervisor["client"]
+        assert self._coluna(s, aid) == "redirecionado"
+        r = s.patch(f"/api/sd/atendimentos/{aid}/status", json={"status": "concluido"})
+        assert r.status_code == 200 and r.json()["fila_destino"] == ""
+        assert self._coluna(s, aid) == "concluido"
+
+    def test_redirecionar_exige_fila(self, supervisor, operador):
+        aid = operador["client"].post("/api/sd/atendimentos", json=_atend(status="pendente")).json()["id"]
+        s = supervisor["client"]
+        assert s.patch(f"/api/sd/atendimentos/{aid}/status", json={"status": "redirecionado"}).status_code == 400
+        r = s.patch(f"/api/sd/atendimentos/{aid}/status",
+                    json={"status": "redirecionado", "fila_destino": "NOW_ATENDIMENTO_SAP"})
+        assert r.status_code == 200
+        assert self._coluna(s, aid) == "redirecionado"
+
+
+class TestKanbanNaoPerdeAbertos:
+    def test_aberto_antigo_aparece_mesmo_com_muitos_concluidos(self, supervisor, operador):
+        aid = operador["client"].post("/api/sd/atendimentos", json=_atend(status="pendente")).json()["id"]
+        _sql("UPDATE sd_atendimentos SET criado_em = NOW() - INTERVAL '3 days' WHERE id = %s", (aid,))
+        _sql("""INSERT INTO sd_atendimentos (usuario_id, solicitante_nome, fila_entrada, problema, tratativa, status)
+                SELECT %s, 'Lote', 'NOW_BACKOFFICE_SERVICEDESK', 'x', 'y', 'concluido'
+                FROM generate_series(1, 610)""", (operador["id"],))
+        d = supervisor["client"].get("/api/sd/kanban?periodo=hoje").json()
+        assert aid in [i["id"] for i in d["itens"]]
+        carga = next(p for p in d["carga"] if p["usuario_id"] == operador["id"])
+        assert carga["abertos"] == 1
+
+
+class TestDashboardSemLoop:
+    def test_ex_supervisor_vai_pra_tela_do_operador(self, supervisor):
+        _sql("UPDATE usuarios SET cargo = 'sd_operador' WHERE id = %s", (supervisor["id"],))
+        r = supervisor["client"].get("/dashboard", follow_redirects=False)
+        assert r.status_code in (302, 307)
+        assert r.headers["location"] == "/service-desk"
