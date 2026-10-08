@@ -188,16 +188,12 @@ class TestReport:
 
 class TestPermissoes:
     @pytest.fixture()
-    def funcionario_client(self, admin_client, app):
+    def funcionario_client(self, admin_client, app, criar_usuario):
         """Cria um usuário perfil=funcionario temporário e retorna um client logado como ele."""
         from fastapi.testclient import TestClient
         usuario = f"teste_func_{uuid.uuid4().hex[:8]}"
         senha = "senhaTeste123"
-        resp = admin_client.post("/api/usuarios", json={
-            "usuario": usuario, "senha": senha, "nome": "Funcionário de Teste", "perfil": "funcionario",
-        })
-        assert resp.status_code == 200, resp.text
-        uid = resp.json()["id"]
+        uid = criar_usuario(usuario, senha, nome="Funcionário de Teste", perfil="funcionario")
 
         client = TestClient(app)
         resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
@@ -218,19 +214,14 @@ class TestPermissoes:
 
 class TestN2:
     @pytest.fixture()
-    def n2_user(self, admin_client):
+    def n2_user(self, admin_client, criar_usuario):
         """Cria um usuário N2 temporário; retorna (id, usuario, senha).
 
         N2 é cargo dentro de 'funcionario' desde a migração de 2026-07-28.
         """
         usuario = f"teste_n2_{uuid.uuid4().hex[:8]}"
         senha = "senhaTeste123"
-        resp = admin_client.post("/api/usuarios", json={
-            "usuario": usuario, "senha": senha, "nome": "N2 de Teste",
-            "perfil": "funcionario", "cargo": "n2",
-        })
-        assert resp.status_code == 200, resp.text
-        uid = resp.json()["id"]
+        uid = criar_usuario(usuario, senha, nome="N2 de Teste", perfil="funcionario", cargo="n2")
         yield {"id": uid, "usuario": usuario, "senha": senha}
         admin_client.delete(f"/api/usuarios/{uid}")
 
@@ -335,19 +326,15 @@ class TestAcessoPorTime:
     (ver _pode_ver_status_report em main.py)."""
 
     @pytest.fixture()
-    def _usuario_de_time(self, admin_client, app):
+    def _usuario_de_time(self, admin_client, app, criar_usuario):
         criados = []
 
         def criar(time_nome, cargo="analista"):
             from fastapi.testclient import TestClient
             usuario = f"teste_time_{uuid.uuid4().hex[:8]}"
             senha = "senhaTeste123"
-            resp = admin_client.post("/api/usuarios", json={
-                "usuario": usuario, "senha": senha, "nome": f"Usuário {time_nome}",
-                "perfil": "funcionario", "cargo": cargo, "time": time_nome,
-            })
-            assert resp.status_code == 200, resp.text
-            criados.append(resp.json()["id"])
+            criados.append(criar_usuario(usuario, senha, nome=f"Usuário {time_nome}",
+                                         perfil="funcionario", cargo=cargo, time=time_nome))
             client = TestClient(app)
             login = client.post("/api/login", json={"usuario": usuario, "senha": senha})
             assert login.status_code == 200, login.text

@@ -1,6 +1,6 @@
 """
-Testes da segunda rodada de ajustes: "em_andamento" exige uma descrição do
-que está acontecendo, e os status terminais (concluido/parcial/improdutiva_*)
+Testes da segunda rodada de ajustes: "em_andamento" exige a localização
+(deslocamento/no local), e os status terminais (concluido/parcial/improdutiva_*)
 exigem confirmar hora de saída + se houve material, em vez de trocar o
 status silenciosamente sem capturar esses dados.
 """
@@ -12,32 +12,38 @@ def _payload(cliente_id, **overrides):
     return base
 
 
-class TestEmAndamentoExigeDescricao:
-    def test_sem_descricao_retorna_400(self, admin_client, cliente_teste):
+class TestEmAndamentoExigeLocalizacao:
+    # Desde o fluxo escalonado do N2 (2026-07-22) o que "em_andamento" exige é
+    # a localização (deslocamento/no local); a descrição virou opcional.
+    def test_sem_localizacao_retorna_400(self, admin_client, cliente_teste):
         aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
         try:
-            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={"status": "em_andamento"})
+            resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
+                "status": "em_andamento", "andamento_descricao": "Indo pro cliente",
+            })
             assert resp.status_code == 400
+            assert resp.json()["detail"] == "Selecione a localização"
             item = admin_client.get(f"/api/status-campo/{aid}").json()
             assert item["status"] == "agendado"
         finally:
             admin_client.delete(f"/api/status-campo/{aid}")
 
-    def test_descricao_em_branco_retorna_400(self, admin_client, cliente_teste):
+    def test_localizacao_invalida_retorna_400(self, admin_client, cliente_teste):
         aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
         try:
             resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
-                "status": "em_andamento", "andamento_descricao": "   ",
+                "status": "em_andamento", "localizacao": "em_casa",
             })
             assert resp.status_code == 400
         finally:
             admin_client.delete(f"/api/status-campo/{aid}")
 
-    def test_com_descricao_e_salva(self, admin_client, cliente_teste):
+    def test_com_localizacao_e_salva(self, admin_client, cliente_teste):
         aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
         try:
             resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
-                "status": "em_andamento", "andamento_descricao": "Aguardando liberação de acesso ao rack",
+                "status": "em_andamento", "localizacao": "no_local",
+                "andamento_descricao": "Aguardando liberação de acesso ao rack",
             })
             assert resp.status_code == 200, resp.text
             item = admin_client.get(f"/api/status-campo/{aid}").json()
