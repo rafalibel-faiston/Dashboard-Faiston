@@ -1,0 +1,51 @@
+name: Testes
+
+on:
+  push:
+    branches: [main, Testes-Faiston-One]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # Postgres de verdade (a suíte não usa mock de banco -- ver tests/conftest.py).
+      # Imagem com pgvector porque o schema do assistente cria VECTOR(384).
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: faiston_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/faiston_test
+      ADMIN_INITIAL_PASSWORD: senhaTeste123
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          # torch CPU antes do resto: o sentence-transformers puxaria a build
+          # com CUDA (vários GB) e os testes não carregam o modelo.
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-dev.txt
+
+      - name: Rodar pytest
+        run: pytest -v
