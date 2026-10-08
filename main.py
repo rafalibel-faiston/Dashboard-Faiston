@@ -385,6 +385,7 @@ CARGO_VALIDOS = ('analista', 'backoffice', 'n2', 'desenvolvedor', 'sd_operador',
 # Cargos do Service Desk só valem na área Service Desk (criada pelo próprio
 # módulo, app/service_desk/db.py) -- não entram na carga inicial das outras.
 CARGOS_SERVICE_DESK = ('sd_operador', 'sd_supervisor')
+from app.service_desk.db import AREA_SERVICE_DESK  # nome da área que o módulo usa
 PERFIL_VALIDOS = ('funcionario', 'gestor', 'diretor', 'demo', 'admin', 'dev')
 
 # Régua inicial de complexidade (planilha "Performance projetos — Peso das
@@ -1028,8 +1029,12 @@ def setup_banco():
                 criado_em TIMESTAMP DEFAULT NOW()
             )
         """)
-        # ON CONFLICT DO NOTHING: banco já existente mantém o que o admin ajustou.
-        for _area_seed in TIMES_PADRAO:
+        # Carga inicial só em banco novo (tabela vazia). Rodando a cada boot com
+        # ON CONFLICT, área renomeada pelo admin voltava com o nome antigo,
+        # vazia, no deploy seguinte. 'Projetos' é exceção: é a área padrão
+        # do sistema (TIME_STATUS_REPORT) e não pode ser renomeada.
+        cur.execute("SELECT COUNT(*) FROM areas")
+        for _area_seed in (TIMES_PADRAO if cur.fetchone()[0] == 0 else ("Projetos",)):
             cur.execute("INSERT INTO areas (nome) VALUES (%s) ON CONFLICT (nome) DO NOTHING",
                         (_area_seed,))
         # Quais cargos e perfis a área aceita (2026-08-28). Guardado como lista
@@ -1042,6 +1047,11 @@ def setup_banco():
         cur.execute("UPDATE areas SET cargos=%s WHERE cargos IS NULL",
                     (_json.dumps([c for c in CARGO_VALIDOS if c not in CARGOS_SERVICE_DESK]),))
         cur.execute("UPDATE areas SET perfis=%s WHERE perfis IS NULL", (_json.dumps(list(PERFIL_VALIDOS)),))
+        # Área criada pela tela antes de 2026-10-08 nascia com os cargos do SD
+        # ligados (ver _cargos_da_area) -- tira de todas menos a do SD.
+        cur.execute("""UPDATE areas SET cargos = cargos - 'sd_operador' - 'sd_supervisor'
+                       WHERE nome <> %s AND (cargos ? 'sd_operador' OR cargos ? 'sd_supervisor')""",
+                    (AREA_SERVICE_DESK,))
         cur.execute("""
             CREATE TABLE IF NOT EXISTS frentes (
                 id SERIAL PRIMARY KEY,
@@ -2656,7 +2666,9 @@ class NovaFrente(BaseModel):
 class AreaModel(BaseModel):
     nome: str
     usa_projetos: bool = True
-    ativo: bool = True
+    # None = não mexer. Antes o default era True e o PUT de renomear/ligar
+    # projetos reativava área desativada sem ninguém pedir.
+    ativo: Optional[bool] = None
     # None = não mexer (o PUT de renomear/ligar projetos não manda estas duas).
     # Lista vazia é tratada como "todos", pra não deixar área que não aceita
     # ninguém -- o admin tira o que não quer, não esvazia.
@@ -2668,6 +2680,24 @@ def _normalizar_lista_area(valores, catalogo):
         return None
     filtrada = [v for v in catalogo if v in valores]
     return filtrada or list(catalogo)
+
+def _cargos_da_area(nome, cargos):
+    """Cargos do Service Desk só valem na área Service Desk (regra de
+    CARGOS_SERVICE_DESK) -- em qualquer outra área são descartados, senão quem
+    recebesse o cargo lá passava a enxergar o módulo do SD."""
+    if cargos is None or nome == AREA_SERVICE_DESK:
+        return cargos
+    return [c for c in cargos if c not in CARGOS_SERVICE_DESK] or            [c for c in CARGO_VALIDOS if c not in CARGOS_SERVICE_DESK]
+
+# Áreas cujo NOME está amarrado no código: 'Projetos' decide o Status Report
+# (TIME_STATUS_REPORT) e é o default de quem não tem área; 'Service Desk' é como
+# o módulo do SD acha a equipe. Renomear qualquer uma quebrava o acesso e o
+# boot recriava a área com o nome original, vazia.
+AREAS_DO_SISTEMA = (TIME_STATUS_REPORT, AREA_SERVICE_DESK)
+
+def _usuarios_ativos_na_area(cur, nome):
+    cur.execute("SELECT COUNT(*) FROM usuarios WHERE COALESCE(time,'Projetos')=%s AND ativo=TRUE", (nome,))
+    return cur.fetchone()[0]
 
 @app.get("/api/areas")
 def listar_areas(todas: bool = False, faiston_token: str = Cookie(None)):
@@ -2717,7 +2747,7 @@ def criar_area(a: AreaModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         import json as _json
-        cargos = _normalizar_lista_area(a.cargos, CARGO_VALIDOS) or list(CARGO_VALIDOS)
+        cargos = _cargos_da_area(nome, _normalizar_lista_area(a.cargos, CARGO_VALIDOS) or list(CARGO_VALIDOS))
         perfis = _normalizar_lista_area(a.perfis, PERFIL_VALIDOS) or list(PERFIL_VALIDOS)
         cur = conn.cursor()
         cur.execute("INSERT INTO areas (nome, usa_projetos, cargos, perfis) VALUES (%s,%s,%s,%s) "
@@ -2745,10 +2775,20 @@ def atualizar_area(aid: int, a: AreaModel, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("SELECT nome, usa_projetos FROM areas WHERE id=%s", (aid,))
+        cur.execute("SELECT nome, usa_projetos, ativo FROM areas WHERE id=%s", (aid,))
         row = cur.fetchone()
         if not row: raise HTTPException(status_code=404, detail="Área não encontrada")
-        nome_antigo, usava_projetos = row[0], bool(row[1])
+        nome_antigo, usava_projetos, estava_ativa = row[0], bool(row[1]), bool(row[2])
+        if nome != nome_antigo and nome_antigo in AREAS_DO_SISTEMA:
+            raise HTTPException(status_code=400, detail=(
+                f"A área {nome_antigo} é usada pelo sistema e não pode ser renomeada"))
+        # Desativar pelo PUT passa pela mesma regra do DELETE.
+        if estava_ativa and a.ativo is False:
+            n_users = _usuarios_ativos_na_area(cur, nome_antigo)
+            if n_users:
+                raise HTTPException(status_code=400, detail=(
+                    f"A área {nome_antigo} tem {n_users} usuário(s) ativo(s) — "
+                    "mova essas pessoas para outra área antes de desativar"))
         # Desligar o projeto de uma área que ainda tem projeto ativo deixaria
         # tarefa apontando pra projeto que nenhuma tela mostra mais. Barra e diz
         # quantos são, pro admin arquivar antes.
@@ -2767,9 +2807,9 @@ def atualizar_area(aid: int, a: AreaModel, faiston_token: str = Cookie(None)):
                                    ("projetos", "time"), ("frentes", "area")):
                 cur.execute(f"UPDATE {tabela} SET {coluna}=%s WHERE {coluna}=%s", (nome, nome_antigo))
         import json as _json
-        cargos = _normalizar_lista_area(a.cargos, CARGO_VALIDOS)
+        cargos = _cargos_da_area(nome, _normalizar_lista_area(a.cargos, CARGO_VALIDOS))
         perfis = _normalizar_lista_area(a.perfis, PERFIL_VALIDOS)
-        cur.execute("""UPDATE areas SET nome=%s, usa_projetos=%s, ativo=%s,
+        cur.execute("""UPDATE areas SET nome=%s, usa_projetos=%s, ativo=COALESCE(%s, ativo),
                               cargos=COALESCE(%s, cargos), perfis=COALESCE(%s, perfis)
                         WHERE id=%s""",
                     (nome, a.usa_projetos, a.ativo,
@@ -2795,9 +2835,7 @@ def desativar_area(aid: int, faiston_token: str = Cookie(None)):
         cur.execute("SELECT nome FROM areas WHERE id=%s", (aid,))
         row = cur.fetchone()
         if not row: raise HTTPException(status_code=404, detail="Área não encontrada")
-        cur.execute("SELECT COUNT(*) FROM usuarios WHERE COALESCE(time,'Projetos')=%s AND ativo=TRUE",
-                    (row[0],))
-        n_users = cur.fetchone()[0]
+        n_users = _usuarios_ativos_na_area(cur, row[0])
         if n_users:
             raise HTTPException(status_code=400, detail=(
                 f"A área {row[0]} tem {n_users} usuário(s) ativo(s) — "

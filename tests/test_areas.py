@@ -157,6 +157,40 @@ class TestDesativar:
         todas = admin_client.get("/api/areas", params={"todas": True}).json()["areas"]
         assert area["id"] in [a["id"] for a in todas]
 
+    def _ativa(self, admin_client, aid):
+        todas = admin_client.get("/api/areas", params={"todas": True}).json()["areas"]
+        return next(a for a in todas if a["id"] == aid)["ativo"]
+
+    def test_renomear_area_inativa_nao_reativa(self, admin_client, area_factory):
+        area = area_factory()
+        admin_client.delete(f"/api/areas/{area['id']}")
+        novo = f"TESTE-AREA-{uuid.uuid4().hex[:6]}"
+        # PUT sem `ativo` (é o que a tela de renomear manda)
+        assert admin_client.put(f"/api/areas/{area['id']}",
+                                json={"nome": novo, "usa_projetos": False}).status_code == 200
+        assert self._ativa(admin_client, area["id"]) is False
+        # reativar é explícito
+        assert admin_client.put(f"/api/areas/{area['id']}",
+                                json={"nome": novo, "usa_projetos": False, "ativo": True}).status_code == 200
+        assert self._ativa(admin_client, area["id"]) is True
+
+    def test_put_nao_desativa_area_com_usuario_ativo(self, admin_client, area_factory, usuario_factory):
+        area = area_factory()
+        usuario_factory(area["nome"])
+        resp = admin_client.put(f"/api/areas/{area['id']}",
+                                json={"nome": area["nome"], "usa_projetos": True, "ativo": False})
+        assert resp.status_code == 400
+        assert self._ativa(admin_client, area["id"]) is True
+
+
+class TestAreasDoSistema:
+    @pytest.mark.parametrize("nome", ["Projetos", "Service Desk"])
+    def test_nao_pode_renomear(self, admin_client, nome):
+        aid = next(a["id"] for a in admin_client.get("/api/areas").json()["areas"] if a["nome"] == nome)
+        resp = admin_client.put(f"/api/areas/{aid}", json={"nome": f"{nome} X", "usa_projetos": True})
+        assert resp.status_code == 400
+        assert "usada pelo sistema" in resp.json()["detail"]
+
 
 class TestAreaSemProjetos:
     def test_tarefa_com_projeto_recusada(self, admin_client, area_factory, usuario_factory, cliente_teste):
@@ -243,12 +277,22 @@ class TestAreaSemProjetos:
 class TestCargosEPerfisPorArea:
     """Quais cargos e perfis a área aceita é configurável -- e a API cobra."""
 
-    def test_area_nova_nasce_com_o_catalogo_inteiro(self, admin_client, area_factory):
+    def test_area_nova_nasce_com_o_catalogo_inteiro_menos_o_sd(self, admin_client, area_factory):
+        # Cargos do Service Desk só valem na área Service Desk (CARGOS_SERVICE_DESK).
         area = area_factory()
         dados = admin_client.get("/api/areas").json()
         listada = next(a for a in dados["areas"] if a["id"] == area["id"])
-        assert listada["cargos"] == dados["catalogo"]["cargos"]
+        assert listada["cargos"] == [c for c in dados["catalogo"]["cargos"] if not c.startswith("sd_")]
         assert listada["perfis"] == dados["catalogo"]["perfis"]
+
+    def test_cargo_sd_pedido_explicitamente_e_descartado(self, admin_client, area_factory):
+        area = area_factory(cargos=["analista", "sd_operador"])
+        listada = next(a for a in admin_client.get("/api/areas").json()["areas"] if a["id"] == area["id"])
+        assert listada["cargos"] == ["analista"]
+        admin_client.put(f"/api/areas/{area['id']}", json={
+            "nome": area["nome"], "usa_projetos": True, "cargos": ["analista", "sd_supervisor"]})
+        listada = next(a for a in admin_client.get("/api/areas").json()["areas"] if a["id"] == area["id"])
+        assert listada["cargos"] == ["analista"]
 
     def test_criar_area_ja_com_a_lista_restrita(self, admin_client, area_factory):
         area = area_factory(cargos=["analista", "backoffice"], perfis=["funcionario", "gestor"])
