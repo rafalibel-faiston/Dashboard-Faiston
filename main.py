@@ -341,11 +341,16 @@ def get_session(token: str, page: str = ""):
         # é job (limpar_sessoes_expiradas) e last_seen só é regravado quando
         # passou de SESSAO_LAST_SEEN_S ou a página mudou -- o "quem está
         # online" olha uma janela de 5 minutos, então 1 minuto de folga não muda nada.
+        # Nome/perfil/área/cargo vêm do cadastro (`usuarios`), não da cópia
+        # gravada em `sessoes` no login: com a cópia, mudança de cargo ou
+        # renomeação de área só valia depois de relogar -- e /dashboard (que
+        # lia o cargo atual pelo Service Desk) e o redirect (que lia a cópia)
+        # discordavam e entravam em loop. Usuário desativado cai na hora.
         cur.execute("""
-            SELECT usuario_id, nome, perfil, time_usuario, pagina, cargo,
-                   COALESCE(last_seen < NOW() - make_interval(secs => %s), TRUE)
-            FROM sessoes
-            WHERE token = %s AND expira_em > NOW()
+            SELECT s.usuario_id, u.nome, u.perfil, COALESCE(u.time, 'Projetos'), s.pagina, u.cargo,
+                   COALESCE(s.last_seen < NOW() - make_interval(secs => %s), TRUE)
+            FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
+            WHERE s.token = %s AND s.expira_em > NOW() AND u.ativo
         """, (SESSAO_LAST_SEEN_S, token))
         row = cur.fetchone()
         if row and (row[6] or (page and page != (row[4] or ""))):
@@ -2467,12 +2472,9 @@ def atualizar_usuario(uid: int, u: AtualizarUsuario, faiston_token: str = Cookie
         else:
             cur.execute("UPDATE usuarios SET nome=%s, perfil=%s, ativo=%s, email=%s, time=%s, cargo=%s WHERE id=%s",
                         (u.nome, u.perfil, u.ativo, u.email, time_val, cargo_val, uid))
-        # sessoes guarda uma cópia de nome/perfil/time/cargo tirada no login
-        # (get_session lê só daqui, não faz JOIN com usuarios). Sem isso, quem
-        # já está logado só vê nome/perfil/time/cargo novos depois de deslogar
-        # e logar de novo -- foi o que aconteceu com o Jefferson (cargo virou
-        # Analista, mas a sessão ativa dele continuou com o valor antigo e o
-        # campo de atribuir tarefa pro Backoffice não aparecia).
+        # sessoes guarda uma cópia de nome/perfil/time/cargo tirada no login.
+        # get_session lê do cadastro desde 2026-10-08, mas a cópia ainda
+        # aparece na lista de "quem está online" -- mantém em dia.
         cur.execute("UPDATE sessoes SET nome=%s, perfil=%s, time_usuario=%s, cargo=%s WHERE usuario_id=%s",
                     (u.nome, u.perfil, time_val, cargo_val, uid))
         conn.commit(); cur.close(); conn.close()
@@ -4769,12 +4771,9 @@ def dashboard(faiston_token: str = Cookie(None)):
     # visão a essa única seção pra esse cargo (ver init() em index.html).
     eh_backoffice = sess and sess["perfil"] == "funcionario" and sess.get("cargo") == "backoffice"
     # Supervisor do Service Desk também entra, só com a visão do SD (o
-    # index.html esconde o resto). Cargo lido do cadastro, não da sessão.
-    eh_sup_sd = False
-    if sess and sess["perfil"] == "funcionario" and not eh_backoffice:
-        from app.service_desk.db import get_session as _sd_sessao
-        sd = _sd_sessao(faiston_token)
-        eh_sup_sd = bool(sd) and sd.get("cargo") == "sd_supervisor"
+    # index.html esconde o resto). get_session já traz o cargo do cadastro,
+    # o mesmo que _redirect_login_ou_home usa -- por isso não há loop.
+    eh_sup_sd = bool(sess) and sess["perfil"] == "funcionario" and sess.get("cargo") == "sd_supervisor"
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not eh_backoffice and not eh_sup_sd):
         return _redirect_login_ou_home(sess)
     return FileResponse("static/index.html", headers=_HTML_SEM_CACHE)
