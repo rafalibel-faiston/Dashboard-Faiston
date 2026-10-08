@@ -9401,7 +9401,8 @@ async function adminCarregarAreas() {
                 <button onclick="adminAbrirAcessosArea(${a.id})" class="text-xs font-semibold text-faiston-purple hover:underline mr-3">Cargos e perfis</button>
                 <button onclick="adminRenomearArea(${a.id}, '${nome.replace(/'/g, "\\'")}', ${!!a.usa_projetos})" class="text-xs font-semibold text-faiston-purple hover:underline mr-3">Renomear</button>
                 <button onclick="adminAlternarProjetosArea(${a.id}, '${nome.replace(/'/g, "\\'")}', ${!!a.usa_projetos})" class="text-xs font-semibold text-faiston-purple hover:underline mr-3">${a.usa_projetos ? 'Tirar projetos' : 'Habilitar projetos'}</button>
-                ${a.ativo ? `<button onclick="adminDesativarArea(${a.id}, '${nome.replace(/'/g, "\\'")}')" class="text-xs font-semibold text-faiston-magenta hover:underline">Desativar</button>` : ''}
+                ${a.ativo ? `<button onclick="adminDesativarArea(${a.id}, '${nome.replace(/'/g, "\\'")}')" class="text-xs font-semibold text-faiston-magenta hover:underline">Desativar</button>`
+                          : `<button onclick="adminReativarArea(${a.id}, '${nome.replace(/'/g, "\\'")}', ${!!a.usa_projetos})" class="text-xs font-semibold text-emerald-600 hover:underline">Reativar</button>`}
             </td>
         </tr>`;
     }).join('');
@@ -9511,7 +9512,7 @@ async function adminRenomearArea(id, nome, usaProjetos) {
     const novo = (prompt('Novo nome da área:', nome) || '').trim();
     if (!novo || novo === nome) return;
     // O backend propaga o rename pra usuários, clientes, projetos e frentes.
-    await _areaSalvar(id, {nome: novo, usa_projetos: usaProjetos, ativo: true}, 'Erro ao renomear');
+    await _areaSalvar(id, {nome: novo, usa_projetos: usaProjetos}, 'Erro ao renomear');
 }
 
 async function adminAlternarProjetosArea(id, nome, usaProjetos) {
@@ -9519,7 +9520,12 @@ async function adminAlternarProjetosArea(id, nome, usaProjetos) {
         ? `Tirar os projetos da área "${nome}"?\n\nAs tarefas dela passam a ser sempre demanda avulsa e a área deixa de aparecer como dona de projeto.`
         : `Habilitar projetos na área "${nome}"?`;
     if (!confirm(msg)) return;
-    await _areaSalvar(id, {nome, usa_projetos: !usaProjetos, ativo: true}, 'Erro ao alterar a área');
+    await _areaSalvar(id, {nome, usa_projetos: !usaProjetos}, 'Erro ao alterar a área');
+}
+
+async function adminReativarArea(id, nome, usaProjetos) {
+    if (!confirm(`Reativar a área "${nome}"?\n\nEla volta a aparecer nos selects de time.`)) return;
+    await _areaSalvar(id, {nome, usa_projetos: usaProjetos, ativo: true}, 'Erro ao reativar');
 }
 
 async function adminDesativarArea(id, nome) {
