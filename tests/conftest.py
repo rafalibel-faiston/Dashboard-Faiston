@@ -126,7 +126,32 @@ def cliente_teste(admin_client):
 
 
 @pytest.fixture()
-def n2_user(admin_client):
+def criar_usuario(admin_client):
+    """Cria usuário pelo /api/usuarios e deixa ele pronto pra logar.
+
+    Desde 2026-08-10 o cadastro exige `email` e ignora senha vinda do admin
+    (a pessoa define pelo link de boas-vindas) -- então o e-mail ganha um
+    valor de teste e a senha é gravada direto no banco. Quem chama continua
+    responsável por apagar o usuário no teardown. Devolve o id."""
+    import main
+
+    def criar(usuario, senha="senhaTeste123", **campos):
+        campos.setdefault("email", f"{usuario}@exemplo.teste")
+        resp = admin_client.post("/api/usuarios", json={"usuario": usuario, **campos})
+        assert resp.status_code == 200, resp.text
+        uid = resp.json()["id"]
+        conn = main.get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE usuarios SET senha_hash=%s, primeiro_acesso=FALSE WHERE id=%s",
+                    (main.hash_senha(senha), uid))
+        conn.commit(); cur.close(); conn.close()
+        return uid
+
+    return criar
+
+
+@pytest.fixture()
+def n2_user(admin_client, criar_usuario):
     """Cria um usuário N2 temporário pra isolar os testes; limpa no teardown.
 
     N2 deixou de ser perfil próprio e virou cargo dentro de 'funcionario'
@@ -134,11 +159,6 @@ def n2_user(admin_client):
     """
     usuario = f"teste_n2_{uuid.uuid4().hex[:8]}"
     senha = "senhaTeste123"
-    resp = admin_client.post("/api/usuarios", json={
-        "usuario": usuario, "senha": senha, "nome": "N2 Fixture Teste",
-        "perfil": "funcionario", "cargo": "n2",
-    })
-    assert resp.status_code == 200, resp.text
-    uid = resp.json()["id"]
+    uid = criar_usuario(usuario, senha, nome="N2 Fixture Teste", perfil="funcionario", cargo="n2")
     yield {"id": uid, "usuario": usuario, "senha": senha}
     admin_client.delete(f"/api/usuarios/{uid}")

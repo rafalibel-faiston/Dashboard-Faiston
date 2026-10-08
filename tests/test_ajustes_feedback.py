@@ -163,15 +163,11 @@ class TestTicket:
 
 class TestAcessoDiretor:
     @pytest.fixture()
-    def diretor_client(self, admin_client, app):
+    def diretor_client(self, admin_client, app, criar_usuario):
         from fastapi.testclient import TestClient
         usuario = f"teste_diretor_{uuid.uuid4().hex[:8]}"
         senha = "senhaTeste123"
-        resp = admin_client.post("/api/usuarios", json={
-            "usuario": usuario, "senha": senha, "nome": "Diretor de Teste", "perfil": "diretor",
-        })
-        assert resp.status_code == 200, resp.text
-        uid = resp.json()["id"]
+        uid = criar_usuario(usuario, senha, nome="Diretor de Teste", perfil="diretor")
         client = TestClient(app)
         resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
         assert resp.status_code == 200
@@ -187,12 +183,9 @@ class TestAcessoDiretor:
         resp = diretor_client.get("/api/painel-n2/resumo")
         assert resp.status_code == 200
 
-    def test_diretor_pode_criar_escala(self, diretor_client, admin_client):
+    def test_diretor_pode_criar_escala(self, diretor_client, admin_client, criar_usuario):
         usuario = f"teste_n2_dir_{uuid.uuid4().hex[:8]}"
-        r = admin_client.post("/api/usuarios", json={
-            "usuario": usuario, "senha": "senhaTeste123", "nome": "N2 pra Diretor", "perfil": "n2",
-        })
-        uid = r.json()["id"]
+        uid = criar_usuario(usuario, nome="N2 pra Diretor", perfil="funcionario", cargo="n2")
         try:
             resp = diretor_client.post("/api/escala-n2", json={"data": "2026-07-21", "n2_usuario_id": uid})
             assert resp.status_code == 200, resp.text

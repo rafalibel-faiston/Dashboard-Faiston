@@ -40,11 +40,11 @@ class TestAvisoOps:
         resp = client.post("/api/avisos-ops/disparar")
         assert resp.status_code == 403
 
-    def test_previa_sem_login_retorna_401(self, app):
+    def test_previa_sem_login_retorna_403(self, app):
         from fastapi.testclient import TestClient
         client = TestClient(app)
         resp = client.get("/api/avisos-ops/previa")
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
     def test_previa_devolve_o_email_montado_sem_enviar_nada(self, admin_client, monkeypatch):
         """A prévia existe justamente pra conferir antes de disparar -- se ela

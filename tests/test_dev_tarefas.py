@@ -10,15 +10,11 @@ import pytest
 
 
 @pytest.fixture()
-def dev_client(admin_client, app):
+def dev_client(admin_client, app, criar_usuario):
     from fastapi.testclient import TestClient
     usuario = f"teste_dev_{uuid.uuid4().hex[:8]}"
     senha = "senhaTeste123"
-    resp = admin_client.post("/api/usuarios", json={
-        "usuario": usuario, "senha": senha, "nome": "Dev de Teste", "perfil": "dev",
-    })
-    assert resp.status_code == 200, resp.text
-    uid = resp.json()["id"]
+    uid = criar_usuario(usuario, senha, nome="Dev de Teste", perfil="dev")
     client = TestClient(app)
     resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
     assert resp.status_code == 200
@@ -85,12 +81,9 @@ class TestCRUD:
         ids = [t["id"] for t in dev_client.get("/api/dev-tarefas").json()]
         assert tid not in ids
 
-    def test_atribuir_a_outro_dev(self, dev_client, admin_client):
+    def test_atribuir_a_outro_dev(self, dev_client, admin_client, criar_usuario):
         outro_usuario = f"teste_dev2_{uuid.uuid4().hex[:8]}"
-        r = admin_client.post("/api/usuarios", json={
-            "usuario": outro_usuario, "senha": "senhaTeste123", "nome": "Segundo Dev", "perfil": "dev",
-        })
-        outro_id = r.json()["id"]
+        outro_id = criar_usuario(outro_usuario, nome="Segundo Dev", perfil="dev")
         tid = None
         try:
             resp = dev_client.post("/api/dev-tarefas", json={"titulo": "Pra outro dev", "atribuido_a": outro_id})
