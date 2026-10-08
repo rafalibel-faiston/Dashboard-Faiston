@@ -11,7 +11,7 @@ from app.core.auth import _is_dev, get_session
 from app.core.db import get_db
 from app.core.email import _brevo_send, _resolver_system_url, _shell_email
 
-# --- corpo ---
+
 router = APIRouter()
 
 

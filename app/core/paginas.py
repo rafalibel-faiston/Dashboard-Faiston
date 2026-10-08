@@ -4,7 +4,7 @@ Saiu do main.py na refatoração de 2026-10-08, sem mudança de comportamento.
 """
 from fastapi.responses import RedirectResponse
 
-# --- corpo ---
+
 # --- PÁGINAS ---
 # Servir o HTML sem checar sessão aqui dependia só do JS de cada página
 # (fetch /api/me + redirect) pra afastar quem não devia ver aquela tela --

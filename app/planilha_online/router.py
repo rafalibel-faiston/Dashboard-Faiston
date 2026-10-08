@@ -11,7 +11,7 @@ from app.core.auth import get_session
 from app.core.db import get_db
 from app.financeiro.router import _detect_header_row, _download_planilha, _ensure_financeiro_tables, _parse_sheet
 
-# --- corpo ---
+
 router = APIRouter()
 
 
@@ -23,7 +23,6 @@ class PlanilhaConfigModel(BaseModel):
     url: str
     mapeamento: dict
     replace_on_sync: bool = False
-
 
 
 def _apply_mapeamento(headers, rows, mapeamento):

@@ -17,7 +17,7 @@ from app.notificacoes.router import criar_notificacao
 
 logger = logging.getLogger("faiston")
 
-# --- corpo ---
+
 router = APIRouter()
 
 

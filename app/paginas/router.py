@@ -9,7 +9,7 @@ from app.core.acesso import _perfil_guia, _pode_ver_status_report
 from app.core.auth import get_session
 from app.core.paginas import _HTML_SEM_CACHE, _redirect_login_ou_home
 
-# --- corpo ---
+
 router = APIRouter()
 
 

@@ -12,7 +12,7 @@ from app.core.auth import get_session
 from app.core.db import get_db
 from app.core.paginas import _HTML_SEM_CACHE
 
-# --- corpo ---
+
 router = APIRouter()
 
 

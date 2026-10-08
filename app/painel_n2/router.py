@@ -14,7 +14,7 @@ from app.core.auth import get_session
 from app.core.db import get_db
 from app.status_campo.router import _resolver_n2
 
-# --- corpo ---
+
 router = APIRouter()
 
 

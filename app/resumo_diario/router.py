@@ -12,7 +12,7 @@ from app.core.db import get_db
 from app.core.email import _brevo_send, _resolver_system_url, _shell_email
 from app.notificacoes.router import criar_notificacao
 
-# --- corpo ---
+
 router = APIRouter()
 
 

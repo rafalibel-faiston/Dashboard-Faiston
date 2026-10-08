@@ -1,7 +1,7 @@
 """Conexão com o Postgres: pool dos requests e conexão avulsa dos jobs.
 
 Saiu do main.py (2026-10-08) pra os routers de app/ poderem usar get_db()
-sem importar o main (import circular). O main reexporta os nomes.
+sem importar o main (import circular).
 """
 import contextvars
 import logging

@@ -12,7 +12,7 @@ from app.core.agenda import _dias_bloqueados_periodo
 from app.core.auth import get_session
 from app.core.db import get_db
 
-# --- corpo ---
+
 router = APIRouter()
 
 

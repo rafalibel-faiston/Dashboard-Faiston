@@ -12,7 +12,7 @@ from app.core.auth import get_session
 from app.core.db import get_db
 from app.service_desk.db import AREA_SERVICE_DESK
 
-# --- corpo ---
+
 router = APIRouter()
 
 

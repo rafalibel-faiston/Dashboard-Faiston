@@ -14,7 +14,7 @@ from app.core.acesso import _area_usa_projetos_cur, _exigir_area_com_projeto, _t
 from app.core.auth import get_session
 from app.core.db import get_db
 
-# --- corpo ---
+
 router = APIRouter()
 
 

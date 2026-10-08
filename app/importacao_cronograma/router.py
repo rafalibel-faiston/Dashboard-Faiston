@@ -12,7 +12,7 @@ from app.core.acesso import _eh_backoffice, _pode_ver_status_report
 from app.core.auth import get_session
 from app.core.db import get_db
 
-# --- corpo ---
+
 router = APIRouter()
 
 

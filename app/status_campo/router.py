@@ -12,7 +12,7 @@ from app.core.agenda import _bloqueio_ativo, _hoje_sp
 from app.core.auth import get_session
 from app.core.db import get_db
 
-# --- corpo ---
+
 router = APIRouter()
 
 

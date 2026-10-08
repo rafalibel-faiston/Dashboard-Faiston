@@ -5,7 +5,6 @@ Saiu do main.py na refatoração de 2026-10-08, sem mudança de comportamento.
 from datetime import date, datetime, timedelta
 
 
-# --- corpo ---
 def _hoje_sp():
     """Data atual no fuso America/Sao_Paulo (mesmo usado pelo NOW() do banco)."""
     try:

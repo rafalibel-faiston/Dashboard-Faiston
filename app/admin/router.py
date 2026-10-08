@@ -12,7 +12,7 @@ from app.core.auth import get_session
 from app.core.db import get_db
 from app.tarefas.router import AtualizarSegundos
 
-# --- corpo ---
+
 router = APIRouter()
 
 

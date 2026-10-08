@@ -16,7 +16,7 @@ from app.core.auth import _senha_fraca, get_session, hash_senha
 from app.core.db import get_db
 from app.core.email import _resolver_system_url, enviar_email_acesso, enviar_email_boas_vindas
 
-# --- corpo ---
+
 router = APIRouter()
 
 

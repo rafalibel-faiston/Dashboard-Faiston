@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.core.auth import get_session, hash_senha
 from app.core.db import get_db
 
-# --- corpo ---
+
 router = APIRouter()
 
 

@@ -13,7 +13,7 @@ from app.core.db import get_db
 from app.importacao_cronograma.router import _SC_IMPORT_HEADERS, _sc_find_sheet_and_header, _sc_mapear_status, _sc_norm_header, _sc_norm_nome
 from app.status_campo.router import STATUS_CAMPO_TERMINAIS
 
-# --- corpo ---
+
 router = APIRouter()
 
 

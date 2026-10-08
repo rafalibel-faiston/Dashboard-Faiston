@@ -11,7 +11,7 @@ from app.core.acesso import _can_gestao
 from app.core.auth import get_session
 from app.core.db import get_db
 
-# --- corpo ---
+
 router = APIRouter()
 
 

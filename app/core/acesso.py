@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from app.core.db import get_db
 
-# --- corpo ---
+
 # Áreas (times) da operação. Isto aqui é só a CARGA INICIAL da tabela `areas`:
 # a lista de verdade vem do banco (times_validos()), porque desde 2026-08-28 a
 # área é cadastro editável na tela de admin -- abrir uma área nova deixou de

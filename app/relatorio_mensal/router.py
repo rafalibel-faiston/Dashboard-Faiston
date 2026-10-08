@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse
 from app.core.auth import get_session
 from app.core.db import get_db
 
-# --- corpo ---
+
 router = APIRouter()
 
 

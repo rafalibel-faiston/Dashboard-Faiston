@@ -9,7 +9,7 @@ from app.core.auth import get_session
 from app.core.db import get_db
 from app.core.paginas import _HTML_SEM_CACHE, _redirect_login_ou_home
 
-# --- corpo ---
+
 router = APIRouter()
 
 

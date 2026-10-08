@@ -6,7 +6,7 @@ import os
 
 from fastapi import Request
 
-# --- corpo ---
+
 # --- EMAIL ---
 def _resolver_system_url(request: Request = None) -> str:
     """URL base do sistema pra montar links de e-mail (definir senha, acesso etc.).

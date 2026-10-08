@@ -1,5 +1,7 @@
-"""Senha e sessão. Saiu do main.py (2026-10-08) junto com app/core/db.py;
-o main reexporta os nomes."""
+"""Senha (hash bcrypt, política) e sessão do usuário.
+
+Saiu do main.py na refatoração de 2026-10-08, junto com app/core/db.py.
+"""
 import hashlib
 import logging
 import re
