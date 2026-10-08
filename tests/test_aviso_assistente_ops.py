@@ -5,6 +5,7 @@ GET/POST /api/avisos-ops e o redirect de /ajuda preservando ?destaque=.
 import uuid
 
 import main
+from app.avisos import router as avisos
 
 
 class TestAvisoOps:
@@ -50,7 +51,7 @@ class TestAvisoOps:
         """A prévia existe justamente pra conferir antes de disparar -- se ela
         mandasse e-mail, o botão de conferir viraria um segundo disparo."""
         enviados = []
-        monkeypatch.setattr(main, "_brevo_send", lambda *a, **k: enviados.append(a))
+        monkeypatch.setattr(avisos, "_brevo_send", lambda *a, **k: enviados.append(a))
 
         resp = admin_client.get("/api/avisos-ops/previa")
         assert resp.status_code == 200, resp.text
@@ -66,7 +67,7 @@ class TestAvisoOps:
         """Os POPs ainda não estão indexados; prometer procedimento no e-mail
         de lançamento faria a pessoa perguntar e o assistente recusar (Regra 2:
         sem fonte, não responde)."""
-        corpo = main._corpo_email_aviso_ops("https://exemplo/ajuda?destaque=assistente")
+        corpo = avisos._corpo_email_aviso_ops("https://exemplo/ajuda?destaque=assistente")
         assert "procedimento" not in corpo.lower()
 
     def test_disparar_e_ler_de_volta(self, admin_client):
@@ -83,7 +84,7 @@ class TestAvisoOps:
 
     def test_disparar_agenda_envio_de_emails_em_background(self, admin_client, monkeypatch):
         chamadas = []
-        monkeypatch.setattr(main, "_enviar_emails_aviso_ops", lambda system_url: chamadas.append(system_url))
+        monkeypatch.setattr(avisos, "_enviar_emails_aviso_ops", lambda system_url: chamadas.append(system_url))
 
         resp = admin_client.post("/api/avisos-ops/disparar")
         assert resp.status_code == 200, resp.text
