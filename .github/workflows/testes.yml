@@ -48,4 +48,6 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Rodar pytest
-        run: pytest -v
+        # `python -m` põe a raiz do repo no sys.path (os testes importam
+        # `main`, `app.*` e `tests.*` direto).
+        run: python -m pytest -v
