@@ -4,6 +4,7 @@ Saiu do main.py na refatoração de 2026-10-08, sem mudança de comportamento.
 """
 from datetime import date
 
+import openpyxl
 from fastapi import APIRouter, Cookie, HTTPException
 from pydantic import BaseModel
 
@@ -90,11 +91,6 @@ def testar_planilha(pid: int, body: dict, faiston_token: str = Cookie(None)):
     """Download the file from stored/given URL and return its headers for mapping."""
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
-    global _OPENPYXL_OK, openpyxl
-    if not _OPENPYXL_OK:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
-        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
     url = body.get("url", "")
     if not url: raise HTTPException(status_code=400, detail="URL não informada")
     try:
@@ -119,11 +115,6 @@ def testar_planilha(pid: int, body: dict, faiston_token: str = Cookie(None)):
 def sincronizar_planilha(pid: int, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
-    global _OPENPYXL_OK, openpyxl
-    if not _OPENPYXL_OK:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
-        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:

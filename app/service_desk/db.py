@@ -1,31 +1,29 @@
 """Acesso a banco do Service Desk.
 
-Mesmo padrão do app/assistente/db.py: psycopg2 síncrono, uma conexão por
-chamada, schema criado de forma idempotente no boot (CREATE ... IF NOT
-EXISTS) -- o projeto não usa Alembic.
+psycopg2 síncrono, conexão via app.core.db (pool nos requests), schema
+criado de forma idempotente no boot (CREATE ... IF NOT EXISTS) -- o projeto
+não usa Alembic.
 """
 import json
 import os
 from typing import Optional
 
-import psycopg2
+from app.core.db import get_db
 
 
 def get_conn():
-    dsn = os.environ.get("DATABASE_URL")
-    if not dsn:
+    """Mesma conexão do resto do sistema (app.core.db.get_db): dentro de um
+    request vem do pool -- o painel do SD faz polling, e abrir conexão nova
+    com o Neon a cada chamada era o que mais pesava aqui --, fora dele (job,
+    setup) é conexão avulsa. Nos dois casos o fuso já é America/Sao_Paulo:
+    NOW() e as colunas TIMESTAMP (sem tz) ficam no horário da escala.
+
+    Seguro aqui porque nada no SD usa a conexão depois de devolver a resposta
+    (não há streaming lendo do banco). O assistente, que tem SSE, segue com
+    conexão própria."""
+    if not os.environ.get("DATABASE_URL"):
         return None
-    try:
-        conn = psycopg2.connect(dsn)
-        # Mesmo fuso do get_db() do main.py: NOW() e as colunas TIMESTAMP
-        # (sem tz) ficam no horário de Brasília, que é o da escala.
-        cur = conn.cursor()
-        cur.execute("SET TIME ZONE 'America/Sao_Paulo'")
-        cur.close()
-        return conn
-    except Exception as e:
-        print(f"[service_desk/db] Erro ao conectar: {e}")
-        return None
+    return get_db()
 
 
 def get_session(token: Optional[str]) -> Optional[dict]:

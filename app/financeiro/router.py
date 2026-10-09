@@ -7,6 +7,7 @@ from typing import List, Optional
 import csv
 import io
 
+import openpyxl
 from fastapi import APIRouter, Cookie, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
@@ -186,11 +187,6 @@ def salvar_base_importacao_config(body: BaseImportacaoConfig, faiston_token: str
 async def atualizar_base_importacao(faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
-    global _OPENPYXL_OK, openpyxl
-    if not _OPENPYXL_OK:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
-        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -250,11 +246,6 @@ async def atualizar_base_importacao(faiston_token: str = Cookie(None)):
 async def importar_projetos_preview(body: ImportarProjetosPreviewBody, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
-    global _OPENPYXL_OK, openpyxl
-    if not _OPENPYXL_OK:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
-        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
     try:
         content = _download_planilha(body.url)
         wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
@@ -268,11 +259,6 @@ async def importar_projetos_preview(body: ImportarProjetosPreviewBody, faiston_t
 async def importar_projetos_executar(body: ImportarProjetosBody, faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
-    global _OPENPYXL_OK, openpyxl
-    if not _OPENPYXL_OK:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
-        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:
@@ -681,13 +667,6 @@ async def parse_planilha(pid: int, file: UploadFile = File(...),
                           sheet_name: str = "", faiston_token: str = Cookie(None)):
     sess = get_session(faiston_token)
     if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
-    global _OPENPYXL_OK, openpyxl
-    if not _OPENPYXL_OK:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
-        import openpyxl as _ox
-        openpyxl = _ox
-        _OPENPYXL_OK = True
     try:
         content = await file.read()
         filename = (file.filename or "").lower()
