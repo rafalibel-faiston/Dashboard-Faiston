@@ -6,6 +6,7 @@ from datetime import date, datetime
 from typing import Optional
 import io
 
+import openpyxl
 from fastapi import APIRouter, Cookie, File, Form, HTTPException, UploadFile
 
 from app.core.acesso import _eh_backoffice, _pode_ver_status_report
@@ -96,11 +97,6 @@ async def importar_planilha_status_campo(file: UploadFile = File(...), cliente_i
     sess = get_session(faiston_token)
     if not sess or (sess["perfil"] not in ("admin", "gestor", "demo", "diretor") and not _eh_backoffice(sess)): raise HTTPException(status_code=403)
     if not _pode_ver_status_report(sess): raise HTTPException(status_code=403, detail="Status Report é restrito ao time de Projetos")
-    global _OPENPYXL_OK, openpyxl
-    if not _OPENPYXL_OK:
-        import subprocess, sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl", "-q"])
-        import openpyxl as _ox; openpyxl = _ox; _OPENPYXL_OK = True
     conn = get_db()
     if not conn: raise HTTPException(status_code=500)
     try:

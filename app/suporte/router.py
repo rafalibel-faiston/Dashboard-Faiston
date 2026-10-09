@@ -2,6 +2,7 @@
 
 Saiu do main.py na refatoração de 2026-10-08, sem mudança de comportamento.
 """
+import os
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Cookie, HTTPException, Request
@@ -26,7 +27,11 @@ class SuporteSolicitacaoModel(BaseModel):
     anexo_base64: Optional[str] = None
     anexo_nome: Optional[str] = None
 
-SUPORTE_NOTIFICAR_EMAILS = ["vinicios75soares165@gmail.com", "rafael.libel@gmail.com"]
+# Quem recebe o aviso de chamado novo/resposta: SUPORTE_NOTIFICAR_EMAILS no
+# ambiente, separado por vírgula. O default existe só pra não parar as
+# notificações até a variável ser configurada no Railway -- depois, remover.
+SUPORTE_NOTIFICAR_EMAILS = [e.strip() for e in os.environ.get(
+    "SUPORTE_NOTIFICAR_EMAILS", "vinicios75soares165@gmail.com,rafael.libel@gmail.com").split(",") if e.strip()]
 
 def _esc_html_email(s):
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
