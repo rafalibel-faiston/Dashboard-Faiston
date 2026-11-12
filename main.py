@@ -4939,7 +4939,8 @@ def previa_aviso_ops(request: Request, faiston_token: str = Cookie(None)):
     """Renderiza o e-mail de aviso exatamente como ele sai, pra conferir antes
     de disparar pra todo mundo -- só abre a página, não envia nada."""
     sess = get_session(faiston_token)
-    if not sess or sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
+    if not sess: raise HTTPException(status_code=401, detail="Não autenticado")
+    if sess["perfil"] not in ("admin", "gestor", "demo"): raise HTTPException(status_code=403)
     link_absoluto = f"{_resolver_system_url(request).rstrip('/')}/ajuda?destaque=assistente"
     html = _shell_email("Novidade no Faiston OPS", "Conheça o Assistente OPS",
                         _corpo_email_aviso_ops(link_absoluto),

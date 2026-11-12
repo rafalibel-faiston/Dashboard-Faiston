@@ -81,6 +81,22 @@ def app():
     return main.app
 
 
+def definir_senha(uid: int, senha: str):
+    """Grava a senha direto no banco e libera o primeiro acesso.
+
+    POST /api/usuarios exige `email` e não aceita mais senha vinda do admin (a
+    pessoa define pelo link de boas-vindas, que não existe no ambiente de
+    teste), então toda fixture que precisa LOGAR como o usuário criado chama
+    isto logo depois do POST.
+    """
+    import main
+    conn = main.get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE usuarios SET senha_hash=%s, primeiro_acesso=FALSE WHERE id=%s",
+                (main.hash_senha(senha), uid))
+    conn.commit(); cur.close(); conn.close()
+
+
 def login_client(app, usuario: str, senha: str):
     """TestClient logado e já com o header de CSRF armado.
 
@@ -135,10 +151,12 @@ def n2_user(admin_client):
     usuario = f"teste_n2_{uuid.uuid4().hex[:8]}"
     senha = "senhaTeste123"
     resp = admin_client.post("/api/usuarios", json={
-        "usuario": usuario, "senha": senha, "nome": "N2 Fixture Teste",
+        "usuario": usuario, "nome": "N2 Fixture Teste",
+        "email": f"{usuario}@exemplo.teste",
         "perfil": "funcionario", "cargo": "n2",
     })
     assert resp.status_code == 200, resp.text
     uid = resp.json()["id"]
+    definir_senha(uid, senha)
     yield {"id": uid, "usuario": usuario, "senha": senha}
     admin_client.delete(f"/api/usuarios/{uid}")

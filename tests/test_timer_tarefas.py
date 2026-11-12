@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from tests.test_carga_equipe import _definir_senha
+from tests.conftest import definir_senha
 
 
 def _voltar_timer(tid: int, segundos: int):
@@ -44,7 +44,7 @@ def func(app, admin_client):
     })
     assert resp.status_code == 200, resp.text
     uid = resp.json()["id"]
-    _definir_senha(uid, senha)
+    definir_senha(uid, senha)
     client = login_client(app, usuario, senha)
     tipo = client.get("/api/tipos-atividade").json()[0]["id"]
     criadas = []

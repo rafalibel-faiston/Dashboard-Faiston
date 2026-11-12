@@ -7,6 +7,7 @@ mocks, porque o app inteiro usa psycopg2 direto sem camada trocável.
 import uuid
 
 import pytest
+from tests.conftest import definir_senha
 
 
 def _payload(cliente_id, **overrides):
@@ -194,10 +195,12 @@ class TestPermissoes:
         usuario = f"teste_func_{uuid.uuid4().hex[:8]}"
         senha = "senhaTeste123"
         resp = admin_client.post("/api/usuarios", json={
-            "usuario": usuario, "senha": senha, "nome": "Funcionário de Teste", "perfil": "funcionario",
+            "usuario": usuario, "nome": "Funcionário de Teste", "perfil": "funcionario",
+            "email": f"{usuario}@exemplo.teste",
         })
         assert resp.status_code == 200, resp.text
         uid = resp.json()["id"]
+        definir_senha(uid, senha)
 
         client = TestClient(app)
         resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
@@ -226,11 +229,13 @@ class TestN2:
         usuario = f"teste_n2_{uuid.uuid4().hex[:8]}"
         senha = "senhaTeste123"
         resp = admin_client.post("/api/usuarios", json={
-            "usuario": usuario, "senha": senha, "nome": "N2 de Teste",
+            "usuario": usuario, "nome": "N2 de Teste",
+            "email": f"{usuario}@exemplo.teste",
             "perfil": "funcionario", "cargo": "n2",
         })
         assert resp.status_code == 200, resp.text
         uid = resp.json()["id"]
+        definir_senha(uid, senha)
         yield {"id": uid, "usuario": usuario, "senha": senha}
         admin_client.delete(f"/api/usuarios/{uid}")
 
@@ -343,11 +348,13 @@ class TestAcessoPorTime:
             usuario = f"teste_time_{uuid.uuid4().hex[:8]}"
             senha = "senhaTeste123"
             resp = admin_client.post("/api/usuarios", json={
-                "usuario": usuario, "senha": senha, "nome": f"Usuário {time_nome}",
+                "usuario": usuario, "nome": f"Usuário {time_nome}",
+                "email": f"{usuario}@exemplo.teste",
                 "perfil": "funcionario", "cargo": cargo, "time": time_nome,
             })
             assert resp.status_code == 200, resp.text
             criados.append(resp.json()["id"])
+            definir_senha(criados[-1], senha)
             client = TestClient(app)
             login = client.post("/api/login", json={"usuario": usuario, "senha": senha})
             assert login.status_code == 200, login.text

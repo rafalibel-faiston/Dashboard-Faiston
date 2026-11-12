@@ -6,7 +6,7 @@ import uuid
 
 import pytest
 
-from tests.test_carga_equipe import _definir_senha
+from tests.conftest import definir_senha
 
 
 @pytest.fixture()
@@ -20,7 +20,7 @@ def func_client(app, admin_client):
     })
     assert resp.status_code == 200, resp.text
     uid = resp.json()["id"]
-    _definir_senha(uid, senha)
+    definir_senha(uid, senha)
     yield login_client(app, usuario, senha)
     admin_client.delete(f"/api/usuarios/{uid}")
 
@@ -35,10 +35,19 @@ def test_historico_vem_carregado(func_client):
     assert datas == sorted(datas, reverse=True)
 
 
-def test_aviso_some_depois_de_marcar_visto(func_client):
-    assert func_client.get("/api/novidades/nao-vistas").json()["total"] >= 1
-    assert func_client.post("/api/novidades/vistas").status_code == 200
-    assert func_client.get("/api/novidades/nao-vistas").json()["total"] == 0
+def test_aviso_some_depois_de_marcar_visto(func_client, admin_client):
+    # Quem nunca abriu só enxerga o que saiu na janela recente
+    # (_NOVIDADES_JANELA_DIAS); as do seed envelhecem e saem dela, então o teste
+    # publica uma própria em vez de depender da data do seed.
+    r = admin_client.post("/api/novidades", json={"titulo": f"Teste {uuid.uuid4().hex[:6]}", "categoria": "melhoria"})
+    assert r.status_code == 200, r.text
+    nid = r.json()["id"]
+    try:
+        assert func_client.get("/api/novidades/nao-vistas").json()["total"] >= 1
+        assert func_client.post("/api/novidades/vistas").status_code == 200
+        assert func_client.get("/api/novidades/nao-vistas").json()["total"] == 0
+    finally:
+        admin_client.delete(f"/api/novidades/{nid}")
 
 
 def test_so_admin_publica_e_novidade_aparece_pra_quem_ja_tinha_visto(func_client, admin_client):

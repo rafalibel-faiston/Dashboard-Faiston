@@ -7,6 +7,7 @@ sistema (ver get_session() em main.py).
 import uuid
 
 import pytest
+from tests.conftest import definir_senha
 
 
 @pytest.fixture()
@@ -15,10 +16,12 @@ def dev_client(admin_client, app):
     usuario = f"teste_dev_{uuid.uuid4().hex[:8]}"
     senha = "senhaTeste123"
     resp = admin_client.post("/api/usuarios", json={
-        "usuario": usuario, "senha": senha, "nome": "Dev de Teste", "perfil": "dev",
+        "usuario": usuario, "nome": "Dev de Teste", "perfil": "dev",
+        "email": f"{usuario}@exemplo.teste",
     })
     assert resp.status_code == 200, resp.text
     uid = resp.json()["id"]
+    definir_senha(uid, senha)
     client = TestClient(app)
     resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
     assert resp.status_code == 200
@@ -88,8 +91,10 @@ class TestCRUD:
     def test_atribuir_a_outro_dev(self, dev_client, admin_client):
         outro_usuario = f"teste_dev2_{uuid.uuid4().hex[:8]}"
         r = admin_client.post("/api/usuarios", json={
-            "usuario": outro_usuario, "senha": "senhaTeste123", "nome": "Segundo Dev", "perfil": "dev",
+            "usuario": outro_usuario, "nome": "Segundo Dev", "perfil": "dev",
+            "email": f"{outro_usuario}@exemplo.teste",
         })
+        assert r.status_code == 200, r.text
         outro_id = r.json()["id"]
         tid = None
         try:

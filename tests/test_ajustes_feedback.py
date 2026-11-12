@@ -6,6 +6,7 @@ status improdutiva_cliente/improdutiva_faiston, e acesso de diretor.
 import uuid
 
 import pytest
+from tests.conftest import definir_senha
 
 
 def _payload(cliente_id, **overrides):
@@ -168,10 +169,12 @@ class TestAcessoDiretor:
         usuario = f"teste_diretor_{uuid.uuid4().hex[:8]}"
         senha = "senhaTeste123"
         resp = admin_client.post("/api/usuarios", json={
-            "usuario": usuario, "senha": senha, "nome": "Diretor de Teste", "perfil": "diretor",
+            "usuario": usuario, "nome": "Diretor de Teste", "perfil": "diretor",
+            "email": f"{usuario}@exemplo.teste",
         })
         assert resp.status_code == 200, resp.text
         uid = resp.json()["id"]
+        definir_senha(uid, senha)
         client = TestClient(app)
         resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
         assert resp.status_code == 200
@@ -190,8 +193,10 @@ class TestAcessoDiretor:
     def test_diretor_pode_criar_escala(self, diretor_client, admin_client):
         usuario = f"teste_n2_dir_{uuid.uuid4().hex[:8]}"
         r = admin_client.post("/api/usuarios", json={
-            "usuario": usuario, "senha": "senhaTeste123", "nome": "N2 pra Diretor", "perfil": "n2",
+            "usuario": usuario, "nome": "N2 pra Diretor",
+            "perfil": "funcionario", "cargo": "n2", "email": f"{usuario}@exemplo.teste",
         })
+        assert r.status_code == 200, r.text
         uid = r.json()["id"]
         try:
             resp = diretor_client.post("/api/escala-n2", json={"data": "2026-07-21", "n2_usuario_id": uid})

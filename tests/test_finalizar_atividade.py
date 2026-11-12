@@ -37,7 +37,8 @@ class TestEmAndamentoExigeDescricao:
         aid = admin_client.post("/api/status-campo", json=_payload(cliente_teste)).json()["id"]
         try:
             resp = admin_client.patch(f"/api/status-campo/{aid}/status", json={
-                "status": "em_andamento", "andamento_descricao": "Aguardando liberação de acesso ao rack",
+                "status": "em_andamento", "localizacao": "no_local",
+                "andamento_descricao": "Aguardando liberação de acesso ao rack",
             })
             assert resp.status_code == 200, resp.text
             item = admin_client.get(f"/api/status-campo/{aid}").json()

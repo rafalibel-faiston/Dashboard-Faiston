@@ -8,17 +8,7 @@ from datetime import date, timedelta
 
 import pytest
 
-
-def _definir_senha(uid: int, senha: str):
-    """O cadastro de usuário não aceita mais senha vinda do admin (a pessoa
-    define pelo link de boas-vindas), então o teste grava o hash direto pra
-    conseguir logar como ela."""
-    import main
-    conn = main.get_db()
-    cur = conn.cursor()
-    cur.execute("UPDATE usuarios SET senha_hash=%s, primeiro_acesso=FALSE WHERE id=%s",
-                (main.hash_senha(senha), uid))
-    conn.commit(); cur.close(); conn.close()
+from tests.conftest import definir_senha
 
 
 def _tipo_por_peso(client, peso: int) -> int:
@@ -45,7 +35,7 @@ def pessoa(admin_client):
     })
     assert resp.status_code == 200, resp.text
     uid = resp.json()["id"]
-    _definir_senha(uid, senha)
+    definir_senha(uid, senha)
     criadas = []
 
     def criar(peso: int, dias_prazo: int = 30, status: str = "aberto"):
