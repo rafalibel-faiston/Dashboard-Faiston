@@ -114,6 +114,10 @@
         .sc-card[draggable="false"] { cursor: default; }
         .dev-col-drop.drag-over, .sc-col-drop.drag-over { background: #F0F4FF; border-color: #5B2EE0; }
         .dev-card.atrasada { border-color: #EC4899 !important; }
+        /* Cada coluna rola sozinha: Concluído/Backlog longos não empurram o resto da tela */
+        .dev-lista { max-height: calc(100vh - 330px); min-height: 120px; }
+        .dev-drop-line { height: 3px; border-radius: 2px; background: #5B2EE0; margin: 2px 0; box-shadow: 0 0 0 2px rgba(91,46,224,.15); }
+        .dev-card .dev-linha-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
         /* ── Passada visual (2026-07-28): tipografia de destaque + cards vivos ── */
         /* Space Grotesk já era importado mas nunca usado -- aplicado nos títulos
@@ -2958,11 +2962,20 @@
 
     <!-- ABA PLANEJAMENTO (kanban privado da equipe dev) -->
     <div id="dev-planejamento" class="hidden">
+        <div id="dev-resumo" class="flex flex-wrap items-center gap-2 mb-3"></div>
         <div class="flex flex-wrap items-center gap-2 mb-4">
-            <select id="dev-f-atribuido" onchange="devkRenderBoard()" class="text-xs border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
+            <div class="relative">
+                <i class="ph ph-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                <input type="search" id="dev-f-busca" placeholder="Buscar tarefa, tag ou descrição..." oninput="devkFiltroMudou()"
+                    class="text-xs border border-faiston-border rounded-lg pl-7 pr-2 py-1.5 w-60 bg-white focus:outline-none focus:border-faiston-purple">
+            </div>
+            <select id="dev-f-tag" onchange="devkFiltroMudou()" class="text-xs border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
+                <option value="">Todas as tags</option>
+            </select>
+            <select id="dev-f-atribuido" onchange="devkFiltroMudou()" class="text-xs border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
                 <option value="">Todos os responsáveis</option>
             </select>
-            <select id="dev-f-prioridade" onchange="devkRenderBoard()" class="text-xs border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
+            <select id="dev-f-prioridade" onchange="devkFiltroMudou()" class="text-xs border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
                 <option value="">Todas prioridades</option>
                 <option value="urgente">🔴 Urgente</option>
                 <option value="alta">🟠 Alta</option>
@@ -2970,41 +2983,74 @@
                 <option value="baixa">🟢 Baixa</option>
             </select>
             <label class="flex items-center gap-1.5 text-xs text-slate-500 ml-1">
-                <input type="checkbox" id="dev-f-atrasadas" onchange="devkRenderBoard()"> Só atrasadas
+                <input type="checkbox" id="dev-f-atrasadas" onchange="devkFiltroMudou()"> Só atrasadas
             </label>
+            <button id="dev-f-limpar" onclick="devkLimparFiltros()" class="hidden text-xs font-semibold text-faiston-purple hover:underline flex items-center gap-1"><i class="ph ph-x-circle"></i> Limpar filtros</button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="dev-board">
-            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors" data-status="backlog">
+            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors flex flex-col" data-status="backlog">
                 <div class="flex items-center gap-2 mb-3 px-1">
                     <span class="w-2 h-2 rounded-full bg-slate-300"></span>
                     <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Backlog</span>
                     <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="dev-count-backlog">0</span>
+                    <button onclick="devkQuickAddAbrir('backlog')" title="Adicionar tarefa em Backlog" class="w-5 h-5 rounded-md text-slate-400 hover:text-faiston-purple hover:bg-faiston-purple/10 flex items-center justify-center transition-colors"><i class="ph ph-plus text-xs"></i></button>
                 </div>
-                <div class="space-y-2 min-h-[120px]" id="dev-lista-backlog"></div>
+                <div id="dev-qa-backlog" class="hidden mb-2">
+                    <input type="text" maxlength="200" placeholder="Nova tarefa no Backlog..."
+                        onkeydown="devkQuickAddKey(event, 'backlog')"
+                        onblur="if(!this.value.trim()) devkQuickAddFechar('backlog')"
+                        class="w-full px-2.5 py-2 border border-faiston-purple/40 rounded-lg text-xs focus:outline-none focus:border-faiston-purple bg-white">
+                    <p class="text-[10px] text-slate-400 mt-1 px-0.5">Enter adiciona · Esc fecha</p>
+                </div>
+                <div class="dev-lista space-y-2 min-h-[120px] overflow-y-auto custom-scrollbar pr-0.5" id="dev-lista-backlog"></div>
             </div>
-            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors" data-status="todo">
+            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors flex flex-col" data-status="todo">
                 <div class="flex items-center gap-2 mb-3 px-1">
                     <span class="w-2 h-2 rounded-full bg-slate-400"></span>
                     <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">A Fazer</span>
                     <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="dev-count-todo">0</span>
+                    <button onclick="devkQuickAddAbrir('todo')" title="Adicionar tarefa em A Fazer" class="w-5 h-5 rounded-md text-slate-400 hover:text-faiston-purple hover:bg-faiston-purple/10 flex items-center justify-center transition-colors"><i class="ph ph-plus text-xs"></i></button>
                 </div>
-                <div class="space-y-2 min-h-[120px]" id="dev-lista-todo"></div>
+                <div id="dev-qa-todo" class="hidden mb-2">
+                    <input type="text" maxlength="200" placeholder="Nova tarefa em A Fazer..."
+                        onkeydown="devkQuickAddKey(event, 'todo')"
+                        onblur="if(!this.value.trim()) devkQuickAddFechar('todo')"
+                        class="w-full px-2.5 py-2 border border-faiston-purple/40 rounded-lg text-xs focus:outline-none focus:border-faiston-purple bg-white">
+                    <p class="text-[10px] text-slate-400 mt-1 px-0.5">Enter adiciona · Esc fecha</p>
+                </div>
+                <div class="dev-lista space-y-2 min-h-[120px] overflow-y-auto custom-scrollbar pr-0.5" id="dev-lista-todo"></div>
             </div>
-            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors" data-status="doing">
+            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors flex flex-col" data-status="doing">
                 <div class="flex items-center gap-2 mb-3 px-1">
                     <span class="w-2 h-2 rounded-full bg-faiston-cyan"></span>
                     <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Em Progresso</span>
                     <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="dev-count-doing">0</span>
+                    <button onclick="devkQuickAddAbrir('doing')" title="Adicionar tarefa em Em Progresso" class="w-5 h-5 rounded-md text-slate-400 hover:text-faiston-purple hover:bg-faiston-purple/10 flex items-center justify-center transition-colors"><i class="ph ph-plus text-xs"></i></button>
                 </div>
-                <div class="space-y-2 min-h-[120px]" id="dev-lista-doing"></div>
+                <div id="dev-qa-doing" class="hidden mb-2">
+                    <input type="text" maxlength="200" placeholder="Nova tarefa em Progresso..."
+                        onkeydown="devkQuickAddKey(event, 'doing')"
+                        onblur="if(!this.value.trim()) devkQuickAddFechar('doing')"
+                        class="w-full px-2.5 py-2 border border-faiston-purple/40 rounded-lg text-xs focus:outline-none focus:border-faiston-purple bg-white">
+                    <p class="text-[10px] text-slate-400 mt-1 px-0.5">Enter adiciona · Esc fecha</p>
+                </div>
+                <div class="dev-lista space-y-2 min-h-[120px] overflow-y-auto custom-scrollbar pr-0.5" id="dev-lista-doing"></div>
             </div>
-            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors" data-status="done">
+            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors flex flex-col" data-status="done">
                 <div class="flex items-center gap-2 mb-3 px-1">
                     <span class="w-2 h-2 rounded-full bg-faiston-purple"></span>
                     <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Concluído</span>
                     <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="dev-count-done">0</span>
+                    <button onclick="devkQuickAddAbrir('done')" title="Adicionar tarefa em Concluído" class="w-5 h-5 rounded-md text-slate-400 hover:text-faiston-purple hover:bg-faiston-purple/10 flex items-center justify-center transition-colors"><i class="ph ph-plus text-xs"></i></button>
                 </div>
-                <div class="space-y-2 min-h-[120px]" id="dev-lista-done"></div>
+                <div id="dev-qa-done" class="hidden mb-2">
+                    <input type="text" maxlength="200" placeholder="Registrar tarefa já concluída..."
+                        onkeydown="devkQuickAddKey(event, 'done')"
+                        onblur="if(!this.value.trim()) devkQuickAddFechar('done')"
+                        class="w-full px-2.5 py-2 border border-faiston-purple/40 rounded-lg text-xs focus:outline-none focus:border-faiston-purple bg-white">
+                    <p class="text-[10px] text-slate-400 mt-1 px-0.5">Enter adiciona · Esc fecha</p>
+                </div>
+                <div class="dev-lista space-y-2 min-h-[120px] overflow-y-auto custom-scrollbar pr-0.5" id="dev-lista-done"></div>
             </div>
         </div>
     </div>
@@ -3293,8 +3339,9 @@ async function suporteEnviar() {
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="text-xs font-semibold text-slate-500 mb-1 block">Tags (separadas por vírgula)</label>
-                    <input type="text" id="dev-m-tags" placeholder="bug, backend, urgente"
+                    <input type="text" id="dev-m-tags" placeholder="bug, backend, urgente" oninput="devkRenderTagSugestoes()"
                         class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple">
+                    <div id="dev-m-tags-sug" class="flex flex-wrap gap-1 mt-1.5"></div>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 mb-1 block">Link (PR/commit/issue)</label>
@@ -3342,6 +3389,7 @@ async function suporteEnviar() {
                     <button onclick="devkAdicionarComentario()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">Enviar</button>
                 </div>
             </div>
+            <p id="dev-m-meta" class="hidden text-[11px] text-faiston-faint border-t border-faiston-border pt-3"></p>
         </div>
         <div class="px-6 py-4 border-t border-faiston-border flex items-center gap-2 shrink-0">
             <button onclick="devkDeletarTarefaModal()" id="dev-btn-deletar-tarefa" class="hidden text-xs font-semibold text-faiston-pink hover:opacity-80 transition-opacity flex items-center gap-1">
@@ -6655,6 +6703,7 @@ function devSetTab(tab) {
         if (!_devPlanCarregado) {
             _devPlanCarregado = true;
             devkConfigurarDropZones();
+            devkAplicarFiltrosNoDom();
             devkCarregarUsuarios();
         }
         devkCarregarTarefas();
@@ -6857,7 +6906,12 @@ function devkEscapeHtml(s) {
 
 function devkIniciais(nome) { return (nome || '?').charAt(0).toUpperCase(); }
 
-function devkHoje() { return new Date().toISOString().slice(0, 10); }
+function devkHoje() {
+    // Data local, não UTC: toISOString() vira "amanhã" depois das 21h em Brasília
+    // e marcaria como atrasada uma tarefa que vence hoje.
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 async function devkCarregarUsuarios() {
     try {
@@ -6867,6 +6921,9 @@ async function devkCarregarUsuarios() {
         const opts = devkUsuarios.map(u => `<option value="${u.id}">${devkEscapeHtml(u.nome)}</option>`).join('');
         document.getElementById('dev-m-atribuido').innerHTML = '<option value="">Ninguém</option>' + opts;
         document.getElementById('dev-f-atribuido').innerHTML = '<option value="">Todos os responsáveis</option>' + opts;
+        document.getElementById('dev-f-atribuido').value = devkFiltros.atrib;
+        // responsável salvo que não existe mais (usuário inativado): solta o filtro
+        if (document.getElementById('dev-f-atribuido').value !== devkFiltros.atrib) devkFiltros.atrib = '';
     } catch (e) {}
 }
 
@@ -6879,91 +6936,397 @@ async function devkCarregarTarefas() {
     } catch (e) {}
 }
 
-function devkRenderBoard() {
-    const filtroAtrib = document.getElementById('dev-f-atribuido').value;
-    const filtroPrio = document.getElementById('dev-f-prioridade').value;
-    const soAtrasadas = document.getElementById('dev-f-atrasadas').checked;
-    const hoje = devkHoje();
-    let lista = devkTarefas || [];
-    if (filtroAtrib) lista = lista.filter(t => String(t.atribuido_a) === filtroAtrib);
-    if (filtroPrio) lista = lista.filter(t => t.prioridade === filtroPrio);
-    if (soAtrasadas) lista = lista.filter(t => t.prazo && t.prazo < hoje && t.status !== 'done');
+// ── Filtros (persistem no navegador entre visitas) ──
+const DEVK_FILTROS_KEY = 'devk_filtros_v1';
+const DEVK_CONCLUIDAS_DIAS = 14;
+const DEVK_STATUSES = ['backlog', 'todo', 'doing', 'done'];
+let devkMostrarTodasConcluidas = false;
+let devkTagsChave = null;   // pra só reconstruir o <select> de tags quando o conjunto muda
 
-    ['backlog', 'todo', 'doing', 'done'].forEach(status => {
-        const doStatus = lista.filter(t => t.status === status);
-        document.getElementById('dev-count-' + status).textContent = doStatus.length;
-        const el = document.getElementById('dev-lista-' + status);
-        if (!doStatus.length) {
-            el.innerHTML = `<div class="text-xs text-slate-300 text-center py-6">Sem tarefas</div>`;
-            return;
+function devkFiltrosSalvos() {
+    const vazio = { busca: '', tag: '', atrib: '', prio: '', atrasadas: false };
+    try { return Object.assign(vazio, JSON.parse(localStorage.getItem(DEVK_FILTROS_KEY) || '{}')); }
+    catch (e) { return vazio; }
+}
+let devkFiltros = devkFiltrosSalvos();
+
+function devkFiltrosAtivos() {
+    const f = devkFiltros;
+    return !!(f.busca || f.tag || f.atrib || f.prio || f.atrasadas);
+}
+
+// Estado -> campos da tela (chamado depois de reconstruir os <select>).
+function devkAplicarFiltrosNoDom() {
+    const f = devkFiltros;
+    document.getElementById('dev-f-busca').value = f.busca;
+    document.getElementById('dev-f-tag').value = f.tag;
+    document.getElementById('dev-f-atribuido').value = f.atrib;
+    document.getElementById('dev-f-prioridade').value = f.prio;
+    document.getElementById('dev-f-atrasadas').checked = !!f.atrasadas;
+}
+
+// Campos da tela -> estado (onchange/oninput dos filtros).
+function devkFiltroMudou() {
+    devkFiltros = {
+        busca: document.getElementById('dev-f-busca').value.trim(),
+        tag: document.getElementById('dev-f-tag').value,
+        atrib: document.getElementById('dev-f-atribuido').value,
+        prio: document.getElementById('dev-f-prioridade').value,
+        atrasadas: document.getElementById('dev-f-atrasadas').checked,
+    };
+    try { localStorage.setItem(DEVK_FILTROS_KEY, JSON.stringify(devkFiltros)); } catch (e) {}
+    devkRenderBoard();
+}
+
+function devkLimparFiltros() {
+    devkFiltros = { busca: '', tag: '', atrib: '', prio: '', atrasadas: false };
+    devkAplicarFiltrosNoDom();
+    devkFiltroMudou();
+}
+
+function devkToggleAtrasadas() {
+    document.getElementById('dev-f-atrasadas').checked = !document.getElementById('dev-f-atrasadas').checked;
+    devkFiltroMudou();
+}
+
+// ── Tags: as já usadas viram filtro e sugestão (evita "Dispatcher" x "Dispacher") ──
+const DEVK_TAG_CORES = [
+    'bg-violet-100 text-violet-700', 'bg-sky-100 text-sky-700', 'bg-emerald-100 text-emerald-700',
+    'bg-rose-100 text-rose-700', 'bg-amber-100 text-amber-700', 'bg-teal-100 text-teal-700',
+    'bg-fuchsia-100 text-fuchsia-700', 'bg-indigo-100 text-indigo-700',
+];
+function devkCorTag(tag) {
+    let h = 0;
+    const s = tag.toLowerCase();
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return DEVK_TAG_CORES[h % DEVK_TAG_CORES.length];
+}
+
+// Tags distintas (sem diferenciar maiúscula/minúscula), mais usadas primeiro.
+function devkTodasAsTags() {
+    const mapa = new Map();
+    (devkTarefas || []).forEach(t => (t.tags || []).forEach(tg => {
+        const k = tg.toLowerCase();
+        const atual = mapa.get(k);
+        if (atual) atual.n++; else mapa.set(k, { tag: tg, n: 1 });
+    }));
+    return [...mapa.values()].sort((a, b) => b.n - a.n || a.tag.localeCompare(b.tag)).map(x => x.tag);
+}
+
+function devkAtualizarSelectTags() {
+    const tags = devkTodasAsTags();
+    const chave = tags.join('\u0001');
+    const sel = document.getElementById('dev-f-tag');
+    if (chave !== devkTagsChave) {
+        devkTagsChave = chave;
+        sel.innerHTML = '<option value="">Todas as tags</option>' +
+            tags.map(tg => `<option value="${escHtml(tg)}">${escHtml(tg)}</option>`).join('');
+    }
+    // tag filtrada que não existe mais (tarefas apagadas/editadas): solta o filtro
+    if (devkFiltros.tag && !tags.some(tg => tg.toLowerCase() === devkFiltros.tag.toLowerCase())) devkFiltros.tag = '';
+    else if (devkFiltros.tag) {
+        const exata = tags.find(tg => tg.toLowerCase() === devkFiltros.tag.toLowerCase());
+        devkFiltros.tag = exata;
+    }
+    sel.value = devkFiltros.tag;
+}
+
+function devkRenderTagSugestoes() {
+    const el = document.getElementById('dev-m-tags-sug');
+    if (!el) return;
+    const noCampo = document.getElementById('dev-m-tags').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    el.innerHTML = devkTodasAsTags().slice(0, 14).map(tg => {
+        const on = noCampo.includes(tg.toLowerCase());
+        return `<button type="button" data-tag="${escHtml(tg)}" onclick="devkToggleTagModal(this.dataset.tag)"
+            class="text-[10px] font-semibold px-1.5 py-0.5 rounded border transition-colors ${on ? 'bg-faiston-purple text-white border-faiston-purple' : 'bg-white text-slate-500 border-faiston-border hover:border-faiston-purple'}">${escHtml(tg)}</button>`;
+    }).join('');
+}
+
+function devkToggleTagModal(tag) {
+    const inp = document.getElementById('dev-m-tags');
+    const atual = inp.value.split(',').map(s => s.trim()).filter(Boolean);
+    const i = atual.findIndex(x => x.toLowerCase() === tag.toLowerCase());
+    if (i >= 0) atual.splice(i, 1); else atual.push(tag);
+    inp.value = atual.join(', ');
+    devkRenderTagSugestoes();
+}
+
+// ── Prazo / conclusão ──
+function devkDiasAte(dataIso, hoje) {
+    return Math.round((Date.parse(dataIso) - Date.parse(hoje)) / 86400000);
+}
+
+function devkFmtData(dataIso, hoje) {
+    const [a, m, d] = dataIso.split('-');
+    return a === hoje.slice(0, 4) ? `${d}/${m}` : `${d}/${m}/${a}`;
+}
+
+function devkInfoDataCard(t, hoje) {
+    if (t.status === 'done') {
+        if (!t.concluido_em) return null;
+        return { txt: 'Concluída ' + devkFmtData(t.concluido_em.slice(0, 10), hoje), cls: 'text-emerald-600', atrasada: false };
+    }
+    if (!t.prazo) return null;
+    const d = devkDiasAte(t.prazo, hoje);
+    if (d < 0) return { txt: `⚠ Atrasada há ${-d}d`, cls: 'text-faiston-pink font-semibold', atrasada: true };
+    if (d === 0) return { txt: 'Vence hoje', cls: 'text-amber-600 font-semibold', atrasada: false };
+    if (d === 1) return { txt: 'Vence amanhã', cls: 'text-amber-600', atrasada: false };
+    return { txt: devkFmtData(t.prazo, hoje), cls: 'text-slate-400', atrasada: false };
+}
+
+// ── Colunas ──
+// Backlog/A Fazer/Em Progresso seguem a ordem manual; Concluído mostra as mais recentes primeiro.
+function devkColunaOrdenada(status) {
+    return (devkTarefas || []).filter(t => t.status === status).sort((a, b) =>
+        status === 'done'
+            ? (b.concluido_em || '').localeCompare(a.concluido_em || '') || b.id - a.id
+            : (a.ordem - b.ordem) || (a.id - b.id));
+}
+
+function devkPassaNosFiltros(t, hoje) {
+    const f = devkFiltros;
+    if (f.atrib && String(t.atribuido_a) !== f.atrib) return false;
+    if (f.prio && t.prioridade !== f.prio) return false;
+    if (f.tag && !(t.tags || []).some(tg => tg.toLowerCase() === f.tag.toLowerCase())) return false;
+    if (f.atrasadas && !(t.prazo && t.prazo < hoje && t.status !== 'done')) return false;
+    if (f.busca) {
+        const q = f.busca.toLowerCase();
+        const palheiro = [t.titulo, t.descricao, (t.tags || []).join(' '), t.atribuido_a_nome].join(' ').toLowerCase();
+        if (!palheiro.includes(q)) return false;
+    }
+    return true;
+}
+
+function devkCardHtml(t, hoje) {
+    const prio = DEVK_PRIO_CFG[t.prioridade] || DEVK_PRIO_CFG.media;
+    const info = devkInfoDataCard(t, hoje);
+    const atrasada = !!(info && info.atrasada);
+    const pausada = !!(t.status === 'todo' && t.pausado);
+    const tagsHtml = (t.tags || []).map(tg => `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${devkCorTag(tg)}">${escHtml(tg)}</span>`).join(' ');
+    const checklistBadge = t.checklist_total ? `<span class="text-[10px] ${t.checklist_concluidos === t.checklist_total ? 'text-emerald-600' : 'text-slate-400'} flex items-center gap-0.5"><i class="ph ph-check-square"></i>${t.checklist_concluidos}/${t.checklist_total}</span>` : '';
+    const comentBadge = t.comentarios_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-chat-circle"></i>${t.comentarios_total}</span>` : '';
+    const linkBadge = /^https?:\/\//i.test(t.link || '') ? `<a href="${escHtml(t.link)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${escHtml(t.link)}" class="text-[10px] text-slate-400 hover:text-faiston-purple flex items-center gap-0.5"><i class="ph ph-link"></i></a>` : '';
+    const acoesRapidas = t.status === 'done' ? '' : t.status === 'doing' ? `
+        <div class="flex gap-1.5 mt-2">
+            <button onclick="devkAcaoRapida(event, ${t.id}, 'todo', true)" class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"><i class="ph ph-pause"></i>Pausar</button>
+            <button onclick="devkAcaoRapida(event, ${t.id}, 'done', false)" class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"><i class="ph ph-check-circle"></i>Finalizar</button>
+        </div>` : `
+        <div class="mt-2">
+            <button onclick="devkAcaoRapida(event, ${t.id}, 'doing', false)" class="w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-faiston-purple text-white hover:opacity-90 transition-opacity"><i class="ph ph-play"></i>Iniciar</button>
+        </div>`;
+    return `
+    <div class="dev-card bg-white border ${atrasada ? 'atrasada' : (pausada ? 'border-amber-300' : 'border-faiston-border')} rounded-xl p-3 ${t.status === 'done' ? 'opacity-80' : ''}" draggable="true" data-id="${t.id}" onclick="devkAbrirModal(${t.id})">
+        <div class="flex items-center gap-1.5 mb-1.5 flex-wrap">
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${prio.cls}">${prio.label}</span>
+            ${pausada ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-0.5"><i class="ph ph-pause"></i>Pausado</span>` : ''}
+            ${info ? `<span class="text-[10px] ${info.cls}">${info.txt}</span>` : ''}
+        </div>
+        <p class="text-sm font-semibold text-faiston-dark leading-snug mb-1.5 ${t.status === 'done' ? 'line-through decoration-slate-300' : ''}">${escHtml(t.titulo)}</p>
+        ${t.descricao ? `<p class="text-xs text-slate-500 leading-snug mb-2 dev-linha-clamp">${escHtml(t.descricao)}</p>` : ''}
+        ${tagsHtml ? `<div class="flex flex-wrap gap-1 mb-2">${tagsHtml}</div>` : ''}
+        <div class="flex items-center justify-between mt-2">
+            <div class="flex items-center gap-2">${checklistBadge}${comentBadge}${linkBadge}</div>
+            ${t.atribuido_a_nome ? `<div class="w-6 h-6 rounded-full grad-bg flex items-center justify-center text-white text-[10px] font-bold" title="${escHtml(t.atribuido_a_nome)}">${devkIniciais(t.atribuido_a_nome)}</div>` : ''}
+        </div>
+        ${acoesRapidas}
+    </div>`;
+}
+
+function devkRenderResumo(hoje) {
+    const abertas = (devkTarefas || []).filter(t => t.status !== 'done');
+    const emProgresso = abertas.filter(t => t.status === 'doing').length;
+    const atrasadas = abertas.filter(t => t.prazo && t.prazo < hoje).length;
+    const venceHoje = abertas.filter(t => t.prazo === hoje).length;
+    const semana = (devkTarefas || []).filter(t => t.status === 'done' && t.concluido_em && (Date.now() - new Date(t.concluido_em).getTime()) <= 7 * 86400000).length;
+    const chip = (n, rotulo, cls, onclick) => `<${onclick ? 'button onclick="' + onclick + '"' : 'span'} class="text-[11px] px-2.5 py-1 rounded-full border ${cls} ${onclick ? 'hover:opacity-80 transition-opacity' : ''}"><b>${n}</b> ${rotulo}</${onclick ? 'button' : 'span'}>`;
+    document.getElementById('dev-resumo').innerHTML =
+        chip(abertas.length, 'em aberto', 'bg-white border-faiston-border text-slate-600') +
+        chip(emProgresso, 'em progresso', 'bg-faiston-cyan/10 border-faiston-cyan/30 text-faiston-dark') +
+        (venceHoje ? chip(venceHoje, venceHoje === 1 ? 'vence hoje' : 'vencem hoje', 'bg-amber-50 border-amber-200 text-amber-700') : '') +
+        (atrasadas ? chip(atrasadas, atrasadas === 1 ? 'atrasada' : 'atrasadas', 'bg-faiston-pink/10 border-faiston-pink/30 text-faiston-pink', 'devkToggleAtrasadas()') : '') +
+        chip(semana, semana === 1 ? 'concluída na semana' : 'concluídas na semana', 'bg-emerald-50 border-emerald-200 text-emerald-700');
+}
+
+function devkRenderBoard() {
+    const hoje = devkHoje();
+    devkAtualizarSelectTags();
+    devkRenderResumo(hoje);
+    const filtrando = devkFiltrosAtivos();
+    document.getElementById('dev-f-limpar').classList.toggle('hidden', !filtrando);
+
+    DEVK_STATUSES.forEach(status => {
+        let doStatus = devkColunaOrdenada(status).filter(t => devkPassaNosFiltros(t, hoje));
+        const total = doStatus.length;
+        // Concluído: sem filtro, só as dos últimos dias (a coluna crescia sem fim).
+        let escondidas = 0;
+        if (status === 'done' && !filtrando && !devkMostrarTodasConcluidas) {
+            const corte = Date.now() - DEVK_CONCLUIDAS_DIAS * 86400000;
+            const recentes = doStatus.filter(t => !t.concluido_em || new Date(t.concluido_em).getTime() >= corte);
+            escondidas = doStatus.length - recentes.length;
+            doStatus = recentes;
         }
-        el.innerHTML = doStatus.map(t => {
-            const prio = DEVK_PRIO_CFG[t.prioridade] || DEVK_PRIO_CFG.media;
-            const atrasada = !!(t.prazo && t.prazo < hoje && t.status !== 'done');
-            const pausada = !!(t.status === 'todo' && t.pausado);
-            const prazoLabel = t.prazo ? t.prazo.split('-').reverse().join('/') : '';
-            const tagsHtml = (t.tags || []).map(tg => `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${devkEscapeHtml(tg)}</span>`).join(' ');
-            const checklistBadge = t.checklist_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-check-square"></i>${t.checklist_concluidos}/${t.checklist_total}</span>` : '';
-            const comentBadge = t.comentarios_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-chat-circle"></i>${t.comentarios_total}</span>` : '';
-            const acoesRapidas = t.status === 'done' ? '' : t.status === 'doing' ? `
-                <div class="flex gap-1.5 mt-2">
-                    <button onclick="devkAcaoRapida(event, ${t.id}, 'todo', true)" class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"><i class="ph ph-pause"></i>Pausar</button>
-                    <button onclick="devkAcaoRapida(event, ${t.id}, 'done', false)" class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"><i class="ph ph-check-circle"></i>Finalizar</button>
-                </div>` : `
-                <div class="mt-2">
-                    <button onclick="devkAcaoRapida(event, ${t.id}, 'doing', false)" class="w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-faiston-purple text-white hover:opacity-90 transition-opacity"><i class="ph ph-play"></i>Iniciar</button>
-                </div>`;
-            return `
-            <div class="dev-card bg-white border ${atrasada ? 'atrasada' : (pausada ? 'border-amber-300' : 'border-faiston-border')} rounded-xl p-3" draggable="true" data-id="${t.id}" onclick="devkAbrirModal(${t.id})">
-                <div class="flex items-center gap-1.5 mb-1.5">
-                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${prio.cls}">${prio.label}</span>
-                    ${pausada ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-0.5"><i class="ph ph-pause"></i>Pausado</span>` : ''}
-                    ${prazoLabel ? `<span class="text-[10px] ${atrasada ? 'text-faiston-pink font-semibold' : 'text-slate-400'}">${atrasada ? '⚠ ' : ''}${prazoLabel}</span>` : ''}
-                </div>
-                <p class="text-sm font-semibold text-faiston-dark leading-snug mb-1.5">${devkEscapeHtml(t.titulo)}</p>
-                ${t.descricao ? `<p class="text-xs text-slate-500 leading-snug mb-2 line-clamp-2">${devkEscapeHtml(t.descricao)}</p>` : ''}
-                ${tagsHtml ? `<div class="flex flex-wrap gap-1 mb-2">${tagsHtml}</div>` : ''}
-                <div class="flex items-center justify-between mt-2">
-                    <div class="flex items-center gap-2">${checklistBadge}${comentBadge}</div>
-                    ${t.atribuido_a_nome ? `<div class="w-6 h-6 rounded-full grad-bg flex items-center justify-center text-white text-[10px] font-bold" title="${devkEscapeHtml(t.atribuido_a_nome)}">${devkIniciais(t.atribuido_a_nome)}</div>` : ''}
-                </div>
-                ${acoesRapidas}
-            </div>`;
-        }).join('');
+        document.getElementById('dev-count-' + status).textContent = total;
+        const el = document.getElementById('dev-lista-' + status);
+        let html = doStatus.length
+            ? doStatus.map(t => devkCardHtml(t, hoje)).join('')
+            : `<div class="dev-vazio text-xs text-slate-300 text-center py-6">${filtrando ? 'Nada com esses filtros' : 'Sem tarefas'}</div>`;
+        if (status === 'done' && escondidas > 0) {
+            html += `<button onclick="devkToggleConcluidas()" class="w-full text-[11px] font-semibold text-faiston-purple hover:underline py-2">Mostrar mais ${escondidas} concluída${escondidas === 1 ? '' : 's'} (antes de ${DEVK_CONCLUIDAS_DIAS} dias)</button>`;
+        } else if (status === 'done' && devkMostrarTodasConcluidas && !filtrando && total > 0) {
+            html += `<button onclick="devkToggleConcluidas()" class="w-full text-[11px] font-semibold text-slate-400 hover:text-faiston-purple py-2">Mostrar só as recentes</button>`;
+        }
+        el.innerHTML = html;
     });
+
     document.querySelectorAll('.dev-card').forEach(card => {
         card.addEventListener('dragstart', (e) => {
             devkDragTaskId = parseInt(card.dataset.id);
             card.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', card.dataset.id); } catch (err) {}  // Firefox só inicia o drag com dados
             e.stopPropagation();
         });
-        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+            devkLimparLinhaDrop();
+            document.querySelectorAll('.dev-col-drop.drag-over').forEach(z => z.classList.remove('drag-over'));
+            devkDragTaskId = null;
+        });
     });
+}
+
+function devkToggleConcluidas() {
+    devkMostrarTodasConcluidas = !devkMostrarTodasConcluidas;
+    devkRenderBoard();
+}
+
+// ── Drag-and-drop com posição ──
+// id do card ANTES do qual o item cairia (null = fim da coluna).
+function devkAlvoDrop(zona, y) {
+    const cards = [...zona.querySelectorAll('.dev-card:not(.dragging)')];
+    for (const c of cards) {
+        const r = c.getBoundingClientRect();
+        if (y < r.top + r.height / 2) return parseInt(c.dataset.id);
+    }
+    return null;
+}
+
+function devkLimparLinhaDrop() {
+    const l = document.getElementById('dev-drop-line');
+    if (l) l.remove();
+}
+
+function devkMostrarLinhaDrop(zona, y) {
+    // Concluído é sempre ordenado por data -- posição manual não faz sentido ali.
+    if (zona.dataset.status === 'done') { devkLimparLinhaDrop(); return; }
+    const lista = zona.querySelector('.dev-lista');
+    let linha = document.getElementById('dev-drop-line');
+    if (!linha) { linha = document.createElement('div'); linha.id = 'dev-drop-line'; linha.className = 'dev-drop-line'; }
+    const antes = devkAlvoDrop(zona, y);
+    const ref = antes != null ? lista.querySelector(`.dev-card[data-id="${antes}"]`) : lista.querySelector('.dev-vazio');
+    lista.insertBefore(linha, ref);   // ref null = no fim
 }
 
 function devkConfigurarDropZones() {
     document.querySelectorAll('.dev-col-drop').forEach(zona => {
-        zona.addEventListener('dragover', (e) => { e.preventDefault(); zona.classList.add('drag-over'); });
-        zona.addEventListener('dragleave', () => zona.classList.remove('drag-over'));
-        zona.addEventListener('drop', async (e) => {
+        zona.addEventListener('dragover', (e) => {
+            if (devkDragTaskId == null) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            zona.classList.add('drag-over');
+            devkMostrarLinhaDrop(zona, e.clientY);
+        });
+        zona.addEventListener('dragleave', (e) => {
+            if (zona.contains(e.relatedTarget)) return;   // ainda dentro da coluna (passou por cima de um card)
+            zona.classList.remove('drag-over');
+            devkLimparLinhaDrop();
+        });
+        zona.addEventListener('drop', (e) => {
             e.preventDefault();
             zona.classList.remove('drag-over');
-            if (devkDragTaskId == null) return;
-            const novoStatus = zona.dataset.status;
-            const tarefa = devkTarefas.find(t => t.id === devkDragTaskId);
-            devkDragTaskId = null;
-            if (!tarefa || tarefa.status === novoStatus) return;
-            await fetch(`/api/dev-tarefas/${tarefa.id}`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    titulo: tarefa.titulo, descricao: tarefa.descricao, status: novoStatus,
-                    prioridade: tarefa.prioridade, prazo: tarefa.prazo, tags: tarefa.tags || [],
-                    link: tarefa.link || '', atribuido_a: tarefa.atribuido_a || null,
-                })
-            });
-            await devkCarregarTarefas();
+            const antes = devkAlvoDrop(zona, e.clientY);
+            devkLimparLinhaDrop();
+            devkSoltar(zona.dataset.status, antes);
         });
     });
+}
+
+async function devkSoltar(novoStatus, antesId) {
+    const id = devkDragTaskId;
+    devkDragTaskId = null;
+    if (id == null) return;
+    const tarefa = devkTarefas.find(t => t.id === id);
+    if (!tarefa) return;
+    const mudouStatus = tarefa.status !== novoStatus;
+    if (!mudouStatus && novoStatus === 'done') return;   // Concluído não tem ordem manual
+
+    // Coluna INTEIRA (inclusive o que está escondido por filtro) na ordem nova.
+    const coluna = devkColunaOrdenada(novoStatus).filter(t => t.id !== id);
+    let idx = antesId != null ? coluna.findIndex(t => t.id === antesId) : -1;
+    if (novoStatus === 'done') idx = 0;
+    if (idx < 0) idx = coluna.length;
+    const antes = devkColunaOrdenada(novoStatus).map(t => t.id).join(',');
+    coluna.splice(idx, 0, tarefa);
+    if (!mudouStatus && coluna.map(t => t.id).join(',') === antes) return;   // soltou onde já estava
+
+    // Atualiza na hora (otimista) e confirma com o servidor.
+    coluna.forEach((t, i) => { t.ordem = i; });
+    if (mudouStatus) {
+        tarefa.status = novoStatus;
+        tarefa.pausado = false;
+        tarefa.concluido_em = novoStatus === 'done' ? new Date().toISOString() : null;
+    }
+    devkRenderBoard();
+    try {
+        const res = await fetch('/api/dev-tarefas/reordenar', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: novoStatus, ids: coluna.map(t => t.id) }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+    } catch (e) {
+        mostrarToastFiltro('Não consegui salvar a nova posição — recarregando', '⚠️');
+    }
+    await devkCarregarTarefas();
+}
+
+// ── Adicionar rápido (título + Enter), direto na coluna ──
+function devkQuickAddAbrir(status) {
+    const box = document.getElementById('dev-qa-' + status);
+    box.classList.remove('hidden');
+    const inp = box.querySelector('input');
+    inp.value = '';
+    inp.focus();
+}
+
+function devkQuickAddFechar(status) {
+    document.getElementById('dev-qa-' + status).classList.add('hidden');
+}
+
+async function devkQuickAddKey(event, status) {
+    if (event.key === 'Escape') { devkQuickAddFechar(status); return; }
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const inp = event.target;
+    const titulo = inp.value.trim();
+    if (!titulo) return;
+    // Quem está filtrando por tag/responsável cria já dentro desse recorte.
+    const body = {
+        titulo, status,
+        tags: devkFiltros.tag ? [devkFiltros.tag] : [],
+        atribuido_a: devkFiltros.atrib ? parseInt(devkFiltros.atrib) : null,
+        prioridade: devkFiltros.prio || 'media',
+    };
+    inp.disabled = true;
+    try {
+        const res = await fetch('/api/dev-tarefas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        inp.value = '';
+        await devkCarregarTarefas();
+    } catch (e) {
+        mostrarToastFiltro('Não consegui criar a tarefa', '⚠️');
+    }
+    inp.disabled = false;
+    inp.focus();   // segue aberto pra lançar várias em sequência
 }
 
 async function devkAbrirModal(id) {
@@ -6978,6 +7341,16 @@ async function devkAbrirModal(id) {
     document.getElementById('dev-m-tags').value = tarefa && tarefa.tags ? tarefa.tags.join(', ') : '';
     document.getElementById('dev-m-link').value = tarefa ? (tarefa.link || '') : '';
     document.getElementById('dev-m-atribuido').value = tarefa && tarefa.atribuido_a ? tarefa.atribuido_a : '';
+    devkRenderTagSugestoes();
+    const meta = document.getElementById('dev-m-meta');
+    if (tarefa) {
+        const partes = [];
+        if (tarefa.criado_por_nome || tarefa.criado_em) partes.push(`Criada${tarefa.criado_por_nome ? ' por ' + escHtml(tarefa.criado_por_nome) : ''}${tarefa.criado_em ? ' em ' + tarefa.criado_em : ''}`);
+        if (tarefa.atualizado_em) partes.push('atualizada em ' + tarefa.atualizado_em);
+        if (tarefa.concluido_em) partes.push('concluída em ' + tarefa.concluido_em.slice(0, 10).split('-').reverse().join('/'));
+        meta.innerHTML = partes.join(' · ');
+    }
+    meta.classList.toggle('hidden', !tarefa);
     document.getElementById('dev-btn-deletar-tarefa').classList.toggle('hidden', !tarefa);
     document.getElementById('dev-andamento-wrap').classList.toggle('hidden', !tarefa);
     document.getElementById('dev-checklist-wrap').classList.toggle('hidden', !tarefa);
