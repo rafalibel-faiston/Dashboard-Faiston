@@ -986,6 +986,11 @@ from app.service_desk.router import router as service_desk_router
 _setup_schema_service_desk()
 app.include_router(service_desk_router)
 
+# Kanban da Área de Dev (extensões: foco do dia, IA, conexões). Tabela base fica em setup_banco().
+from app.devkanban.db import setup_schema as _setup_schema_devkanban
+from app.devkanban.foco import pontuar as _foco_pontuar
+_setup_schema_devkanban()
+
 # --- MODELOS ---
 class LoginRequest(BaseModel):
     usuario: str
@@ -9387,7 +9392,7 @@ def dev_listar_tarefas(faiston_token: str = Cookie(None)):
                    (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id),
                    (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id AND c.concluido),
                    (SELECT COUNT(*) FROM dev_tarefa_comentarios cm WHERE cm.tarefa_id = t.id),
-                   t.pausado, t.concluido_em
+                   t.pausado, t.concluido_em, t.iniciado_em, t.origem, t.origem_ref, t.evento_id
             FROM dev_tarefas t
             LEFT JOIN usuarios cp ON cp.id = t.criado_por
             LEFT JOIN usuarios at ON at.id = t.atribuido_a
@@ -9403,8 +9408,16 @@ def dev_listar_tarefas(faiston_token: str = Cookie(None)):
             "checklist_total": r[15], "checklist_concluidos": r[16], "comentarios_total": r[17],
             "pausado": r[18],
             "concluido_em": r[19].isoformat() if r[19] else None,
+            "iniciado_em": r[20].isoformat() if r[20] else None,
+            "atualizado_iso": r[14].isoformat() if r[14] else None,
+            "origem": r[21], "origem_ref": r[22], "evento_id": r[23],
+            "atualizado_dt": r[14], "iniciado_dt": r[20],
         } for r in cur.fetchall()]
         cur.close(); conn.close()
+        hoje = date.today()
+        for t in out:
+            t["score"], t["motivos"] = _foco_pontuar(t, hoje)
+            t.pop("atualizado_dt"); t.pop("iniciado_dt")
         return out
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -9424,9 +9437,9 @@ def dev_criar_tarefa(t: DevTarefaModel, faiston_token: str = Cookie(None)):
         cur.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM dev_tarefas WHERE status = %s", (status,))
         ordem = cur.fetchone()[0]
         cur.execute("""
-            INSERT INTO dev_tarefas (titulo, descricao, status, ordem, prioridade, prazo, tags, link, criado_por, atribuido_a, pausado, concluido_em)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CASE WHEN %s = 'done' THEN NOW() END) RETURNING id
-        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a, t.pausado, status))
+            INSERT INTO dev_tarefas (titulo, descricao, status, ordem, prioridade, prazo, tags, link, criado_por, atribuido_a, pausado, concluido_em, iniciado_em)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CASE WHEN %s = 'done' THEN NOW() END, CASE WHEN %s = 'doing' THEN NOW() END) RETURNING id
+        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a, t.pausado, status, status))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True, "id": new_id}
@@ -9455,8 +9468,9 @@ def dev_atualizar_tarefa(tid: int, t: DevTarefaModel, faiston_token: str = Cooki
                 UPDATE dev_tarefas SET titulo=%s, descricao=%s, status=%s, ordem=%s, prioridade=%s,
                        prazo=%s, tags=%s, link=%s, atribuido_a=%s, pausado=%s,
                        concluido_em = CASE WHEN %s = 'done' THEN NOW() END,
+                       iniciado_em = CASE WHEN %s = 'doing' THEN NOW() END,
                        atualizado_em=NOW() WHERE id=%s
-            """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, status, tid))
+            """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, status, status, tid))
         else:
             cur.execute("""
                 UPDATE dev_tarefas SET titulo=%s, descricao=%s, prioridade=%s, prazo=%s, tags=%s,
@@ -9491,10 +9505,11 @@ def dev_reordenar_tarefas(r: DevReordenarModel, faiston_token: str = Cookie(None
                     pausado = CASE WHEN status = %s THEN pausado ELSE FALSE END,
                     concluido_em = CASE WHEN status = %s THEN concluido_em
                                         WHEN %s = 'done' THEN NOW() END,
+                    iniciado_em = CASE WHEN status = %s THEN iniciado_em WHEN %s = 'doing' THEN NOW() END,
                     atualizado_em = CASE WHEN status = %s THEN atualizado_em ELSE NOW() END,
                     status = %s
                 WHERE id = %s
-            """, (pos, r.status, r.status, r.status, r.status, r.status, tid))
+            """, (pos, r.status, r.status, r.status, r.status, r.status, r.status, r.status, tid))
         conn.commit(); cur.close(); conn.close()
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))

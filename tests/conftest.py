@@ -142,3 +142,36 @@ def n2_user(admin_client):
     uid = resp.json()["id"]
     yield {"id": uid, "usuario": usuario, "senha": senha}
     admin_client.delete(f"/api/usuarios/{uid}")
+
+
+def definir_senha(uid: int, senha: str):
+    """O cadastro de usuário não aceita mais senha vinda do admin (a pessoa
+    define pelo link de boas-vindas), então o teste grava o hash direto pra
+    conseguir logar como ela."""
+    import main
+    conn = main.get_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE usuarios SET senha_hash=%s, primeiro_acesso=FALSE WHERE id=%s",
+                (main.hash_senha(senha), uid))
+    conn.commit(); cur.close(); conn.close()
+
+
+@pytest.fixture()
+def dev_client(admin_client, app):
+    """Cliente logado como usuário de perfil 'dev' (o único que enxerga o kanban da Área de Dev)."""
+    from fastapi.testclient import TestClient
+    usuario = f"teste_dev_{uuid.uuid4().hex[:8]}"
+    senha = "senhaTeste123"
+    resp = admin_client.post("/api/usuarios", json={
+        "usuario": usuario, "senha": senha, "nome": "Dev de Teste", "perfil": "dev",
+        "email": f"{usuario}@exemplo.teste",
+    })
+    assert resp.status_code == 200, resp.text
+    uid = resp.json()["id"]
+    definir_senha(uid, senha)
+    client = TestClient(app)
+    resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
+    assert resp.status_code == 200
+    client.dev_uid = uid
+    yield client
+    admin_client.delete(f"/api/usuarios/{uid}")
