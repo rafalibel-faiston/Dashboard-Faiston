@@ -173,5 +173,6 @@ def dev_client(admin_client, app):
     resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
     assert resp.status_code == 200
     client.dev_uid = uid
+    client.dev_email = f"{usuario}@exemplo.teste"
     yield client
     admin_client.delete(f"/api/usuarios/{uid}")

@@ -26,6 +26,41 @@ def setup_schema() -> None:
         # Evento do calendário (Outlook) ligado ao prazo da tarefa.
         cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS evento_id TEXT")
         cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS evento_mailbox TEXT")
+        # Webhooks de ENTRADA: n8n/TiFlux/Hub/GitHub mandam eventos pro quadro. Cada hook tem token próprio (vai na URL).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dev_hooks_entrada (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(80) NOT NULL,
+                tipo VARCHAR(20) NOT NULL DEFAULT 'generico',          -- 'generico' | 'github'
+                token VARCHAR(64) NOT NULL UNIQUE,
+                segredo TEXT NOT NULL DEFAULT '',                       -- só 'github': assinatura X-Hub-Signature-256
+                origem VARCHAR(30) NOT NULL DEFAULT 'n8n',              -- vira dev_tarefas.origem
+                tag_padrao VARCHAR(40) NOT NULL DEFAULT '',
+                status_padrao VARCHAR(20) NOT NULL DEFAULT 'todo',
+                atribuido_padrao INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                ativo BOOLEAN NOT NULL DEFAULT TRUE,
+                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                ultimo_uso TIMESTAMP,
+                ultimo_resultado TEXT
+            )
+        """)
+        # Webhooks de SAÍDA: eventos do quadro disparam fluxos externos (assinados com HMAC-SHA256).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dev_hooks_saida (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(80) NOT NULL,
+                url TEXT NOT NULL,
+                segredo TEXT NOT NULL,
+                eventos TEXT[] NOT NULL DEFAULT '{}',                   -- vazio = todos
+                ativo BOOLEAN NOT NULL DEFAULT TRUE,
+                criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+                criado_em TIMESTAMP DEFAULT NOW(),
+                ultimo_status INTEGER,
+                ultimo_erro TEXT,
+                ultimo_em TIMESTAMP
+            )
+        """)
         conn.commit()
         cur.close()
     except Exception as e:

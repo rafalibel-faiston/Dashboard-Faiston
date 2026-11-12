@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 from app.assistente import llm as _llm_cfg
 from app.assistente.llm import ModeloIndisponivel
 from app.devkanban import db as dkdb
-from app.devkanban import foco, ia
+from app.devkanban import eventos, foco, ia
 
 router = APIRouter(prefix="/api/dev-ia", tags=["dev-ia"])
 
@@ -145,6 +145,8 @@ def confirmar(body: ConfirmarIn, faiston_token: str = Cookie(None)):
                 duplicadas += 1
         conn.commit()
         cur.close()
+        for tid in criadas:
+            eventos.emitir("tarefa.criada", tid)
         return {"sucesso": True, "criadas": criadas, "duplicadas": duplicadas}
     except HTTPException:
         raise
@@ -222,6 +224,9 @@ def aplicar(body: AplicarIn, faiston_token: str = Cookie(None)):
         feito = ia.aplicar_acoes(cur, acoes, sess)
         conn.commit()
         cur.close()
+        for a in acoes:
+            for tid in (a.get("ids") or [])[:50]:
+                eventos.emitir(("tarefa.concluida" if a.get("status") == "done" else "tarefa.movida") if a["tipo"] == "mover" else "tarefa.atualizada", tid)
         return {"sucesso": True, **feito}
     except Exception as e:
         conn.rollback()

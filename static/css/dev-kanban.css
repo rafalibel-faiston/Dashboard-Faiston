@@ -108,6 +108,7 @@
 .dvk-chip.late { background: rgba(236, 72, 153, .12); color: var(--dvk-pink); }
 .dvk-chip.warn { background: rgba(217, 119, 6, .12); color: var(--dvk-amber); }
 .dvk-chip.ok { background: rgba(5, 150, 105, .12); color: var(--dvk-green); }
+.dvk-chip.merged { background: rgba(91, 46, 224, .12); color: var(--dvk-brand); }
 
 /* ── Filtros ─────────────────────────────────────────────────── */
 .dvk-filtros { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
@@ -313,3 +314,23 @@
 }
 .dvk-toast.on { opacity: 1; transform: translateX(-50%); }
 .dvk-toast.erro { background: #BE185D; }
+
+/* ── Conexões ────────────────────────────────────────────────── */
+.dvk-abas { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--dvk-line); }
+.dvk-abas button { border: 0; background: none; padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--dvk-muted); border-bottom: 2px solid transparent; cursor: pointer; font-family: inherit; }
+.dvk-abas button.on { color: var(--dvk-brand); border-bottom-color: var(--dvk-brand); }
+.dvk-cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.dvk-cartao { border: 1px solid var(--dvk-line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.dvk-cartao b { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.dvk-cartao .pt { width: 8px; height: 8px; border-radius: 50%; background: #CBD5E1; }
+.dvk-cartao .pt.on { background: #10B981; }
+.dvk-cartao small { color: var(--dvk-faint); font-size: 11.5px; line-height: 1.4; }
+.dvk-linha-hook { border: 1px solid var(--dvk-line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.dvk-linha-hook.off { opacity: .55; }
+.dvk-linha-hook .topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dvk-linha-hook .topo b { font-size: 13.5px; }
+.dvk-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.dvk-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.dvk-mini { font-size: 11px; color: var(--dvk-faint); line-height: 1.5; }
+.dvk-gh { border: 1px solid var(--dvk-line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.dvk-gh a { color: var(--dvk-brand); font-weight: 600; font-size: 12px; text-decoration: none; }

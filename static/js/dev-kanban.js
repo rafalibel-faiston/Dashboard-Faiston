@@ -32,7 +32,7 @@
     drawer: null,           // { id|null, form, dirty, checklist, comentarios }
     lanesFechadas: new Set(),
   };
-  const ext = { botoes: [], acoesPaleta: [], fallbacksPaleta: [], secoesDrawer: [], focoExtra: [] };
+  const ext = { botoes: [], acoesPaleta: [], fallbacksPaleta: [], secoesDrawer: [], focoExtra: [], aposCarregar: [] };
 
   function lerLS(k, padrao) {
     try {
@@ -111,6 +111,7 @@
       S.tarefas = tarefas; S.usuarios = usuarios;
       validarFiltros();
       renderTudo();
+      ext.aposCarregar.forEach(fn => { try { fn(S.tarefas); } catch (err) { console.error(err); } });
     } catch (e) { toast('Não consegui carregar as tarefas: ' + e.message, 'erro'); }
   }
 
@@ -749,6 +750,7 @@
     registrarSecaoDrawer(fn) { ext.secoesDrawer.push(fn); },
     registrarFocoExtra(fn) { ext.focoExtra.push(fn); },
     registrarBadgeCard(fn) { ext.badgeCard = fn; },
+    registrarAposCarregar(fn) { ext.aposCarregar.push(fn); },
     rerender: renderTudo,
   };
 })();

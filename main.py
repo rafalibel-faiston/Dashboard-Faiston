@@ -55,7 +55,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if (request.method in _CSRF_METODOS
                 and (request.url.path.startswith("/api/") or request.url.path.startswith("/assistente/"))
-                and request.url.path not in _CSRF_ISENTAS):
+                and request.url.path not in _CSRF_ISENTAS
+                and not request.url.path.startswith("/api/dev-hooks/in/")):    # webhooks de entrada: sem cookie, autenticados pelo token da URL
             cookie_token = request.cookies.get("csrf_token")
             header_token = request.headers.get("x-csrf-token")
             if not cookie_token or not header_token or cookie_token != header_token:
@@ -992,7 +993,11 @@ from app.devkanban.foco import anexar as _foco_anexar
 from app.devkanban.db import listar_tarefas as _dk_listar_tarefas
 _setup_schema_devkanban()
 from app.devkanban.router import router as devkanban_router
+from app.devkanban.conexoes import router as devkanban_conexoes_router, router_entrada as devkanban_entrada_router
+from app.devkanban.eventos import emitir as _dk_emitir
 app.include_router(devkanban_router)
+app.include_router(devkanban_conexoes_router)
+app.include_router(devkanban_entrada_router)
 
 # --- MODELOS ---
 class LoginRequest(BaseModel):
@@ -9414,6 +9419,7 @@ def dev_criar_tarefa(t: DevTarefaModel, faiston_token: str = Cookie(None)):
         """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a, t.pausado, status, status))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
+        _dk_emitir("tarefa.concluida" if status == "done" else "tarefa.criada", new_id)
         return {"sucesso": True, "id": new_id}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -9449,6 +9455,7 @@ def dev_atualizar_tarefa(tid: int, t: DevTarefaModel, faiston_token: str = Cooki
                        link=%s, atribuido_a=%s, pausado=%s, atualizado_em=NOW() WHERE id=%s
             """, (t.titulo.strip(), t.descricao, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, tid))
         conn.commit(); cur.close(); conn.close()
+        _dk_emitir(("tarefa.concluida" if status == "done" else "tarefa.movida") if row[0] != status else "tarefa.atualizada", tid)
         return {"sucesso": True}
     except HTTPException: raise
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -9470,6 +9477,8 @@ def dev_reordenar_tarefas(r: DevReordenarModel, faiston_token: str = Cookie(None
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("SELECT id, status FROM dev_tarefas WHERE id = ANY(%s)", (ids,))
+        status_antes = dict(cur.fetchall())
         for pos, tid in enumerate(ids):
             cur.execute("""
                 UPDATE dev_tarefas SET
@@ -9483,6 +9492,9 @@ def dev_reordenar_tarefas(r: DevReordenarModel, faiston_token: str = Cookie(None
                 WHERE id = %s
             """, (pos, r.status, r.status, r.status, r.status, r.status, r.status, r.status, tid))
         conn.commit(); cur.close(); conn.close()
+        for tid, antes in status_antes.items():
+            if antes != r.status:
+                _dk_emitir("tarefa.concluida" if r.status == "done" else "tarefa.movida", tid)
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -9494,8 +9506,12 @@ def dev_deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("SELECT id, titulo, evento_id, evento_mailbox FROM dev_tarefas WHERE id = %s", (tid,))
+        antes = cur.fetchone()
         cur.execute("DELETE FROM dev_tarefas WHERE id = %s", (tid,))
         conn.commit(); cur.close(); conn.close()
+        if antes:
+            _dk_emitir("tarefa.excluida", tid, {"id": antes[0], "titulo": antes[1], "evento_id": antes[2], "evento_mailbox": antes[3]})
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
