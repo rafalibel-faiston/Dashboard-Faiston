@@ -9,23 +9,6 @@ import uuid
 import pytest
 
 
-@pytest.fixture()
-def dev_client(admin_client, app):
-    from fastapi.testclient import TestClient
-    usuario = f"teste_dev_{uuid.uuid4().hex[:8]}"
-    senha = "senhaTeste123"
-    resp = admin_client.post("/api/usuarios", json={
-        "usuario": usuario, "senha": senha, "nome": "Dev de Teste", "perfil": "dev",
-    })
-    assert resp.status_code == 200, resp.text
-    uid = resp.json()["id"]
-    client = TestClient(app)
-    resp = client.post("/api/login", json={"usuario": usuario, "senha": senha})
-    assert resp.status_code == 200
-    yield client
-    admin_client.delete(f"/api/usuarios/{uid}")
-
-
 class TestAcesso:
     def test_admin_comum_nao_acessa(self, admin_client):
         resp = admin_client.get("/api/dev-tarefas")
@@ -89,6 +72,7 @@ class TestCRUD:
         outro_usuario = f"teste_dev2_{uuid.uuid4().hex[:8]}"
         r = admin_client.post("/api/usuarios", json={
             "usuario": outro_usuario, "senha": "senhaTeste123", "nome": "Segundo Dev", "perfil": "dev",
+            "email": f"{outro_usuario}@exemplo.teste",
         })
         outro_id = r.json()["id"]
         tid = None
@@ -153,6 +137,96 @@ class TestCamposDePlanejamento:
             assert item["prazo"] is None
         finally:
             dev_client.delete(f"/api/dev-tarefas/{tid}")
+
+
+def _tarefa(dev_client, tid):
+    return next(t for t in dev_client.get("/api/dev-tarefas").json() if t["id"] == tid)
+
+
+class TestConclusao:
+    def test_concluido_em_nasce_ao_entrar_em_done_e_some_ao_sair(self, dev_client):
+        tid = dev_client.post("/api/dev-tarefas", json={"titulo": "Vai concluir"}).json()["id"]
+        try:
+            assert _tarefa(dev_client, tid)["concluido_em"] is None
+            dev_client.put(f"/api/dev-tarefas/{tid}", json={"titulo": "Vai concluir", "status": "done"})
+            assert _tarefa(dev_client, tid)["concluido_em"] is not None
+            dev_client.put(f"/api/dev-tarefas/{tid}", json={"titulo": "Vai concluir", "status": "doing"})
+            assert _tarefa(dev_client, tid)["concluido_em"] is None
+        finally:
+            dev_client.delete(f"/api/dev-tarefas/{tid}")
+
+    def test_criar_direto_em_done_ja_tem_data_de_conclusao(self, dev_client):
+        tid = dev_client.post("/api/dev-tarefas", json={"titulo": "Já feita", "status": "done"}).json()["id"]
+        try:
+            assert _tarefa(dev_client, tid)["concluido_em"] is not None
+        finally:
+            dev_client.delete(f"/api/dev-tarefas/{tid}")
+
+    def test_editar_sem_mudar_status_preserva_a_data_de_conclusao(self, dev_client):
+        tid = dev_client.post("/api/dev-tarefas", json={"titulo": "Feita", "status": "done"}).json()["id"]
+        try:
+            antes = _tarefa(dev_client, tid)["concluido_em"]
+            dev_client.put(f"/api/dev-tarefas/{tid}", json={"titulo": "Feita (editada)", "status": "done"})
+            assert _tarefa(dev_client, tid)["concluido_em"] == antes
+        finally:
+            dev_client.delete(f"/api/dev-tarefas/{tid}")
+
+
+class TestReordenar:
+    @pytest.fixture()
+    def tres(self, dev_client):
+        ids = [dev_client.post("/api/dev-tarefas", json={"titulo": f"T{i}", "status": "backlog"}).json()["id"]
+               for i in range(3)]
+        yield ids
+        for tid in ids:
+            dev_client.delete(f"/api/dev-tarefas/{tid}")
+
+    def _ordem_da_coluna(self, dev_client, ids, status):
+        itens = [t for t in dev_client.get("/api/dev-tarefas").json() if t["id"] in ids and t["status"] == status]
+        return [t["id"] for t in sorted(itens, key=lambda t: t["ordem"])]
+
+    def test_reordena_dentro_da_coluna(self, dev_client, tres):
+        a, b, c = tres
+        resp = dev_client.post("/api/dev-tarefas/reordenar", json={"status": "backlog", "ids": [c, a, b]})
+        assert resp.status_code == 200, resp.text
+        assert self._ordem_da_coluna(dev_client, tres, "backlog") == [c, a, b]
+
+    def test_mover_para_outra_coluna_muda_status_e_zera_pausado(self, dev_client, tres):
+        a, b, c = tres
+        dev_client.put(f"/api/dev-tarefas/{a}", json={"titulo": "T0", "status": "todo", "pausado": True})
+        assert _tarefa(dev_client, a)["pausado"] is True
+        resp = dev_client.post("/api/dev-tarefas/reordenar", json={"status": "doing", "ids": [a, b]})
+        assert resp.status_code == 200
+        assert _tarefa(dev_client, a)["status"] == "doing"
+        assert _tarefa(dev_client, a)["pausado"] is False
+        assert self._ordem_da_coluna(dev_client, tres, "doing") == [a, b]
+
+    def test_reordenar_na_mesma_coluna_preserva_pausado(self, dev_client, tres):
+        a, b, c = tres
+        for tid in (a, b):
+            dev_client.put(f"/api/dev-tarefas/{tid}", json={"titulo": "x", "status": "todo", "pausado": True})
+        dev_client.post("/api/dev-tarefas/reordenar", json={"status": "todo", "ids": [b, a]})
+        assert _tarefa(dev_client, a)["pausado"] is True
+        assert self._ordem_da_coluna(dev_client, tres, "todo") == [b, a]
+
+    def test_mover_para_done_registra_conclusao(self, dev_client, tres):
+        a = tres[0]
+        dev_client.post("/api/dev-tarefas/reordenar", json={"status": "done", "ids": [a]})
+        item = _tarefa(dev_client, a)
+        assert item["status"] == "done"
+        assert item["concluido_em"] is not None
+
+    def test_status_invalido_e_rejeitado(self, dev_client, tres):
+        resp = dev_client.post("/api/dev-tarefas/reordenar", json={"status": "xyz", "ids": tres})
+        assert resp.status_code == 400
+
+    def test_ids_inexistentes_sao_ignorados(self, dev_client, tres):
+        resp = dev_client.post("/api/dev-tarefas/reordenar", json={"status": "backlog", "ids": [999999, tres[0]]})
+        assert resp.status_code == 200
+
+    def test_so_dev_reordena(self, admin_client):
+        resp = admin_client.post("/api/dev-tarefas/reordenar", json={"status": "todo", "ids": []})
+        assert resp.status_code == 403
 
 
 class TestComentarios:

@@ -154,3 +154,25 @@ async def completar_com_ferramentas(mensagens: list[dict], ferramentas: list[dic
         motivo = _classificar_erro(e)
         print(f"[assistente/llm] Erro ({motivo}) chamando {LLM_MODEL} com ferramentas: {type(e).__name__}: {e}")
         raise ModeloIndisponivel(str(e), motivo=motivo) from e
+
+
+async def completar_texto(mensagens: list[dict], temperature: float = 0.2) -> tuple[str, Optional[object]]:
+    """Chamada simples, sem streaming, que devolve (texto, usage). Usada pelo
+    Kanban da Área de Dev (briefing, standup, captura e comandos): lá a resposta
+    é validada/estruturada pelo backend antes de aparecer pro usuário, então
+    não há o que mostrar token a token."""
+    if not LLM_API_KEY:
+        raise ModeloIndisponivel(
+            "Nenhuma chave de API configurada (defina LLM_API_KEY ou GROQ_API_KEY).",
+            motivo="sem_chave",
+        )
+    try:
+        resp = await _client.chat.completions.create(
+            model=LLM_MODEL, messages=mensagens, temperature=temperature,
+        )
+        texto = (resp.choices[0].message.content or "") if resp.choices else ""
+        return texto, getattr(resp, "usage", None)
+    except Exception as e:
+        motivo = _classificar_erro(e)
+        print(f"[assistente/llm] Erro ({motivo}) chamando {LLM_MODEL} (texto): {type(e).__name__}: {e}")
+        raise ModeloIndisponivel(str(e), motivo=motivo) from e

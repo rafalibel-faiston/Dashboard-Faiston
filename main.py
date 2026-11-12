@@ -55,7 +55,8 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if (request.method in _CSRF_METODOS
                 and (request.url.path.startswith("/api/") or request.url.path.startswith("/assistente/"))
-                and request.url.path not in _CSRF_ISENTAS):
+                and request.url.path not in _CSRF_ISENTAS
+                and not request.url.path.startswith("/api/dev-hooks/in/")):    # webhooks de entrada: sem cookie, autenticados pelo token da URL
             cookie_token = request.cookies.get("csrf_token")
             header_token = request.headers.get("x-csrf-token")
             if not cookie_token or not header_token or cookie_token != header_token:
@@ -735,6 +736,11 @@ def setup_banco():
         # Pausar volta a tarefa pra 'todo' (A Fazer), mas com destaque visual de que
         # já foi iniciada -- diferencia de uma tarefa que nunca foi começada.
         cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS pausado BOOLEAN NOT NULL DEFAULT FALSE")
+        # Quando a tarefa foi concluída -- o quadro usa pra mostrar só as concluídas
+        # recentes (a coluna Concluído crescia sem fim) e pro resumo "concluídas na
+        # semana". Preenchido ao entrar em 'done', zerado ao sair.
+        cur.execute("ALTER TABLE dev_tarefas ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP")
+        cur.execute("UPDATE dev_tarefas SET concluido_em = atualizado_em WHERE status = 'done' AND concluido_em IS NULL")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS dev_tarefa_comentarios (
                 id SERIAL PRIMARY KEY,
@@ -981,6 +987,18 @@ from app.service_desk.router import router as service_desk_router
 _setup_schema_service_desk()
 app.include_router(service_desk_router)
 
+# Kanban da Área de Dev (extensões: foco do dia, IA, conexões). Tabela base fica em setup_banco().
+from app.devkanban.db import setup_schema as _setup_schema_devkanban
+from app.devkanban.foco import anexar as _foco_anexar
+from app.devkanban.db import listar_tarefas as _dk_listar_tarefas
+_setup_schema_devkanban()
+from app.devkanban.router import router as devkanban_router
+from app.devkanban.conexoes import router as devkanban_conexoes_router, router_entrada as devkanban_entrada_router
+from app.devkanban.eventos import emitir as _dk_emitir
+app.include_router(devkanban_router)
+app.include_router(devkanban_conexoes_router)
+app.include_router(devkanban_entrada_router)
+
 # --- MODELOS ---
 class LoginRequest(BaseModel):
     usuario: str
@@ -1179,6 +1197,10 @@ class DevTarefaModel(BaseModel):
     link: str = ""
     atribuido_a: Optional[int] = None
     pausado: bool = False
+
+class DevReordenarModel(BaseModel):
+    status: str
+    ids: List[int]  # ids da coluna inteira, na ordem final (de cima pra baixo)
 
 class DevComentarioModel(BaseModel):
     texto: str
@@ -9371,31 +9393,9 @@ def dev_listar_tarefas(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("""
-            SELECT t.id, t.titulo, t.descricao, t.status, t.ordem, t.prioridade, t.prazo, t.tags, t.link,
-                   t.criado_por, cp.nome, t.atribuido_a, at.nome,
-                   t.criado_em, t.atualizado_em,
-                   (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id),
-                   (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id AND c.concluido),
-                   (SELECT COUNT(*) FROM dev_tarefa_comentarios cm WHERE cm.tarefa_id = t.id),
-                   t.pausado
-            FROM dev_tarefas t
-            LEFT JOIN usuarios cp ON cp.id = t.criado_por
-            LEFT JOIN usuarios at ON at.id = t.atribuido_a
-            ORDER BY t.status, t.ordem, t.criado_em
-        """)
-        out = [{
-            "id": r[0], "titulo": r[1], "descricao": r[2], "status": r[3], "ordem": r[4],
-            "prioridade": r[5], "prazo": r[6].isoformat() if r[6] else None, "tags": r[7] or [], "link": r[8],
-            "criado_por": r[9], "criado_por_nome": r[10],
-            "atribuido_a": r[11], "atribuido_a_nome": r[12],
-            "criado_em": r[13].strftime("%d/%m/%Y %H:%M") if r[13] else "",
-            "atualizado_em": r[14].strftime("%d/%m/%Y %H:%M") if r[14] else "",
-            "checklist_total": r[15], "checklist_concluidos": r[16], "comentarios_total": r[17],
-            "pausado": r[18],
-        } for r in cur.fetchall()]
+        out = _dk_listar_tarefas(cur)
         cur.close(); conn.close()
-        return out
+        return _foco_anexar(out)
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/dev-tarefas")
@@ -9414,11 +9414,12 @@ def dev_criar_tarefa(t: DevTarefaModel, faiston_token: str = Cookie(None)):
         cur.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM dev_tarefas WHERE status = %s", (status,))
         ordem = cur.fetchone()[0]
         cur.execute("""
-            INSERT INTO dev_tarefas (titulo, descricao, status, ordem, prioridade, prazo, tags, link, criado_por, atribuido_a, pausado)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a, t.pausado))
+            INSERT INTO dev_tarefas (titulo, descricao, status, ordem, prioridade, prazo, tags, link, criado_por, atribuido_a, pausado, concluido_em, iniciado_em)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CASE WHEN %s = 'done' THEN NOW() END, CASE WHEN %s = 'doing' THEN NOW() END) RETURNING id
+        """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, sess["id"], t.atribuido_a, t.pausado, status, status))
         new_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
+        _dk_emitir("tarefa.concluida" if status == "done" else "tarefa.criada", new_id)
         return {"sucesso": True, "id": new_id}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
@@ -9443,16 +9444,58 @@ def dev_atualizar_tarefa(tid: int, t: DevTarefaModel, faiston_token: str = Cooki
             ordem = cur.fetchone()[0]
             cur.execute("""
                 UPDATE dev_tarefas SET titulo=%s, descricao=%s, status=%s, ordem=%s, prioridade=%s,
-                       prazo=%s, tags=%s, link=%s, atribuido_a=%s, pausado=%s, atualizado_em=NOW() WHERE id=%s
-            """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, tid))
+                       prazo=%s, tags=%s, link=%s, atribuido_a=%s, pausado=%s,
+                       concluido_em = CASE WHEN %s = 'done' THEN NOW() END,
+                       iniciado_em = CASE WHEN %s = 'doing' THEN NOW() END,
+                       atualizado_em=NOW() WHERE id=%s
+            """, (t.titulo.strip(), t.descricao, status, ordem, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, status, status, tid))
         else:
             cur.execute("""
                 UPDATE dev_tarefas SET titulo=%s, descricao=%s, prioridade=%s, prazo=%s, tags=%s,
                        link=%s, atribuido_a=%s, pausado=%s, atualizado_em=NOW() WHERE id=%s
             """, (t.titulo.strip(), t.descricao, prioridade, prazo, tags, t.link, t.atribuido_a, t.pausado, tid))
         conn.commit(); cur.close(); conn.close()
+        _dk_emitir(("tarefa.concluida" if status == "done" else "tarefa.movida") if row[0] != status else "tarefa.atualizada", tid)
         return {"sucesso": True}
     except HTTPException: raise
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/dev-tarefas/reordenar")
+def dev_reordenar_tarefas(r: DevReordenarModel, faiston_token: str = Cookie(None)):
+    """Grava a ordem final de uma coluna do quadro (drag-and-drop com posição).
+
+    O front manda a coluna INTEIRA já na ordem nova -- inclusive cards escondidos
+    por filtro -- então a posição relativa dos que não aparecem não se perde.
+    Se algum id veio de outra coluna, ele muda de status junto (mesma regra do PUT:
+    sai o destaque de pausado e o concluido_em acompanha a entrada/saída de 'done')."""
+    sess = get_session(faiston_token)
+    if not _is_dev(sess): raise HTTPException(status_code=403, detail="Acesso restrito à equipe dev")
+    if r.status not in DEV_STATUS_VALIDOS: raise HTTPException(status_code=400, detail="Status inválido")
+    if len(r.ids) > 1000: raise HTTPException(status_code=400, detail="Lista grande demais")
+    ids = list(dict.fromkeys(r.ids))  # sem repetidos, mantendo a ordem
+    conn = get_db()
+    if not conn: raise HTTPException(status_code=500, detail="Banco offline")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, status FROM dev_tarefas WHERE id = ANY(%s)", (ids,))
+        status_antes = dict(cur.fetchall())
+        for pos, tid in enumerate(ids):
+            cur.execute("""
+                UPDATE dev_tarefas SET
+                    ordem = %s,
+                    pausado = CASE WHEN status = %s THEN pausado ELSE FALSE END,
+                    concluido_em = CASE WHEN status = %s THEN concluido_em
+                                        WHEN %s = 'done' THEN NOW() END,
+                    iniciado_em = CASE WHEN status = %s THEN iniciado_em WHEN %s = 'doing' THEN NOW() END,
+                    atualizado_em = CASE WHEN status = %s THEN atualizado_em ELSE NOW() END,
+                    status = %s
+                WHERE id = %s
+            """, (pos, r.status, r.status, r.status, r.status, r.status, r.status, r.status, tid))
+        conn.commit(); cur.close(); conn.close()
+        for tid, antes in status_antes.items():
+            if antes != r.status:
+                _dk_emitir("tarefa.concluida" if r.status == "done" else "tarefa.movida", tid)
+        return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/dev-tarefas/{tid}")
@@ -9463,8 +9506,12 @@ def dev_deletar_tarefa(tid: int, faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
+        cur.execute("SELECT id, titulo, evento_id, evento_mailbox FROM dev_tarefas WHERE id = %s", (tid,))
+        antes = cur.fetchone()
         cur.execute("DELETE FROM dev_tarefas WHERE id = %s", (tid,))
         conn.commit(); cur.close(); conn.close()
+        if antes:
+            _dk_emitir("tarefa.excluida", tid, {"id": antes[0], "titulo": antes[1], "evento_id": antes[2], "evento_mailbox": antes[3]})
         return {"sucesso": True}
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 

@@ -46,6 +46,7 @@
     <title>Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="/css/dev-kanban.css?v=3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -2943,9 +2944,6 @@
 <div class="max-w-full mx-auto px-6 py-8">
     <div class="flex items-center justify-between mb-0.5">
         <h2 class="text-2xl font-bold text-faiston-dark tracking-tight">Área de Dev</h2>
-        <button onclick="devkAbrirModal()" id="dev-btn-nova-tarefa" class="hidden flex items-center gap-2 bg-faiston-purple text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
-            <i class="ph ph-plus"></i> Nova tarefa
-        </button>
     </div>
     <p class="text-xs text-faiston-muted mb-4">Planejamento das tarefas do app e diagnóstico técnico — versão em produção, saúde do banco, usuários/perfis e logs de erro recentes</p>
 
@@ -2956,58 +2954,8 @@
         <button onclick="devSetTab('suporte')" id="dev-tab-btn-suporte" class="dev-tab-btn hidden px-4 py-2 text-sm font-semibold text-slate-500 border-b-2 border-transparent hover:text-faiston-purple transition-colors">Suporte</button>
     </div>
 
-    <!-- ABA PLANEJAMENTO (kanban privado da equipe dev) -->
-    <div id="dev-planejamento" class="hidden">
-        <div class="flex flex-wrap items-center gap-2 mb-4">
-            <select id="dev-f-atribuido" onchange="devkRenderBoard()" class="text-xs border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
-                <option value="">Todos os responsáveis</option>
-            </select>
-            <select id="dev-f-prioridade" onchange="devkRenderBoard()" class="text-xs border border-faiston-border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-faiston-purple">
-                <option value="">Todas prioridades</option>
-                <option value="urgente">🔴 Urgente</option>
-                <option value="alta">🟠 Alta</option>
-                <option value="media">🟡 Média</option>
-                <option value="baixa">🟢 Baixa</option>
-            </select>
-            <label class="flex items-center gap-1.5 text-xs text-slate-500 ml-1">
-                <input type="checkbox" id="dev-f-atrasadas" onchange="devkRenderBoard()"> Só atrasadas
-            </label>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4" id="dev-board">
-            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors" data-status="backlog">
-                <div class="flex items-center gap-2 mb-3 px-1">
-                    <span class="w-2 h-2 rounded-full bg-slate-300"></span>
-                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Backlog</span>
-                    <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="dev-count-backlog">0</span>
-                </div>
-                <div class="space-y-2 min-h-[120px]" id="dev-lista-backlog"></div>
-            </div>
-            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors" data-status="todo">
-                <div class="flex items-center gap-2 mb-3 px-1">
-                    <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">A Fazer</span>
-                    <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="dev-count-todo">0</span>
-                </div>
-                <div class="space-y-2 min-h-[120px]" id="dev-lista-todo"></div>
-            </div>
-            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors" data-status="doing">
-                <div class="flex items-center gap-2 mb-3 px-1">
-                    <span class="w-2 h-2 rounded-full bg-faiston-cyan"></span>
-                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Em Progresso</span>
-                    <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="dev-count-doing">0</span>
-                </div>
-                <div class="space-y-2 min-h-[120px]" id="dev-lista-doing"></div>
-            </div>
-            <div class="dev-col-drop bg-white rounded-2xl border-2 border-dashed border-faiston-border p-3 transition-colors" data-status="done">
-                <div class="flex items-center gap-2 mb-3 px-1">
-                    <span class="w-2 h-2 rounded-full bg-faiston-purple"></span>
-                    <span class="text-xs font-bold text-slate-600 uppercase tracking-wide">Concluído</span>
-                    <span class="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full" id="dev-count-done">0</span>
-                </div>
-                <div class="space-y-2 min-h-[120px]" id="dev-lista-done"></div>
-            </div>
-        </div>
-    </div>
+    <!-- ABA PLANEJAMENTO: kanban "Foco do dia" -- UI inteira em static/js/dev-kanban.js (+ css/dev-kanban.css) -->
+    <div id="dev-planejamento" class="hidden"><div id="dvk-root"></div></div>
 
     <!-- ABA DIAGNÓSTICO (existente) -->
     <!-- ABA DIÁRIO: registro cronológico do que foi mudado, pra quem não -->
@@ -3241,119 +3189,6 @@ async function suporteEnviar() {
 </script>
 
 </main>
-
-<!-- MODAL TAREFA DEV -->
-<div id="dev-modal-tarefa" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.5)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-faiston-border max-h-[90vh] flex flex-col">
-        <div class="px-6 py-4 flex items-center justify-between border-b border-faiston-border shrink-0">
-            <span class="text-sm font-bold text-faiston-dark" id="dev-modal-titulo-label">Nova tarefa</span>
-            <button onclick="devkFecharModal()" class="text-slate-400 hover:text-faiston-dark"><i class="ph ph-x text-lg"></i></button>
-        </div>
-        <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar">
-            <div>
-                <label class="text-xs font-semibold text-slate-500 mb-1 block">Título</label>
-                <input type="text" id="dev-m-titulo" placeholder="Ex: Corrigir bug no filtro de clientes"
-                    class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple transition-all">
-            </div>
-            <div>
-                <label class="text-xs font-semibold text-slate-500 mb-1 block">Descrição</label>
-                <textarea id="dev-m-descricao" rows="3" placeholder="Detalhes (opcional)"
-                    class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple transition-all resize-none"></textarea>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Status</label>
-                    <select id="dev-m-status" class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple bg-white">
-                        <option value="backlog">Backlog</option>
-                        <option value="todo">A Fazer</option>
-                        <option value="doing">Em Progresso</option>
-                        <option value="done">Concluído</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Prioridade</label>
-                    <select id="dev-m-prioridade" class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple bg-white">
-                        <option value="baixa">🟢 Baixa</option>
-                        <option value="media" selected>🟡 Média</option>
-                        <option value="alta">🟠 Alta</option>
-                        <option value="urgente">🔴 Urgente</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Atribuído a</label>
-                    <select id="dev-m-atribuido" class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple bg-white">
-                        <option value="">Ninguém</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Prazo</label>
-                    <input type="date" id="dev-m-prazo" class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple">
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Tags (separadas por vírgula)</label>
-                    <input type="text" id="dev-m-tags" placeholder="bug, backend, urgente"
-                        class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 mb-1 block">Link (PR/commit/issue)</label>
-                    <input type="text" id="dev-m-link" placeholder="https://github.com/..."
-                        class="w-full px-3 py-2 border border-faiston-border rounded-lg text-sm focus:outline-none focus:border-faiston-purple">
-                </div>
-            </div>
-
-            <!-- ANDAMENTO: iniciar / pausar / finalizar -->
-            <div id="dev-andamento-wrap" class="hidden border-t border-faiston-border pt-4">
-                <label class="text-xs font-semibold text-slate-500 mb-2 block">Andamento</label>
-                <div class="flex flex-wrap gap-2">
-                    <button onclick="devkIniciarTarefa()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-faiston-purple text-white hover:opacity-90 transition-opacity">
-                        <i class="ph ph-play"></i> Iniciar
-                    </button>
-                    <button onclick="devkPausarTarefa()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors">
-                        <i class="ph ph-pause"></i> Pausar
-                    </button>
-                    <button onclick="devkFinalizarTarefa()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors">
-                        <i class="ph ph-check-circle"></i> Finalizar
-                    </button>
-                </div>
-            </div>
-
-            <!-- CHECKLIST -->
-            <div id="dev-checklist-wrap" class="hidden border-t border-faiston-border pt-4">
-                <label class="text-xs font-semibold text-slate-500 mb-2 block">Checklist</label>
-                <div id="dev-checklist-lista" class="space-y-1.5 mb-2"></div>
-                <div class="flex gap-2">
-                    <input type="text" id="dev-checklist-novo" placeholder="Adicionar item..."
-                        onkeydown="if(event.key==='Enter'){event.preventDefault();devkAdicionarChecklistItem();}"
-                        class="flex-1 px-3 py-1.5 border border-faiston-border rounded-lg text-xs focus:outline-none focus:border-faiston-purple">
-                    <button onclick="devkAdicionarChecklistItem()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">Adicionar</button>
-                </div>
-            </div>
-
-            <!-- COMENTÁRIOS -->
-            <div id="dev-comentarios-wrap" class="hidden border-t border-faiston-border pt-4">
-                <label class="text-xs font-semibold text-slate-500 mb-2 block">Comentários</label>
-                <div id="dev-comentarios-lista" class="space-y-2 mb-2 max-h-40 overflow-y-auto custom-scrollbar"></div>
-                <div class="flex gap-2">
-                    <input type="text" id="dev-comentario-novo" placeholder="Escrever um comentário..."
-                        onkeydown="if(event.key==='Enter'){event.preventDefault();devkAdicionarComentario();}"
-                        class="flex-1 px-3 py-1.5 border border-faiston-border rounded-lg text-xs focus:outline-none focus:border-faiston-purple">
-                    <button onclick="devkAdicionarComentario()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">Enviar</button>
-                </div>
-            </div>
-        </div>
-        <div class="px-6 py-4 border-t border-faiston-border flex items-center gap-2 shrink-0">
-            <button onclick="devkDeletarTarefaModal()" id="dev-btn-deletar-tarefa" class="hidden text-xs font-semibold text-faiston-pink hover:opacity-80 transition-opacity flex items-center gap-1">
-                <i class="ph ph-trash"></i> Excluir
-            </button>
-            <div class="ml-auto flex items-center gap-2">
-                <button onclick="devkFecharModal()" class="px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
-                <button onclick="devkSalvarTarefaModal()" class="px-4 py-2 rounded-lg text-sm font-semibold bg-faiston-purple text-white hover:opacity-90 transition-opacity">Salvar</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- MODAL IA INSIGHTS -->
 <div id="modal-ia" class="hidden fixed inset-0 bg-[rgba(7,7,15,0.5)] z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(8px)">
@@ -6630,14 +6465,12 @@ async function carregarLoopSnapshot(chave) {
 }
 
 // ── Área de Dev: alternância de abas (Planejamento / Diagnóstico) ──
-let _devPlanCarregado = false;
 
 function devAreaInit() {
     const isDev = window.ME && window.ME.perfil_real === 'dev';
     document.getElementById('dev-tab-btn-planejamento').classList.toggle('hidden', !isDev);
     document.getElementById('dev-tab-btn-diario').classList.toggle('hidden', !isDev);
     document.getElementById('dev-tab-btn-suporte').classList.toggle('hidden', !isDev);
-    document.getElementById('dev-btn-nova-tarefa').classList.toggle('hidden', !isDev);
     devSetTab(isDev ? 'planejamento' : 'diagnostico');
 }
 
@@ -6652,12 +6485,7 @@ function devSetTab(tab) {
     const btn = document.getElementById('dev-tab-btn-' + tab);
     if (btn) btn.classList.add('active');
     if (tab === 'planejamento') {
-        if (!_devPlanCarregado) {
-            _devPlanCarregado = true;
-            devkConfigurarDropZones();
-            devkCarregarUsuarios();
-        }
-        devkCarregarTarefas();
+        DVK.ativar();
     } else if (tab === 'diario') {
         devDiarioCarregar();
     } else if (tab === 'diagnostico') {
@@ -6832,315 +6660,6 @@ async function devSuporteVerAnexo(id) {
 function devSuporteFecharAnexo() {
     document.getElementById('modal-suporte-anexo').classList.add('hidden');
     document.getElementById('suporte-anexo-img').src = '';
-}
-
-// ══════════════════════════════════════════════════════════════════
-// ÁREA DE DEV: Planejamento (kanban privado, só perfil 'dev')
-// ══════════════════════════════════════════════════════════════════
-let devkTarefas = [];
-let devkUsuarios = [];
-let devkModalTarefaId = null;
-let devkDragTaskId = null;
-
-const DEVK_PRIO_CFG = {
-    urgente: { label: '🔴 Urgente', cls: 'bg-faiston-pink/10 text-faiston-pink' },
-    alta:    { label: '🟠 Alta',    cls: 'bg-amber-100 text-amber-700' },
-    media:   { label: '🟡 Média',   cls: 'bg-faiston-purple/10 text-faiston-purple' },
-    baixa:   { label: '🟢 Baixa',   cls: 'bg-faiston-cyan/10 text-faiston-cyan' },
-};
-
-function devkEscapeHtml(s) {
-    const d = document.createElement('div');
-    d.textContent = s || '';
-    return d.innerHTML;
-}
-
-function devkIniciais(nome) { return (nome || '?').charAt(0).toUpperCase(); }
-
-function devkHoje() { return new Date().toISOString().slice(0, 10); }
-
-async function devkCarregarUsuarios() {
-    try {
-        const res = await fetch('/api/dev-tarefas/usuarios');
-        if (!res.ok) return;
-        devkUsuarios = await res.json();
-        const opts = devkUsuarios.map(u => `<option value="${u.id}">${devkEscapeHtml(u.nome)}</option>`).join('');
-        document.getElementById('dev-m-atribuido').innerHTML = '<option value="">Ninguém</option>' + opts;
-        document.getElementById('dev-f-atribuido').innerHTML = '<option value="">Todos os responsáveis</option>' + opts;
-    } catch (e) {}
-}
-
-async function devkCarregarTarefas() {
-    try {
-        const res = await fetch('/api/dev-tarefas');
-        if (!res.ok) return;
-        devkTarefas = await res.json();
-        devkRenderBoard();
-    } catch (e) {}
-}
-
-function devkRenderBoard() {
-    const filtroAtrib = document.getElementById('dev-f-atribuido').value;
-    const filtroPrio = document.getElementById('dev-f-prioridade').value;
-    const soAtrasadas = document.getElementById('dev-f-atrasadas').checked;
-    const hoje = devkHoje();
-    let lista = devkTarefas || [];
-    if (filtroAtrib) lista = lista.filter(t => String(t.atribuido_a) === filtroAtrib);
-    if (filtroPrio) lista = lista.filter(t => t.prioridade === filtroPrio);
-    if (soAtrasadas) lista = lista.filter(t => t.prazo && t.prazo < hoje && t.status !== 'done');
-
-    ['backlog', 'todo', 'doing', 'done'].forEach(status => {
-        const doStatus = lista.filter(t => t.status === status);
-        document.getElementById('dev-count-' + status).textContent = doStatus.length;
-        const el = document.getElementById('dev-lista-' + status);
-        if (!doStatus.length) {
-            el.innerHTML = `<div class="text-xs text-slate-300 text-center py-6">Sem tarefas</div>`;
-            return;
-        }
-        el.innerHTML = doStatus.map(t => {
-            const prio = DEVK_PRIO_CFG[t.prioridade] || DEVK_PRIO_CFG.media;
-            const atrasada = !!(t.prazo && t.prazo < hoje && t.status !== 'done');
-            const pausada = !!(t.status === 'todo' && t.pausado);
-            const prazoLabel = t.prazo ? t.prazo.split('-').reverse().join('/') : '';
-            const tagsHtml = (t.tags || []).map(tg => `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${devkEscapeHtml(tg)}</span>`).join(' ');
-            const checklistBadge = t.checklist_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-check-square"></i>${t.checklist_concluidos}/${t.checklist_total}</span>` : '';
-            const comentBadge = t.comentarios_total ? `<span class="text-[10px] text-slate-400 flex items-center gap-0.5"><i class="ph ph-chat-circle"></i>${t.comentarios_total}</span>` : '';
-            const acoesRapidas = t.status === 'done' ? '' : t.status === 'doing' ? `
-                <div class="flex gap-1.5 mt-2">
-                    <button onclick="devkAcaoRapida(event, ${t.id}, 'todo', true)" class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"><i class="ph ph-pause"></i>Pausar</button>
-                    <button onclick="devkAcaoRapida(event, ${t.id}, 'done', false)" class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"><i class="ph ph-check-circle"></i>Finalizar</button>
-                </div>` : `
-                <div class="mt-2">
-                    <button onclick="devkAcaoRapida(event, ${t.id}, 'doing', false)" class="w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold bg-faiston-purple text-white hover:opacity-90 transition-opacity"><i class="ph ph-play"></i>Iniciar</button>
-                </div>`;
-            return `
-            <div class="dev-card bg-white border ${atrasada ? 'atrasada' : (pausada ? 'border-amber-300' : 'border-faiston-border')} rounded-xl p-3" draggable="true" data-id="${t.id}" onclick="devkAbrirModal(${t.id})">
-                <div class="flex items-center gap-1.5 mb-1.5">
-                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${prio.cls}">${prio.label}</span>
-                    ${pausada ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-0.5"><i class="ph ph-pause"></i>Pausado</span>` : ''}
-                    ${prazoLabel ? `<span class="text-[10px] ${atrasada ? 'text-faiston-pink font-semibold' : 'text-slate-400'}">${atrasada ? '⚠ ' : ''}${prazoLabel}</span>` : ''}
-                </div>
-                <p class="text-sm font-semibold text-faiston-dark leading-snug mb-1.5">${devkEscapeHtml(t.titulo)}</p>
-                ${t.descricao ? `<p class="text-xs text-slate-500 leading-snug mb-2 line-clamp-2">${devkEscapeHtml(t.descricao)}</p>` : ''}
-                ${tagsHtml ? `<div class="flex flex-wrap gap-1 mb-2">${tagsHtml}</div>` : ''}
-                <div class="flex items-center justify-between mt-2">
-                    <div class="flex items-center gap-2">${checklistBadge}${comentBadge}</div>
-                    ${t.atribuido_a_nome ? `<div class="w-6 h-6 rounded-full grad-bg flex items-center justify-center text-white text-[10px] font-bold" title="${devkEscapeHtml(t.atribuido_a_nome)}">${devkIniciais(t.atribuido_a_nome)}</div>` : ''}
-                </div>
-                ${acoesRapidas}
-            </div>`;
-        }).join('');
-    });
-    document.querySelectorAll('.dev-card').forEach(card => {
-        card.addEventListener('dragstart', (e) => {
-            devkDragTaskId = parseInt(card.dataset.id);
-            card.classList.add('dragging');
-            e.stopPropagation();
-        });
-        card.addEventListener('dragend', () => card.classList.remove('dragging'));
-    });
-}
-
-function devkConfigurarDropZones() {
-    document.querySelectorAll('.dev-col-drop').forEach(zona => {
-        zona.addEventListener('dragover', (e) => { e.preventDefault(); zona.classList.add('drag-over'); });
-        zona.addEventListener('dragleave', () => zona.classList.remove('drag-over'));
-        zona.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            zona.classList.remove('drag-over');
-            if (devkDragTaskId == null) return;
-            const novoStatus = zona.dataset.status;
-            const tarefa = devkTarefas.find(t => t.id === devkDragTaskId);
-            devkDragTaskId = null;
-            if (!tarefa || tarefa.status === novoStatus) return;
-            await fetch(`/api/dev-tarefas/${tarefa.id}`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    titulo: tarefa.titulo, descricao: tarefa.descricao, status: novoStatus,
-                    prioridade: tarefa.prioridade, prazo: tarefa.prazo, tags: tarefa.tags || [],
-                    link: tarefa.link || '', atribuido_a: tarefa.atribuido_a || null,
-                })
-            });
-            await devkCarregarTarefas();
-        });
-    });
-}
-
-async function devkAbrirModal(id) {
-    devkModalTarefaId = id || null;
-    const tarefa = id ? devkTarefas.find(t => t.id === id) : null;
-    document.getElementById('dev-modal-titulo-label').textContent = tarefa ? 'Editar tarefa' : 'Nova tarefa';
-    document.getElementById('dev-m-titulo').value = tarefa ? tarefa.titulo : '';
-    document.getElementById('dev-m-descricao').value = tarefa ? tarefa.descricao : '';
-    document.getElementById('dev-m-status').value = tarefa ? tarefa.status : 'todo';
-    document.getElementById('dev-m-prioridade').value = tarefa ? tarefa.prioridade : 'media';
-    document.getElementById('dev-m-prazo').value = tarefa && tarefa.prazo ? tarefa.prazo : '';
-    document.getElementById('dev-m-tags').value = tarefa && tarefa.tags ? tarefa.tags.join(', ') : '';
-    document.getElementById('dev-m-link').value = tarefa ? (tarefa.link || '') : '';
-    document.getElementById('dev-m-atribuido').value = tarefa && tarefa.atribuido_a ? tarefa.atribuido_a : '';
-    document.getElementById('dev-btn-deletar-tarefa').classList.toggle('hidden', !tarefa);
-    document.getElementById('dev-andamento-wrap').classList.toggle('hidden', !tarefa);
-    document.getElementById('dev-checklist-wrap').classList.toggle('hidden', !tarefa);
-    document.getElementById('dev-comentarios-wrap').classList.toggle('hidden', !tarefa);
-    document.getElementById('dev-modal-tarefa').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-    document.getElementById('dev-m-titulo').focus();
-    if (tarefa) await Promise.all([devkCarregarChecklist(id), devkCarregarComentarios(id)]);
-}
-
-function devkFecharModal() {
-    document.getElementById('dev-modal-tarefa').classList.add('hidden');
-    document.body.style.overflow = '';
-    devkModalTarefaId = null;
-}
-
-function devkCamposModal(statusOverride, pausadoOverride) {
-    const tarefaAtual = devkModalTarefaId ? devkTarefas.find(t => t.id === devkModalTarefaId) : null;
-    const status = statusOverride !== undefined ? statusOverride : document.getElementById('dev-m-status').value;
-    // O destaque "Pausado" só faz sentido pra quem está em 'A Fazer' -- muda de status
-    // manualmente (sem passar pelos botões de Andamento) reseta o destaque.
-    const pausadoAtual = tarefaAtual ? !!tarefaAtual.pausado : false;
-    const pausado = pausadoOverride !== undefined ? pausadoOverride : (status === 'todo' ? pausadoAtual : false);
-    return {
-        titulo: document.getElementById('dev-m-titulo').value.trim(),
-        descricao: document.getElementById('dev-m-descricao').value,
-        status,
-        prioridade: document.getElementById('dev-m-prioridade').value,
-        prazo: document.getElementById('dev-m-prazo').value || null,
-        tags: document.getElementById('dev-m-tags').value.split(',').map(s => s.trim()).filter(Boolean),
-        link: document.getElementById('dev-m-link').value.trim(),
-        atribuido_a: document.getElementById('dev-m-atribuido').value ? parseInt(document.getElementById('dev-m-atribuido').value) : null,
-        pausado,
-    };
-}
-
-async function devkSalvarTarefaModal() {
-    const body = devkCamposModal();
-    if (!body.titulo) { document.getElementById('dev-m-titulo').focus(); return; }
-    if (devkModalTarefaId) {
-        await fetch(`/api/dev-tarefas/${devkModalTarefaId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    } else {
-        await fetch('/api/dev-tarefas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    }
-    devkFecharModal();
-    await devkCarregarTarefas();
-}
-
-// ── Andamento: iniciar / pausar / finalizar ──
-async function devkAndamentoAcao(novoStatus, pausado) {
-    if (!devkModalTarefaId) return;
-    const body = devkCamposModal(novoStatus, pausado);
-    if (!body.titulo) { document.getElementById('dev-m-titulo').focus(); return; }
-    await fetch(`/api/dev-tarefas/${devkModalTarefaId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    devkFecharModal();
-    await devkCarregarTarefas();
-}
-function devkIniciarTarefa() { devkAndamentoAcao('doing', false); }
-function devkPausarTarefa() { devkAndamentoAcao('todo', true); }
-function devkFinalizarTarefa() { devkAndamentoAcao('done', false); }
-
-// Mesmas 3 ações, só que direto no card do quadro -- sem abrir o modal.
-async function devkAcaoRapida(event, id, novoStatus, pausado) {
-    event.stopPropagation();
-    const tarefa = devkTarefas.find(t => t.id === id);
-    if (!tarefa) return;
-    const body = {
-        titulo: tarefa.titulo, descricao: tarefa.descricao, status: novoStatus,
-        prioridade: tarefa.prioridade, prazo: tarefa.prazo, tags: tarefa.tags || [],
-        link: tarefa.link || '', atribuido_a: tarefa.atribuido_a || null, pausado,
-    };
-    await fetch(`/api/dev-tarefas/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    await devkCarregarTarefas();
-}
-
-async function devkDeletarTarefaModal() {
-    if (!devkModalTarefaId || !confirm('Excluir esta tarefa?')) return;
-    await fetch(`/api/dev-tarefas/${devkModalTarefaId}`, { method: 'DELETE' });
-    devkFecharModal();
-    await devkCarregarTarefas();
-}
-
-// ── Checklist ──
-async function devkCarregarChecklist(tid) {
-    try {
-        const res = await fetch(`/api/dev-tarefas/${tid}/checklist`);
-        const itens = res.ok ? await res.json() : [];
-        const el = document.getElementById('dev-checklist-lista');
-        el.innerHTML = itens.length ? itens.map(i => `
-            <div class="flex items-center gap-2 group">
-                <input type="checkbox" ${i.concluido ? 'checked' : ''} onchange="devkToggleChecklistItem(${i.id}, this.checked)">
-                <span class="text-xs flex-1 ${i.concluido ? 'line-through text-slate-400' : 'text-slate-700'}">${devkEscapeHtml(i.texto)}</span>
-                <button onclick="devkDeletarChecklistItem(${i.id})" class="text-slate-300 hover:text-faiston-pink opacity-0 group-hover:opacity-100 transition-opacity"><i class="ph ph-x text-xs"></i></button>
-            </div>`).join('') : '<p class="text-xs text-slate-300">Sem itens</p>';
-        el.dataset.itens = JSON.stringify(itens);
-    } catch (e) {}
-}
-
-function devkItemTexto(iid) {
-    try {
-        const itens = JSON.parse(document.getElementById('dev-checklist-lista').dataset.itens || '[]');
-        const item = itens.find(i => i.id === iid);
-        return item ? item.texto : '';
-    } catch (e) { return ''; }
-}
-
-async function devkAdicionarChecklistItem() {
-    if (!devkModalTarefaId) return;
-    const input = document.getElementById('dev-checklist-novo');
-    const texto = input.value.trim();
-    if (!texto) return;
-    await fetch(`/api/dev-tarefas/${devkModalTarefaId}/checklist`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
-    input.value = '';
-    await devkCarregarChecklist(devkModalTarefaId);
-    await devkCarregarTarefas();
-}
-
-async function devkToggleChecklistItem(iid, concluido) {
-    const texto = devkItemTexto(iid);
-    await fetch(`/api/dev-tarefas/checklist/${iid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto, concluido }) });
-    await devkCarregarChecklist(devkModalTarefaId);
-    await devkCarregarTarefas();
-}
-
-async function devkDeletarChecklistItem(iid) {
-    await fetch(`/api/dev-tarefas/checklist/${iid}`, { method: 'DELETE' });
-    await devkCarregarChecklist(devkModalTarefaId);
-    await devkCarregarTarefas();
-}
-
-// ── Comentários ──
-async function devkCarregarComentarios(tid) {
-    try {
-        const res = await fetch(`/api/dev-tarefas/${tid}/comentarios`);
-        const coments = res.ok ? await res.json() : [];
-        const el = document.getElementById('dev-comentarios-lista');
-        el.innerHTML = coments.length ? coments.map(c => `
-            <div class="bg-slate-50 rounded-lg px-3 py-2 group relative">
-                <div class="flex items-center justify-between mb-0.5">
-                    <span class="text-xs font-semibold text-faiston-dark">${devkEscapeHtml(c.usuario_nome)}</span>
-                    <span class="text-[10px] text-slate-400">${c.criado_em}</span>
-                </div>
-                <p class="text-xs text-slate-600">${devkEscapeHtml(c.texto)}</p>
-                <button onclick="devkDeletarComentario(${c.id})" class="absolute top-1.5 right-1.5 text-slate-300 hover:text-faiston-pink opacity-0 group-hover:opacity-100 transition-opacity"><i class="ph ph-x text-xs"></i></button>
-            </div>`).join('') : '<p class="text-xs text-slate-300">Sem comentários</p>';
-    } catch (e) {}
-}
-
-async function devkAdicionarComentario() {
-    if (!devkModalTarefaId) return;
-    const input = document.getElementById('dev-comentario-novo');
-    const texto = input.value.trim();
-    if (!texto) return;
-    await fetch(`/api/dev-tarefas/${devkModalTarefaId}/comentarios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
-    input.value = '';
-    await devkCarregarComentarios(devkModalTarefaId);
-    await devkCarregarTarefas();
-}
-
-async function devkDeletarComentario(cid) {
-    await fetch(`/api/dev-tarefas/comentarios/${cid}`, { method: 'DELETE' });
-    await devkCarregarComentarios(devkModalTarefaId);
-    await devkCarregarTarefas();
 }
 
 async function scFiltrarPorN2(id) {
@@ -12279,6 +11798,9 @@ async function pn2SalvarDistribuicao() {
 </div>
 
 <script src="/js/faiston-erros.js"></script>
+<script src="/js/dev-kanban.js?v=3"></script>
+<script src="/js/dev-kanban-ia.js?v=1"></script>
+<script src="/js/dev-kanban-conexoes.js?v=1"></script>
 <script src="/assistente/widget.js?v=2"></script>
 <script src="/js/novidades.js?v=1"></script>
 </body>
