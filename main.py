@@ -988,8 +988,11 @@ app.include_router(service_desk_router)
 
 # Kanban da Área de Dev (extensões: foco do dia, IA, conexões). Tabela base fica em setup_banco().
 from app.devkanban.db import setup_schema as _setup_schema_devkanban
-from app.devkanban.foco import pontuar as _foco_pontuar
+from app.devkanban.foco import anexar as _foco_anexar
+from app.devkanban.db import listar_tarefas as _dk_listar_tarefas
 _setup_schema_devkanban()
+from app.devkanban.router import router as devkanban_router
+app.include_router(devkanban_router)
 
 # --- MODELOS ---
 class LoginRequest(BaseModel):
@@ -9385,40 +9388,9 @@ def dev_listar_tarefas(faiston_token: str = Cookie(None)):
     if not conn: raise HTTPException(status_code=500, detail="Banco offline")
     try:
         cur = conn.cursor()
-        cur.execute("""
-            SELECT t.id, t.titulo, t.descricao, t.status, t.ordem, t.prioridade, t.prazo, t.tags, t.link,
-                   t.criado_por, cp.nome, t.atribuido_a, at.nome,
-                   t.criado_em, t.atualizado_em,
-                   (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id),
-                   (SELECT COUNT(*) FROM dev_tarefa_checklist c WHERE c.tarefa_id = t.id AND c.concluido),
-                   (SELECT COUNT(*) FROM dev_tarefa_comentarios cm WHERE cm.tarefa_id = t.id),
-                   t.pausado, t.concluido_em, t.iniciado_em, t.origem, t.origem_ref, t.evento_id
-            FROM dev_tarefas t
-            LEFT JOIN usuarios cp ON cp.id = t.criado_por
-            LEFT JOIN usuarios at ON at.id = t.atribuido_a
-            ORDER BY t.status, t.ordem, t.criado_em
-        """)
-        out = [{
-            "id": r[0], "titulo": r[1], "descricao": r[2], "status": r[3], "ordem": r[4],
-            "prioridade": r[5], "prazo": r[6].isoformat() if r[6] else None, "tags": r[7] or [], "link": r[8],
-            "criado_por": r[9], "criado_por_nome": r[10],
-            "atribuido_a": r[11], "atribuido_a_nome": r[12],
-            "criado_em": r[13].strftime("%d/%m/%Y %H:%M") if r[13] else "",
-            "atualizado_em": r[14].strftime("%d/%m/%Y %H:%M") if r[14] else "",
-            "checklist_total": r[15], "checklist_concluidos": r[16], "comentarios_total": r[17],
-            "pausado": r[18],
-            "concluido_em": r[19].isoformat() if r[19] else None,
-            "iniciado_em": r[20].isoformat() if r[20] else None,
-            "atualizado_iso": r[14].isoformat() if r[14] else None,
-            "origem": r[21], "origem_ref": r[22], "evento_id": r[23],
-            "atualizado_dt": r[14], "iniciado_dt": r[20],
-        } for r in cur.fetchall()]
+        out = _dk_listar_tarefas(cur)
         cur.close(); conn.close()
-        hoje = date.today()
-        for t in out:
-            t["score"], t["motivos"] = _foco_pontuar(t, hoje)
-            t.pop("atualizado_dt"); t.pop("iniciado_dt")
-        return out
+        return _foco_anexar(out)
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/dev-tarefas")

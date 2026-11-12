@@ -88,3 +88,14 @@ def ranquear(tarefas: list[dict], limite: int = 5, hoje: Optional[date] = None) 
             pont.append(t)
     pont.sort(key=lambda t: (-t["score"], t.get("prazo") or "9999-12-31", t["id"]))
     return pont[:limite]
+
+
+def anexar(tarefas: list[dict], hoje: Optional[date] = None) -> list[dict]:
+    """Calcula score/motivos de cada tarefa e tira os campos datetime (não
+    serializáveis) que só serviam pra pontuar. Devolve a mesma lista."""
+    hoje = hoje or date.today()
+    for t in tarefas:
+        t["score"], t["motivos"] = pontuar(t, hoje)
+        t.pop("atualizado_dt", None)
+        t.pop("iniciado_dt", None)
+    return tarefas
